@@ -66,6 +66,7 @@ class LuacParserTest {
             0x00  // 整数标识
             // 缺少主代码块数据
         };
+
         ByteArrayInputStream is = new ByteArrayInputStream(data);
         LuacParser parser = new LuacParser();
         

@@ -17,7 +17,7 @@ class DecompilerTest {
     @Test
     void testDecompileVersionLua() throws IOException {
         // 直接使用文件路径
-        String filePath = "src/test/resource/version.lua";
+        String filePath = "src/test/resources/version.lua";
         File file = new File(filePath);
         assertNotNull(file, "version.lua file not found");
         assertTrue(file.exists(), "version.lua file does not exist");

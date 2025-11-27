@@ -110,19 +110,7 @@ public class BinaryReader {
      * @throws IOException IO异常
      */
     public String readLuaString() throws IOException {
-        // Lua字符串格式：
-        // - 如果长度 <= 253，则用1字节表示长度
-        // - 否则用5字节表示：0xFF + 4字节实际长度
-        // - 内容 + 1字节空终止符
-        int length;
-        byte firstByte = readByte();
-        if (firstByte == (byte) 0xFF) {
-            // 长字符串，读取4字节长度
-            length = readInt();
-        } else {
-            // 短字符串，使用1字节长度
-            length = firstByte & 0xFF;
-        }
+        int length = readInt();
         
         if (length == 0) {
             return "";

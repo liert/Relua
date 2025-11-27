@@ -30,13 +30,18 @@ public class ChunkParser {
         Chunk chunk = new Chunk();
         
         // 解析函数定义行号
+        int source = reader.readInt();
         chunk.setLineDefined(reader.readInt());
         chunk.setLastLineDefined(reader.readInt());
         
-        // 解析参数数量和可变参数标识
+        int nups = reader.readUnsignedByte();
         int numParams = reader.readUnsignedByte();
         int isVararg = reader.readUnsignedByte();
         int maxStackSize = reader.readUnsignedByte();
+        System.out.println("nups: " + nups);
+        System.out.println("numParams: " + numParams);
+        System.out.println("isVararg: " + isVararg);
+        System.out.println("maxStackSize: " + maxStackSize);
         
         chunk.setNumParams(numParams);
         chunk.setIsVararg(isVararg);
@@ -120,12 +125,15 @@ public class ChunkParser {
                 case 1: // boolean
                     boolean boolValue = reader.readByte() != 0;
                     return Constant.booleanConstant(boolValue);
-                case 2: // number
+                case 3: // number
                     double numValue = reader.readLuaNumber();
                     return Constant.number(numValue);
-                case 3: // string
+                case 4: // string
                     String strValue = reader.readLuaString();
                     return Constant.string(strValue);
+                case 9: // int <openwrt>
+                    int intValue = reader.readInt();
+                    return Constant.number(intValue);
                 default:
                     throw new IOException("Unknown constant type: " + type);
             }

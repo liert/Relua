@@ -15,7 +15,7 @@ public class Decompiler {
      */
     public Decompiler() {
         this.instructionHandler = new InstructionHandler();
-        this.codeGenerator = new LuaCodeGenerator();
+        this.codeGenerator = new LuaCodeGenerator(instructionHandler);
     }
 
     /**
