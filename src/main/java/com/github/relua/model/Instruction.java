@@ -21,7 +21,7 @@ public class Instruction {
         UNKNOWN
     }
 
-    private int code;          // 原始指令码
+    private long code;          // 原始指令码
     private Opcode opcode;     // 操作码
     private int a;             // 操作数A
     private int b;             // 操作数B
@@ -34,8 +34,9 @@ public class Instruction {
      * @param code 原始指令码
      */
     public Instruction(int code) {
-        this.code = code;
-        int opcodeValue = code & 0x3F;
+        // long ucode = 
+        this.code = code & 0xFFFFFFFFL;
+        int opcodeValue = (int)(code & 0x3F);
         try {
             this.opcode = Opcode.values()[opcodeValue];
         } catch (ArrayIndexOutOfBoundsException e) {
@@ -49,7 +50,7 @@ public class Instruction {
      * 解析操作数
      */
     private void decodeOperands() {
-        int code = this.code;
+        long ucode = this.code;
         Opcode op = this.opcode;
 
         switch (op) {
@@ -65,23 +66,23 @@ public class Instruction {
             case VARARG:
             case FORLOOP:
             case FORPREP:
-                a = (code >> 6) & 0xFF;
-                b = (code >> 23) & 0x1FF;
+                a = (int)(ucode >> 6) & 0xFF;
+                b = (int)(ucode >> 23) & 0x1FF;
                 c = 0;
                 break;
             case LOADK:
             case GETGLOBAL:
             case SETGLOBAL:
             case CLOSURE:
-                a = (code >> 6) & 0xFF;
-                bx = code >> 14;
+                a = (int)(ucode >> 6) & 0xFF;
+                bx = (int)(ucode >> 14);
                 break;
             case LOADBOOL:
             case TEST:
             case TESTSET:
-                a = (code >> 6) & 0xFF;
-                b = (code >> 23) & 0x1FF;
-                c = (code >> 15) & 0x1FF;
+                a = (int)(ucode >> 6) & 0xFF;
+                b = (int)(ucode >> 23) & 0x1FF;
+                c = (int)(ucode >> 15) & 0x1FF;
                 break;
             case GETTABLE:
             case SETTABLE:
@@ -98,28 +99,29 @@ public class Instruction {
             case CLOSE:
             case NEWTABLE:
             case SELF:
-                a = (code >> 6) & 0xFF;
-                b = (code >> 23) & 0x1FF;
-                c = (code >> 15) & 0x1FF;
+                a = (int)(ucode >> 6) & 0xFF;
+                b = (int)(ucode >> 23) & 0x1FF;
+                c = (int)(ucode >> 14) & 0xFF;
                 break;
             case EQ:
             case LT:
             case LE:
                 a = 0;
-                b = (code >> 23) & 0x1FF;
-                c = (code >> 15) & 0x1FF;
+                b = (int)(ucode >> 23) & 0x1FF;
+                c = (int)(ucode >> 15) & 0x1FF;
                 break;
             case JMP:
                 a = 0;
-                sbx = (code >> 14) - 1073741824;
+                System.out.println(ucode);
+                sbx = (int)(ucode >> 14) - 131071;
                 break;
             default:
                 // 处理未知操作码
-                a = (code >> 6) & 0xFF;
-                b = (code >> 23) & 0x1FF;
-                c = (code >> 15) & 0x1FF;
-                bx = code >> 14;
-                sbx = (code >> 14) - 1073741824;
+                a = (int)(ucode >> 6) & 0xFF;
+                b = (int)(ucode >> 23) & 0x1FF;
+                c = (int)(ucode >> 15) & 0x1FF;
+                bx = (int)(ucode >> 14);
+                sbx = (int)(ucode >> 14) - 1073741824;
                 break;
         }
     }
@@ -129,7 +131,7 @@ public class Instruction {
      * @return 原始指令码
      */
     public int getCode() {
-        return code;
+        return (int)code;
     }
 
     /**

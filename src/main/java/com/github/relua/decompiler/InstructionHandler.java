@@ -4,6 +4,7 @@ import com.github.relua.model.Chunk;
 import com.github.relua.model.Constant;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Instruction.Opcode;
+import com.github.relua.model.ValueType;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -129,13 +130,13 @@ public class InstructionHandler {
         buildBasicBlocks(chunk);
         
         // 先处理指令，建立寄存器状态映射
-        processInstructions(chunk);
+        // processInstructions(chunk);
         
         // 构建控制流图
-        buildControlFlowGraph(chunk);
+        // buildControlFlowGraph(chunk);
         
         // 分析控制流
-        analyzeControlFlow(chunk);
+        // analyzeControlFlow(chunk);
         
         // 递归处理子代码块
         for (Chunk subChunk : chunk.getSubChunks()) {
@@ -163,16 +164,17 @@ public class InstructionHandler {
             Opcode opcode = instructions.get(i).getOpcode();
             
             // 检查是否是基本块结束指令
-            if (isBlockEndInstruction(opcode)) {
-                // 如果是跳转指令，下一条指令是新的基本块
+            if (opcode == Opcode.RETURN) {
                 if (i + 1 < instructions.size()) {
                     currentBlock = new BasicBlock(i + 1);
                     basicBlocks.add(currentBlock);
                 }
+                System.out.println("RETURN指令: " + i);
             } else if (isJumpTargetInstruction(instructions, i)) {
                 // 如果当前指令是跳转目标，创建新的基本块
                 currentBlock = new BasicBlock(i);
                 basicBlocks.add(currentBlock);
+                System.out.println("跳转目标指令: " + i);
             }
         }
     }
@@ -196,10 +198,6 @@ public class InstructionHandler {
      * @return 是否是跳转目标
      */
     private boolean isJumpTargetInstruction(List<Instruction> instructions, int index) {
-        if (index == 0) {
-            return true; // 第一条指令总是跳转目标
-        }
-        
         // 检查前面的指令是否有跳转到当前指令的
         for (int i = 0; i < index; i++) {
             Instruction inst = instructions.get(i);
@@ -552,17 +550,17 @@ public class InstructionHandler {
             RegisterValueType type = RegisterValueType.UNKNOWN;
             
             // 确定常量类型
-            if (constant.getType() == Constant.Type.STRING) {
+            if (constant.getType() == ValueType.STRING) {
                 type = RegisterValueType.STRING;
                 // 去除引号
                 if (value.startsWith("\"") && value.endsWith("\"")) {
                     value = value.substring(1, value.length() - 1);
                 }
-            } else if (constant.getType() == Constant.Type.NUMBER) {
+            } else if (constant.getType() == ValueType.NUMBER) {
                 type = RegisterValueType.NUMBER;
-            } else if (constant.getType() == Constant.Type.BOOLEAN) {
+            } else if (constant.getType() == ValueType.BOOLEAN) {
                 type = RegisterValueType.BOOLEAN;
-            } else if (constant.getType() == Constant.Type.NIL) {
+            } else if (constant.getType() == ValueType.NIL) {
                 type = RegisterValueType.NIL;
             }
             

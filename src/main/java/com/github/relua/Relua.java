@@ -28,6 +28,7 @@ public class Relua {
         String outputFile = null;
         boolean showVersion = false;
         boolean showHelp = false;
+        boolean showBytecode = false;
         
         // 解析命令行参数
         for (int i = 0; i < args.length; i++) {
@@ -49,6 +50,10 @@ public class Relua {
                         System.err.println("Error: Missing output file path");
                         System.exit(1);
                     }
+                    break;
+                case "-b":
+                case "--bytecode":
+                    showBytecode = true;
                     break;
                 default:
                     if (arg.startsWith("-")) {
@@ -85,7 +90,7 @@ public class Relua {
         
         try {
             // 执行反编译
-            String luaCode = decompileFile(inputFile);
+            String luaCode = decompileFile(inputFile, showBytecode);
             
             // 输出结果
             if (outputFile != null) {
@@ -104,10 +109,11 @@ public class Relua {
     /**
      * 反编译Luac文件
      * @param inputFile 输入Luac文件路径
+     * @param showBytecode 是否显示字节码
      * @return 反编译后的Lua代码
      * @throws IOException IO异常
      */
-    private static String decompileFile(String inputFile) throws IOException {
+    private static String decompileFile(String inputFile, boolean showBytecode) throws IOException {
         // 创建解析器和反编译器
         LuacParser parser = new LuacParser();
         Decompiler decompiler = new Decompiler();
@@ -118,7 +124,7 @@ public class Relua {
         
         // 反编译
         System.out.println("Decompiling...");
-        return decompiler.decompile(luacFile);
+        return decompiler.decompile(luacFile, showBytecode);
     }
     
     /**
@@ -150,11 +156,13 @@ public class Relua {
         System.out.println();
         System.out.println("Options:");
         System.out.println("  -o, --output FILE    Write output to FILE instead of stdout");
+        System.out.println("  -b, --bytecode       Show bytecode instructions in output");
         System.out.println("  -v, --version        Show version information");
         System.out.println("  -h, --help           Show this help message");
         System.out.println();
         System.out.println("Examples:");
         System.out.println("  relua file.luac              Decompile file.luac to stdout");
         System.out.println("  relua -o file.lua file.luac  Decompile file.luac to file.lua");
+        System.out.println("  relua -b file.luac           Show bytecode instructions");
     }
 }

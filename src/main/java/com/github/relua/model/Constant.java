@@ -4,14 +4,7 @@ package com.github.relua.model;
  * Lua常量模型
  */
 public class Constant {
-    public enum Type {
-        NIL,
-        BOOLEAN,
-        NUMBER,
-        STRING
-    }
-
-    private Type type;
+    private ValueType type;
     private Object value;
 
     /**
@@ -19,7 +12,7 @@ public class Constant {
      * @param type 常量类型
      * @param value 常量值
      */
-    public Constant(Type type, Object value) {
+    public Constant(ValueType type, Object value) {
         this.type = type;
         this.value = value;
     }
@@ -29,7 +22,7 @@ public class Constant {
      * @return nil常量
      */
     public static Constant nil() {
-        return new Constant(Type.NIL, null);
+        return new Constant(ValueType.NIL, null);
     }
 
     /**
@@ -38,7 +31,7 @@ public class Constant {
      * @return 布尔常量
      */
     public static Constant booleanConstant(boolean value) {
-        return new Constant(Type.BOOLEAN, value);
+        return new Constant(ValueType.BOOLEAN, value);
     }
 
     /**
@@ -47,7 +40,7 @@ public class Constant {
      * @return 数字常量
      */
     public static Constant number(double value) {
-        return new Constant(Type.NUMBER, value);
+        return new Constant(ValueType.NUMBER, value);
     }
 
     /**
@@ -56,14 +49,14 @@ public class Constant {
      * @return 字符串常量
      */
     public static Constant string(String value) {
-        return new Constant(Type.STRING, value);
+        return new Constant(ValueType.STRING, value);
     }
 
     /**
      * 获取常量类型
      * @return 常量类型
      */
-    public Type getType() {
+    public ValueType getType() {
         return type;
     }
 
