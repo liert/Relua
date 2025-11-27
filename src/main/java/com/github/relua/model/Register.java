@@ -11,6 +11,14 @@ public class Register {
     public RegisterEntity R7 = new RegisterEntity(7, 0);
     public RegisterEntity R8 = new RegisterEntity(8, 0);
     public boolean jump = false;
+    public int ifDepth = 0; // if嵌套深度
+    public int[] jumpTargets; // 存储每个if块的跳转目标
+    public boolean[] hasElse; // 标记每个if块是否有else
+
+    public Register() {
+        jumpTargets = new int[10]; // 支持最多10层嵌套
+        hasElse = new boolean[10];
+    }
 
     public RegisterEntity getRegisterEntity(String index) {
         try {

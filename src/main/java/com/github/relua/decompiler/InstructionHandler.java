@@ -129,14 +129,14 @@ public class InstructionHandler {
         // 构建基本块
         buildBasicBlocks(chunk);
         
-        // 先处理指令，建立寄存器状态映射
-        // processInstructions(chunk);
-        
         // 构建控制流图
-        // buildControlFlowGraph(chunk);
+        buildControlFlowGraph(chunk);
         
         // 分析控制流
-        // analyzeControlFlow(chunk);
+        analyzeControlFlow(chunk);
+        
+        // 处理指令，建立寄存器状态映射
+        processInstructions(chunk);
         
         // 递归处理子代码块
         for (Chunk subChunk : chunk.getSubChunks()) {
@@ -323,9 +323,24 @@ public class InstructionHandler {
      * @param chunk 代码块
      */
     private void analyzeControlFlow(Chunk chunk) {
+        List<Instruction> instructions = chunk.getInstructions();
+        
         for (BasicBlock block : basicBlocks) {
-            // 识别if块
-            if (block.getSuccessors().size() == 2) {
+            // 检查块内是否包含条件指令，只有包含条件指令的块才可能是if块
+            boolean hasConditionInstruction = false;
+            for (int i = block.getStartIndex(); i <= block.getEndIndex(); i++) {
+                if (i < instructions.size()) {
+                    Opcode opcode = instructions.get(i).getOpcode();
+                    if (opcode == Opcode.TEST || opcode == Opcode.TESTSET || 
+                        opcode == Opcode.EQ || opcode == Opcode.LT || opcode == Opcode.LE) {
+                        hasConditionInstruction = true;
+                        break;
+                    }
+                }
+            }
+            
+            // 识别if块 - 只有当块包含条件指令且有两个后继时才标记为if块
+            if (hasConditionInstruction && block.getSuccessors().size() == 2) {
                 block.setIfBlock(true);
                 
                 // 识别else块
