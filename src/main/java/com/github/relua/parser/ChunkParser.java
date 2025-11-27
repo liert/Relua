@@ -67,9 +67,11 @@ public class ChunkParser {
      */
     private void parseInstructions(Chunk chunk) throws IOException {
         try {
+            // 读取指令数量，使用4字节int
             int instructionCount = reader.readInt();
             
             for (int i = 0; i < instructionCount; i++) {
+                // 读取指令，使用4字节int
                 int code = reader.readInt();
                 Instruction instruction = new Instruction(code);
                 chunk.addInstruction(instruction);
@@ -118,10 +120,10 @@ public class ChunkParser {
                 case 1: // boolean
                     boolean boolValue = reader.readByte() != 0;
                     return Constant.booleanConstant(boolValue);
-                case 3: // number
+                case 2: // number
                     double numValue = reader.readLuaNumber();
                     return Constant.number(numValue);
-                case 4: // string
+                case 3: // string
                     String strValue = reader.readLuaString();
                     return Constant.string(strValue);
                 default:

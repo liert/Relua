@@ -52,9 +52,10 @@ class BinaryReaderTest {
 
     @Test
     void testReadLuaString() throws IOException {
-        // Lua字符串格式：长度(4字节) + 内容 + 空字节
-        // 长度应该包括末尾的空字节，所以"Hello"的长度是6
-        byte[] data = {0x00, 0x00, 0x00, 0x06, 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x00};
+        // Lua 5.1字符串格式：
+        // 对于短字符串：1字节长度 + 内容 + 1字节空终止符
+        // "Hello"的长度是5，所以前缀是0x05
+        byte[] data = {0x05, 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x00};
         BinaryReader reader = new BinaryReader(new ByteArrayInputStream(data));
         assertEquals("Hello", reader.readLuaString());
     }

@@ -67,11 +67,15 @@ public class BinaryReader {
      * @throws IOException IO异常
      */
     public int readUnsignedShort() throws IOException {
-        int value = dis.readUnsignedShort();
+        byte[] bytes = new byte[2];
+        dis.readFully(bytes);
+        int value;
         if (isLittleEndian) {
-            value = swapShort((short) value);
+            value = (bytes[1] & 0xFF) << 8 | (bytes[0] & 0xFF);
+        } else {
+            value = (bytes[0] & 0xFF) << 8 | (bytes[1] & 0xFF);
         }
-        return value & 0xFFFF;
+        return value;
     }
 
     /**
@@ -106,15 +110,28 @@ public class BinaryReader {
      * @throws IOException IO异常
      */
     public String readLuaString() throws IOException {
-        // Lua字符串格式：长度(4字节) + 内容
-        int length = readInt();
+        // Lua字符串格式：
+        // - 如果长度 <= 253，则用1字节表示长度
+        // - 否则用5字节表示：0xFF + 4字节实际长度
+        // - 内容 + 1字节空终止符
+        int length;
+        byte firstByte = readByte();
+        if (firstByte == (byte) 0xFF) {
+            // 长字符串，读取4字节长度
+            length = readInt();
+        } else {
+            // 短字符串，使用1字节长度
+            length = firstByte & 0xFF;
+        }
+        
         if (length == 0) {
             return "";
         }
+        
         byte[] bytes = new byte[length];
         dis.readFully(bytes);
-        // 去除末尾的空字节
-        return new String(bytes, 0, length - 1, "UTF-8");
+        // 字符串内容不包含空终止符，直接返回
+        return new String(bytes, "UTF-8");
     }
 
     /**
@@ -123,7 +140,23 @@ public class BinaryReader {
      * @throws IOException IO异常
      */
     public double readLuaNumber() throws IOException {
-        return dis.readDouble();
+        byte[] bytes = new byte[8];
+        dis.readFully(bytes);
+        
+        // 处理大小端
+        if (isLittleEndian) {
+            // 小端转大端
+            for (int i = 0; i < 4; i++) {
+                byte temp = bytes[i];
+                bytes[i] = bytes[7 - i];
+                bytes[7 - i] = temp;
+            }
+        }
+        
+        // 使用DataInputStream从大端字节数组读取double
+        try (DataInputStream tempDis = new DataInputStream(new ByteArrayInputStream(bytes))) {
+            return tempDis.readDouble();
+        }
     }
 
     /**
