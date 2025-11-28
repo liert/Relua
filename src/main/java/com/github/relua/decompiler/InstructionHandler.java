@@ -22,7 +22,6 @@ import java.util.ArrayDeque;
  * 指令处理器，负责处理指令并构建中间表示
  */
 public class InstructionHandler {
-
     private List<BasicBlock> basicBlocks;
     private Map<Integer, BasicBlock> instructionToBlockMap;
     private Register[] inStates; // 每条指令执行前的寄存器状态
@@ -159,23 +158,27 @@ public class InstructionHandler {
         basicBlocks.add(currentBlock);
 
         for (int i = 0; i < instructions.size(); i++) {
-            // 如果当前指令是跳转目标，创建新的基本块
-            if (isJumpTarget[i] && i > 0) {
-                currentBlock = new BasicBlock(i);
-                basicBlocks.add(currentBlock);
+            if (instructionToBlockMap.containsKey(i)) {
+                currentBlock = instructionToBlockMap.get(i);
+            } else {
+                // 如果当前指令是跳转目标，创建新的基本块
+                if (isJumpTarget[i] && i > 0) {
+                    currentBlock = new BasicBlock(i);
+                    basicBlocks.add(currentBlock);
+                }
+                instructionToBlockMap.put(i, currentBlock);
             }
+            currentBlock.setEndIndex(i);
 
             Opcode opcode = instructions.get(i).getOpcode();
             System.out.println(String.format("[%s] : %s", i, opcode.toString()));
-
-            instructionToBlockMap.put(i, currentBlock);
-            currentBlock.setEndIndex(i);
 
             // 检查是否是基本块结束指令
             if (isBlockEndInstruction(opcode)) {
                 if (i + 1 < instructions.size()) {
                     currentBlock = new BasicBlock(i + 1);
                     basicBlocks.add(currentBlock);
+                    instructionToBlockMap.put(i + 1, currentBlock);
                 }
             }
         }
@@ -211,9 +214,6 @@ public class InstructionHandler {
             if (opcode == Opcode.JMP) {
                 int target = i + 1 + inst.getSBx();
                 addEdge(currentBlock, target);
-
-                // NEVER add fallthrough for JMP
-                continue;
             } else if (opcode == Opcode.TEST || opcode == Opcode.TESTSET) {
                 // TEST always followed by JMP in if/else patterns
                 if (i + 1 < instructions.size() && instructions.get(i + 1).getOpcode() == Opcode.JMP) {

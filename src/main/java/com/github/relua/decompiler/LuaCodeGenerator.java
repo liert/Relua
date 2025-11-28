@@ -67,6 +67,8 @@ public class LuaCodeGenerator {
         System.out.println("生成AST代码...");
         generateASTCode(chunk, context);
 
+        // generateBasicBlocksCode(registerManager, chunk, context);
+
         // 生成子代码块
         System.out.println("生成子代码块...");
         generateSubChunks(registerManager, chunk, context);
