@@ -2,6 +2,7 @@ package com.github.relua.decompiler;
 
 import com.github.relua.model.LuacFile;
 import com.github.relua.model.Chunk;
+import com.github.relua.model.Instruction;
 
 /**
  * 反编译器主类
@@ -71,177 +72,15 @@ public class Decompiler {
         // 输出指令列表（R0 = xx格式）
         sb.append("-- Register Operations:\n");
         int index = 0;
-        for (com.github.relua.model.Instruction instruction : chunk.getInstructions()) {
-            sb.append(String.format("%4d: %s ", index++, instruction.getOpcode().name()));
-            generateRegisterOperation(chunk, instruction, sb);
+        for (Instruction instruction : chunk.getInstructions()) {
+            sb.append(BytecodeFormatter.formatInstruction(chunk, instruction, index++));
             sb.append("\n");
         }
         
         return sb.toString();
     }
     
-    /**
-     * 生成寄存器操作格式的指令输出
-     * @param chunk 代码块
-     * @param instruction 指令
-     * @param sb 字符串构建器
-     */
-    private void generateRegisterOperation(Chunk chunk, com.github.relua.model.Instruction instruction, StringBuilder sb) {
-        com.github.relua.model.Instruction.Opcode opcode = instruction.getOpcode();
-        int a = instruction.getA();
-        int b = instruction.getB();
-        int c = instruction.getC();
-        int bx = instruction.getBx();
-        int sbx = instruction.getSBx();
-        
-        switch (opcode) {
-            case MOVE:
-                sb.append(String.format("R%d = R%d", a, b));
-                break;
-            case LOADK:
-                com.github.relua.model.Constant constant = chunk.getConstant(bx);
-                if (constant != null) {
-                    sb.append(String.format("R%d = %s", a, constant.toString()));
-                } else {
-                    sb.append(String.format("R%d = nil -- Unknown constant index %d", a, bx));
-                }
-                break;
-            case LOADBOOL:
-                sb.append(String.format("R%d = %b", a, b != 0));
-                break;
-            case LOADNIL:
-                for (int i = a; i <= b; i++) {
-                    if (i > a) sb.append("; ");
-                    sb.append(String.format("R%d = nil", i));
-                }
-                break;
-            case GETGLOBAL:
-                constant = chunk.getConstant(bx);
-                if (constant != null) {
-                    sb.append(String.format("R%d = %s", a, constant.getValue()));
-                } else {
-                    sb.append(String.format("R%d = nil -- Unknown global index %d", a, bx));
-                }
-                break;
-            case SETGLOBAL:
-                constant = chunk.getConstant(bx);
-                if (constant != null) {
-                    sb.append(String.format("%s = R%d", constant.getValue(), a));
-                } else {
-                    sb.append(String.format("-- Unknown global index %d = R%d", bx, a));
-                }
-                break;
-            case GETUPVAL:
-                sb.append(String.format("R%d = UpValue[%d]", a, b));
-                break;
-            case SETUPVAL:
-                sb.append(String.format("UpValue[%d] = R%d", b, a));
-                break;
-            case GETTABLE:
-                sb.append(String.format("R%d = R%d[R%d]", a, b, c));
-                break;
-            case SETTABLE:
-                sb.append(String.format("R%d[R%d] = R%d", a, b, c));
-                break;
-            case ADD:
-                sb.append(String.format("R%d = R%d + R%d", a, b, c));
-                break;
-            case SUB:
-                sb.append(String.format("R%d = R%d - R%d", a, b, c));
-                break;
-            case MUL:
-                sb.append(String.format("R%d = R%d * R%d", a, b, c));
-                break;
-            case DIV:
-                sb.append(String.format("R%d = R%d / R%d", a, b, c));
-                break;
-            case MOD:
-                sb.append(String.format("R%d = R%d %% R%d", a, b, c));
-                break;
-            case POW:
-                sb.append(String.format("R%d = R%d ^ R%d", a, b, c));
-                break;
-            case UNM:
-                sb.append(String.format("R%d = -R%d", a, b));
-                break;
-            case NOT:
-                sb.append(String.format("R%d = not R%d", a, b));
-                break;
-            case LEN:
-                sb.append(String.format("R%d = #R%d", a, b));
-                break;
-            case CONCAT:
-                sb.append(String.format("R%d = R%d .. R%d", a, b, c));
-                break;
-            case JMP:
-                sb.append(String.format("goto %d", sbx));
-                break;
-            case EQ:
-                sb.append(String.format("if R%d == R%d then goto %d", b, c, sbx));
-                break;
-            case LT:
-                sb.append(String.format("if R%d < R%d then goto %d", b, c, sbx));
-                break;
-            case LE:
-                sb.append(String.format("if R%d <= R%d then goto %d", b, c, sbx));
-                break;
-            case TEST:
-                sb.append(String.format("if R%d %s then goto %d", a, (c == 0 ? "== false" : "== true"), sbx));
-                break;
-            case TESTSET:
-                sb.append(String.format("if R%d %s then R%d = R%d; goto %d", c, (b == 0 ? "== false" : "== true"), a, c, sbx));
-                break;
-            case CALL:
-                sb.append(String.format("R%d = R%d(...) -- b=%d, c=%d", a, a, b, c));
-                break;
-            case TAILCALL:
-                sb.append(String.format("tailcall R%d(...) -- b=%d, c=%d", a, b, c));
-                break;
-            case RETURN:
-                if (b == 0) {
-                    sb.append("return");
-                } else if (b == 1) {
-                    sb.append(String.format("return R%d", a));
-                } else {
-                    sb.append("return ");
-                    for (int i = a; i < a + b; i++) {
-                        if (i > a) sb.append(", ");
-                        sb.append(String.format("R%d", i));
-                    }
-                }
-                break;
-            case FORLOOP:
-                sb.append(String.format("forloop R%d, R%d, R%d, R%d -- sBx=%d", a, a+1, a+2, a+3, sbx));
-                break;
-            case FORPREP:
-                sb.append(String.format("forprep R%d, R%d, R%d, R%d -- sBx=%d", a, a+1, a+2, a+3, sbx));
-                break;
-            case TFORLOOP:
-                sb.append(String.format("tforloop R%d, R%d -- b=%d, c=%d", a, a+1, b, c));
-                break;
-            case SETLIST:
-                sb.append(String.format("setlist R%d, R%d -- b=%d, c=%d", a, b, b, c));
-                break;
-            case CLOSE:
-                sb.append(String.format("close R%d", a));
-                break;
-            case CLOSURE:
-                sb.append(String.format("R%d = closure(%d)", a, bx));
-                break;
-            case VARARG:
-                sb.append(String.format("R%d = vararg() -- b=%d", a, b));
-                break;
-            case NEWTABLE:
-                sb.append(String.format("R%d = {}", a));
-                break;
-            case SELF:
-                sb.append(String.format("R%d, R%d = R%d, R%d", a, a+1, b, c));
-                break;
-            default:
-                sb.append(instruction.toString());
-                break;
-        }
-    }
+
 
     /**
      * 获取指令处理器

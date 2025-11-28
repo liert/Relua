@@ -9,6 +9,10 @@ import com.github.relua.model.Instruction.Opcode;
 import com.github.relua.model.Register;
 import com.github.relua.model.ValueType;
 import com.github.relua.model.Register.RegisterEntity;
+import com.github.relua.decompiler.BasicBlock;
+import com.github.relua.decompiler.IfElsePattern;
+import com.github.relua.decompiler.ASTNode;
+import com.github.relua.decompiler.PseudoCodeGenerator;
 
 import java.util.List;
 import java.util.Map;
@@ -43,32 +47,67 @@ public class LuaCodeGenerator {
      * @return 生成的Lua代码
      */
     public String generate(Chunk chunk) {
+        System.out.println("=== 开始处理Chunk ===");
+        System.out.println("Chunk信息: lineDefined=" + chunk.getLineDefined() + ", lastLineDefined=" + chunk.getLastLineDefined() + ", numParams=" + chunk.getNumParams() + ", isVararg=" + chunk.getIsVararg() + ", maxStackSize=" + chunk.getMaxStackSize());
+        
         // 先让指令处理器处理代码块，建立控制流和变量映射
+        System.out.println("调用instructionHandler.processChunk(chunk)...");
         instructionHandler.processChunk(chunk);
+        System.out.println("instructionHandler.processChunk(chunk)执行完成");
 
         // 创建代码生成上下文
         CodeGeneratorContext context = new CodeGeneratorContext();
         RegisterManager registerManager = new RegisterManager();
 
         // 生成代码块头部信息
+        System.out.println("生成代码块头部信息...");
         generateChunkHeader(chunk, context);
 
-        // 生成指令代码（使用基本块信息）
-        generateBasicBlocksCode(registerManager, chunk, context);
+        // 生成指令代码（使用AST）
+        System.out.println("生成AST代码...");
+        generateASTCode(chunk, context);
 
         // 生成子代码块
+        System.out.println("生成子代码块...");
         generateSubChunks(registerManager, chunk, context);
 
         // 关闭所有未结束的控制流结构
+        System.out.println("关闭所有未结束的控制流结构...");
         context.closeAllControlFlow();
 
+        System.out.println("=== Chunk处理完成 ===");
         return context.generateCode();
+    }
+    
+    /**
+     * 生成AST代码
+     * 
+     * @param chunk   代码块
+     * @param context 代码生成上下文
+     */
+    private void generateASTCode(Chunk chunk, CodeGeneratorContext context) {
+        // 获取指令处理器生成的AST
+        ASTNode ast = instructionHandler.generateASTFromChunk(chunk);
+        
+        // 创建伪代码生成器
+        PseudoCodeGenerator pseudoCodeGenerator = new PseudoCodeGenerator();
+        
+        // 生成伪代码
+        String pseudoCode = pseudoCodeGenerator.generatePseudoCode(ast);
+        
+        // 将伪代码添加到上下文
+        String[] lines = pseudoCode.split("\\n");
+        for (String line : lines) {
+            if (!line.trim().isEmpty()) {
+                context.addCodeLine(line);
+            }
+        }
     }
 
     /**
      * 生成代码块头部信息
      * 
-     * @param chunk 代码块
+     * @param chunk   代码块
      * @param context 代码生成上下文
      */
     private void generateChunkHeader(Chunk chunk, CodeGeneratorContext context) {
@@ -86,11 +125,65 @@ public class LuaCodeGenerator {
      * @param context         代码生成上下文
      */
     private void generateBasicBlocksCode(RegisterManager registerManager, Chunk chunk, CodeGeneratorContext context) {
-        // 初始化寄存器
-        registerManager.addRegister(0, new Register());
+        List<BasicBlock> basicBlocks = instructionHandler.getBasicBlocks();
+        System.out.println("获取到的基本块数量: " + basicBlocks.size());
         
-        // 直接生成指令，不使用基本块，避免基本块分析错误
-        generateInstructions(registerManager, chunk, context);
+        if (basicBlocks.isEmpty()) {
+            // 如果没有基本块信息，回退到原始的指令生成方式
+            System.out.println("没有基本块信息，回退到原始指令生成方式");
+            generateInstructions(registerManager, chunk, context);
+            return;
+        }
+
+        // 按顺序生成每个基本块的代码
+        for (int i = 0; i < basicBlocks.size(); i++) {
+            BasicBlock block = basicBlocks.get(i);
+            
+            System.out.println("\n=== 开始处理基本块 " + i + " ===");
+            System.out.println("基本块类型: " + (block.isIfBlock() ? "IF_BLOCK" : (block.isLoopBlock() ? "LOOP_BLOCK" : "NORMAL_BLOCK")));
+            System.out.println("基本块范围: [" + block.getStartIndex() + ", " + block.getEndIndex() + "]");
+            System.out.println("前驱数量: " + block.getPredecessors().size() + ", 后继数量: " + block.getSuccessors().size());
+            System.out.print("前驱: [");
+            for (int j = 0; j < block.getPredecessors().size(); j++) {
+                BasicBlock pred = block.getPredecessors().get(j);
+                int predId = basicBlocks.indexOf(pred);
+                System.out.print(predId);
+                if (j < block.getPredecessors().size() - 1) {
+                    System.out.print(", ");
+                }
+            }
+            System.out.println("]");
+            // 显示后继基本块id
+            System.out.print("后继: [");
+            for (int j = 0; j < block.getSuccessors().size(); j++) {
+                BasicBlock succ = block.getSuccessors().get(j);
+                int succId = basicBlocks.indexOf(succ);
+                System.out.print(succId);
+                if (j < block.getSuccessors().size() - 1) {
+                    System.out.print(", ");
+                }
+            }
+            System.out.println("]");
+            
+            // 跳过空的基本块
+            if (block.getStartIndex() > block.getEndIndex()) {
+                System.out.println("跳过空基本块");
+                continue;
+            }
+            
+            // 使用InstructionHandler为每个基本块计算好的寄存器状态
+            
+            Register blockRegister = instructionHandler.mergePredecessors(block);
+            System.out.println("基本块寄存器状态: " + blockRegister);
+            registerManager.addRegister(i, blockRegister);
+            
+            // 生成基本块代码
+            generateBasicBlockCode(registerManager, chunk, block, context);
+
+            block.setOutputState(blockRegister);
+
+            System.out.println("=== 基本块 " + i + " 处理完成 ===");
+        }
     }
 
     /**
@@ -101,10 +194,11 @@ public class LuaCodeGenerator {
      * @param block           基本块
      * @param context         代码生成上下文
      */
-    private void generateBasicBlockCode(RegisterManager registerManager, Chunk chunk, InstructionHandler.BasicBlock block,
+    private void generateBasicBlockCode(RegisterManager registerManager, Chunk chunk,
+            BasicBlock block,
             CodeGeneratorContext context) {
         List<Instruction> instructions = chunk.getInstructions();
-        
+
         // 检查基本块类型，生成相应的控制流语句
         if (block.isIfBlock()) {
             // 只对包含TEST或TESTSET指令的块生成if语句
@@ -112,14 +206,14 @@ public class LuaCodeGenerator {
             for (int i = block.getStartIndex(); i <= block.getEndIndex(); i++) {
                 if (i < instructions.size()) {
                     Opcode opcode = instructions.get(i).getOpcode();
-                    if (opcode == Opcode.TEST || opcode == Opcode.TESTSET || 
-                        opcode == Opcode.EQ || opcode == Opcode.LT || opcode == Opcode.LE) {
+                    if (opcode == Opcode.TEST || opcode == Opcode.TESTSET ||
+                            opcode == Opcode.EQ || opcode == Opcode.LT || opcode == Opcode.LE) {
                         hasTestInstruction = true;
                         break;
                     }
                 }
             }
-            
+
             if (hasTestInstruction) {
                 generateIfBlockCode(registerManager, chunk, block, context);
             } else {
@@ -150,8 +244,7 @@ public class LuaCodeGenerator {
      * @param block           基本块
      * @param context         代码生成上下文
      */
-    private void generateIfBlockCode(RegisterManager registerManager, Chunk chunk, InstructionHandler.BasicBlock block,
-            CodeGeneratorContext context) {
+    private void generateIfBlockCode(RegisterManager registerManager, Chunk chunk, BasicBlock block, CodeGeneratorContext context) {
         List<Instruction> instructions = chunk.getInstructions();
         
         // 查找块内的条件指令
@@ -169,23 +262,16 @@ public class LuaCodeGenerator {
         
         // 只有当找到条件指令时才生成if语句
         if (conditionInstruction != null) {
-            // 生成if条件
-            String condition = "true";
-            int condReg = block.getConditionRegister();
-            if (condReg != -1) {
-                condition = getRegisterName(condReg, block.getStartIndex());
+            // 使用InstructionHandler的detectIfElse方法检测if-else结构
+            IfElsePattern pattern = instructionHandler.detectIfElse(block, chunk);
+            
+            if (pattern != null) {
+                // 是if-else结构，生成正确的if-else代码
+                generateIfElseCode(registerManager, chunk, pattern, context);
+            } else {
+                // 不是if-else结构，生成普通的if代码
+                generateSimpleIfCode(registerManager, chunk, block, conditionInstruction, context);
             }
-            context.addIfStatement(condition);
-
-            // 生成if块内的代码 - 从条件指令之后开始处理
-            for (int i = block.getStartIndex() + 1; i <= block.getEndIndex(); i++) {
-                if (i < instructions.size()) {
-                    generateInstruction(registerManager, chunk, instructions.get(i), i, context);
-                }
-            }
-
-            // 生成endif
-            context.addEndStatement();
         } else {
             // 如果没有条件指令，按普通块处理
             for (int i = block.getStartIndex(); i <= block.getEndIndex(); i++) {
@@ -197,12 +283,77 @@ public class LuaCodeGenerator {
     }
     
     /**
+     * 生成if-else结构的代码
+     */
+    private void generateIfElseCode(RegisterManager registerManager, Chunk chunk, IfElsePattern pattern, CodeGeneratorContext context) {
+        // 生成if条件
+        Instruction conditionInstruction = instructionHandler.getLastInstruction(pattern.testBlock, chunk);
+        Register blockRegister = pattern.testBlock.getOutputState();
+        String ifCode = generateIfCode(blockRegister, chunk, conditionInstruction, pattern.testBlock.getStartIndex());
+        String condition = ifCode.substring(3, ifCode.length() - 5);
+        context.addIfStatement(condition);
+        
+        // 生成then块代码
+        generateBasicBlockCode(registerManager, chunk, pattern.thenBlock, context);
+        
+        // 生成else块代码
+        context.addElseStatement();
+        generateBasicBlockCode(registerManager, chunk, pattern.elseBlock, context);
+        
+        // 生成endif
+        context.addEndStatement();
+    }
+    
+    /**
+     * 生成普通if结构的代码
+     */
+    private void generateSimpleIfCode(RegisterManager registerManager, Chunk chunk, BasicBlock block, Instruction conditionInstruction, CodeGeneratorContext context) {
+        List<Instruction> instructions = chunk.getInstructions();
+        
+        // 使用InstructionHandler为当前块计算好的寄存器状态生成准确的if条件
+        Register blockRegister = block.getOutputState();
+        String ifCode = generateIfCode(blockRegister, chunk, conditionInstruction, block.getStartIndex());
+        String condition = ifCode.substring(3, ifCode.length() - 5);
+        context.addIfStatement(condition);
+
+        // 生成if块内的代码 - 处理条件指令后的指令
+        for (int i = block.getStartIndex() + 1; i <= block.getEndIndex(); i++) {
+            if (i < instructions.size()) {
+                generateInstruction(registerManager, chunk, instructions.get(i), i, context);
+            }
+        }
+
+        // 生成else块（如果有）
+        List<BasicBlock> successors = block.getSuccessors();
+        if (successors.size() > 1) {
+            // 第一个后继是if分支，第二个是else分支
+            BasicBlock trueBlock = successors.get(0);
+            BasicBlock falseBlock = successors.get(1);
+            
+            // 如果false分支不是if分支的直接延续，生成else
+            if (falseBlock.getStartIndex() != block.getEndIndex() + 1) {
+                context.addElseStatement();
+                
+                // 生成else块内的代码，使用falseBlock的寄存器状态
+                Register falseBlockRegister = falseBlock.getOutputState();
+                registerManager.addRegister(falseBlock.getStartIndex(), falseBlockRegister);
+                generateBasicBlockCode(registerManager, chunk, falseBlock, context);
+            }
+        }
+
+        // 生成endif
+        context.addEndStatement();
+    }
+
+    /**
      * 检查基本块是否是跳转目标
-     * @param block 基本块
+     * 
+     * @param block       基本块
      * @param basicBlocks 所有基本块列表
      * @return 是否是跳转目标
      */
-    private boolean isJumpTargetBlock(InstructionHandler.BasicBlock block, List<InstructionHandler.BasicBlock> basicBlocks) {
+    private boolean isJumpTargetBlock(BasicBlock block,
+            List<BasicBlock> basicBlocks) {
         // 简化判断：如果基本块有多个前驱，可能是跳转目标
         return block.getPredecessors().size() > 1;
     }
@@ -216,12 +367,26 @@ public class LuaCodeGenerator {
      * @param context         代码生成上下文
      */
     private void generateLoopBlockCode(RegisterManager registerManager, Chunk chunk,
-            InstructionHandler.BasicBlock block,
+            BasicBlock block,
             CodeGeneratorContext context) {
         List<Instruction> instructions = chunk.getInstructions();
 
-        // 简单生成while循环框架
-        context.addCodeLine("while true do", CodeLine.CodeType.LOOP);
+        // 检查循环的第一条指令，确定循环类型
+        Instruction firstInstruction = instructions.get(block.getStartIndex());
+        Opcode opcode = firstInstruction.getOpcode();
+        
+        if (opcode == Opcode.FORLOOP || opcode == Opcode.FORPREP) {
+            // 这是for循环，暂时生成while循环框架
+            context.addCodeLine("while true do", CodeLine.CodeType.LOOP);
+        } else if (opcode == Opcode.TFORLOOP) {
+            // 这是泛型for循环，暂时生成while循环框架
+            context.addCodeLine("while true do", CodeLine.CodeType.LOOP);
+        } else {
+            // 这是while循环，需要找到循环条件
+            // 暂时生成while true do，后续可以根据循环条件优化
+            context.addCodeLine("while true do", CodeLine.CodeType.LOOP);
+        }
+        
         context.increaseIndent();
 
         // 生成循环体代码
@@ -247,19 +412,39 @@ public class LuaCodeGenerator {
      */
     private void generateInstruction(RegisterManager registerManager, Chunk chunk, Instruction instruction, int index, CodeGeneratorContext context) {
         Opcode opcode = instruction.getOpcode();
-        String code = generateInstructionCode(registerManager, chunk, instruction, index);
+        Register currentRegister = registerManager.getCurrentRegister();
         
+        System.out.println("\n--- 处理指令 " + index + " --- ");
+        System.out.println("指令: " + opcode.name() + ", A=" + instruction.getA() + ", B=" + instruction.getB() + ", C=" + instruction.getC() + ", Bx=" + instruction.getBx() + ", sBx=" + instruction.getSBx());
+        System.out.println("当前寄存器状态: " + currentRegister);
+
+        String code = generateInstructionCode(registerManager, chunk, instruction, index);
+        System.out.println("生成的指令代码: '" + code + "'");
+
+        if (opcode == Opcode.JMP) {
+            // 处理JMP指令，不生成代码，但更新控制流状态
+            int sbx = instruction.getSBx();
+            int jumpTarget = index + 1 + sbx;
+            System.out.println("JMP指令，跳转目标: " + jumpTarget);
+
+            // JMP指令不直接生成else，else生成由基本块分析处理
+            return;
+        }
+
         if (!code.isEmpty()) {
             // 对于if指令，直接使用上下文添加if语句，以便更新控制流栈
             if (code.startsWith("if ") && code.endsWith(" then")) {
                 String condition = code.substring(3, code.length() - 5);
+                System.out.println("添加if语句，条件: '" + condition + "'");
                 context.addIfStatement(condition);
+                // 不再使用register.ifDepth，改为使用context的控制流栈
             } else {
+                System.out.println("添加代码行: '" + code + "'");
                 context.addCodeLine(code);
             }
         }
     }
-    
+
     /**
      * 生成缩进的指令代码（已废弃，使用generateInstruction代替）
      * 
@@ -289,6 +474,12 @@ public class LuaCodeGenerator {
      */
     private void generateInstructions(RegisterManager registerManager, Chunk chunk, CodeGeneratorContext context) {
         List<Instruction> instructions = chunk.getInstructions();
+
+        // 确保寄存器管理器有默认寄存器
+        if (registerManager.getCurrentRegister() == null) {
+            registerManager.addRegister(0, new Register());
+        }
+
         for (int i = 0; i < instructions.size(); i++) {
             generateInstruction(registerManager, chunk, instructions.get(i), i, context);
         }
@@ -301,7 +492,8 @@ public class LuaCodeGenerator {
      * @param instruction 指令
      * @param index       指令索引
      */
-    private String generateInstructionCode(RegisterManager registerManager, Chunk chunk, Instruction instruction, int index) {
+    private String generateInstructionCode(RegisterManager registerManager, Chunk chunk, Instruction instruction,
+            int index) {
         Opcode opcode = instruction.getOpcode();
         Register currentRegister = registerManager.getCurrentRegister();
         String result = "";
@@ -527,10 +719,10 @@ public class LuaCodeGenerator {
     /**
      * 生成函数调用代码
      * 
+     * @param register         寄存器（兼容旧代码，实际使用InstructionHandler的状态）
      * @param chunk            代码块
      * @param instruction      指令
      * @param instructionIndex 指令索引
-     * @param sb               字符串构建器
      */
     private String generateCallCode(Register register, Chunk chunk, Instruction instruction,
             int instructionIndex) {
@@ -538,16 +730,12 @@ public class LuaCodeGenerator {
         int a = instruction.getA();
         int b = instruction.getB();
         int c = instruction.getC();
-        RegisterEntity RA = register.getRegisterEntity(a);
 
-        // 从寄存器状态获取函数名和类型
-        String funcName = RA.getValue().toString();
+        // 使用RegisterEntity的getValue方法获取函数名
+        String funcName = register.getRegisterEntity(a).getValue().toString();
 
         // 生成函数调用 func(arg1, arg2, ...)
         StringBuilder funcCall = new StringBuilder();
-
-        
-
         funcCall.append(String.format("%s(", funcName));
 
         // 生成参数
@@ -555,17 +743,12 @@ public class LuaCodeGenerator {
             for (int i = a + 1; i < a + b; i++) {
                 if (i > a + 1)
                     funcCall.append(", ");
-                funcCall.append(getArgumentValue(register.getRegisterEntity(i), chunk, i, instructionIndex));
+                funcCall.append(register.getRegisterEntity(i).getValue().toString());
             }
         }
         funcCall.append(")");
 
-        System.out.println("c = " + c);
-
-        if (c == 0) {
-            return funcCall.toString();
-        }
-        if (c == 1) {
+        if (c == 0 || c == 1) {
             return funcCall.toString();
         }
 
@@ -575,13 +758,10 @@ public class LuaCodeGenerator {
         if (c >= 2) {
             for (int i = a; i < a + c - 1; i++) {
                 if (i == a + c - 2) {
-                    args.append(String.format("%s", getRegisterName(i, instructionIndex)));
+                    args.append(String.format("%s", register.getRegisterEntity(i).getName()));
                 } else {
-                    args.append(String.format("%s, ", getRegisterName(i, instructionIndex)));
+                    args.append(String.format("%s, ", register.getRegisterEntity(i).getName()));
                 }
-                RegisterEntity registerEntity = register.getRegisterEntity(i);
-                registerEntity.setType(ValueType.FUNCTION);
-                registerEntity.setValue(funcCall);
             }
         }
 
@@ -651,9 +831,9 @@ public class LuaCodeGenerator {
         // OP_JMP sBx pc+=sBx
         int sbx = instruction.getSBx();
         int jumpTarget = instructionIndex + 1 + sbx;
-        
+
         System.out.println("sbx = " + sbx + ", jumpTarget = " + jumpTarget);
-        
+
         if (register.jump) {
             // 处理if语句后的第一个跳转，记录跳转目标
             register.jump = false;
@@ -675,12 +855,149 @@ public class LuaCodeGenerator {
      * @return
      */
     private String generateIfCode(Register register, Chunk chunk, Instruction instruction, int instructionIndex) {
+        // OP_TEST  A C	if not (R(A) <=> C) then pc++
+        // 使用InstructionHandler的寄存器状态，而不是传入的register参数
+        Register currentRegister = instructionHandler.getRegisterByInstructionIndex(instructionIndex);
+        
         int a = instruction.getA();
         int c = instruction.getC();
-
-        String jumpCode = String.format("if %s then", register.getRegisterEntity(a).getValue());
+        Opcode opcode = instruction.getOpcode();
+        String condition;
+        
+        if (opcode == Opcode.TEST || opcode == Opcode.TESTSET) {
+            // TEST指令：if not (R(A) <=> C) then pc += sBx
+            // 更准确的理解：
+            // C=0: 希望R(A)为true，如果R(A)==false→跳过 → 生成 "if R(A) then"
+            // C=1: 希望R(A)为false，如果R(A)==true→跳过 → 生成 "if not R(A) then"
+            String regName = instructionHandler.getRegisterName(a, instructionIndex);
+            
+            // 根据C值生成正确的条件表达式
+            if (c == 0) {
+                // C=0: if R(A) then
+                condition = regName;
+            } else {
+                // C=1: if not R(A) then
+                condition = String.format("not %s", regName);
+            }
+        } else if (opcode == Opcode.EQ) {
+            // EQ指令：if R(B) ~= RK(C) then pc += sBx
+            // 生成的条件应该是 R(B) == RK(C)
+            String regB = instructionHandler.getRegisterName(instruction.getB(), instructionIndex);
+            String regC = instructionHandler.getRegisterName(instruction.getC(), instructionIndex);
+            condition = String.format("%s == %s", regB, regC);
+        } else if (opcode == Opcode.LT) {
+            // LT指令：if R(B) >= RK(C) then pc += sBx
+            // 生成的条件应该是 R(B) < RK(C)
+            String regB = instructionHandler.getRegisterName(instruction.getB(), instructionIndex);
+            String regC = instructionHandler.getRegisterName(instruction.getC(), instructionIndex);
+            condition = String.format("%s < %s", regB, regC);
+        } else if (opcode == Opcode.LE) {
+            // LE指令：if R(B) > RK(C) then pc += sBx
+            // 生成的条件应该是 R(B) <= RK(C)
+            String regB = instructionHandler.getRegisterName(instruction.getB(), instructionIndex);
+            String regC = instructionHandler.getRegisterName(instruction.getC(), instructionIndex);
+            condition = String.format("%s <= %s", regB, regC);
+        } else {
+            // 默认情况，使用寄存器值
+            condition = instructionHandler.getRegisterName(a, instructionIndex);
+        }
+        
+        // 设置jump标志，以便后续JMP指令处理
         register.jump = true;
+        
+        // 生成if语句
+        register.ifDepth++;
+        String jumpCode = String.format("if %s then", condition);
         return jumpCode;
+    }
+    
+    /**
+     * 获取寄存器最近一次被赋值的表达式
+     * 
+     * @param chunk 代码块
+     * @param instructionIndex 当前指令索引
+     * @param register 寄存器号
+     * @return 寄存器最近一次被赋值的表达式
+     */
+    private String getRegisterExpression(Chunk chunk, int instructionIndex, int register) {
+        List<Instruction> instructions = chunk.getInstructions();
+        
+        // 从当前指令向前查找，找到寄存器最近一次被赋值的指令
+        for (int i = instructionIndex - 1; i >= 0; i--) {
+            Instruction inst = instructions.get(i);
+            Opcode opcode = inst.getOpcode();
+            
+            // 检查是否是修改register的指令
+            if (inst.getA() == register) {
+                switch (opcode) {
+                    case GETTABLE:
+                        // GETTABLE A B C R(A) := R(B)[RK(C)]
+                        int b = inst.getB();
+                        int c = inst.getC();
+                        String tableExpr = getRegisterExpression(chunk, i, b);
+                        String indexExpr;
+                        
+                        // 检查C是否是常量索引（RK(C)的最高位为1表示常量）
+                        if ((c & 0x100) != 0) {
+                            // 是常量，获取常量值
+                            int constantIndex = c & 0xff;
+                            Constant constant = chunk.getConstant(constantIndex);
+                            indexExpr = constant.getValue().toString();
+                        } else {
+                            // 是寄存器，递归获取寄存器表达式
+                            indexExpr = getRegisterExpression(chunk, i, c);
+                        }
+                        
+                        return String.format("%s[%s]", tableExpr, indexExpr);
+                    case GETGLOBAL:
+                        // GETGLOBAL A Bx R(A) := Gbl[Kst(Bx)]
+                        int bx = inst.getBx();
+                        Constant constant = chunk.getConstant(bx);
+                        return constant.getValue().toString();
+                    case LOADK:
+                        // LOADK A Bx R(A) := Kst(Bx)
+                        bx = inst.getBx();
+                        constant = chunk.getConstant(bx);
+                        return constant.getValue().toString();
+                    case MOVE:
+                        // MOVE A B R(A) := R(B)
+                        b = inst.getB();
+                        return getRegisterExpression(chunk, i, b);
+                    case CALL:
+                    case TAILCALL:
+                        // 函数调用的结果，直接使用寄存器名
+                        return "R" + register;
+                    default:
+                        // 其他指令，直接使用寄存器名
+                        return "R" + register;
+                }
+            }
+        }
+        
+        // 如果没有找到赋值指令，直接使用寄存器名
+        return "R" + register;
+    }
+    
+    /**
+     * 获取RK操作数的表达式
+     * RK(C)表示如果C的最高位为1，则它是一个常量索引，否则是一个寄存器索引
+     * 
+     * @param chunk 代码块
+     * @param instructionIndex 当前指令索引
+     * @param rk RK操作数
+     * @return RK操作数的表达式
+     */
+    private String getRKExpression(Chunk chunk, int instructionIndex, int rk) {
+        // 检查是否是常量（RK(C)的最高位为1）
+        if ((rk & 0x100) != 0) {
+            // 是常量，获取常量索引
+            int constantIndex = rk & 0xff;
+            Constant constant = chunk.getConstant(constantIndex);
+            return constant.getValue().toString();
+        } else {
+            // 是寄存器，获取寄存器表达式
+            return getRegisterExpression(chunk, instructionIndex, rk);
+        }
     }
 
     /**
@@ -697,7 +1014,7 @@ public class LuaCodeGenerator {
 
         StringBuilder sb = new StringBuilder();
 
-        // 简单返回，不处理if块的关闭，由基本块处理
+        // 生成返回语句
         sb.append("return");
 
         if (b > 0) {
@@ -871,29 +1188,39 @@ public class LuaCodeGenerator {
     /**
      * 获取寄存器名，如果有已知值则使用值，否则使用R+寄存器号
      * 
+     * @param register    寄存器号
+     * @param registerObj 寄存器对象
+     * @return 寄存器名或变量名
+     */
+    private String getRegisterName(int register, Register registerObj) {
+        // 使用RegisterEntity的getName方法获取寄存器名
+        return registerObj.getRegisterEntity(register).getName();
+    }
+
+    /**
+     * 重载方法，使用默认寄存器对象
+     * 
      * @param register         寄存器号
-     * @param instructionIndex 指令索引，用于获取正确的寄存器状态
+     * @param instructionIndex 指令索引
+     * @return 寄存器名或变量名
+     */
+    private String getRegisterName(int register, Chunk chunk, int instructionIndex) {
+        // 从InstructionHandler获取寄存器对象
+        Register registerObj = instructionHandler.getRegisterByInstructionIndex(instructionIndex);
+        return getRegisterName(register, registerObj);
+    }
+
+    /**
+     * 兼容旧方法签名，从InstructionHandler获取寄存器对象
+     * 
+     * @param register         寄存器号
+     * @param instructionIndex 指令索引
      * @return 寄存器名或变量名
      */
     private String getRegisterName(int register, int instructionIndex) {
-        // 对于寄存器0，通常是函数调用的返回值，直接使用寄存器名
-        if (register == 0) {
-            return "R" + register;
-        }
-
-        Map<Integer, InstructionHandler.RegisterState> registerStates = instructionHandler
-                .getRegisterStatesByInstructionIndex(instructionIndex);
-        if (registerStates.containsKey(register)) {
-            InstructionHandler.RegisterState state = registerStates.get(register);
-            // 如果是全局变量或函数，直接使用其值作为名称
-            if (state.getType() == InstructionHandler.RegisterValueType.GLOBAL_VAR ||
-                    state.getType() == InstructionHandler.RegisterValueType.FUNCTION) {
-                return state.getValue();
-            }
-            // 对于其他类型，只在作为表达式使用时返回值，作为左值时应返回寄存器名
-            // 这里我们简单处理，只在特定情况下返回值
-        }
-        return "R" + register;
+        // 从InstructionHandler获取寄存器对象
+        Register registerObj = instructionHandler.getRegisterByInstructionIndex(instructionIndex);
+        return getRegisterName(register, registerObj);
     }
 
     /**
@@ -934,7 +1261,7 @@ public class LuaCodeGenerator {
                 Chunk subChunk = subChunks.get(i);
 
                 context.addCodeLine(String.format("-- Sub-chunk %d:", i + 1), CodeLine.CodeType.COMMENT);
-                
+
                 // 递归生成子代码块
                 generateSubChunks(registerManager, subChunk, context);
             }

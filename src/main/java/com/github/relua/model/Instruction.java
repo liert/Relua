@@ -28,6 +28,7 @@ public class Instruction {
     private int c;             // 操作数C
     private int bx;            // 操作数Bx
     private int sbx;           // 操作数sBx
+    private boolean processed = false; // 指令是否已处理
 
     /**
      * 构造函数
@@ -112,7 +113,6 @@ public class Instruction {
                 break;
             case JMP:
                 a = 0;
-                System.out.println(ucode);
                 sbx = (int)(ucode >> 14) - 131071;
                 break;
             default:
@@ -180,6 +180,14 @@ public class Instruction {
      */
     public int getSBx() {
         return sbx;
+    }
+
+    public boolean isProcessed() {
+        return processed;
+    }
+
+    public void markProcessed() {
+        this.processed = true;
     }
 
     @Override

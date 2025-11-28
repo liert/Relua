@@ -8,5 +8,6 @@ public enum ValueType {
     BOOLEAN,
     NIL,
     TABLE,
-    GLOBAL
+    GLOBAL,
+    MODULE
 }
