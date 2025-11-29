@@ -9,5 +9,6 @@ public enum ValueType {
     NIL,
     TABLE,
     GLOBAL,
-    MODULE
+    MODULE,
+    OBJECT
 }

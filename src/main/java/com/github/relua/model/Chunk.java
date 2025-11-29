@@ -244,7 +244,7 @@ public class Chunk {
         if (index >= 0 && index < constants.size()) {
             return constants.get(index);
         }
-        return null;
+        return new Constant(ValueType.UNKNOWN, "RX" + index);
     }
 
     /**

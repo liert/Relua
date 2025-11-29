@@ -62,6 +62,9 @@ public class ChunkParser {
         // 解析行号表
         parseLineNumbers(chunk);
         
+        // 解析Upvalue
+        int unknown = reader.readInt();
+
         return chunk;
     }
 

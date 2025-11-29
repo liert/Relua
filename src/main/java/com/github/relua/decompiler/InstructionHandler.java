@@ -1,7 +1,9 @@
 package com.github.relua.decompiler;
 
+import com.github.relua.ast.*;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Constant;
+import com.github.relua.model.FromType;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Instruction.Opcode;
 import com.github.relua.model.Register;
@@ -26,6 +28,16 @@ public class InstructionHandler {
     private Map<Integer, BasicBlock> instructionToBlockMap;
     private Register[] inStates; // 每条指令执行前的寄存器状态
     private Register[] outStates; // 每条指令执行后的寄存器状态
+    private CodeGeneratorContext codeGenContext; // 代码生成上下文
+
+    /**
+     * 构造函数
+     * 
+     * @param codeGenContext 代码生成上下文
+     */
+    public InstructionHandler(CodeGeneratorContext codeGenContext) {
+        this.codeGenContext = codeGenContext;
+    }
 
     /**
      * 处理代码块的指令
@@ -44,19 +56,9 @@ public class InstructionHandler {
         // 构建基本块
         buildBasicBlocks(chunk);
 
-        // 初始化指令级寄存器状态
-        int numInstructions = chunk.getInstructions().size();
-        inStates = new Register[numInstructions];
-        outStates = new Register[numInstructions];
-        // 初始化所有状态为新的Register对象
-        for (int i = 0; i < numInstructions; i++) {
-            inStates[i] = new Register();
-            outStates[i] = new Register();
-        }
-        // 执行迭代数据流分析
-        iterativeDataFlowAnalysis(chunk);
         // 分析控制流
         analyzeControlFlow(chunk);
+
         // 打印所有基本块的类型
         System.out.println("\n===== 基本块信息 =====");
         for (int i = 0; i < basicBlocks.size(); i++) {
@@ -96,6 +98,9 @@ public class InstructionHandler {
             }
         }
 
+        // 执行迭代数据流分析
+        iterativeDataFlowAnalysis(chunk);
+
         // 递归处理子代码块
         for (Chunk subChunk : chunk.getSubChunks()) {
             processChunk(subChunk);
@@ -125,6 +130,7 @@ public class InstructionHandler {
                 if (jumpTarget >= 0 && jumpTarget < instructions.size()) {
                     isJumpTarget[jumpTarget] = true;
                 }
+                codeGenContext.addLabelPC(jumpTarget);
             } else if (opcode == Opcode.EQ || opcode == Opcode.LT || opcode == Opcode.LE) {
                 if (inst.getC() != 0) {
                     int jumpTarget = i + 1 + inst.getC();
@@ -171,7 +177,7 @@ public class InstructionHandler {
             currentBlock.setEndIndex(i);
 
             Opcode opcode = instructions.get(i).getOpcode();
-            System.out.println(String.format("[%s] : %s", i, opcode.toString()));
+            // System.out.println(String.format("[%s] : %s", i, opcode.toString()));
 
             // 检查是否是基本块结束指令
             if (isBlockEndInstruction(opcode)) {
@@ -323,20 +329,13 @@ public class InstructionHandler {
         List<Instruction> instructions = chunk.getInstructions();
         int numInstructions = instructions.size();
 
+        inStates = new Register[numInstructions];
+        outStates = new Register[numInstructions];
+
         // 初始化所有指令的输入和输出状态
         for (int i = 0; i < numInstructions; i++) {
             inStates[i] = new Register();
             outStates[i] = new Register();
-        }
-
-        // 初始化第一个指令的输入状态，设置pcall、dofile、_G、module等全局变量
-        if (numInstructions > 0) {
-            Register initialState = new Register();
-            initialState.setRegisterEntity(0, "pcall", ValueType.GLOBAL);
-            initialState.setRegisterEntity(1, "dofile", ValueType.GLOBAL);
-            initialState.setRegisterEntity(2, "_G", ValueType.GLOBAL);
-            initialState.setRegisterEntity(3, "module", ValueType.GLOBAL);
-            inStates[0] = initialState;
         }
 
         do {
@@ -347,16 +346,17 @@ public class InstructionHandler {
                 // 合并前驱块的输出状态作为当前块的输入状态
                 Register mergedInput = mergePredecessors(block);
 
-                // 如果输入状态没有变化，跳过
-                if (mergedInput.equals(block.getInputState())) {
-                    continue;
+                // 先更新块的输入状态（如果有变化）
+                if (!mergedInput.equals(block.getInputState())) {
+                    block.setInputState(mergedInput);
+                    changed = true;
                 }
 
-                // 更新块的输入状态
-                block.setInputState(mergedInput);
+                // 使用更新后的输入状态来处理块内指令
+                Register currentState = new Register(block.getInputState());
+                // System.out.println("Current block input state: " + currentState);
 
-                // 模拟执行块内的指令，更新指令级寄存器状态
-                Register currentState = new Register(mergedInput);
+                // 处理块内指令
                 for (int i = block.getStartIndex(); i <= block.getEndIndex(); i++) {
                     if (i < numInstructions) {
                         // 更新指令i的输入状态
@@ -376,10 +376,12 @@ public class InstructionHandler {
                     }
                 }
 
-                // 更新块的输出状态
+                // 更新块的输出状态（如果有变化）
                 if (!currentState.equals(block.getOutputState())) {
                     block.setOutputState(currentState);
                     changed = true;
+                    // System.out.println("Updated block output state to " +
+                    // block.getOutputState());
                 }
             }
         } while (changed);
@@ -435,7 +437,7 @@ public class InstructionHandler {
             }
 
             // 否则，标记为UNKNOWN类型，等待后续指令进一步确定
-            merged.setRegisterEntity(index, "R" + index, ValueType.UNKNOWN);
+            merged.setRegisterEntity(index, "R" + index, ValueType.UNKNOWN, FromType.UNKNOWN);
         }
 
         return merged;
@@ -477,6 +479,9 @@ public class InstructionHandler {
                 break;
             case SETTABLE: // 设置表元素
                 processSetTableInstruction(chunk, instruction, currentState);
+                break;
+            case SELF: // 调用方法
+                processSelfInstruction(chunk, instruction, currentState);
                 break;
             case ADD: // 加法
             case SUB: // 减法
@@ -552,7 +557,7 @@ public class InstructionHandler {
 
         // 复制源寄存器的完整状态到目标寄存器
         // 确保复制所有属性，包括值和类型
-        currentState.setRegisterEntity(a, srcEntity.getValue(), srcEntity.getType());
+        currentState.setRegisterEntity(a, srcEntity.getValue(), srcEntity.getType(), srcEntity.getFromType());
 
         // 调试信息
         System.out.println(String.format("MOVE: R%d = R%d (%s, %s)", a, b, srcEntity.getValue(), srcEntity.getType()));
@@ -576,15 +581,16 @@ public class InstructionHandler {
                 }
             }
 
-            currentState.setRegisterEntity(a, value, type);
+            currentState.setRegisterEntity(a, value, type, FromType.CONSTANT);
         }
     }
 
     private void processLoadBoolInstruction(Chunk chunk, Instruction instruction, Register currentState) {
         // 加载布尔值到寄存器
+        // OP_LOADBOOL	A B C	R(A) := (Bool)B; if (C) pc++
         int a = instruction.getA();
         boolean boolValue = instruction.getB() != 0;
-        currentState.setRegisterEntity(a, boolValue, ValueType.BOOLEAN);
+        currentState.setRegisterEntity(a, boolValue, ValueType.BOOLEAN, FromType.CONSTANT);
     }
 
     private void processLoadNilInstruction(Chunk chunk, Instruction instruction, Register currentState) {
@@ -592,7 +598,7 @@ public class InstructionHandler {
         int a = instruction.getA();
         int b = instruction.getB();
         for (int i = a; i <= b; i++) {
-            currentState.setRegisterEntity(i, "nil", ValueType.NIL);
+            currentState.setRegisterEntity(i, "nil", ValueType.NIL, FromType.NIL);
         }
     }
 
@@ -606,7 +612,7 @@ public class InstructionHandler {
             if (varName.startsWith("\"") && varName.endsWith("\"")) {
                 varName = varName.substring(1, varName.length() - 1);
             }
-            currentState.setRegisterEntity(a, varName, ValueType.GLOBAL);
+            currentState.setRegisterEntity(a, varName, ValueType.GLOBAL, FromType.GLOBAL);
         }
     }
 
@@ -627,14 +633,47 @@ public class InstructionHandler {
 
     private void processGetTableInstruction(Chunk chunk, Instruction instruction, Register currentState) {
         // 获取表元素
+        // OP_GETTABLE	A B C	R(A) := R(B)[RK(C)]
         int a = instruction.getA();
-        // 简单处理：记录为表访问
-        currentState.setRegisterEntity(a, "table_access", ValueType.TABLE);
+        int b = instruction.getB();
+        int c = instruction.getC();
+
+        RegisterEntity RB = currentState.getRegisterEntity(b);
+        String cValue = "RK" + c;
+        if (c < chunk.getConstants().size()) {
+            cValue = chunk.getConstants().get(c).getValue().toString();
+        }
+        if (RB.getFromType() == FromType.GLOBAL) {
+            String value = String.format("%s[\"%s\"]", RB.getValue(), cValue);
+            currentState.setRegisterEntity(a, value, ValueType.TABLE, FromType.GLOBAL);
+        } else {
+            // 简单处理：记录为表访问
+            currentState.setRegisterEntity(a, "table_access", ValueType.TABLE);
+        }
     }
 
     private void processSetTableInstruction(Chunk chunk, Instruction instruction, Register currentState) {
         // 设置表元素
         // 不修改寄存器状态
+    }
+
+    private void processSelfInstruction(Chunk chunk, Instruction instruction, Register currentState) {
+        // OP_SELF	A B C	R(A+1) := R(B); R(A) := R(B)[RK(C)]
+        int a = instruction.getA();
+        int b = instruction.getB();
+        int c = instruction.getC();
+
+        currentState.move(a + 1, b);
+        
+
+        RegisterEntity RB = currentState.getRegisterEntity(b);
+        if (RB.getFromType() == FromType.GLOBAL) {
+            String value = String.format("%s:%s", RB.getValue(), chunk.getConstant(c).getValue().toString());
+            currentState.setRegisterEntity(a, value, ValueType.TABLE, FromType.GLOBAL);
+        } else {
+            // 简单处理：记录为表访问
+            currentState.setRegisterEntity(a, "self_access", ValueType.TABLE);
+        }
     }
 
     private void processArithmeticInstruction(Chunk chunk, Instruction instruction, Register currentState) {
@@ -653,10 +692,10 @@ public class InstructionHandler {
     }
 
     private void processConcatInstruction(Chunk chunk, Instruction instruction, Register currentState) {
-        // 处理CONCAT指令
+        // OP_CONCAT	A B C	R(A) := R(B).. ... ..R(C)
         int a = instruction.getA();
         // 简单处理：记录为字符串类型
-        currentState.setRegisterEntity(a, "concat_result", ValueType.STRING);
+        currentState.setRegisterEntity(a, "R" + a, ValueType.STRING, FromType.REGISTER);
     }
 
     private void processTestInstruction(Chunk chunk, Instruction instruction, Register currentState) {
@@ -665,34 +704,36 @@ public class InstructionHandler {
     }
 
     private void processCallInstruction(Chunk chunk, Instruction instruction, Register currentState) {
-        // 处理函数调用指令
+        // OP_CALL A B C R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1))
         int a = instruction.getA();
         int b = instruction.getB();
+        int c = instruction.getC();
 
         // 获取函数实体
         RegisterEntity funcEntity = currentState.getRegisterEntity(a);
 
-        // 函数调用结果的类型暂时设为 UNKNOWN
-        // 对于pcall等特殊函数，保留其名称
-        if (funcEntity.getType() == ValueType.FUNCTION || funcEntity.getType() == ValueType.GLOBAL) {
-            String funcName = funcEntity.getValue().toString();
-            // 对于pcall等特殊函数，保留其名称作为结果
-            if (funcName.equals("pcall")) {
-                // pcall返回两个值：success和result，这里简化处理
-                currentState.setRegisterEntity(a, true, ValueType.BOOLEAN);
-            } else if (funcName.equals("dofile")) {
-                // dofile函数返回执行结果
-                currentState.setRegisterEntity(a, "dofile_result", ValueType.UNKNOWN);
-            } else if (funcName.equals("module")) {
-                // module函数不返回值，或者返回模块本身
-                currentState.setRegisterEntity(a, funcName, ValueType.MODULE);
-            } else {
-                // 其他函数调用，保留函数名
-                currentState.setRegisterEntity(a, funcName, ValueType.UNKNOWN);
+        // 更新返回值寄存器状态
+        // 情况1：C == 1 → 没有返回值
+        if (c == 1) {
+            // 函数调用没有返回值，不需要更新寄存器
+            return;
+        }
+
+        // 情况2：C > 1 → 固定返回值个数
+        if (c > 1) {
+            // 返回值写入 R(A) 到 R(A+C-2)
+            for (int i = 0; i < c - 1; i++) {
+                int registerIndex = a + i;
+                // 更新寄存器状态，将返回值标记为UNKNOWN类型
+                currentState.setRegisterEntity(registerIndex, "R" + registerIndex, ValueType.UNKNOWN, FromType.REGISTER);
             }
-        } else {
-            // 否则，使用默认的 "call_result"
-            currentState.setRegisterEntity(a, "call_result", ValueType.UNKNOWN);
+        }
+
+        // 情况3：C == 0 → 多返回值（VARARG 返回）
+        if (c == 0) {
+            // 多返回值，只更新第一个返回值寄存器
+            // 实际的多返回值处理会在指令转换为AST时处理
+            currentState.setRegisterEntity(a, "R" + a, ValueType.UNKNOWN, FromType.REGISTER);
         }
     }
 
@@ -793,102 +834,114 @@ public class InstructionHandler {
         }
 
         // 使用新的循环检测算法
-        if (!basicBlocks.isEmpty()) {
-            // 计算支配关系
-            BasicBlock entry = basicBlocks.get(0); // 假设第一个基本块是入口
-            Map<BasicBlock, Set<BasicBlock>> dom = computeDominators(basicBlocks, entry);
+        // if (!basicBlocks.isEmpty()) {
+        // // 计算支配关系
+        // BasicBlock entry = basicBlocks.get(0); // 假设第一个基本块是入口
+        // Map<BasicBlock, Set<BasicBlock>> dom = computeDominators(basicBlocks, entry);
 
-            // 查找出口基本块
-            BasicBlock exit = findExitBlock(basicBlocks);
-            System.out.println("出口基本块: " + exit.getStartIndex() + "-" + exit.getEndIndex());
+        // // 查找出口基本块
+        // BasicBlock exit = findExitBlock(basicBlocks);
+        // System.out.println("出口基本块: " + exit.getStartIndex() + "-" +
+        // exit.getEndIndex());
 
-            // 计算后支配关系
-            Map<BasicBlock, Set<BasicBlock>> postDom = computePostDominators(basicBlocks, exit);
+        // // 计算后支配关系
+        // Map<BasicBlock, Set<BasicBlock>> postDom = computePostDominators(basicBlocks,
+        // exit);
 
-            // 检测SESE区域
-            List<SESERegion> regions = detectSESERegions(basicBlocks, dom, postDom, chunk);
+        // // 检测SESE区域
+        // List<SESERegion> regions = detectSESERegions(basicBlocks, dom, postDom,
+        // chunk);
 
-            // 打印检测到的SESE区域
-            System.out.println("检测到的SESE区域数量: " + regions.size());
-            for (int i = 0; i < regions.size(); i++) {
-                SESERegion region = regions.get(i);
-                System.out.println("SESE区域 " + (i + 1) + ":");
-                System.out.println("  类型: " + region.getType());
-                System.out
-                        .println("  入口: " + region.getEntry().getStartIndex() + "-" + region.getEntry().getEndIndex());
-                System.out.println("  出口: " + region.getExit().getStartIndex() + "-" + region.getExit().getEndIndex());
-                System.out.println("  块数量: " + region.getBlocks().size());
-                System.out.print("  块范围: ");
-                for (BasicBlock regionBlock : region.getBlocks()) {
-                    System.out.print(regionBlock.getStartIndex() + "-" + regionBlock.getEndIndex() + " ");
-                }
-                System.out.println();
-            }
+        // // 打印检测到的SESE区域
+        // System.out.println("检测到的SESE区域数量: " + regions.size());
+        // for (int i = 0; i < regions.size(); i++) {
+        // SESERegion region = regions.get(i);
+        // System.out.println("SESE区域 " + (i + 1) + ":");
+        // System.out.println(" 类型: " + region.getType());
+        // System.out
+        // .println(" 入口: " + region.getEntry().getStartIndex() + "-" +
+        // region.getEntry().getEndIndex());
+        // System.out.println(" 出口: " + region.getExit().getStartIndex() + "-" +
+        // region.getExit().getEndIndex());
+        // System.out.println(" 块数量: " + region.getBlocks().size());
+        // System.out.print(" 块范围: ");
+        // for (BasicBlock regionBlock : region.getBlocks()) {
+        // System.out.print(regionBlock.getStartIndex() + "-" +
+        // regionBlock.getEndIndex() + " ");
+        // }
+        // System.out.println();
+        // }
 
-            // 折叠SESE区域
-            List<SESERegion> collapsedRegions = collapseRegions(regions, dom, postDom);
+        // // 折叠SESE区域
+        // List<SESERegion> collapsedRegions = collapseRegions(regions, dom, postDom);
 
-            // 打印折叠后的SESE区域
-            System.out.println("折叠后的SESE区域数量: " + collapsedRegions.size());
-            for (int i = 0; i < collapsedRegions.size(); i++) {
-                SESERegion region = collapsedRegions.get(i);
-                System.out.println("折叠后的SESE区域 " + (i + 1) + ":");
-                System.out.println("  类型: " + region.getType());
-                System.out
-                        .println("  入口: " + region.getEntry().getStartIndex() + "-" + region.getEntry().getEndIndex());
-                System.out.println("  出口: " + region.getExit().getStartIndex() + "-" + region.getExit().getEndIndex());
-                System.out.println("  块数量: " + region.getBlocks().size());
-                System.out.print("  块范围: ");
-                for (BasicBlock regionBlock : region.getBlocks()) {
-                    System.out.print(regionBlock.getStartIndex() + "-" + regionBlock.getEndIndex() + " ");
-                }
-                System.out.println();
-            }
+        // // 打印折叠后的SESE区域
+        // System.out.println("折叠后的SESE区域数量: " + collapsedRegions.size());
+        // for (int i = 0; i < collapsedRegions.size(); i++) {
+        // SESERegion region = collapsedRegions.get(i);
+        // System.out.println("折叠后的SESE区域 " + (i + 1) + ":");
+        // System.out.println(" 类型: " + region.getType());
+        // System.out
+        // .println(" 入口: " + region.getEntry().getStartIndex() + "-" +
+        // region.getEntry().getEndIndex());
+        // System.out.println(" 出口: " + region.getExit().getStartIndex() + "-" +
+        // region.getExit().getEndIndex());
+        // System.out.println(" 块数量: " + region.getBlocks().size());
+        // System.out.print(" 块范围: ");
+        // for (BasicBlock regionBlock : region.getBlocks()) {
+        // System.out.print(regionBlock.getStartIndex() + "-" +
+        // regionBlock.getEndIndex() + " ");
+        // }
+        // System.out.println();
+        // }
 
-            // 生成AST节点
-            ASTNode ast = generateAST(collapsedRegions, chunk);
-            System.out.println("AST生成完成，根节点类型: " + ast.getType());
-            System.out.println("AST子节点数量: " + ast.getChildren().size());
+        // // 生成AST节点
+        // AstNode ast = generateAST(collapsedRegions, chunk);
+        // System.out.println("AST生成完成，根节点类型: " + ast.type);
+        // if (ast instanceof Block) {
+        // System.out.println("AST子节点数量: " + ((Block) ast).statements.size());
+        // }
 
-            // 查找回边
-            List<BasicBlock[]> backEdges = findBackEdges(basicBlocks, dom);
+        // // 查找回边
+        // List<BasicBlock[]> backEdges = findBackEdges(basicBlocks, dom);
 
-            // 构建并标记自然循环
-            Set<BasicBlock> allLoopBlocks = new HashSet<>();
-            for (BasicBlock[] backEdge : backEdges) {
-                BasicBlock u = backEdge[0];
-                BasicBlock v = backEdge[1];
+        // // 构建并标记自然循环
+        // Set<BasicBlock> allLoopBlocks = new HashSet<>();
+        // for (BasicBlock[] backEdge : backEdges) {
+        // BasicBlock u = backEdge[0];
+        // BasicBlock v = backEdge[1];
 
-                // 构建自然循环
-                Set<BasicBlock> loop = buildNaturalLoop(u, v);
+        // // 构建自然循环
+        // Set<BasicBlock> loop = buildNaturalLoop(u, v);
 
-                // 只有当循环包含至少两个块时，才标记为循环块
-                if (loop.size() >= 2) {
-                    // 标记循环块
-                    for (BasicBlock loopBlock : loop) {
-                        loopBlock.setLoopBlock(true);
-                        allLoopBlocks.add(loopBlock);
-                    }
+        // // 只有当循环包含至少两个块时，才标记为循环块
+        // if (loop.size() >= 2) {
+        // // 标记循环块
+        // for (BasicBlock loopBlock : loop) {
+        // loopBlock.setLoopBlock(true);
+        // allLoopBlocks.add(loopBlock);
+        // }
 
-                    // 打印识别到的循环
-                    System.out.println("识别到循环:");
-                    System.out.println("  循环头: " + v.getStartIndex() + "-" + v.getEndIndex());
-                    System.out.println("  循环块数量: " + loop.size());
-                    System.out.print("  循环块范围: ");
-                    for (BasicBlock loopBlock : loop) {
-                        System.out.print(loopBlock.getStartIndex() + "-" + loopBlock.getEndIndex() + " ");
-                    }
-                    System.out.println();
-                }
-            }
+        // // 打印识别到的循环
+        // System.out.println("识别到循环:");
+        // System.out.println(" 循环头: " + v.getStartIndex() + "-" + v.getEndIndex());
+        // System.out.println(" 循环块数量: " + loop.size());
+        // System.out.print(" 循环块范围: ");
+        // for (BasicBlock loopBlock : loop) {
+        // System.out.print(loopBlock.getStartIndex() + "-" + loopBlock.getEndIndex() +
+        // " ");
+        // }
+        // System.out.println();
+        // }
+        // }
 
-            // 清除非循环块的循环标记
-            for (BasicBlock block : basicBlocks) {
-                if (!allLoopBlocks.contains(block)) {
-                    block.setLoopBlock(false);
-                }
-            }
-        }
+        // // 清除非循环块的循环标记
+        // for (BasicBlock block : basicBlocks) {
+        // if (!allLoopBlocks.contains(block)) {
+        // block.setLoopBlock(false);
+        // }
+        // }
+        // }
     }
 
     // getter方法，供代码生成器使用
@@ -1619,11 +1672,9 @@ public class InstructionHandler {
      * @param chunk   代码块
      * @return 生成的AST根节点
      */
-    public ASTNode generateAST(List<SESERegion> regions, Chunk chunk) {
+    public AstNode generateAST(List<SESERegion> regions, Chunk chunk) {
         System.out.println("   - 创建AST根节点，类型: PROGRAM");
-        ASTNode root = new ASTNode(ASTNode.NodeType.PROGRAM);
-        ASTNode block = new ASTNode(ASTNode.NodeType.BLOCK);
-        root.addChild(block);
+        Block block = new Block(new SourcePos(0, -1));
         System.out.println("   - 添加根块节点，类型: BLOCK");
 
         // 按入口块的起始索引排序区域
@@ -1638,9 +1689,13 @@ public class InstructionHandler {
                     "     区域 " + (i + 1) + ": 类型=" + region.getType() + ", 入口=" + region.getEntry().getStartIndex()
                             + "-" + region.getEntry().getEndIndex() + ", 出口=" + region.getExit().getStartIndex() + "-"
                             + region.getExit().getEndIndex() + ", 块数量=" + region.getBlocks().size());
-            ASTNode regionNode = generateRegionAST(region, chunk);
-            System.out.println("     生成区域AST节点，类型: " + regionNode.getType());
-            block.addChild(regionNode);
+            AstNode regionNode = generateRegionAST(region, chunk);
+            System.out.println("     生成区域AST节点，类型: " + regionNode.type);
+            if (regionNode instanceof Statement) {
+                block.statements.add((Statement) regionNode);
+            } else if (regionNode instanceof Expression) {
+                block.statements.add(new ExpressionStatement((Expression) regionNode, regionNode.pos));
+            }
         }
 
         // 如果没有SESE区域，直接添加所有基本块
@@ -1650,13 +1705,19 @@ public class InstructionHandler {
                 BasicBlock basicBlock = basicBlocks.get(i);
                 System.out.println(
                         "     基本块 " + i + ": 范围=" + basicBlock.getStartIndex() + "-" + basicBlock.getEndIndex());
-                ASTNode basicBlockNode = generateBasicBlockAST(basicBlock, chunk);
-                System.out.println("     生成基本块AST节点，子节点数量: " + basicBlockNode.getChildren().size());
-                block.addChild(basicBlockNode);
+                AstNode basicBlockNode = generateBasicBlockAST(basicBlock, chunk);
+                if (basicBlockNode != null) {
+                    System.out.println("     生成基本块AST节点，子节点数量: " + ((Block) basicBlockNode).statements.size());
+                    if (basicBlockNode instanceof Block) {
+                        block.statements.addAll(((Block) basicBlockNode).statements);
+                    }
+                } else {
+                    System.out.println("     跳过已访问的基本块");
+                }
             }
         }
 
-        return root;
+        return block;
     }
 
     /**
@@ -1665,7 +1726,7 @@ public class InstructionHandler {
      * @param chunk 代码块
      * @return 生成的AST根节点
      */
-    public ASTNode generateASTFromChunk(Chunk chunk) {
+    public AstNode generateASTFromChunk(Chunk chunk) {
         System.out.println("\n=== 开始生成AST ===");
 
         // 计算支配关系
@@ -1673,6 +1734,16 @@ public class InstructionHandler {
         BasicBlock entry = basicBlocks.get(0); // 假设第一个基本块是入口
         Map<BasicBlock, Set<BasicBlock>> dom = computeDominators(basicBlocks, entry);
         System.out.println("   支配关系计算完成，基本块数量: " + basicBlocks.size());
+        // 打印支配关系
+        System.out.println("   支配关系详情:");
+        for (Map.Entry<BasicBlock, Set<BasicBlock>> e : dom.entrySet()) {
+            int blockIdx = basicBlocks.indexOf(e.getKey());
+            System.out.print("     块 " + blockIdx + " 被 ");
+            for (BasicBlock d : e.getValue()) {
+                System.out.print("块 " + basicBlocks.indexOf(d) + " ");
+            }
+            System.out.println("支配");
+        }
 
         // 查找出口基本块
         System.out.println("2. 查找出口基本块...");
@@ -1696,9 +1767,11 @@ public class InstructionHandler {
 
         // 生成AST
         System.out.println("6. 生成AST节点...");
-        ASTNode ast = generateAST(collapsedRegions, chunk);
-        System.out.println("   AST生成完成，根节点类型: " + ast.getType());
-        System.out.println("   AST子节点数量: " + ast.getChildren().size());
+        AstNode ast = generateAST(collapsedRegions, chunk);
+        System.out.println("   AST生成完成，根节点类型: " + ast.type);
+        if (ast instanceof Block) {
+            System.out.println("   AST子节点数量: " + ((Block) ast).statements.size());
+        }
 
         System.out.println("=== AST生成完成 ===\n");
         return ast;
@@ -1711,10 +1784,10 @@ public class InstructionHandler {
      * @param chunk  代码块
      * @return 生成的AST节点
      */
-    private ASTNode generateRegionAST(SESERegion region, Chunk chunk) {
+    private AstNode generateRegionAST(SESERegion region, Chunk chunk) {
         System.out.println("     - 生成区域AST，类型: " + region.getType());
 
-        ASTNode regionNode;
+        AstNode regionNode;
         switch (region.getType()) {
             case IF_THEN:
                 System.out.println("     - 生成IF_THEN AST节点");
@@ -1739,18 +1812,22 @@ public class InstructionHandler {
             default:
                 System.out.println("     - 生成默认BLOCK AST节点，类型: " + region.getType());
                 // 对于其他类型的区域，生成默认的块节点
-                regionNode = new ASTNode(ASTNode.NodeType.BLOCK);
+                Block defaultBlock = new Block(new SourcePos(0, -1));
                 // 添加区域内的所有指令对应的AST节点
                 for (BasicBlock block : region.getBlocks()) {
                     System.out.println("     - 添加基本块到默认BLOCK: " + block.getStartIndex() + "-" + block.getEndIndex());
-                    ASTNode basicBlockNode = generateBasicBlockAST(block, chunk);
-                    regionNode.addChild(basicBlockNode);
+                    AstNode basicBlockNode = generateBasicBlockAST(block, chunk);
+                    if (basicBlockNode instanceof Block) {
+                        defaultBlock.statements.addAll(((Block) basicBlockNode).statements);
+                    }
                 }
+                regionNode = defaultBlock;
                 break;
         }
 
         System.out.println(
-                "     - 区域AST生成完成，类型: " + regionNode.getType() + ", 子节点数量: " + regionNode.getChildren().size());
+                "     - 区域AST生成完成，类型: " + regionNode.type + ", 子节点数量: "
+                        + (regionNode instanceof Block ? ((Block) regionNode).statements.size() : 0));
         return regionNode;
     }
 
@@ -1761,27 +1838,27 @@ public class InstructionHandler {
      * @param chunk  代码块
      * @return 生成的AST节点
      */
-    private ASTNode generateIfThenAST(SESERegion region, Chunk chunk) {
-        ASTNode ifNode = new ASTNode(ASTNode.NodeType.IF_STATEMENT);
+    private AstNode generateIfThenAST(SESERegion region, Chunk chunk) {
+        // 简化处理：创建一个布尔常量作为条件，实际应该从条件指令生成准确的条件表达式
+        Expression condition = new BooleanConst(true, new SourcePos(0, -1));
 
-        // 生成条件表达式节点
-        ASTNode conditionNode = new ASTNode(ASTNode.NodeType.EXPRESSION);
-        // 这里简化处理，实际应该从条件指令生成准确的条件表达式
-        conditionNode.setValue("condition");
-        ifNode.addChild(conditionNode);
+        // 创建then块
+        Block thenBlock = new Block(new SourcePos(0, -1));
 
-        // 生成then块节点
-        ASTNode thenBlockNode = new ASTNode(ASTNode.NodeType.BLOCK);
         // 添加then块内的所有指令对应的AST节点
         for (BasicBlock block : region.getBlocks()) {
             if (block != region.getEntry()) { // 跳过条件块
-                ASTNode basicBlockNode = generateBasicBlockAST(block, chunk);
-                thenBlockNode.addChild(basicBlockNode);
+                AstNode basicBlockNode = generateBasicBlockAST(block, chunk);
+                if (basicBlockNode instanceof Block) {
+                    thenBlock.statements.addAll(((Block) basicBlockNode).statements);
+                }
             }
         }
-        ifNode.addChild(thenBlockNode);
 
-        return ifNode;
+        // 创建IfStatement节点
+        IfStatement ifStatement = new IfStatement(condition, thenBlock, null, new SourcePos(0, -1));
+
+        return ifStatement;
     }
 
     /**
@@ -1791,12 +1868,14 @@ public class InstructionHandler {
      * @param chunk  代码块
      * @return 生成的AST节点
      */
-    private ASTNode generateSimpleBlockAST(SESERegion region, Chunk chunk) {
-        ASTNode blockNode = new ASTNode(ASTNode.NodeType.BLOCK);
+    private AstNode generateSimpleBlockAST(SESERegion region, Chunk chunk) {
+        Block blockNode = new Block(new SourcePos(0, -1));
         // 添加区域内的所有指令对应的AST节点
         for (BasicBlock block : region.getBlocks()) {
-            ASTNode basicBlockNode = generateBasicBlockAST(block, chunk);
-            blockNode.addChild(basicBlockNode);
+            AstNode basicBlockNode = generateBasicBlockAST(block, chunk);
+            if (basicBlockNode instanceof Block) {
+                blockNode.statements.addAll(((Block) basicBlockNode).statements);
+            }
         }
         return blockNode;
     }
@@ -1808,21 +1887,13 @@ public class InstructionHandler {
      * @param chunk  代码块
      * @return 生成的AST节点
      */
-    private ASTNode generateIfThenElseAST(SESERegion region, Chunk chunk) {
-        ASTNode ifNode = new ASTNode(ASTNode.NodeType.IF_STATEMENT);
+    private AstNode generateIfThenElseAST(SESERegion region, Chunk chunk) {
+        // 简化处理：创建一个布尔常量作为条件，实际应该从条件指令生成准确的条件表达式
+        Expression condition = new BooleanConst(true, new SourcePos(0, -1));
 
-        // 生成条件表达式节点
-        ASTNode conditionNode = new ASTNode(ASTNode.NodeType.EXPRESSION);
-        // 这里简化处理，实际应该从条件指令生成准确的条件表达式
-        conditionNode.setValue("condition");
-        ifNode.addChild(conditionNode);
-
-        // 生成then块节点
-        ASTNode thenBlockNode = new ASTNode(ASTNode.NodeType.BLOCK);
-        // 生成else块节点
-        ASTNode elseBlockNode = new ASTNode(ASTNode.NodeType.ELSE_CLAUSE);
-        ASTNode elseBodyNode = new ASTNode(ASTNode.NodeType.BLOCK);
-        elseBlockNode.addChild(elseBodyNode);
+        // 创建then块和else块
+        Block thenBlock = new Block(new SourcePos(0, -1));
+        Block elseBlock = new Block(new SourcePos(0, -1));
 
         // 区分then块和else块
         boolean isThenBlock = true;
@@ -1832,22 +1903,26 @@ public class InstructionHandler {
                 continue;
             }
 
-            ASTNode basicBlockNode = generateBasicBlockAST(block, chunk);
+            AstNode basicBlockNode = generateBasicBlockAST(block, chunk);
             if (isThenBlock) {
-                thenBlockNode.addChild(basicBlockNode);
+                if (basicBlockNode instanceof Block) {
+                    thenBlock.statements.addAll(((Block) basicBlockNode).statements);
+                }
                 // 如果块有两个后继，说明是then块结束
                 if (block.getSuccessors().size() == 2) {
                     isThenBlock = false;
                 }
             } else {
-                elseBodyNode.addChild(basicBlockNode);
+                if (basicBlockNode instanceof Block) {
+                    elseBlock.statements.addAll(((Block) basicBlockNode).statements);
+                }
             }
         }
 
-        ifNode.addChild(thenBlockNode);
-        ifNode.addChild(elseBlockNode);
+        // 创建IfStatement节点
+        IfStatement ifStatement = new IfStatement(condition, thenBlock, elseBlock, new SourcePos(0, -1));
 
-        return ifNode;
+        return ifStatement;
     }
 
     /**
@@ -1857,27 +1932,27 @@ public class InstructionHandler {
      * @param chunk  代码块
      * @return 生成的AST节点
      */
-    private ASTNode generateWhileLoopAST(SESERegion region, Chunk chunk) {
-        ASTNode whileNode = new ASTNode(ASTNode.NodeType.WHILE_LOOP);
+    private AstNode generateWhileLoopAST(SESERegion region, Chunk chunk) {
+        // 简化处理：创建一个布尔常量作为条件，实际应该从条件指令生成准确的条件表达式
+        Expression condition = new BooleanConst(true, new SourcePos(0, -1));
 
-        // 生成条件表达式节点
-        ASTNode conditionNode = new ASTNode(ASTNode.NodeType.EXPRESSION);
-        // 这里简化处理，实际应该从条件指令生成准确的条件表达式
-        conditionNode.setValue("condition");
-        whileNode.addChild(conditionNode);
+        // 创建循环体块
+        Block bodyBlock = new Block(new SourcePos(0, -1));
 
-        // 生成循环体节点
-        ASTNode bodyNode = new ASTNode(ASTNode.NodeType.BLOCK);
         // 添加循环体内的所有指令对应的AST节点
         for (BasicBlock block : region.getBlocks()) {
             if (block != region.getEntry()) { // 跳过条件块
-                ASTNode basicBlockNode = generateBasicBlockAST(block, chunk);
-                bodyNode.addChild(basicBlockNode);
+                AstNode basicBlockNode = generateBasicBlockAST(block, chunk);
+                if (basicBlockNode instanceof Block) {
+                    bodyBlock.statements.addAll(((Block) basicBlockNode).statements);
+                }
             }
         }
-        whileNode.addChild(bodyNode);
 
-        return whileNode;
+        // 创建WhileStatement节点
+        WhileStatement whileStatement = new WhileStatement(condition, bodyBlock, new SourcePos(0, -1));
+
+        return whileStatement;
     }
 
     /**
@@ -1887,16 +1962,18 @@ public class InstructionHandler {
      * @param chunk  代码块
      * @return 生成的AST节点
      */
-    private ASTNode generateSequenceAST(SESERegion region, Chunk chunk) {
-        ASTNode sequenceNode = new ASTNode(ASTNode.NodeType.SEQUENCE);
+    private AstNode generateSequenceAST(SESERegion region, Chunk chunk) {
+        Block sequenceBlock = new Block(new SourcePos(0, -1));
 
         // 按顺序添加区域内的所有块对应的AST节点
         for (BasicBlock block : region.getBlocks()) {
-            ASTNode blockNode = generateBasicBlockAST(block, chunk);
-            sequenceNode.addChild(blockNode);
+            AstNode blockNode = generateBasicBlockAST(block, chunk);
+            if (blockNode instanceof Block) {
+                sequenceBlock.statements.addAll(((Block) blockNode).statements);
+            }
         }
 
-        return sequenceNode;
+        return sequenceBlock;
     }
 
     /**
@@ -1906,9 +1983,16 @@ public class InstructionHandler {
      * @param chunk 代码块
      * @return 生成的AST节点
      */
-    private ASTNode generateBasicBlockAST(BasicBlock block, Chunk chunk) {
+    private AstNode generateBasicBlockAST(BasicBlock block, Chunk chunk) {
+        // 如果块已经被访问过，则跳过
+        if (block.isVisited()) {
+            System.out.println("       - 跳过已访问的基本块，范围: " + block.getStartIndex() + "-" + block.getEndIndex());
+            return null;
+        }
+        // 标记块为已访问
+        block.setVisited(true);
         System.out.println("       - 生成基本块AST，范围: " + block.getStartIndex() + "-" + block.getEndIndex());
-        ASTNode blockNode = new ASTNode(ASTNode.NodeType.BLOCK);
+        Block blockNode = new Block(new SourcePos(block.getStartIndex(), -1));
 
         // 创建指令到AST的转换器
         InstructionToASTConverter converter = new InstructionToASTConverter(chunk, this);
@@ -1918,81 +2002,167 @@ public class InstructionHandler {
         System.out.println("       - 遍历基本块内的指令:");
         for (int i = block.getStartIndex(); i <= block.getEndIndex(); i++) {
             if (i < instructions.size()) {
+                if (codeGenContext.isLabelPC(i)) {
+                    blockNode.statements.add(new LabelStatement("L" + i, new SourcePos(i, -1)));
+                }
                 Instruction instruction = instructions.get(i);
                 System.out.println("         指令 " + i + ": " + instruction.getOpcode().name() + ", A="
                         + instruction.getA() + ", B=" + instruction.getB() + ", C=" + instruction.getC());
                 // 使用转换器将指令转换为AST节点
-                ASTNode instructionNode = converter.convertInstructionToAST(instruction, i);
-                if (instructionNode != null) {
-                    System.out.println("         生成指令AST节点，类型: " + instructionNode.getType() + ", 值: "
-                            + instructionNode.getValue());
-                    blockNode.addChild(instructionNode);
+                Register registerState = getRegisterByInstructionIndex(i);
+                System.out.println("         寄存器状态: " + registerState);
+                Object result = converter.convertInstructionToAST(instruction, i);
+
+                if (result instanceof PendingIf) {
+                    // 处理待完成的IF节点
+                    PendingIf pending = (PendingIf) result;
+                    System.out.println(String.format("         生成PendingIf节点，条件: %s, then: %d-%d, else: %d-%d", pending.condition, pending.thenStart, pending.thenEnd, pending.elseStart, pending.elseEnd));
+
+                    // 标记then块范围的所有基本块为已访问
+                    markBlocksAsVisited(pending.thenStart, pending.thenEnd);
+
+                    // 构建then块
+                    Block thenBlock = buildBlock(pending.thenStart, pending.thenEnd, chunk, converter);
+
+                    // 构建else块（如果存在）
+                    Block elseBlock = null;
+                    if (pending.elseStart != null) {
+                        // 标记else块范围的所有基本块为已访问
+                        markBlocksAsVisited(pending.elseStart, pending.elseEnd);
+                        elseBlock = buildBlock(pending.elseStart, pending.elseEnd, chunk, converter);
+                        System.out.println("         else范围: " + pending.elseStart + "-" + pending.elseEnd);
+                    }
+
+                    // 创建完整的IfStatement节点
+                    IfStatement ifStmt = new IfStatement(pending.condition, thenBlock, elseBlock, pending.pos);
+                    blockNode.statements.add(ifStmt);
+
+                    // 跳过IF在字节码中的范围
+                    i = pending.elseEnd != null ? pending.elseEnd : pending.thenEnd;
+                    System.out.println("         跳过IF范围，i更新为: " + i);
+                } else if (result instanceof Statement) {
+                    Statement stmt = (Statement) result;
+                    System.out.println("         生成指令AST节点，类型: " + stmt.type);
+                    blockNode.statements.add(stmt);
+
+                } else if (result instanceof Expression) {
+                    Expression expr = (Expression) result;
+                    System.out.println("         生成表达式节点，包装为ExpressionStatement");
+                    // 将表达式包装为表达式语句
+                    blockNode.statements.add(new ExpressionStatement(expr, expr.pos));
                 } else {
                     System.out.println("         未生成指令AST节点");
                 }
             }
         }
 
-        System.out.println("       - 基本块AST生成完成，子节点数量: " + blockNode.getChildren().size());
+        System.out.println("       - 基本块AST生成完成，子节点数量: " + blockNode.statements.size());
         return blockNode;
     }
 
     /**
-     * 为单个指令生成AST节点
+     * 根据指令索引找到对应的基本块
      * 
-     * @param instruction 指令
-     * @param index       指令索引
-     * @param chunk       代码块
-     * @return 生成的AST节点，或null如果不需要生成节点
+     * @param instructionIndex 指令索引
+     * @return 对应的基本块，如果没有找到则返回null
      */
-    private ASTNode generateInstructionAST(Instruction instruction, int index, Chunk chunk) {
-        Opcode opcode = instruction.getOpcode();
-
-        switch (opcode) {
-            case MOVE:
-                // 寄存器间数据移动，通常不生成单独的AST节点
-                return null;
-            case LOADK:
-                // 加载常量，生成赋值节点
-                ASTNode loadKNode = new ASTNode(ASTNode.NodeType.ASSIGNMENT);
-                // 这里简化处理，实际应该生成准确的赋值表达式
-                loadKNode.setValue("loadk");
-                return loadKNode;
-            case LOADBOOL:
-                // 加载布尔值，生成赋值节点
-                ASTNode loadBoolNode = new ASTNode(ASTNode.NodeType.ASSIGNMENT);
-                loadBoolNode.setValue("loadbool");
-                return loadBoolNode;
-            case LOADNIL:
-                // 加载nil，生成赋值节点
-                ASTNode loadNilNode = new ASTNode(ASTNode.NodeType.ASSIGNMENT);
-                loadNilNode.setValue("loadnil");
-                return loadNilNode;
-            case CALL:
-                // 函数调用，生成函数调用节点
-                ASTNode callNode = new ASTNode(ASTNode.NodeType.FUNCTION_CALL);
-                callNode.setValue("call");
-                return callNode;
-            case RETURN:
-                // 返回语句，生成返回节点
-                ASTNode returnNode = new ASTNode(ASTNode.NodeType.RETURN_STATEMENT);
-                returnNode.setValue("return");
-                return returnNode;
-            case JMP:
-                // 跳转指令，不生成AST节点
-                return null;
-            case TEST:
-            case TESTSET:
-            case EQ:
-            case LT:
-            case LE:
-                // 条件指令，通常在区域级别处理，不生成单独的AST节点
-                return null;
-            default:
-                // 其他指令，生成默认节点
-                ASTNode defaultNode = new ASTNode(ASTNode.NodeType.EXPRESSION);
-                defaultNode.setValue(opcode.name());
-                return defaultNode;
+    public BasicBlock getBlockByInstructionIndex(int instructionIndex) {
+        for (BasicBlock block : basicBlocks) {
+            if (instructionIndex >= block.getStartIndex() && instructionIndex <= block.getEndIndex()) {
+                return block;
+            }
         }
+        return null;
+    }
+
+    /**
+     * 标记指定指令范围内的所有基本块为已访问
+     * 
+     * @param start 起始指令索引
+     * @param end   结束指令索引
+     */
+    private void markBlocksAsVisited(int start, int end) {
+        for (int pc = start; pc <= end; pc++) {
+            BasicBlock block = getBlockByInstructionIndex(pc);
+            if (block != null && !block.isVisited()) {
+                block.setVisited(true);
+                System.out.println("       - 标记块为已访问，范围: " + block.getStartIndex() + "-" + block.getEndIndex());
+            }
+        }
+    }
+
+    // /**
+    //  * 收集所有跳转目标PC
+    //  * 
+    //  * @param chunk 代码块
+    //  * @return 跳转目标PC的集合
+    //  */
+    // private Set<Integer> collectJumpTargets(Chunk chunk) {
+    //     Set<Integer> labelPCs = new HashSet<>();
+    //     List<Instruction> instructions = chunk.getInstructions();
+
+    //     for (int pc = 0; pc < instructions.size(); pc++) {
+    //         Instruction instr = instructions.get(pc);
+    //         if (instr.getOpcode() == Opcode.JMP) {
+    //             int sBx = instr.getSBx();
+    //             int targetPC = pc + 1 + sBx;
+    //             labelPCs.add(targetPC);
+    //             System.out.println("   - 收集跳转目标: L" + targetPC + " (PC: " + targetPC + ")");
+    //         }
+    //     }
+
+    //     return labelPCs;
+    // }
+
+    /**
+     * 构建指定范围内的指令块AST
+     * 
+     * @param start     起始指令索引
+     * @param end       结束指令索引
+     * @param chunk     代码块
+     * @param converter 指令到AST的转换器
+     * @param labelPCs  跳转目标PC的集合
+     * @return 生成的Block节点
+     */
+    private Block buildBlock(int start, int end, Chunk chunk, InstructionToASTConverter converter) {
+        Block block = new Block(new SourcePos(start, -1));
+        List<Instruction> instructions = chunk.getInstructions();
+
+        for (int pc = start; pc <= end; pc++) {
+            if (pc < instructions.size()) {
+                Instruction inst = instructions.get(pc);
+                Object node = converter.convertInstructionToAST(inst, pc);
+
+                if (node instanceof Statement) {
+                    block.statements.add((Statement) node);
+                } else if (node instanceof Expression) {
+                    block.statements.add(new ExpressionStatement((Expression) node, ((Expression) node).pos));
+                } else if (node instanceof PendingIf) {
+                    // 递归处理嵌套的IF
+                    PendingIf pending = (PendingIf) node;
+                    System.out.println(String.format("         生成PendingIf节点，条件: %s, then: %d-%d, else: %d-%d", pending.condition, pending.thenStart, pending.thenEnd, pending.elseStart, pending.elseEnd));
+                    Block thenBlock = buildBlock(pending.thenStart, pending.thenEnd, chunk, converter);
+                    Block elseBlock = null;
+                    if (pending.elseStart != null) {
+                        elseBlock = buildBlock(pending.elseStart, pending.elseEnd, chunk, converter);
+                    }
+
+                    block.statements.add(new IfStatement(
+                            pending.condition,
+                            thenBlock,
+                            elseBlock,
+                            pending.pos));
+
+                    // 跳过嵌套IF的范围
+                    pc = pending.elseEnd != null ? pending.elseEnd : pending.thenEnd;
+                }
+            }
+        }
+
+        return block;
+    }
+
+    public CodeGeneratorContext getContext() {
+        return this.codeGenContext;
     }
 }

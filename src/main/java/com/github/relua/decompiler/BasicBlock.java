@@ -15,6 +15,7 @@ public class BasicBlock {
     private boolean isIfBlock = false;
     private boolean isLoopBlock = false;
     private boolean isElseBlock = false;
+    private boolean visited = false;
     private int conditionRegister = -1;
     private Register inputState; // 块输入寄存器状态
     private Register outputState; // 块输出寄存器状态
@@ -40,6 +41,8 @@ public class BasicBlock {
     public void setLoopBlock(boolean loopBlock) { isLoopBlock = loopBlock; }
     public boolean isElseBlock() { return isElseBlock; }
     public void setElseBlock(boolean elseBlock) { isElseBlock = elseBlock; }
+    public boolean isVisited() { return visited; }
+    public void setVisited(boolean visited) { this.visited = visited; }
     public int getConditionRegister() { return conditionRegister; }
     public void setConditionRegister(int conditionRegister) { this.conditionRegister = conditionRegister; }
     public Register getInputState() { return inputState; }

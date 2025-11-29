@@ -20,7 +20,7 @@ public class BytecodeFormatter {
         StringBuilder sb = new StringBuilder();
         
         // 格式化指令基本信息：索引 [-]: 操作码 寄存器/常量
-        sb.append(String.format("%4d: %s ", index, instruction.getOpcode().name()));
+        sb.append(String.format("%4d: %s\t", index, instruction.getOpcode().name()));
         
         // 添加操作数信息
         appendOperands(instruction, sb);
@@ -76,10 +76,10 @@ public class BytecodeFormatter {
                 sb.append(String.format("R%d %d", a, b));
                 break;
             case GETTABLE:
-                sb.append(String.format("R%d R%d R%d", a, b, c));
+                sb.append(String.format("R%d R%d RK%d", a, b, c));
                 break;
             case SETTABLE:
-                sb.append(String.format("R%d R%d R%d", a, b, c));
+                sb.append(String.format("R%d RK%d R%d", a, b, c));
                 break;
             case ADD:
             case SUB:
@@ -207,10 +207,20 @@ public class BytecodeFormatter {
                 sb.append(String.format("UpValue[%d] := R%d", b, a));
                 break;
             case GETTABLE:
-                sb.append(String.format("R%d := R%d[R%d]", a, b, c));
+                constant = chunk.getConstant(bx);
+                if (constant != null) {
+                    sb.append(String.format("R%d := R%d[\"%s\"]", a, b, constant.getValue()));
+                } else {
+                    sb.append(String.format("R%d := R%d[RK%d]", a, b, c));
+                }
                 break;
             case SETTABLE:
-                sb.append(String.format("R%d[R%d] := R%d", a, b, c));
+                constant = chunk.getConstant(bx);
+                if (constant != null) {
+                    sb.append(String.format("R%d[\"%s\"] := R%d", a, constant.getValue(), c));
+                } else {
+                    sb.append(String.format("R%d[RK%d] := R%d", a, b, c));
+                }
                 break;
             case ADD:
                 sb.append(String.format("R%d := R%d + R%d", a, b, c));
@@ -255,7 +265,7 @@ public class BytecodeFormatter {
                 sb.append(String.format("if R%d <= R%d then goto %d", b, c, sbx));
                 break;
             case TEST:
-                sb.append(String.format("if R%d %s then goto %d", a, (c == 0 ? "== false" : "== true"), sbx));
+                sb.append(String.format("if %s R%d then goto %d", (c == 0 ? "" : "not"), a, sbx));
                 break;
             case TESTSET:
                 sb.append(String.format("if R%d %s then R%d := R%d; goto %d", c, (b == 0 ? "== false" : "== true"), a, c, sbx));

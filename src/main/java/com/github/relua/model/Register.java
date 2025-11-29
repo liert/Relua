@@ -1,5 +1,6 @@
 package com.github.relua.model;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -25,7 +26,7 @@ public class Register {
         this();
         for (Map.Entry<Integer, RegisterEntity> entry : other.registers.entrySet()) {
             RegisterEntity original = entry.getValue();
-            RegisterEntity copy = new RegisterEntity(original.getIndex(), original.getValue(), original.getType());
+            RegisterEntity copy = new RegisterEntity(original.getIndex(), original.getValue(), original.getType(), original.getFromType());
             this.registers.put(original.getIndex(), copy);
         }
         this.jump = other.jump;
@@ -50,6 +51,7 @@ public class Register {
         RegisterEntity srcRegisterEntity = getRegisterEntity(srcIndex);
         desRegisterEntity.setValue(srcRegisterEntity.getValue());
         desRegisterEntity.setType(srcRegisterEntity.getType());
+        desRegisterEntity.setFromType(srcRegisterEntity.getFromType());
     }
 
     /**
@@ -64,12 +66,19 @@ public class Register {
      * 获取寄存器实体，如果不存在则创建
      */
     public RegisterEntity getRegisterEntity(int index) {
-        return registers.computeIfAbsent(index, i -> new RegisterEntity(i, "nil", ValueType.NIL));
+        return registers.computeIfAbsent(index, i -> new RegisterEntity(i, "nil", ValueType.NIL, FromType.NIL));
     }
 
     /**
      * 设置寄存器值
      */
+    public void setRegisterEntity(int index, Object value, ValueType type, FromType fromType) {
+        RegisterEntity entity = getRegisterEntity(index);
+        entity.setValue(value);
+        entity.setType(type);
+        entity.setFromType(fromType);
+    }
+
     public void setRegisterEntity(int index, Object value, ValueType type) {
         RegisterEntity entity = getRegisterEntity(index);
         entity.setValue(value);
@@ -90,7 +99,7 @@ public class Register {
         target.registers.clear();
         for (Map.Entry<Integer, RegisterEntity> entry : registers.entrySet()) {
             RegisterEntity original = entry.getValue();
-            RegisterEntity copy = new RegisterEntity(original.getIndex(), original.getValue(), original.getType());
+            RegisterEntity copy = new RegisterEntity(original.getIndex(), original.getValue(), original.getType(), original.getFromType());
             target.registers.put(original.getIndex(), copy);
         }
     }
@@ -116,7 +125,7 @@ public class Register {
         for (Map.Entry<Integer, RegisterEntity> entry : registers.entrySet()) {
             sb.append(entry.getValue().toString()).append(", ");
         }
-        if (sb.length() > 2) {
+        if (sb.length() > 9) {
             sb.setLength(sb.length() - 2); // 移除最后一个逗号和空格
         }
         sb.append("}");
@@ -148,10 +157,10 @@ public class Register {
         if (ifDepth != other.ifDepth) {
             return false;
         }
-        if (!java.util.Arrays.equals(jumpTargets, other.jumpTargets)) {
+        if (!Arrays.equals(jumpTargets, other.jumpTargets)) {
             return false;
         }
-        if (!java.util.Arrays.equals(hasElse, other.hasElse)) {
+        if (!Arrays.equals(hasElse, other.hasElse)) {
             return false;
         }
         
@@ -175,21 +184,16 @@ public class Register {
         private int index;
         private Object value = "nil";
         private ValueType type = ValueType.NIL;
+        private FromType fromType = FromType.NIL;
 
         /**
          * 构造函数，支持不同类型的初始值
          */
-        public RegisterEntity(int index, Object value, ValueType type) {
+        public RegisterEntity(int index, Object value, ValueType type, FromType fromType) {
             this.index = index;
             this.value = value;
             this.type = type;
-        }
-
-        /**
-         * 兼容旧构造函数
-         */
-        public RegisterEntity(int index, int value) {
-            this(index, value, ValueType.NUMBER);
+            this.fromType = fromType;
         }
 
         public int getIndex() {
@@ -217,11 +221,19 @@ public class Register {
             this.type = type;
         }
 
+        public FromType getFromType() {
+            return fromType;
+        }
+
+        public void setFromType(FromType fromType) {
+            this.fromType = fromType;
+        }
+
         /**
          * 创建当前实体的副本
          */
         public RegisterEntity copy() {
-            return new RegisterEntity(index, value, type);
+            return new RegisterEntity(index, value, type, fromType);
         }
 
         public String toString() {

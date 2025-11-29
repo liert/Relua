@@ -4,7 +4,11 @@ import com.github.relua.model.CodeLine;
 import com.github.relua.model.CodeLine.CodeType;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.Stack;
 
 /**
@@ -42,6 +46,9 @@ public class CodeGeneratorContext {
     private List<CodeLine> codeLines;           // 生成的代码行列表
     private int currentIndent;                  // 当前缩进级别
     private Stack<ControlFlowElement> controlFlowStack; // 控制流栈，用于跟踪if-else嵌套结构
+    private Set<Integer> labelPCs = new HashSet<>(); // 标签指令的PC值集合
+    private int thenIndex = 0;
+    private Map<Integer, BasicBlock> thenBlocks = new HashMap<>(); // 基本块映射
     
     /**
      * 构造函数
@@ -51,7 +58,7 @@ public class CodeGeneratorContext {
         this.currentIndent = 0;
         this.controlFlowStack = new Stack<>();
     }
-    
+
     /**
      * 添加普通代码行
      * @param content 代码内容
@@ -162,6 +169,54 @@ public class CodeGeneratorContext {
      */
     public Stack<ControlFlowElement> getControlFlowStack() {
         return controlFlowStack;
+    }
+
+    /**
+     * 添加标签指令的PC值
+     * @param pc 标签指令的PC值
+     */
+    public void addLabelPC(int pc) {
+        labelPCs.add(pc);
+    }
+    
+    /**
+     * 检查PC值是否为标签指令
+     * @param pc PC值
+     * @return 如果是标签指令则返回true，否则返回false
+     */
+    public boolean isLabelPC(int pc) {
+        return labelPCs.contains(pc);
+    }
+
+    /**
+     * 添加then块
+     * 
+     * @param block then块
+     */
+    public void addThenBlock(BasicBlock block) {
+        thenBlocks.put(thenIndex++, block);
+    }
+    
+    /**
+     * 获取then块
+     * 
+     * @param index then块索引
+     * @return then块
+     */
+    public BasicBlock getThenBlock(int index) {
+        return thenBlocks.get(index);
+    }
+
+    /**
+     * 获取最后一个then块
+     * @return 最后一个then块
+     */
+    public BasicBlock getLastThenBlock() {
+        // 确保thenIndex大于0，避免空指针异常
+        if (thenIndex <= 0) {
+            return null;
+        }
+        return getThenBlock(thenIndex - 1);
     }
     
     /**
