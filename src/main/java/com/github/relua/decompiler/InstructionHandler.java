@@ -560,7 +560,7 @@ public class InstructionHandler {
         currentState.setRegisterEntity(a, srcEntity.getValue(), srcEntity.getType(), srcEntity.getFromType());
 
         // 调试信息
-        System.out.println(String.format("MOVE: R%d = R%d (%s, %s)", a, b, srcEntity.getValue(), srcEntity.getType()));
+        // System.out.println(String.format("MOVE: R%d = R%d (%s, %s)", a, b, srcEntity.getValue(), srcEntity.getType()));
     }
 
     private void processLoadKInstruction(Chunk chunk, Instruction instruction, Register currentState) {

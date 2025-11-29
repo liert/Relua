@@ -3,6 +3,9 @@ package com.github.relua;
 import com.github.relua.model.LuacFile;
 import com.github.relua.parser.LuacParser;
 import com.github.relua.decompiler.Decompiler;
+import com.github.relua.log.Logger;
+import com.github.relua.log.LogConfig;
+import com.github.relua.log.LogLevel;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -19,6 +22,9 @@ public class Relua {
      * @param args 命令行参数
      */
     public static void main(String[] args) {
+        // 初始化日志系统
+        initLogger();
+        
         if (args.length == 0) {
             showHelp();
             return;
@@ -47,7 +53,7 @@ public class Relua {
                     if (i + 1 < args.length) {
                         outputFile = args[++i];
                     } else {
-                        System.err.println("Error: Missing output file path");
+                        Logger.error("Missing output file path");
                         System.exit(1);
                     }
                     break;
@@ -57,13 +63,13 @@ public class Relua {
                     break;
                 default:
                     if (arg.startsWith("-")) {
-                        System.err.println("Error: Unknown option: " + arg);
+                        Logger.error("Unknown option: " + arg);
                         showHelp();
                         System.exit(1);
                     } else if (inputFile == null) {
                         inputFile = arg;
                     } else {
-                        System.err.println("Error: Multiple input files specified");
+                        Logger.error("Multiple input files specified");
                         showHelp();
                         System.exit(1);
                     }
@@ -83,7 +89,7 @@ public class Relua {
         }
         
         if (inputFile == null) {
-            System.err.println("Error: No input file specified");
+            Logger.error("No input file specified");
             showHelp();
             System.exit(1);
         }
@@ -95,15 +101,28 @@ public class Relua {
             // 输出结果
             if (outputFile != null) {
                 writeToFile(outputFile, luaCode);
-                System.out.println("Successfully decompiled " + inputFile + " to " + outputFile);
+                Logger.info("Successfully decompiled " + inputFile + " to " + outputFile);
             } else {
-                System.out.println(luaCode);
+                System.out.println(luaCode); // 直接输出反编译结果，不经过日志
             }
         } catch (Exception e) {
-            System.err.println("Error: " + e.getMessage());
-            e.printStackTrace();
+            Logger.error("Error: " + e.getMessage(), e);
             System.exit(1);
         }
+    }
+    
+    /**
+     * 初始化日志系统
+     */
+    private static void initLogger() {
+        LogConfig config = new LogConfig();
+        config.setLogLevel(LogLevel.INFO);
+        config.setConsoleOutput(true);
+        config.setFileOutput(true);
+        config.setLogFilePath("logs/relua.log");
+        config.setMaxFileSize(10 * 1024 * 1024); // 10MB
+        config.setMaxBackupFiles(5);
+        Logger.init(config);
     }
     
     /**
@@ -119,11 +138,11 @@ public class Relua {
         Decompiler decompiler = new Decompiler();
         
         // 解析Luac文件
-        System.out.println("Parsing " + inputFile + "...");
+        Logger.info("Parsing " + inputFile + "...");
         LuacFile luacFile = parser.parse(inputFile);
         
         // 反编译
-        System.out.println("Decompiling...");
+        Logger.info("Decompiling...");
         return decompiler.decompile(luacFile, showBytecode);
     }
     
