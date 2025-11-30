@@ -1,5 +1,6 @@
 package com.github.relua.parser;
 
+import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Constant;
 import com.github.relua.model.Instruction;
@@ -26,22 +27,21 @@ public class ChunkParser {
      * @return 解析后的代码块
      * @throws IOException IO异常
      */
-    public Chunk parse() throws IOException {
+    public Chunk parse(String function) throws IOException {
         Chunk chunk = new Chunk();
+        chunk.setFunction(function);
         
         // 解析函数定义行号
-        int source = reader.readInt();
+        chunk.setSource(reader.readInt());
         chunk.setLineDefined(reader.readInt());
         chunk.setLastLineDefined(reader.readInt());
+        Logger.info(String.format("源文件索引: %d, 起始行号: %d, 结束行号: %d", chunk.getSource(), chunk.getLineDefined(), chunk.getLastLineDefined()));
         
         int nups = reader.readUnsignedByte();
         int numParams = reader.readUnsignedByte();
         int isVararg = reader.readUnsignedByte();
         int maxStackSize = reader.readUnsignedByte();
-        System.out.println("nups: " + nups);
-        System.out.println("numParams: " + numParams);
-        System.out.println("isVararg: " + isVararg);
-        System.out.println("maxStackSize: " + maxStackSize);
+        Logger.info(String.format("上值数量: %d, 固定参数数量: %d, 是否可变参数: %s, 最大栈大小: %d", nups, numParams, isVararg == 1 ? "是" : "否", maxStackSize));
         
         chunk.setNumParams(numParams);
         chunk.setIsVararg(isVararg);
@@ -157,7 +157,8 @@ public class ChunkParser {
             
             for (int i = 0; i < subChunkCount; i++) {
                 try {
-                    Chunk subChunk = parse();
+                    Logger.info(String.format("子代码块 [%d]", i));
+                    Chunk subChunk = parse(chunk.getFunction() + "_" + i);
                     chunk.addSubChunk(subChunk);
                 } catch (EOFException e) {
                     System.err.println("Warning: Reached end of file while parsing sub-chunk " + i + ".");

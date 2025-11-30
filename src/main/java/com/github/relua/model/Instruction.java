@@ -102,11 +102,14 @@ public class Instruction {
                 b = getArgB((int) ucode);
                 c = (int) (ucode >> 14) & 0xFF;
                 break;
-            
             case SETTABLE:
+                // OP_SETTABLE	A B C	R(A)[RK(B)] := RK(C)
+                // 其中RK(B)和RK(C)可以是寄存器或常量
+                // 大于256的B、C表示常量索引
+                // 小于256的B、C表示寄存器索引
                 a = (int) (ucode >> 6) & 0xFF;
-                b = (int) (ucode >> 23) & 0xFF;
-                c = (int) (ucode >> 14) & 0xFF;
+                b = (int) (ucode >> 23) & 0x1FF;
+                c = (int) (ucode >> 14) & 0x1FF;
                 break;
             case GETTABLE:
             case ADD:
@@ -124,7 +127,7 @@ public class Instruction {
             case SELF:
                 a = (int) (ucode >> 6) & 0xFF;
                 b = (int) (ucode >> 23) & 0x1FF;
-                c = (int) (ucode >> 14) & 0xFF;
+                c = (int) (ucode >> 14) & 0x1FF;
                 break;
             case EQ:
             case LT:

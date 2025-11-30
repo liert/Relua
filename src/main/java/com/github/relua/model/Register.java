@@ -86,6 +86,15 @@ public class Register {
     }
 
     /**
+     * 获取当前寄存器数量
+     * 
+     * @return 寄存器数量
+     */
+    public int getRegisterCount() {
+        return registers.size();
+    }
+
+    /**
      * 获取所有寄存器实体
      */
     public Map<Integer, RegisterEntity> getAllRegisterEntities() {
@@ -237,7 +246,7 @@ public class Register {
         }
 
         public String toString() {
-            return "RegisterEntity{index=" + index + ", value=" + value + ", type=" + type + "}";
+            return "R" + index + " = " + value + " | type=" + type + " | from=" + fromType;
         }
         
         /**

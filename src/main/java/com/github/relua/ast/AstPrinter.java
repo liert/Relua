@@ -324,7 +324,7 @@ public class AstPrinter implements AstVisitor<String> {
     
     @Override
     public String visit(UnaryOp node) {
-        return node.op + node.expr.accept(this);
+        return node.op + " " + node.expr.accept(this);
     }
     
     @Override

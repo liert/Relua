@@ -1,6 +1,7 @@
 package com.github.relua.decompiler;
 
 import com.github.relua.ast.*;
+import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Constant;
 import com.github.relua.model.FromType;
@@ -9,6 +10,8 @@ import com.github.relua.model.Instruction.Opcode;
 import com.github.relua.model.Register;
 import com.github.relua.model.Register.RegisterEntity;
 import com.github.relua.model.ValueType;
+import com.github.relua.util.TransformUtils;
+
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -19,7 +22,7 @@ import java.util.Collections;
  */
 public class InstructionToASTConverter {
     private Chunk chunk;
-    private InstructionHandler instructionHandler;
+    private DecompilerPipeline pipeline;
     private PendingTest pendingTest = null;
 
     /**
@@ -28,9 +31,9 @@ public class InstructionToASTConverter {
      * @param chunk              代码块
      * @param instructionHandler 指令处理器
      */
-    public InstructionToASTConverter(Chunk chunk, InstructionHandler instructionHandler) {
+    public InstructionToASTConverter(Chunk chunk, DecompilerPipeline pipeline) {
         this.chunk = chunk;
-        this.instructionHandler = instructionHandler;
+        this.pipeline = pipeline;
     }
 
     /**
@@ -71,6 +74,8 @@ public class InstructionToASTConverter {
                 return convertGetTableInstruction(instruction, instructionIndex);
             case SETTABLE:
                 return convertSetTableInstruction(instruction, instructionIndex);
+            case NEWTABLE:
+                return convertNewTableInstruction(instruction, instructionIndex);
             case SELF:
                 return convertSelfInstruction(instruction, instructionIndex);
             case ADD:
@@ -100,6 +105,8 @@ public class InstructionToASTConverter {
                 return convertTestInstruction(instruction, instructionIndex);
             case JMP:
                 return convertJmpInstruction(instruction, instructionIndex);
+            case CLOSURE:
+                return convertClosureInstruction(instruction, instructionIndex);
             default:
                 // 对于其他指令，生成一个默认的表达式节点
                 StringConst opcodeStr = new StringConst(opcode.toString(), new SourcePos(instructionIndex, -1));
@@ -119,7 +126,7 @@ public class InstructionToASTConverter {
         int b = instruction.getB();
 
         // 获取寄存器状态
-        Register registerState = instructionHandler.getRegisterByInstructionIndex(instructionIndex);
+        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         RegisterEntity sourceEntity = registerState.getRegisterEntity(b);
 
         // 如果源寄存器是常量或全局变量，直接使用其值，否则返回null表示不生成单独的AST节点
@@ -307,7 +314,7 @@ public class InstructionToASTConverter {
         int bx = instruction.getBx();
 
         // 源变量 - 使用寄存器的实际值
-        Register registerState = instructionHandler.getRegisterByInstructionIndex(instructionIndex);
+        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         RegisterEntity sourceEntity = registerState.getRegisterEntity(a);
 
         Expression source = null;
@@ -370,17 +377,24 @@ public class InstructionToASTConverter {
         List<String> names = new ArrayList<>();
         names.add("R" + a);
 
-        Register registerState = instructionHandler.getRegisterByInstructionIndex(instructionIndex);
+        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         RegisterEntity RB = registerState.getRegisterEntity(b);
 
+        SourcePos pos = new SourcePos(instructionIndex, -1);
+
         // 表访问表达式
-        Expression table = new Name("R" + b, new SourcePos(instructionIndex, -1));
+        Expression table = new Name("R" + b, pos);
         if (RB.getType() == ValueType.GLOBAL) {
-            table = new Name(RB.getValue().toString(), new SourcePos(instructionIndex, -1));
+            table = new Name(RB.getValue().toString(), pos);
         }
-        Expression index = new Name(String.format("\"%s\"", chunk.getConstant(c).getValue().toString()),
-                new SourcePos(instructionIndex, -1));
-        Expression tableAccess = new IndexExpr(table, index, new SourcePos(instructionIndex, -1));
+
+        Expression index = null;
+        if (c < 256) {
+            index = new Name(TransformUtils.transformRegister(registerState.getRegisterEntity(c)), pos);
+        } else {
+            index = new StringConst(chunk.getConstant(c - 256).getValue().toString(), pos);
+        }
+        Expression tableAccess = new IndexExpr(table, index, pos);
 
         List<Expression> right = new ArrayList<>();
         right.add(tableAccess);
@@ -388,7 +402,7 @@ public class InstructionToASTConverter {
             // return new Assign("R" + a, tableAccess, new SourcePos(instructionIndex, -1));
             return null;
         }
-        return new LocalAssign(names, right, new SourcePos(instructionIndex, -1));
+        return new LocalAssign(names, right, pos);
     }
 
     /**
@@ -399,25 +413,69 @@ public class InstructionToASTConverter {
      * @return 生成的AST节点
      */
     private AstNode convertSetTableInstruction(Instruction instruction, int instructionIndex) {
+        // OP_SETTABLE A B C R(A)[RK(B)] := RK(C)
         int a = instruction.getA();
         int b = instruction.getB();
         int c = instruction.getC();
+        Register register = pipeline.getRegisterByInstructionIndex(instructionIndex);
+        RegisterEntity RA = register.getRegisterEntity(a);
 
-        // SETTABLE指令：R(a)[R(b)] := R(c)
+        SourcePos pos = new SourcePos(instructionIndex, -1);
 
         // 表访问表达式（作为目标）
-        Expression table = new Name("R" + a, new SourcePos(instructionIndex, -1));
-        Expression index = new Name("R" + b, new SourcePos(instructionIndex, -1));
-        Expression tableAccess = new IndexExpr(table, index, new SourcePos(instructionIndex, -1));
+        String tableName = TransformUtils.transformRegister(RA);
+        if (tableName.equals("{}")) {
+            tableName = RA.getName();
+        }
+        Expression table = new Name(tableName, pos);
+        Expression index = null;
+        if (b < 256) {
+            index = new Name(TransformUtils.transformRegister(register.getRegisterEntity(b)), pos);
+        } else {
+            index = new StringConst(chunk.getConstant(b - 256).getValue().toString(), pos);
+        }
+        Expression tableAccess = new IndexExpr(table, index, pos);
 
         // 源变量
-        Expression source = new Name("R" + c, new SourcePos(instructionIndex, -1));
+        Expression source = null;
+        if (c < 256) {
+            source = new Name(TransformUtils.transformRegister(register.getRegisterEntity(c)), pos);
+        } else {
+            source = new StringConst(chunk.getConstant(c - 256).getValue().toString(), pos);
+        }
 
+        // 赋值语句
         List<Expression> left = new ArrayList<>();
         left.add(tableAccess);
         List<Expression> right = new ArrayList<>();
         right.add(source);
         return new Assign(left, right, new SourcePos(instructionIndex, -1));
+    }
+
+    /**
+     * 转换NEWTABLE指令
+     * 
+     * @param instruction
+     * @param instructionIndex
+     * @return
+     */
+    private AstNode convertNewTableInstruction(Instruction instruction, int instructionIndex) {
+        // OP_NEWTABLE A B C R(A) := {} (size = B, C)
+        int a = instruction.getA();
+        int b = instruction.getB();
+        int c = instruction.getC();
+
+        Register register = pipeline.getRegisterByInstructionIndex(instructionIndex);
+        RegisterEntity RA = register.getRegisterEntity(a);
+
+        SourcePos pos = new SourcePos(instructionIndex, -1);
+
+        // 赋值语句
+        List<Expression> left = new ArrayList<>();
+        left.add(new Name(TransformUtils.transformRegister(RA), pos));
+        List<Expression> right = new ArrayList<>();
+        right.add(new Name("{}", pos));
+        return new Assign(left, right, pos);
     }
 
     /**
@@ -433,6 +491,9 @@ public class InstructionToASTConverter {
         int b = instruction.getB();
         int c = instruction.getC();
 
+        Register register = pipeline.getRegisterByInstructionIndex(instructionIndex);
+        SourcePos pos = new SourcePos(instructionIndex, -1);
+
         // 目标变量名
         List<String> names = new ArrayList<>();
         names.add("R" + (a + 1));
@@ -440,8 +501,13 @@ public class InstructionToASTConverter {
         // 源变量
         Expression source = new Name("R" + b, new SourcePos(instructionIndex, -1));
         // 索引表达式
-        Expression index = new Name(String.format("\"%s\"", chunk.getConstant(c).getValue().toString()),
-                new SourcePos(instructionIndex, -1));
+        Expression index = null;
+        if (c < 256) {
+            index = new Name(TransformUtils.transformRegister(register.getRegisterEntity(c)), pos);
+        } else {
+            index = new StringConst(chunk.getConstant(c - 256).getValue().toString(), pos);
+        }
+
         Expression tableAccess = new IndexExpr(source, index, new SourcePos(instructionIndex, -1));
         // 赋值语句
         List<Expression> left = new ArrayList<>();
@@ -531,7 +597,7 @@ public class InstructionToASTConverter {
         int b = instruction.getB();
         int c = instruction.getC();
 
-        Register register = instructionHandler.getRegisterByInstructionIndex(instructionIndex);
+        Register register = pipeline.getRegisterByInstructionIndex(instructionIndex);
 
         // 目标变量
         Expression target = new Name("R" + a, new SourcePos(instructionIndex, -1));
@@ -587,7 +653,7 @@ public class InstructionToASTConverter {
         int b = instruction.getB();
         int c = instruction.getC();
 
-        Register registerState = instructionHandler.getRegisterByInstructionIndex(instructionIndex);
+        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
 
         // 函数本体
         Expression func = resolveExpressionFromRegister(a, instructionIndex, registerState);
@@ -603,6 +669,10 @@ public class InstructionToASTConverter {
         // 创建调用表达式
         FunctionCall call = new FunctionCall(func, args, false, returns, pos);
 
+        if (instruction.getOpcode() == Opcode.TAILCALL) {
+            return new UnaryOp("return", call, pos);
+        }
+
         // 情况 1：C == 1 → 没有返回值（语句形式）
         if (c == 1) {
             return new ExpressionStatement(call, pos);
@@ -615,10 +685,15 @@ public class InstructionToASTConverter {
             // 返回值写入 R(A) 到 R(A+C-2)
             for (int i = 0; i < c - 1; i++) {
                 Name returnName = new Name("R" + (a + i), pos);
+
+                RegisterEntity RA = registerState.getRegisterEntity(a);
+                String RAValue = RA.getValue().toString();
+                if (RAValue.equals("require")) {
+                    RegisterEntity argsEntity = registerState.getRegisterEntity(a + 1);
+                    returnName.name = argsEntity.getValue().toString().replace(".", "_");
+                }
+
                 targets.add(returnName);
-                returns.add(returnName);
-                // 更新寄存器状态
-                registerState.setRegisterEntity(a + i, call, ValueType.OBJECT, FromType.REGISTER);
             }
 
             return new Assign(targets, Collections.singletonList(call), pos);
@@ -654,6 +729,10 @@ public class InstructionToASTConverter {
      */
     private Expression resolveExpressionFromRegister(int registerIndex, int instructionIndex, Register registerState) {
         RegisterEntity entity = registerState.getRegisterEntity(registerIndex);
+        String tableName = TransformUtils.transformRegister(entity);
+        if (tableName.equals("{}")) {
+            return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
+        }
         try {
             // 根据实体类型创建不同的表达式
             switch (entity.getType()) {
@@ -779,7 +858,7 @@ public class InstructionToASTConverter {
         int c = instruction.getC();
         System.out.println("TEST R" + a + " " + c);
 
-        Register registerState = instructionHandler.getRegisterByInstructionIndex(instructionIndex);
+        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         RegisterEntity RA = registerState.getRegisterEntity(a);
 
         // 操作数
@@ -828,18 +907,20 @@ public class InstructionToASTConverter {
             int thenStart = instructionIndex + 1;
             int thenEnd = jmpTarget - 1;
             BasicBlock currentThenBlock = new BasicBlock(thenStart);
-            BasicBlock block = instructionHandler.getBlockByStartIndex(thenStart);
+            BasicBlock block = pipeline.getBlockByStartIndex(chunk.getFunction(), thenStart);
             if (block != null && chunk.getInstructions().get(block.getEndIndex() - 1).getOpcode() != Opcode.TEST &&
                     chunk.getInstructions().get(block.getEndIndex()).getOpcode() == Opcode.JMP) {
                 thenEnd = block.getEndIndex();
             }
-            BasicBlock lastThenBlock = instructionHandler.getContext().getLastThenBlock();
-            if (lastThenBlock != null && lastThenBlock.getEndIndex() < thenEnd) {
+            // 获取上一个then块的结束索引
+            BasicBlock lastThenBlock = pipeline.getContext().getLastThenBlock();
+            if (lastThenBlock != null && lastThenBlock.getEndIndex() > thenStart
+                    && lastThenBlock.getEndIndex() < thenEnd) {
                 thenEnd = lastThenBlock.getEndIndex();
             }
             currentThenBlock.setEndIndex(thenEnd);
 
-            instructionHandler.getContext().addThenBlock(currentThenBlock);
+            pipeline.getContext().addThenBlock(currentThenBlock);
 
             System.out.println("Then StartIndex = " + thenStart + ", Then EndIndex = " + thenEnd);
 
@@ -873,5 +954,17 @@ public class InstructionToASTConverter {
 
         // 普通无条件跳转
         return new GotoStatement("L" + jmpTarget, new SourcePos(instructionIndex, -1));
+    }
+
+    /**
+     * 转换CLOSURE指令
+     *
+     * @param instruction      指令
+     * @param instructionIndex 指令索引
+     * @return 生成的AST节点
+     */
+    private Object convertClosureInstruction(Instruction instruction, int instructionIndex) {
+        // OP_CLOSURE A Bx R(A) := closure(KPROTO[Bx], R(A), ... ,R(A+n))
+        return null;
     }
 }

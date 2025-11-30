@@ -55,9 +55,12 @@ public class LogFormatter {
         String formatted = logFormat;
         
         // 替换日期时间
-        formatted = DATE_PATTERN.matcher(formatted).replaceAll(match -> {
-            return dateFormat.format(new Date());
-        });
+        Matcher matcher = DATE_PATTERN.matcher(formatted);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            matcher.appendReplacement(sb, dateFormat.format(new Date()));
+        }
+        formatted = matcher.appendTail(sb).toString();
         
         // 替换日志级别
         formatted = formatted.replace("%p", level.name());

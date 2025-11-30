@@ -1,8 +1,13 @@
 package com.github.relua.decompiler;
 
-import com.github.relua.manager.RegisterManager;
+import java.util.ArrayList;
+import java.util.List;
+
 import com.github.relua.model.Chunk;
 import com.github.relua.model.CodeLine;
+import com.github.relua.model.FromType;
+import com.github.relua.model.Register;
+import com.github.relua.model.ValueType;
 
 /**
  * Lua代码生成器，作为总控类，负责协调各个代码生成器
@@ -10,9 +15,7 @@ import com.github.relua.model.CodeLine;
 public class LuaCodeGenerator {
     private InstructionHandler instructionHandler;
     private AstCodeEmitter astCodeEmitter;
-    private BasicBlockCodeEmitter basicBlockCodeEmitter;
-    private InstructionCodeEmitter instructionCodeEmitter;
-    private SubChunkEmitter subChunkEmitter;
+    private List<CodeGeneratorContext> contexts = new ArrayList<>();
 
     /**
      * 构造函数
@@ -20,11 +23,9 @@ public class LuaCodeGenerator {
      * @param codeGenContext 代码生成上下文
      */
     public LuaCodeGenerator(CodeGeneratorContext codeGenContext) {
-        this.instructionHandler = new InstructionHandler(codeGenContext);
+        // this.instructionHandler = new InstructionHandler(codeGenContext);
         this.astCodeEmitter = new AstCodeEmitter();
-        this.basicBlockCodeEmitter = new BasicBlockCodeEmitter();
-        this.instructionCodeEmitter = new InstructionCodeEmitter();
-        this.subChunkEmitter = new SubChunkEmitter();
+        // new BasicBlockCodeEmitter();
     }
 
     /**
@@ -34,39 +35,92 @@ public class LuaCodeGenerator {
      * @return 生成的Lua代码
      */
     public String generate(Chunk chunk) {
+        // 创建代码生成上下文
+        CodeGeneratorContext context = new CodeGeneratorContext(chunk);
+        this.instructionHandler = new InstructionHandler(context);
+
         System.out.println("=== 开始处理Chunk ===");
         System.out.println("Chunk信息: lineDefined=" + chunk.getLineDefined() + ", lastLineDefined="
                 + chunk.getLastLineDefined() + ", numParams=" + chunk.getNumParams() + ", isVararg="
                 + chunk.getIsVararg() + ", maxStackSize=" + chunk.getMaxStackSize());
 
-        // 创建代码生成上下文
-        CodeGeneratorContext context = new CodeGeneratorContext();
-
         // 先让指令处理器处理代码块，建立控制流和变量映射
-        System.out.println("调用instructionHandler.processChunk(chunk)...");
-        instructionHandler.processChunk(chunk);
-        System.out.println("instructionHandler.processChunk(chunk)执行完成");
-
-        RegisterManager registerManager = new RegisterManager();
+        instructionHandler.process(chunk);
 
         // 生成代码块头部信息
-        System.out.println("生成代码块头部信息...");
-        generateChunkHeader(chunk, context);
+        if (chunk.getFunction().equals("main")) {
+            System.out.println("生成代码块头部信息...");
+            generateChunkHeader(chunk, context);
+        }
 
         // 生成指令代码（使用AST）
         System.out.println("生成AST代码...");
         astCodeEmitter.emitAst(chunk, context, instructionHandler);
-
-        // 生成子代码块
-        System.out.println("生成子代码块...");
-        subChunkEmitter.emitSubChunks(registerManager, chunk, context);
 
         // 关闭所有未结束的控制流结构
         System.out.println("关闭所有未结束的控制流结构...");
         context.closeAllControlFlow();
 
         System.out.println("=== Chunk处理完成 ===");
-        return context.generateCode();
+
+        contexts.add(context);
+
+        for (Chunk subChunk : chunk.getSubChunks()) {
+            Register register = new Register();
+            for (int i = 0; i < subChunk.getNumParams(); i++) {
+                register.setRegisterEntity(i, "a" + i, ValueType.OBJECT, FromType.GLOBAL);
+            }
+            generate(subChunk);
+        }
+
+        if (chunk.getFunction().equals("main")) {
+            StringBuilder code = new StringBuilder();
+            for (CodeGeneratorContext ctx : contexts) {
+                code.append("function ").append(ctx.getChunk().getFunction()).append("() {\n");
+                code.append(ctx.generateCode());
+                code.append("}\n\n");
+            }
+            return code.toString();
+        }
+        return "";
+    }
+
+    /**
+     * 生成Lua代码
+     * 
+     * @param chunk 代码块
+     * @return 生成的Lua代码
+     */
+    public String generate(Chunk chunk, CodeGeneratorContext context) {
+        // 创建代码生成上下文
+        this.instructionHandler = new InstructionHandler(context);
+
+        System.out.println("=== 开始处理Chunk ===");
+        System.out.println("Chunk信息: lineDefined=" + chunk.getLineDefined() + ", lastLineDefined="
+                + chunk.getLastLineDefined() + ", numParams=" + chunk.getNumParams() + ", isVararg="
+                + chunk.getIsVararg() + ", maxStackSize=" + chunk.getMaxStackSize());
+
+        // 先让指令处理器处理代码块，建立控制流和变量映射
+        instructionHandler.process(chunk);
+
+        // 生成代码块头部信息
+        if (chunk.getFunction().equals("main")) {
+            System.out.println("生成代码块头部信息...");
+            generateChunkHeader(chunk, context);
+        }
+
+        // 生成指令代码（使用AST）
+        System.out.println("生成AST代码...");
+        astCodeEmitter.emitAst(chunk, context, instructionHandler);
+
+        // 关闭所有未结束的控制流结构
+        System.out.println("关闭所有未结束的控制流结构...");
+        context.closeAllControlFlow();
+
+        System.out.println("=== Chunk处理完成 ===");
+
+        contexts.add(context);
+        return "";
     }
 
     /**

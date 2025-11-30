@@ -116,9 +116,11 @@ public class BinaryReader {
             return "";
         }
         
-        byte[] bytes = new byte[length];
+        // 不读取\x00空终止符
+        byte[] bytes = new byte[length - 1];
         dis.readFully(bytes);
-        // 字符串内容不包含空终止符，直接返回
+        // 跳过\x00空终止符
+        dis.readByte();
         return new String(bytes, "UTF-8");
     }
 

@@ -116,9 +116,9 @@ public class Relua {
      */
     private static void initLogger() {
         LogConfig config = new LogConfig();
-        config.setLogLevel(LogLevel.INFO);
+        config.setLogLevel(LogLevel.DEBUG);
         config.setConsoleOutput(true);
-        config.setFileOutput(true);
+        config.setFileOutput(false);
         config.setLogFilePath("logs/relua.log");
         config.setMaxFileSize(10 * 1024 * 1024); // 10MB
         config.setMaxBackupFiles(5);

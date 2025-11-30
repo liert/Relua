@@ -79,19 +79,22 @@ public class Logger {
     private static String[] getCallerInfo() {
         StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
         
-        // 找到调用Logger的方法
+        // 跳过Logger类的所有方法，找到真正的调用者
         for (int i = 0; i < stackTrace.length; i++) {
             StackTraceElement element = stackTrace[i];
+            // 跳过Logger类的方法
             if (element.getClassName().equals(Logger.class.getName())) {
-                // 下一个元素是调用Logger的方法
-                if (i + 1 < stackTrace.length) {
-                    StackTraceElement caller = stackTrace[i + 1];
-                    return new String[] {
-                            caller.getFileName(),
-                            String.valueOf(caller.getLineNumber())
-                    };
-                }
+                continue;
             }
+            // 跳过getStackTrace()方法
+            if (element.getMethodName().equals("getStackTrace")) {
+                continue;
+            }
+            // 返回第一个非Logger类的调用者
+            return new String[] {
+                    element.getFileName(),
+                    String.valueOf(element.getLineNumber())
+            };
         }
         
         return new String[] {"Unknown", "0"};

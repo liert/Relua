@@ -44,7 +44,7 @@ public class LuacParser {
 
         // 解析主代码块
         ChunkParser chunkParser = new ChunkParser(reader);
-        Chunk mainChunk = chunkParser.parse();
+        Chunk mainChunk = chunkParser.parse("main");
         luacFile.setMainChunk(mainChunk);
 
         return luacFile;

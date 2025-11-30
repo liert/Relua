@@ -111,13 +111,13 @@ public class InstructionCodeEmitter {
             case MOD:
             case POW:
                 // 算术运算
-                result = generateArithmeticCode(chunk, instruction, index, handler);
+                // result = generateArithmeticCode(chunk, instruction, index, handler);
                 break;
             case UNM:
             case NOT:
             case LEN:
                 // 一元运算
-                result = generateUnaryCode(chunk, instruction, index, handler);
+                // result = generateUnaryCode(chunk, instruction, index, handler);
                 break;
             case GETGLOBAL:
                 // 获取全局变量
@@ -133,7 +133,7 @@ public class InstructionCodeEmitter {
                 break;
             case SETTABLE:
                 // 设置表元素
-                result = generateSetTableCode(chunk, instruction, index, handler);
+                // result = generateSetTableCode(chunk, instruction, index, handler);
                 break;
             case SELF:
                 result = generateSelfCode(currentRegister, chunk, instruction, index);
@@ -144,11 +144,11 @@ public class InstructionCodeEmitter {
                 break;
             case RETURN:
                 // 返回
-                result = generateReturnCode(currentRegister, chunk, instruction, index, handler);
+                // result = generateReturnCode(currentRegister, chunk, instruction, index, handler);
                 break;
             case CONCAT:
                 // 字符串连接
-                result = generateConcatCode(chunk, instruction, index, handler);
+                // result = generateConcatCode(chunk, instruction, index, handler);
                 break;
             case JMP:
                 // 跳转指令，根据上下文决定是否生成代码
@@ -160,7 +160,7 @@ public class InstructionCodeEmitter {
             case LT:
             case LE:
                 // 生成if条件
-                result = generateIfCode(currentRegister, chunk, instruction, index, handler);
+                // result = generateIfCode(currentRegister, chunk, instruction, index, handler);
                 break;
             default:
                 // 其他指令，暂时输出指令信息
@@ -436,58 +436,58 @@ public class InstructionCodeEmitter {
      * @param handler          指令处理器
      * @return 生成的指令代码
      */
-    private String generateIfCode(Register register, Chunk chunk, Instruction instruction, int instructionIndex, InstructionHandler handler) {
-        // 使用InstructionHandler的寄存器状态，而不是传入的register参数
-        Register currentRegister = handler.getRegisterByInstructionIndex(instructionIndex);
+    // private String generateIfCode(Register register, Chunk chunk, Instruction instruction, int instructionIndex, DecompilerPipeline pipeline) {
+    //     // 使用InstructionHandler的寄存器状态，而不是传入的register参数
+    //     Register currentRegister = pipeline.getRegisterByInstructionIndex(instructionIndex);
 
-        int a = instruction.getA();
-        int c = instruction.getC();
-        Opcode opcode = instruction.getOpcode();
-        String condition;
+    //     int a = instruction.getA();
+    //     int c = instruction.getC();
+    //     Opcode opcode = instruction.getOpcode();
+    //     String condition;
 
-        if (opcode == Opcode.TEST || opcode == Opcode.TESTSET) {
-            // TEST指令：if not (R(A) <=> C) then pc += sBx
-            String regName = handler.getRegisterName(a, instructionIndex);
+    //     if (opcode == Opcode.TEST || opcode == Opcode.TESTSET) {
+    //         // TEST指令：if not (R(A) <=> C) then pc += sBx
+    //         String regName = handler.getRegisterName(a, instructionIndex);
 
-            // 根据C值生成正确的条件表达式
-            if (c == 0) {
-                // C=0: if R(A) then
-                condition = regName;
-            } else {
-                // C=1: if not R(A) then
-                condition = String.format("not %s", regName);
-            }
-        } else if (opcode == Opcode.EQ) {
-            // EQ指令：if R(B) ~= RK(C) then pc += sBx
-            // 生成的条件应该是 R(B) == RK(C)
-            String regB = handler.getRegisterName(instruction.getB(), instructionIndex);
-            String regC = handler.getRegisterName(instruction.getC(), instructionIndex);
-            condition = String.format("%s == %s", regB, regC);
-        } else if (opcode == Opcode.LT) {
-            // LT指令：if R(B) >= RK(C) then pc += sBx
-            // 生成的条件应该是 R(B) < RK(C)
-            String regB = handler.getRegisterName(instruction.getB(), instructionIndex);
-            String regC = handler.getRegisterName(instruction.getC(), instructionIndex);
-            condition = String.format("%s < %s", regB, regC);
-        } else if (opcode == Opcode.LE) {
-            // LE指令：if R(B) > RK(C) then pc += sBx
-            // 生成的条件应该是 R(B) <= RK(C)
-            String regB = handler.getRegisterName(instruction.getB(), instructionIndex);
-            String regC = handler.getRegisterName(instruction.getC(), instructionIndex);
-            condition = String.format("%s <= %s", regB, regC);
-        } else {
-            // 默认情况，使用寄存器值
-            condition = handler.getRegisterName(a, instructionIndex);
-        }
+    //         // 根据C值生成正确的条件表达式
+    //         if (c == 0) {
+    //             // C=0: if R(A) then
+    //             condition = regName;
+    //         } else {
+    //             // C=1: if not R(A) then
+    //             condition = String.format("not %s", regName);
+    //         }
+    //     } else if (opcode == Opcode.EQ) {
+    //         // EQ指令：if R(B) ~= RK(C) then pc += sBx
+    //         // 生成的条件应该是 R(B) == RK(C)
+    //         String regB = handler.getRegisterName(instruction.getB(), instructionIndex);
+    //         String regC = handler.getRegisterName(instruction.getC(), instructionIndex);
+    //         condition = String.format("%s == %s", regB, regC);
+    //     } else if (opcode == Opcode.LT) {
+    //         // LT指令：if R(B) >= RK(C) then pc += sBx
+    //         // 生成的条件应该是 R(B) < RK(C)
+    //         String regB = handler.getRegisterName(instruction.getB(), instructionIndex);
+    //         String regC = handler.getRegisterName(instruction.getC(), instructionIndex);
+    //         condition = String.format("%s < %s", regB, regC);
+    //     } else if (opcode == Opcode.LE) {
+    //         // LE指令：if R(B) > RK(C) then pc += sBx
+    //         // 生成的条件应该是 R(B) <= RK(C)
+    //         String regB = handler.getRegisterName(instruction.getB(), instructionIndex);
+    //         String regC = handler.getRegisterName(instruction.getC(), instructionIndex);
+    //         condition = String.format("%s <= %s", regB, regC);
+    //     } else {
+    //         // 默认情况，使用寄存器值
+    //         condition = handler.getRegisterName(a, instructionIndex);
+    //     }
 
-        // 设置jump标志，以便后续JMP指令处理
-        register.jump = true;
+    //     // 设置jump标志，以便后续JMP指令处理
+    //     register.jump = true;
 
-        // 生成if语句
-        register.ifDepth++;
-        String jumpCode = String.format("if %s then", condition);
-        return jumpCode;
-    }
+    //     // 生成if语句
+    //     register.ifDepth++;
+    //     String jumpCode = String.format("if %s then", condition);
+    //     return jumpCode;
+    // }
 
     /**
      * 生成返回代码
@@ -499,25 +499,25 @@ public class InstructionCodeEmitter {
      * @param handler          指令处理器
      * @return 生成的指令代码
      */
-    private String generateReturnCode(Register register, Chunk chunk, Instruction instruction, int instructionIndex, InstructionHandler handler) {
-        int a = instruction.getA();
-        int b = instruction.getB();
+    // private String generateReturnCode(Register register, Chunk chunk, Instruction instruction, int instructionIndex, InstructionHandler handler) {
+    //     int a = instruction.getA();
+    //     int b = instruction.getB();
 
-        StringBuilder sb = new StringBuilder();
+    //     StringBuilder sb = new StringBuilder();
 
-        // 生成返回语句
-        sb.append("return");
+    //     // 生成返回语句
+    //     sb.append("return");
 
-        if (b > 0) {
-            sb.append(" ");
-            for (int i = a; i < a + b; i++) {
-                if (i > a)
-                    sb.append(", ");
-                sb.append(getRegisterName(i, instructionIndex, handler));
-            }
-        }
-        return sb.toString();
-    }
+    //     if (b > 0) {
+    //         sb.append(" ");
+    //         for (int i = a; i < a + b; i++) {
+    //             if (i > a)
+    //                 sb.append(", ");
+    //             sb.append(getRegisterName(i, instructionIndex, handler));
+    //         }
+    //     }
+    //     return sb.toString();
+    // }
 
     /**
      * 生成表访问代码
@@ -558,16 +558,16 @@ public class InstructionCodeEmitter {
      * @param handler          指令处理器
      * @return 生成的指令代码
      */
-    private String generateSetTableCode(Chunk chunk, Instruction instruction, int instructionIndex, InstructionHandler handler) {
-        int a = instruction.getA();
-        int b = instruction.getB();
-        int c = instruction.getC();
+    // private String generateSetTableCode(Chunk chunk, Instruction instruction, int instructionIndex, InstructionHandler handler) {
+    //     int a = instruction.getA();
+    //     int b = instruction.getB();
+    //     int c = instruction.getC();
 
-        return String.format("%s[%s] = %s",
-                getRegisterName(a, instructionIndex, handler),
-                getRegisterName(b, instructionIndex, handler),
-                getRegisterName(c, instructionIndex, handler));
-    }
+    //     return String.format("%s[%s] = %s",
+    //             getRegisterName(a, instructionIndex, handler),
+    //             getRegisterName(b, instructionIndex, handler),
+    //             getRegisterName(c, instructionIndex, handler));
+    // }
 
     /**
      * 生成字符串连接代码
@@ -578,19 +578,19 @@ public class InstructionCodeEmitter {
      * @param handler          指令处理器
      * @return 生成的指令代码
      */
-    private String generateConcatCode(Chunk chunk, Instruction instruction, int instructionIndex, InstructionHandler handler) {
-        int a = instruction.getA();
-        int b = instruction.getB();
-        int c = instruction.getC();
+    // private String generateConcatCode(Chunk chunk, Instruction instruction, int instructionIndex, InstructionHandler handler) {
+    //     int a = instruction.getA();
+    //     int b = instruction.getB();
+    //     int c = instruction.getC();
 
-        StringBuilder sb = new StringBuilder(String.format("%s = ", getRegisterName(a, instructionIndex, handler)));
-        for (int i = b; i <= c; i++) {
-            if (i > b)
-                sb.append(" .. ");
-            sb.append(getRegisterName(i, instructionIndex, handler));
-        }
-        return sb.toString();
-    }
+    //     StringBuilder sb = new StringBuilder(String.format("%s = ", getRegisterName(a, instructionIndex, handler)));
+    //     for (int i = b; i <= c; i++) {
+    //         if (i > b)
+    //             sb.append(" .. ");
+    //         sb.append(getRegisterName(i, instructionIndex, handler));
+    //     }
+    //     return sb.toString();
+    // }
 
     /**
      * 生成算术运算代码
@@ -601,18 +601,18 @@ public class InstructionCodeEmitter {
      * @param handler          指令处理器
      * @return 生成的指令代码
      */
-    private String generateArithmeticCode(Chunk chunk, Instruction instruction, int instructionIndex, InstructionHandler handler) {
-        int a = instruction.getA();
-        int b = instruction.getB();
-        int c = instruction.getC();
-        String op = getArithmeticOperator(instruction.getOpcode());
+    // private String generateArithmeticCode(Chunk chunk, Instruction instruction, int instructionIndex, InstructionHandler handler) {
+    //     int a = instruction.getA();
+    //     int b = instruction.getB();
+    //     int c = instruction.getC();
+    //     String op = getArithmeticOperator(instruction.getOpcode());
 
-        return String.format("%s = %s %s %s",
-                getRegisterName(a, instructionIndex, handler),
-                getRegisterName(b, instructionIndex, handler),
-                op,
-                getRegisterName(c, instructionIndex, handler));
-    }
+    //     return String.format("%s = %s %s %s",
+    //             getRegisterName(a, instructionIndex, handler),
+    //             getRegisterName(b, instructionIndex, handler),
+    //             op,
+    //             getRegisterName(c, instructionIndex, handler));
+    // }
 
     /**
      * 生成一元运算代码
@@ -623,16 +623,16 @@ public class InstructionCodeEmitter {
      * @param handler          指令处理器
      * @return 生成的指令代码
      */
-    private String generateUnaryCode(Chunk chunk, Instruction instruction, int instructionIndex, InstructionHandler handler) {
-        int a = instruction.getA();
-        int b = instruction.getB();
-        String op = getUnaryOperator(instruction.getOpcode());
+    // private String generateUnaryCode(Chunk chunk, Instruction instruction, int instructionIndex, InstructionHandler handler) {
+    //     int a = instruction.getA();
+    //     int b = instruction.getB();
+    //     String op = getUnaryOperator(instruction.getOpcode());
 
-        return String.format("%s = %s%s",
-                getRegisterName(a, instructionIndex, handler),
-                op,
-                getRegisterName(b, instructionIndex, handler));
-    }
+    //     return String.format("%s = %s%s",
+    //             getRegisterName(a, instructionIndex, handler),
+    //             op,
+    //             getRegisterName(b, instructionIndex, handler));
+    // }
 
     /**
      * 获取算术运算符
@@ -686,9 +686,9 @@ public class InstructionCodeEmitter {
      * @param handler          指令处理器
      * @return 寄存器名或变量名
      */
-    private String getRegisterName(int register, int instructionIndex, InstructionHandler handler) {
+    private String getRegisterName(int register, int instructionIndex, DecompilerPipeline pipeline) {
         // 从InstructionHandler获取寄存器对象
-        Register registerObj = handler.getRegisterByInstructionIndex(instructionIndex);
+        Register registerObj = pipeline.getRegisterByInstructionIndex(instructionIndex);
         return getRegisterName(register, registerObj);
     }
 

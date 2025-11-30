@@ -38,7 +38,7 @@ public class SubChunkEmitter {
             InstructionHandler subChunkHandler = new InstructionHandler(new CodeGeneratorContext());
             
             // 处理子块的指令
-            subChunkHandler.processChunk(firstSubChunk);
+            subChunkHandler.process(firstSubChunk);
             
             // 生成子块的AST
             AstNode subChunkAst = subChunkHandler.generateASTFromChunk(firstSubChunk);

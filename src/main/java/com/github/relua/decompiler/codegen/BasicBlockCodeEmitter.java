@@ -1,9 +1,19 @@
-package com.github.relua.decompiler;
+package com.github.relua.decompiler.codegen;
 
+import java.util.List;
+
+import com.github.relua.decompiler.BasicBlock;
+import com.github.relua.decompiler.CodeGeneratorContext;
+import com.github.relua.decompiler.DecompilerPipeline;
+import com.github.relua.decompiler.IfElsePattern;
+import com.github.relua.decompiler.InstructionHandler;
 import com.github.relua.manager.RegisterManager;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Instruction.Opcode;
+import com.github.relua.model.Register;
+import com.github.relua.util.BasicBlockUtils;
+import com.github.relua.util.RegisterUtils;
 
 /**
  * 基本块代码生成器，负责生成基本块相关的Lua代码
@@ -17,8 +27,8 @@ public class BasicBlockCodeEmitter {
      * @param context         代码生成上下文
      * @param handler         指令处理器
      */
-    public void emitBasicBlocks(RegisterManager registerManager, Chunk chunk, CodeGeneratorContext context, InstructionHandler handler) {
-        generateBasicBlocksCode(registerManager, chunk, context, handler);
+    public void emitBasicBlocks(RegisterManager registerManager, Chunk chunk, CodeGeneratorContext context, DecompilerPipeline pipeline) {
+        generateBasicBlocksCode(registerManager, chunk, context, pipeline);
     }
 
     /**
@@ -29,8 +39,8 @@ public class BasicBlockCodeEmitter {
      * @param context         代码生成上下文
      * @param handler         指令处理器
      */
-    private void generateBasicBlocksCode(RegisterManager registerManager, Chunk chunk, CodeGeneratorContext context, InstructionHandler handler) {
-        java.util.List<BasicBlock> basicBlocks = handler.getBasicBlocks();
+    private void generateBasicBlocksCode(RegisterManager registerManager, Chunk chunk, CodeGeneratorContext context, DecompilerPipeline pipeline) {
+        List<BasicBlock> basicBlocks = pipeline.getBasicBlocks(chunk.getFunction());
         System.out.println("获取到的基本块数量: " + basicBlocks.size());
 
         if (basicBlocks.isEmpty()) {
@@ -79,12 +89,12 @@ public class BasicBlockCodeEmitter {
 
             // 使用InstructionHandler为每个基本块计算好的寄存器状态
 
-            com.github.relua.model.Register blockRegister = handler.mergePredecessors(block);
+            Register blockRegister = RegisterUtils.mergePredecessors(block);
             System.out.println("基本块寄存器状态: " + blockRegister);
             registerManager.addRegister(i, blockRegister);
 
             // 生成基本块代码
-            generateBasicBlockCode(registerManager, chunk, block, context, handler);
+            generateBasicBlockCode(registerManager, chunk, block, context, pipeline);
 
             block.setOutputState(blockRegister);
 
@@ -101,8 +111,8 @@ public class BasicBlockCodeEmitter {
      * @param context         代码生成上下文
      * @param handler         指令处理器
      */
-    private void generateBasicBlockCode(RegisterManager registerManager, Chunk chunk, BasicBlock block, CodeGeneratorContext context, InstructionHandler handler) {
-        java.util.List<com.github.relua.model.Instruction> instructions = chunk.getInstructions();
+    private void generateBasicBlockCode(RegisterManager registerManager, Chunk chunk, BasicBlock block, CodeGeneratorContext context, DecompilerPipeline pipeline) {
+        List<Instruction> instructions = chunk.getInstructions();
 
         // 检查基本块类型，生成相应的控制流语句
         if (block.isIfBlock()) {
@@ -120,7 +130,7 @@ public class BasicBlockCodeEmitter {
             }
 
             if (hasTestInstruction) {
-                generateIfBlockCode(registerManager, chunk, block, context, handler);
+                generateIfBlockCode(registerManager, chunk, block, context, pipeline);
             } else {
                 // 普通基本块，直接生成指令代码
                 for (int i = block.getStartIndex(); i <= block.getEndIndex(); i++) {
@@ -130,7 +140,7 @@ public class BasicBlockCodeEmitter {
                 }
             }
         } else if (block.isLoopBlock()) {
-            generateLoopBlockCode(registerManager, chunk, block, context, handler);
+            generateLoopBlockCode(registerManager, chunk, block, context, pipeline);
         } else {
             // 普通基本块，直接生成指令代码
             for (int i = block.getStartIndex(); i <= block.getEndIndex(); i++) {
@@ -150,8 +160,8 @@ public class BasicBlockCodeEmitter {
      * @param context         代码生成上下文
      * @param handler         指令处理器
      */
-    private void generateIfBlockCode(RegisterManager registerManager, Chunk chunk, BasicBlock block, CodeGeneratorContext context, InstructionHandler handler) {
-        java.util.List<com.github.relua.model.Instruction> instructions = chunk.getInstructions();
+    private void generateIfBlockCode(RegisterManager registerManager, Chunk chunk, BasicBlock block, CodeGeneratorContext context, DecompilerPipeline pipeline) {
+        List<Instruction> instructions = chunk.getInstructions();
 
         // 查找块内的条件指令
         com.github.relua.model.Instruction conditionInstruction = null;
@@ -169,14 +179,14 @@ public class BasicBlockCodeEmitter {
         // 只有当找到条件指令时才生成if语句
         if (conditionInstruction != null) {
             // 使用InstructionHandler的detectIfElse方法检测if-else结构
-            IfElsePattern pattern = handler.detectIfElse(block, chunk);
+            IfElsePattern pattern = pipeline.getControlFlowAnalyzer().detectIfElse(block, chunk);
 
             if (pattern != null) {
                 // 是if-else结构，生成正确的if-else代码
-                generateIfElseCode(registerManager, chunk, pattern, context, handler);
+                generateIfElseCode(registerManager, chunk, pattern, context, pipeline);
             } else {
                 // 不是if-else结构，生成普通的if代码
-                generateSimpleIfCode(registerManager, chunk, block, conditionInstruction, context, handler);
+                generateSimpleIfCode(registerManager, chunk, block, conditionInstruction, context, pipeline);
             }
         } else {
             // 如果没有条件指令，按普通块处理
@@ -191,9 +201,9 @@ public class BasicBlockCodeEmitter {
     /**
      * 生成if-else结构的代码
      */
-    private void generateIfElseCode(RegisterManager registerManager, Chunk chunk, IfElsePattern pattern, CodeGeneratorContext context, InstructionHandler handler) {
+    private void generateIfElseCode(RegisterManager registerManager, Chunk chunk, IfElsePattern pattern, CodeGeneratorContext context, DecompilerPipeline pipeline) {
         // 生成if条件
-        com.github.relua.model.Instruction conditionInstruction = handler.getLastInstruction(pattern.testBlock, chunk);
+        com.github.relua.model.Instruction conditionInstruction = BasicBlockUtils.getLastInstruction(pattern.testBlock, chunk);
         com.github.relua.model.Register blockRegister = pattern.testBlock.getOutputState();
         // 这里可以调用InstructionCodeEmitter来生成if条件代码
         String ifCode = "if true then";
@@ -201,11 +211,11 @@ public class BasicBlockCodeEmitter {
         context.addIfStatement(condition);
 
         // 生成then块代码
-        generateBasicBlockCode(registerManager, chunk, pattern.thenBlock, context, handler);
+        generateBasicBlockCode(registerManager, chunk, pattern.thenBlock, context, pipeline);
 
         // 生成else块代码
         context.addElseStatement();
-        generateBasicBlockCode(registerManager, chunk, pattern.elseBlock, context, handler);
+        generateBasicBlockCode(registerManager, chunk, pattern.elseBlock, context, pipeline);
 
         // 生成endif
         context.addEndStatement();
@@ -215,11 +225,11 @@ public class BasicBlockCodeEmitter {
      * 生成普通if结构的代码
      */
     private void generateSimpleIfCode(RegisterManager registerManager, Chunk chunk, BasicBlock block,
-            com.github.relua.model.Instruction conditionInstruction, CodeGeneratorContext context, InstructionHandler handler) {
-        java.util.List<com.github.relua.model.Instruction> instructions = chunk.getInstructions();
+            Instruction conditionInstruction, CodeGeneratorContext context, DecompilerPipeline pipeline) {
+        List<Instruction> instructions = chunk.getInstructions();
 
         // 使用InstructionHandler为当前块计算好的寄存器状态生成准确的if条件
-        com.github.relua.model.Register blockRegister = block.getOutputState();
+        Register blockRegister = block.getOutputState();
         // 这里可以调用InstructionCodeEmitter来生成if条件代码
         String ifCode = "if true then";
         String condition = ifCode.substring(3, ifCode.length() - 5);
@@ -246,7 +256,7 @@ public class BasicBlockCodeEmitter {
                 // 生成else块内的代码，使用falseBlock的寄存器状态
                 com.github.relua.model.Register falseBlockRegister = falseBlock.getOutputState();
                 registerManager.addRegister(falseBlock.getStartIndex(), falseBlockRegister);
-                generateBasicBlockCode(registerManager, chunk, falseBlock, context, handler);
+                generateBasicBlockCode(registerManager, chunk, falseBlock, context, pipeline);
             }
         }
 
@@ -263,14 +273,14 @@ public class BasicBlockCodeEmitter {
      * @param context         代码生成上下文
      * @param handler         指令处理器
      */
-    private void generateLoopBlockCode(RegisterManager registerManager, Chunk chunk, BasicBlock block, CodeGeneratorContext context, InstructionHandler handler) {
-        java.util.List<com.github.relua.model.Instruction> instructions = chunk.getInstructions();
+    private void generateLoopBlockCode(RegisterManager registerManager, Chunk chunk, BasicBlock block, CodeGeneratorContext context, DecompilerPipeline pipeline) {
+        List<Instruction> instructions = chunk.getInstructions();
 
         // 检查循环的第一条指令，确定循环类型
-        com.github.relua.model.Instruction firstInstruction = instructions.get(block.getStartIndex());
-        com.github.relua.model.Instruction.Opcode opcode = firstInstruction.getOpcode();
+        Instruction firstInstruction = instructions.get(block.getStartIndex());
+        Instruction.Opcode opcode = firstInstruction.getOpcode();
 
-        if (opcode == com.github.relua.model.Instruction.Opcode.FORLOOP || opcode == com.github.relua.model.Instruction.Opcode.FORPREP) {
+        if (opcode == Instruction.Opcode.FORLOOP || opcode == com.github.relua.model.Instruction.Opcode.FORPREP) {
             // 这是for循环，暂时生成while循环框架
             context.addCodeLine("while true do");
         } else if (opcode == com.github.relua.model.Instruction.Opcode.TFORLOOP) {

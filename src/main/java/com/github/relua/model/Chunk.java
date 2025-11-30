@@ -7,6 +7,8 @@ import java.util.List;
  * Lua代码块模型
  */
 public class Chunk {
+    private String function;       // 函数名
+    private int source;            // 函数定义的源文件索引
     private int lineDefined;       // 函数定义的起始行号
     private int lastLineDefined;   // 函数定义的结束行号
     private int numParams;         // 固定参数数量
@@ -73,6 +75,39 @@ public class Chunk {
         this.subChunks = new ArrayList<>();
         this.localVars = new ArrayList<>();
         this.lineNumbers = new ArrayList<>();
+    }
+
+    /**
+     * 获取函数名
+     * @return 函数名
+     */
+    public String getFunction() {
+        return function;
+    }
+
+    /**
+     * 设置函数名
+     * @param function 函数名
+     */
+    public void setFunction(String function) {
+        this.function = function;
+    }
+
+
+     /**
+     * 获取函数定义的源文件索引
+     * @return 源文件索引
+     */
+    public int getSource() {
+        return source;
+    }
+
+    /**
+     * 设置函数定义的源文件索引
+     * @param source 源文件索引
+     */
+    public void setSource(int source) {
+        this.source = source;
     }
 
     /**
