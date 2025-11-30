@@ -101,8 +101,9 @@ public class InstructionToASTConverter {
             case LE:
                 return convertComparisonInstruction(instruction, instructionIndex);
             case TEST:
-            case TESTSET:
                 return convertTestInstruction(instruction, instructionIndex);
+            case TESTSET:
+                return convertTestSetInstruction(instruction, instructionIndex);
             case JMP:
                 return convertJmpInstruction(instruction, instructionIndex);
             case CLOSURE:
@@ -739,6 +740,7 @@ public class InstructionToASTConverter {
                 case GLOBAL:
                 case FUNCTION:
                 case TABLE:
+                case OBJECT:
                     // 全局变量、函数引用、表引用
                     return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
                 case STRING:
@@ -853,10 +855,8 @@ public class InstructionToASTConverter {
      */
     private AstNode convertTestInstruction(Instruction instruction, int instructionIndex) {
         // OP_TEST A C if not (R(A) <=> C) then pc++
-        // OP_TESTSET A B C if (R(B) <=> C) then R(A) := R(B) else pc++
         int a = instruction.getA();
         int c = instruction.getC();
-        System.out.println("TEST R" + a + " " + c);
 
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         RegisterEntity RA = registerState.getRegisterEntity(a);
@@ -880,9 +880,40 @@ public class InstructionToASTConverter {
         }
 
         // 记录TEST信息，供后续JMP指令使用
-        pendingTest = new PendingTest(condition, instructionIndex, new SourcePos(instructionIndex, -1));
+        pendingTest = new PendingTest(condition, c == 0, instructionIndex, PendingTest.TestType.TEST, new SourcePos(instructionIndex, -1));
 
         // 关键点：不输出AST节点，返回null
+        return null;
+    }
+
+    /**
+     * 转换TESTSET指令
+     * 
+     * @param instruction
+     * @param instructionIndex
+     * @return
+     */
+    private AstNode convertTestSetInstruction(Instruction instruction, int instructionIndex) {
+        // OP_TESTSET A B C if (R(B) <=> C) then R(A) := R(B) else pc++
+        int a = instruction.getA();
+        int b = instruction.getB();
+        int c = instruction.getC();
+
+        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
+        RegisterEntity RA = registerState.getRegisterEntity(a);
+        RegisterEntity RB = registerState.getRegisterEntity(b);
+
+        // 操作数 根据c的值构建条件表达式
+        Expression condition = new Name(TransformUtils.transformRegister(RB), new SourcePos(instructionIndex, -1));
+        if (c == 1) {
+            condition = new Name("not " + TransformUtils.transformRegister(RB), new SourcePos(instructionIndex, -1));
+        }
+
+        Assign assign = new Assign(TransformUtils.transformToAstNode(RA, instructionIndex), TransformUtils.transformToAstNode(RB, instructionIndex), new SourcePos(instructionIndex, -1));
+        // 记录TEST信息，供后续JMP指令使用
+        pendingTest = new PendingTest(condition, c == 0, instructionIndex, PendingTest.TestType.TESTSET, new SourcePos(instructionIndex, -1));
+        pendingTest.addAstNode(assign);
+
         return null;
     }
 
@@ -943,8 +974,8 @@ public class InstructionToASTConverter {
 
             // 返回 PendingIf，让外层生成真正的 IfStatement
             PendingIf pendingIf = new PendingIf(
-                    condition, thenStart, thenEnd, elseStart, elseEnd,
-                    new SourcePos(instructionIndex, -1));
+                    condition, pendingTest.flag, thenStart, thenEnd, elseStart, elseEnd,
+                    pendingTest.type, new SourcePos(instructionIndex, -1), pendingTest.astNodes);
 
             // 清空pendingTest，避免重复处理
             pendingTest = null;

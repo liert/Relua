@@ -1,8 +1,11 @@
 package com.github.relua.model;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class Register {
     // 使用Map存储所有寄存器，支持任意数量的寄存器
@@ -41,6 +44,10 @@ public class Register {
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Invalid register index: " + index);
         }
+    }
+
+    public List<RegisterEntity> getRegisterEntities() {
+        return new ArrayList<>(registers.values());
     }
 
     /**

@@ -2,16 +2,13 @@ package com.github.relua.decompiler.analysis;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-
 import com.github.relua.decompiler.BasicBlock;
 import com.github.relua.decompiler.DecompilerPipeline;
+import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
-import com.github.relua.model.FromType;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Register;
 import com.github.relua.model.Register.RegisterEntity;
-import com.github.relua.model.ValueType;
 import com.github.relua.util.RegisterUtils;
 
 public class RegisterStateAnalyzer {
@@ -33,62 +30,62 @@ public class RegisterStateAnalyzer {
      * @param chunk 代码块
      */
     private void iterativeDataFlowAnalysis(Chunk chunk) {
-        boolean changed;
         List<Instruction> instructions = chunk.getInstructions();
         int numInstructions = instructions.size();
 
         // 初始化所有指令的输入和输出状态
         resetRegisterStates(numInstructions);
 
-        do {
-            changed = false;
+        // 遍历所有基本块
+        for (BasicBlock block : pipeline.getBasicBlocks(chunk.getFunction())) {
+            // 合并前驱块的输出状态作为当前块的输入状态
+            Register mergedInput = RegisterUtils.mergePredecessors(block);
 
-            // 遍历所有基本块
-            for (BasicBlock block : pipeline.getBasicBlocks(chunk.getFunction())) {
-                // 合并前驱块的输出状态作为当前块的输入状态
-                Register mergedInput = RegisterUtils.mergePredecessors(block);
+            // 先更新块的输入状态（如果有变化）
+            if (!mergedInput.equals(block.getInputState())) {
+                block.setInputState(mergedInput);
+                // changed = true;
+            }
 
-                // 先更新块的输入状态（如果有变化）
-                if (!mergedInput.equals(block.getInputState())) {
-                    block.setInputState(mergedInput);
-                    changed = true;
-                }
-
-                // 使用更新后的输入状态来处理块内指令
-                Register currentState = new Register(block.getInputState());
-                // System.out.println("Current block input state: " + currentState);
-
-                // 处理块内指令
-                for (int i = block.getStartIndex(); i <= block.getEndIndex(); i++) {
-                    if (i < numInstructions) {
-                        // 更新指令i的输入状态
-                        if (!currentState.equals(inStates.get(i))) {
-                            inStates.set(i, new Register(currentState));
-                            changed = true;
-                        }
-
-                        // 处理指令，更新当前状态
-                        pipeline.processInstruction(chunk, instructions.get(i), i, currentState);
-
-                        // 更新指令i的输出状态
-                        if (!currentState.equals(outStates.get(i))) {
-                            outStates.set(i, new Register(currentState));
-                            changed = true;
-                        }
-                    }
-                }
-
-                // 更新块的输出状态（如果有变化）
-                if (!currentState.equals(block.getOutputState())) {
-                    block.setOutputState(currentState);
-                    changed = true;
-                    // System.out.println("Updated block output state to " +
-                    // block.getOutputState());
+            // 使用更新后的输入状态来处理块内指令
+            Register currentState = new Register(block.getInputState());
+            // 当为第一条指令时设置初始寄存器状态
+            if (block.getStartIndex() == 0) {
+                Register register = inStates.get(0);
+                for (RegisterEntity entity : register.getRegisterEntities()) {
+                    currentState.setRegisterEntity(entity.getIndex(), entity.getValue(), entity.getType(), entity.getFromType());
                 }
             }
-        } while (changed);
-    }
+            
+            // 处理块内指令
+            for (int i = block.getStartIndex(); i <= block.getEndIndex(); i++) {
+                if (i < numInstructions) {
+                    // 更新指令i的输入状态
+                    if (!currentState.equals(inStates.get(i))) {
+                        inStates.set(i, new Register(currentState));
+                        // changed = true;
+                    }
 
+                    // 处理指令，更新当前状态
+                    pipeline.processInstruction(chunk, instructions.get(i), i, currentState);
+
+                    // 更新指令i的输出状态
+                    if (!currentState.equals(outStates.get(i))) {
+                        outStates.set(i, new Register(currentState));
+                        // changed = true;
+                    }
+                }
+            }
+
+            // 更新块的输出状态（如果有变化）
+            if (!currentState.equals(block.getOutputState())) {
+                block.setOutputState(currentState);
+                // changed = true;
+                // System.out.println("Updated block output state to " +
+                // block.getOutputState());
+            }
+        }
+    }
 
     private void resetRegisterStates(int numInstructions) {
         inStates.clear();
@@ -101,10 +98,15 @@ public class RegisterStateAnalyzer {
         }
 
         Register initRegister = pipeline.getContext().getRegister();
+        Logger.debug("初始寄存器状态: " + initRegister);
+        if (initRegister == null) {
+            return;
+        }
         for (int i = 0; i < initRegister.getRegisterCount(); i++) {
             RegisterEntity entity = initRegister.getRegisterEntity(i);
             inStates.get(0).setRegisterEntity(i, entity.getValue(), entity.getType(), entity.getFromType());
         }
+        Logger.debug("入口寄存器状态: " + inStates.get(0));
     }
 
     /**

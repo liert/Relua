@@ -1,5 +1,6 @@
 package com.github.relua.decompiler.builder;
 
+import java.security.cert.PKIXRevocationChecker.Option;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -81,7 +82,7 @@ public class BasicBlockBuilder {
         basicBlocks.add(currentBlock);
 
         for (int i = 0; i < instructions.size(); i++) {
-            Logger.debug(BytecodeFormatter.formatInstruction(chunk, instructions.get(i), i));
+            // Logger.debug(BytecodeFormatter.formatInstruction(chunk, instructions.get(i), i));
             if (instructionToBlockMap.containsKey(i)) {
                 currentBlock = instructionToBlockMap.get(i);
             } else {
@@ -117,7 +118,7 @@ public class BasicBlockBuilder {
     private boolean isBlockEndInstruction(Opcode opcode) {
         return opcode == Opcode.JMP || opcode == Opcode.RETURN ||
                 opcode == Opcode.FORLOOP || opcode == Opcode.FORPREP ||
-                opcode == Opcode.TFORLOOP ||
+                opcode == Opcode.TFORLOOP || opcode == Opcode.TAILCALL ||
                 opcode == Opcode.EQ || opcode == Opcode.LT || opcode == Opcode.LE;
     }
 

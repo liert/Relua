@@ -22,10 +22,8 @@ public class LuaCodeGenerator {
      * 
      * @param codeGenContext 代码生成上下文
      */
-    public LuaCodeGenerator(CodeGeneratorContext codeGenContext) {
-        // this.instructionHandler = new InstructionHandler(codeGenContext);
+    public LuaCodeGenerator() {
         this.astCodeEmitter = new AstCodeEmitter();
-        // new BasicBlockCodeEmitter();
     }
 
     /**
@@ -34,12 +32,12 @@ public class LuaCodeGenerator {
      * @param chunk 代码块
      * @return 生成的Lua代码
      */
-    public String generate(Chunk chunk) {
+    public String generate(Chunk chunk, Register register) {
         // 创建代码生成上下文
-        CodeGeneratorContext context = new CodeGeneratorContext(chunk);
+        CodeGeneratorContext context = new CodeGeneratorContext(chunk, register);
         this.instructionHandler = new InstructionHandler(context);
 
-        System.out.println("=== 开始处理Chunk ===");
+        // System.out.println("=== 开始处理Chunk ===");
         System.out.println("Chunk信息: lineDefined=" + chunk.getLineDefined() + ", lastLineDefined="
                 + chunk.getLastLineDefined() + ", numParams=" + chunk.getNumParams() + ", isVararg="
                 + chunk.getIsVararg() + ", maxStackSize=" + chunk.getMaxStackSize());
@@ -58,7 +56,7 @@ public class LuaCodeGenerator {
         astCodeEmitter.emitAst(chunk, context, instructionHandler);
 
         // 关闭所有未结束的控制流结构
-        System.out.println("关闭所有未结束的控制流结构...");
+        // System.out.println("关闭所有未结束的控制流结构...");
         context.closeAllControlFlow();
 
         System.out.println("=== Chunk处理完成 ===");
@@ -66,17 +64,24 @@ public class LuaCodeGenerator {
         contexts.add(context);
 
         for (Chunk subChunk : chunk.getSubChunks()) {
-            Register register = new Register();
+            Register temp = new Register();
             for (int i = 0; i < subChunk.getNumParams(); i++) {
-                register.setRegisterEntity(i, "a" + i, ValueType.OBJECT, FromType.GLOBAL);
+                temp.setRegisterEntity(i, "a" + i, ValueType.OBJECT, FromType.GLOBAL);
             }
-            generate(subChunk);
+            generate(subChunk, temp);
         }
 
         if (chunk.getFunction().equals("main")) {
             StringBuilder code = new StringBuilder();
             for (CodeGeneratorContext ctx : contexts) {
-                code.append("function ").append(ctx.getChunk().getFunction()).append("() {\n");
+                code.append("function ").append(ctx.getChunk().getFunction()).append("(");
+                for (int i = 0; i < ctx.getChunk().getNumParams(); i++) {
+                    code.append("a").append(i);
+                    if (i < ctx.getChunk().getNumParams() - 1) {
+                        code.append(", ");
+                    }
+                }
+                code.append(") {\n");
                 code.append(ctx.generateCode());
                 code.append("}\n\n");
             }
@@ -91,37 +96,37 @@ public class LuaCodeGenerator {
      * @param chunk 代码块
      * @return 生成的Lua代码
      */
-    public String generate(Chunk chunk, CodeGeneratorContext context) {
-        // 创建代码生成上下文
-        this.instructionHandler = new InstructionHandler(context);
+    // public String generate(Chunk chunk, CodeGeneratorContext context) {
+    //     // 创建代码生成上下文
+    //     this.instructionHandler = new InstructionHandler(context);
 
-        System.out.println("=== 开始处理Chunk ===");
-        System.out.println("Chunk信息: lineDefined=" + chunk.getLineDefined() + ", lastLineDefined="
-                + chunk.getLastLineDefined() + ", numParams=" + chunk.getNumParams() + ", isVararg="
-                + chunk.getIsVararg() + ", maxStackSize=" + chunk.getMaxStackSize());
+    //     System.out.println("=== 开始处理Chunk ===");
+    //     System.out.println("Chunk信息: lineDefined=" + chunk.getLineDefined() + ", lastLineDefined="
+    //             + chunk.getLastLineDefined() + ", numParams=" + chunk.getNumParams() + ", isVararg="
+    //             + chunk.getIsVararg() + ", maxStackSize=" + chunk.getMaxStackSize());
 
-        // 先让指令处理器处理代码块，建立控制流和变量映射
-        instructionHandler.process(chunk);
+    //     // 先让指令处理器处理代码块，建立控制流和变量映射
+    //     instructionHandler.process(chunk);
 
-        // 生成代码块头部信息
-        if (chunk.getFunction().equals("main")) {
-            System.out.println("生成代码块头部信息...");
-            generateChunkHeader(chunk, context);
-        }
+    //     // 生成代码块头部信息
+    //     if (chunk.getFunction().equals("main")) {
+    //         System.out.println("生成代码块头部信息...");
+    //         generateChunkHeader(chunk, context);
+    //     }
 
-        // 生成指令代码（使用AST）
-        System.out.println("生成AST代码...");
-        astCodeEmitter.emitAst(chunk, context, instructionHandler);
+    //     // 生成指令代码（使用AST）
+    //     System.out.println("生成AST代码...");
+    //     astCodeEmitter.emitAst(chunk, context, instructionHandler);
 
-        // 关闭所有未结束的控制流结构
-        System.out.println("关闭所有未结束的控制流结构...");
-        context.closeAllControlFlow();
+    //     // 关闭所有未结束的控制流结构
+    //     // System.out.println("关闭所有未结束的控制流结构...");
+    //     context.closeAllControlFlow();
 
-        System.out.println("=== Chunk处理完成 ===");
+    //     System.out.println("=== Chunk处理完成 ===");
 
-        contexts.add(context);
-        return "";
-    }
+    //     contexts.add(context);
+    //     return "";
+    // }
 
     /**
      * 生成代码块头部信息

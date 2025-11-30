@@ -4,6 +4,7 @@ import com.github.relua.model.LuacFile;
 
 import java.util.List;
 
+import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 
@@ -12,14 +13,12 @@ import com.github.relua.model.Instruction;
  */
 public class Decompiler {
     private LuaCodeGenerator codeGenerator;
-    private CodeGeneratorContext codeGenContext;
 
     /**
      * 构造函数
      */
     public Decompiler() {
-        this.codeGenContext = new CodeGeneratorContext();
-        this.codeGenerator = new LuaCodeGenerator(codeGenContext);
+        this.codeGenerator = new LuaCodeGenerator();
     }
 
     /**
@@ -43,12 +42,15 @@ public class Decompiler {
         }
 
         Chunk mainChunk = luacFile.getMainChunk();
+        Logger.debug(mainChunk.toString());
+        
         
         // 生成Lua代码
         if (showBytecode) {
             return generateBytecode(mainChunk);
         } else {
-            return codeGenerator.generate(mainChunk);
+            
+            return codeGenerator.generate(mainChunk, null);
         }
     }
     

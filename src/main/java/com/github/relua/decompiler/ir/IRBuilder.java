@@ -142,10 +142,6 @@ public class IRBuilder {
         // 复制源寄存器的完整状态到目标寄存器
         // 确保复制所有属性，包括值和类型
         currentState.setRegisterEntity(a, srcEntity.getValue(), srcEntity.getType(), srcEntity.getFromType());
-
-        // 调试信息
-        // System.out.println(String.format("MOVE: R%d = R%d (%s, %s)", a, b,
-        // srcEntity.getValue(), srcEntity.getType()));
     }
 
     private void processLoadKInstruction(Chunk chunk, Instruction instruction, Register currentState) {
@@ -343,12 +339,12 @@ public class IRBuilder {
                 int registerIndex = a + i;
                 // 更新寄存器状态，将返回值标记为UNKNOWN类型
                 String RAValue = RA.getValue().toString();
-                Logger.debug(String.format("调用函数 %s %s", RAValue, RAValue.equals("require")));
+                // Logger.debug(String.format("调用函数 %s %s", RAValue, RAValue.equals("require")));
                 if (RAValue.equals("require")) {
                     RegisterEntity argsEntity = currentState.getRegisterEntity(a + 1);
                     RAValue = argsEntity.getValue().toString().replace(".", "_");
                     currentState.setRegisterEntity(registerIndex, RAValue, ValueType.OBJECT, FromType.GLOBAL);
-                    Logger.debug(String.format("require 调用，返回值 %s 写入寄存器 R%d", RAValue, registerIndex));
+                    // Logger.debug(String.format("require 调用，返回值 %s 写入寄存器 R%d", RAValue, registerIndex));
                     continue;
                 } else {
                     RAValue = "R" + registerIndex;

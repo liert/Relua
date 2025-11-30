@@ -100,7 +100,7 @@ public class AstPrinter implements AstVisitor<String> {
             sb.append(" then\n");
             indent();
             String thanString = node.blocks.get(i).accept(this);
-            System.out.println("thenString: " + thanString);
+            // System.out.println("thenString: " + thanString);
             sb.append(thanString);
             sb.append("\n");
             dedent();

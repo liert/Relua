@@ -1,6 +1,5 @@
 package com.github.relua.decompiler;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,7 +9,6 @@ import com.github.relua.decompiler.analysis.RegisterStateAnalyzer;
 import com.github.relua.decompiler.builder.BasicBlockBuilder;
 import com.github.relua.decompiler.cfg.ControlFlowGraphBuilder;
 import com.github.relua.decompiler.ir.IRBuilder;
-import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Register;
