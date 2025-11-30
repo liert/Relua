@@ -6,5 +6,6 @@ public enum FromType {
     LOCAL,
     CONSTANT,
     REGISTER,
+    UPVALUE,
     UNKNOWN
 }

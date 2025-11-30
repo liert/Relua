@@ -14,15 +14,16 @@ import com.github.relua.model.Instruction;
 import com.github.relua.model.Register;
 
 public class DecompilerPipeline {
+    private final LuaCodeGenerator generator;
     private final InstructionHandler instructionHandler;
-    // private final BasicBlockBuilder basicBlockBuilder;
     private final Map<String, BasicBlockBuilder> basicBlockBuilders = new HashMap<>();
     private final ControlFlowGraphBuilder cfgBuilder;
     private final ControlFlowAnalyzer controlFlowAnalyzer;
     private final RegisterStateAnalyzer registerStateAnalyzer;
     private final IRBuilder irBuilder;
 
-    public DecompilerPipeline(InstructionHandler instructionHandler) {
+    public DecompilerPipeline(LuaCodeGenerator generator, InstructionHandler instructionHandler) {
+        this.generator = generator;
         this.instructionHandler = instructionHandler;
         // this.basicBlockBuilder = new BasicBlockBuilder(this);
         this.cfgBuilder = new ControlFlowGraphBuilder(this);
@@ -91,16 +92,10 @@ public class DecompilerPipeline {
 
         // 执行迭代数据流分析
         registerStateAnalyzer.analyze(chunk);
-
-        // 递归处理子代码块
-        // for (Chunk subChunk : chunk.getSubChunks()) {
-        //     Logger.debug(String.format("分析子代码块 [%s]", subChunk));
-        //     processChunk(subChunk);
-        // }
     }
 
-    public void processInstruction(Chunk chunk, Instruction instruction, int index, Register currentState) {
-        irBuilder.processInstruction(chunk, instruction, index, currentState);
+    public int processInstruction(Chunk chunk, Instruction instruction, int index, Register currentState) {
+        return irBuilder.processInstruction(chunk, instruction, index, currentState);
     }
 
     /**
@@ -124,8 +119,23 @@ public class DecompilerPipeline {
         return registerStateAnalyzer.getRegisterByInstructionIndex(instructionIndex);
     }
 
+    /**
+     * 获取当前指令处理的上下文
+     * 
+     * @return 代码生成上下文
+     */
     public CodeGeneratorContext getContext() {
         return instructionHandler.getContext();
+    }
+
+    /**
+     * 获取指定函数的代码生成上下文
+     * 
+     * @param function 函数名
+     * @return 代码生成上下文
+     */
+    public CodeGeneratorContext getContext(String function) {
+        return generator.getInstructionHandler(function).getContext();
     }
 
     public ControlFlowAnalyzer getControlFlowAnalyzer() {

@@ -2,6 +2,9 @@ package com.github.relua.decompiler;
 
 import com.github.relua.manager.RegisterManager;
 import com.github.relua.model.Chunk;
+
+import java.util.List;
+
 import com.github.relua.ast.AstNode;
 import com.github.relua.ast.AstPrinter;
 
@@ -28,32 +31,32 @@ public class SubChunkEmitter {
      * @param context         代码生成上下文
      */
     private void generateSubChunks(RegisterManager registerManager, Chunk chunk, CodeGeneratorContext context) {
-        java.util.List<Chunk> subChunks = chunk.getSubChunks();
+        List<Chunk> subChunks = chunk.getSubChunks();
 
         if (!subChunks.isEmpty()) {
             // 只处理第一个子块，避免死循环，方便测试
             Chunk firstSubChunk = subChunks.get(0);
             
             // 为子块创建新的指令处理器
-            InstructionHandler subChunkHandler = new InstructionHandler(new CodeGeneratorContext());
+            // InstructionHandler subChunkHandler = new InstructionHandler(new CodeGeneratorContext());
             
             // 处理子块的指令
             // subChunkHandler.process(firstSubChunk);
             
             // 生成子块的AST
-            AstNode subChunkAst = subChunkHandler.generateASTFromChunk(firstSubChunk);
+            // AstNode subChunkAst = subChunkHandler.generateASTFromChunk(firstSubChunk);
             
             // 使用AstPrinter生成Lua代码
-            AstPrinter astPrinter = new AstPrinter();
-            String subChunkCode = subChunkAst.accept(astPrinter);
+            // AstPrinter astPrinter = new AstPrinter();
+            // String subChunkCode = subChunkAst.accept(astPrinter);
             
             // 将生成的代码添加到上下文
-            String[] lines = subChunkCode.split("\\n");
-            for (String line : lines) {
-                if (!line.trim().isEmpty()) {
-                    context.addCodeLine(line);
-                }
-            }
+            // String[] lines = subChunkCode.split("\\n");
+            // for (String line : lines) {
+            //     if (!line.trim().isEmpty()) {
+            //         context.addCodeLine(line);
+            //     }
+            // }
             
             context.addEmptyLine();
         }

@@ -18,7 +18,7 @@ public class Decompiler {
      * 构造函数
      */
     public Decompiler() {
-        this.codeGenerator = new LuaCodeGenerator();
+        // this.codeGenerator = new LuaCodeGenerator();
     }
 
     /**
@@ -49,7 +49,7 @@ public class Decompiler {
         if (showBytecode) {
             return generateBytecode(mainChunk);
         } else {
-            
+            this.codeGenerator = new LuaCodeGenerator(mainChunk);
             return codeGenerator.generate(mainChunk, null);
         }
     }
@@ -111,14 +111,6 @@ public class Decompiler {
         }
         
         return sb.toString();
-    }
-    
-    /**
-     * 获取指令处理器
-     * @return 指令处理器
-     */
-    public InstructionHandler getInstructionHandler() {
-        return codeGenerator.getInstructionHandler();
     }
 
     /**

@@ -30,9 +30,9 @@ public class InstructionHandler {
      * 
      * @param codeGenContext 代码生成上下文
      */
-    public InstructionHandler(CodeGeneratorContext codeGenContext) {
+    public InstructionHandler(LuaCodeGenerator generator, CodeGeneratorContext codeGenContext) {
         this.codeGenContext = codeGenContext;
-        this.pipeline = new DecompilerPipeline(this);
+        this.pipeline = new DecompilerPipeline(generator, this);
     }
 
     /**

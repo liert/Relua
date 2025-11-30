@@ -154,6 +154,10 @@ public class InstructionCodeEmitter {
                 // 跳转指令，根据上下文决定是否生成代码
                 result = generateJmpCode(currentRegister, chunk, instruction, index);
                 break;
+            case GETUPVAL:
+                // 获取上值
+                result = generateGetUpvalCode(currentRegister, chunk, instruction, index);
+                break;
             case TEST:
             case TESTSET:
             case EQ:
@@ -293,6 +297,31 @@ public class InstructionCodeEmitter {
         String result = String.format("%s[%s]", getArgumentValue(RB, chunk, b, index), constant.toString());
         RA.setType(ValueType.FUNCTION);
         RA.setValue(result);
+        return "";
+    }
+
+    /**
+     * 生成GETUPVAL指令代码
+     * 
+     * @param register    寄存器
+     * @param chunk       代码块
+     * @param instruction 指令
+     * @param index       指令索引
+     * @return 生成的指令代码
+     */
+    private String generateGetUpvalCode(Register register, Chunk chunk, Instruction instruction, int index) {
+        // OP_GETUPVAL A B R(A) := UpValue[B]
+        int a = instruction.getA();
+        int b = instruction.getB();
+        
+        // 获取目标寄存器实体
+        RegisterEntity registerEntity = register.getRegisterEntity(a);
+        
+        // 设置寄存器类型和值
+        registerEntity.setType(ValueType.UPVALUE);
+        registerEntity.setValue("upvalue_" + b);
+        
+        // GETUPVAL指令本身不生成可见的Lua代码，它只是更新寄存器状态
         return "";
     }
 

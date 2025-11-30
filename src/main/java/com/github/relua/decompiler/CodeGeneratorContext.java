@@ -4,6 +4,7 @@ import com.github.relua.model.Chunk;
 import com.github.relua.model.CodeLine;
 import com.github.relua.model.Register;
 import com.github.relua.model.CodeLine.CodeType;
+import com.github.relua.model.Upvalue;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -53,6 +54,7 @@ public class CodeGeneratorContext {
     private int thenIndex = 0;
     private Map<Integer, BasicBlock> thenBlocks = new HashMap<>(); // 基本块映射
     private Register register = new Register(); // 初始寄存器状态
+    private Map<String, Upvalue> upvalues = new HashMap<>(); // 上值存储，key为上值索引，value为上值对象
 
     public CodeGeneratorContext() {
         this.codeLines = new ArrayList<>();
@@ -277,6 +279,69 @@ public class CodeGeneratorContext {
             return null;
         }
         return getThenBlock(thenIndex - 1);
+    }
+
+    /**
+     * 添加上值
+     * 
+     * @param index 上值索引
+     * @param upvalue 上值对象
+     */
+    public void addUpvalue(String index, Upvalue upvalue) {
+        this.upvalues.put(index, upvalue);
+    }
+
+    // /**
+    //  * 添加上值
+    //  * 
+    //  * @param index 上值索引
+    //  * @param name 上值名称
+    //  * @param value 上值的值
+    //  * @param type 上值的类型
+    //  * @param fromType 上值的来源类型
+    //  */
+    // public void addUpvalue(String index, String name, Object value, com.github.relua.model.ValueType type, com.github.relua.model.FromType fromType) {
+    //     Upvalue upvalue = new Upvalue(index, name, value, type, fromType);
+    //     this.upvalues.put(index, upvalue);
+    // }
+
+    /**
+     * 获取上值
+     * 
+     * @param index 上值索引
+     * @return 上值对象，如果不存在则返回null
+     */
+    public Upvalue getUpvalue(int index) {
+        return this.upvalues.get(index);
+    }
+
+    /**
+     * 移除上值
+     * 
+     * @param index 上值索引
+     * @return 被移除的上值对象，如果不存在则返回null
+     */
+    public Upvalue removeUpvalue(String index) {
+        return this.upvalues.remove(index);
+    }
+
+    /**
+     * 检查上值是否存在
+     * 
+     * @param index 上值索引
+     * @return 如果存在则返回true，否则返回false
+     */
+    public boolean hasUpvalue(String index) {
+        return this.upvalues.containsKey(index);
+    }
+
+    /**
+     * 获取所有上值
+     * 
+     * @return 上值映射，key为上值索引，value为上值对象
+     */
+    public Map<String, Upvalue> getAllUpvalues() {
+        return this.upvalues;
     }
 
     /**

@@ -10,5 +10,6 @@ public enum ValueType {
     TABLE,
     GLOBAL,
     MODULE,
-    OBJECT
+    OBJECT,
+    UPVALUE
 }

@@ -996,6 +996,26 @@ public class InstructionToASTConverter {
      */
     private Object convertClosureInstruction(Instruction instruction, int instructionIndex) {
         // OP_CLOSURE A Bx R(A) := closure(KPROTO[Bx], R(A), ... ,R(A+n))
-        return null;
+        int a = instruction.getA();
+        int bx = instruction.getBx();
+        
+        // 从寄存器状态获取函数名
+        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
+        RegisterEntity entity = registerState.getRegisterEntity(a);
+        
+        // 生成函数名
+        String funcName = entity.getValue().toString();
+        
+        // 创建函数引用表达式
+        Name funcRef = new Name(funcName, new SourcePos(instructionIndex, -1));
+        
+        // 生成赋值语句，将函数引用赋值给寄存器
+        Name target = new Name("R" + a, new SourcePos(instructionIndex, -1));
+        List<Expression> targets = new ArrayList<>();
+        targets.add(target);
+        List<Expression> values = new ArrayList<>();
+        values.add(funcRef);
+        
+        return new Assign(targets, values, new SourcePos(instructionIndex, -1));
     }
 }

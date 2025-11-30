@@ -58,7 +58,7 @@ public class RegisterStateAnalyzer {
             }
             
             // 处理块内指令
-            for (int i = block.getStartIndex(); i <= block.getEndIndex(); i++) {
+            for (int i = block.getStartIndex(); i <= block.getEndIndex();) {
                 if (i < numInstructions) {
                     // 更新指令i的输入状态
                     if (!currentState.equals(inStates.get(i))) {
@@ -67,22 +67,19 @@ public class RegisterStateAnalyzer {
                     }
 
                     // 处理指令，更新当前状态
-                    pipeline.processInstruction(chunk, instructions.get(i), i, currentState);
+                    int originalIndex = i;
+                    i = pipeline.processInstruction(chunk, instructions.get(i), i, currentState);
 
                     // 更新指令i的输出状态
-                    if (!currentState.equals(outStates.get(i))) {
-                        outStates.set(i, new Register(currentState));
-                        // changed = true;
+                    if (!currentState.equals(outStates.get(originalIndex))) {
+                        outStates.set(originalIndex, new Register(currentState));
                     }
                 }
             }
 
-            // 更新块的输出状态（如果有变化）
+            // 更新块的输出状态
             if (!currentState.equals(block.getOutputState())) {
                 block.setOutputState(currentState);
-                // changed = true;
-                // System.out.println("Updated block output state to " +
-                // block.getOutputState());
             }
         }
     }

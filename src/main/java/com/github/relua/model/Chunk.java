@@ -14,6 +14,7 @@ public class Chunk {
     private int numParams;         // 固定参数数量
     private int isVararg;          // 是否是可变参数
     private int maxStackSize;      // 最大栈大小
+    private int nup;               // upvalues数量
     
     private List<Instruction> instructions;  // 指令列表
     private List<Constant> constants;        // 常量表
@@ -188,6 +189,22 @@ public class Chunk {
      */
     public void setMaxStackSize(int maxStackSize) {
         this.maxStackSize = maxStackSize;
+    }
+
+    /**
+     * 获取upvalues数量
+     * @return upvalues数量
+     */
+    public int getNup() {
+        return nup;
+    }
+
+    /**
+     * 设置upvalues数量
+     * @param nup upvalues数量
+     */
+    public void setNup(int nup) {
+        this.nup = nup;
     }
 
     /**

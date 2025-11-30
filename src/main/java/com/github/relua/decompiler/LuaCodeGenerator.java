@@ -1,8 +1,11 @@
 package com.github.relua.decompiler;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.CodeLine;
 import com.github.relua.model.FromType;
@@ -13,17 +16,41 @@ import com.github.relua.model.ValueType;
  * Lua代码生成器，作为总控类，负责协调各个代码生成器
  */
 public class LuaCodeGenerator {
-    private InstructionHandler instructionHandler;
+    // private InstructionHandler instructionHandler;
     private AstCodeEmitter astCodeEmitter;
     private List<CodeGeneratorContext> contexts = new ArrayList<>();
+    private Map<String, InstructionHandler> handlers = new HashMap<>();
 
     /**
      * 构造函数
      * 
      * @param codeGenContext 代码生成上下文
      */
-    public LuaCodeGenerator() {
+    public LuaCodeGenerator(Chunk chunk) {
         this.astCodeEmitter = new AstCodeEmitter();
+
+        // 初始化所有代码块上下文
+        initializeContexts(chunk);
+    }
+
+    /**
+     * 初始化代码块的上下文
+     * 
+     * @param chunk
+     * @param register
+     * @return
+     */
+    private void initializeContexts(Chunk chunk) {
+        Register register = new Register();
+        for (int i = 0; i < chunk.getNumParams(); i++) {
+            register.setRegisterEntity(i, "a" + i, ValueType.OBJECT, FromType.GLOBAL);
+        }
+        CodeGeneratorContext context = new CodeGeneratorContext(chunk, register);
+        contexts.add(context);
+        handlers.put(chunk.getFunction(), new InstructionHandler(this, context));
+        for (Chunk subChunk : chunk.getSubChunks()) {
+            initializeContexts(subChunk);
+        }
     }
 
     /**
@@ -34,8 +61,9 @@ public class LuaCodeGenerator {
      */
     public String generate(Chunk chunk, Register register) {
         // 创建代码生成上下文
-        CodeGeneratorContext context = new CodeGeneratorContext(chunk, register);
-        this.instructionHandler = new InstructionHandler(context);
+        Logger.debug("当前处理的Chunk函数名: " + chunk.getFunction());
+        InstructionHandler handler = handlers.get(chunk.getFunction());
+        CodeGeneratorContext context = handler.getContext();
 
         // System.out.println("=== 开始处理Chunk ===");
         System.out.println("Chunk信息: lineDefined=" + chunk.getLineDefined() + ", lastLineDefined="
@@ -43,7 +71,7 @@ public class LuaCodeGenerator {
                 + chunk.getIsVararg() + ", maxStackSize=" + chunk.getMaxStackSize());
 
         // 先让指令处理器处理代码块，建立控制流和变量映射
-        instructionHandler.process(chunk);
+        handler.process(chunk);
 
         // 生成代码块头部信息
         if (chunk.getFunction().equals("main")) {
@@ -53,7 +81,7 @@ public class LuaCodeGenerator {
 
         // 生成指令代码（使用AST）
         System.out.println("生成AST代码...");
-        astCodeEmitter.emitAst(chunk, context, instructionHandler);
+        astCodeEmitter.emitAst(chunk, context, handler);
 
         // 关闭所有未结束的控制流结构
         // System.out.println("关闭所有未结束的控制流结构...");
@@ -97,35 +125,37 @@ public class LuaCodeGenerator {
      * @return 生成的Lua代码
      */
     // public String generate(Chunk chunk, CodeGeneratorContext context) {
-    //     // 创建代码生成上下文
-    //     this.instructionHandler = new InstructionHandler(context);
+    // // 创建代码生成上下文
+    // this.instructionHandler = new InstructionHandler(context);
 
-    //     System.out.println("=== 开始处理Chunk ===");
-    //     System.out.println("Chunk信息: lineDefined=" + chunk.getLineDefined() + ", lastLineDefined="
-    //             + chunk.getLastLineDefined() + ", numParams=" + chunk.getNumParams() + ", isVararg="
-    //             + chunk.getIsVararg() + ", maxStackSize=" + chunk.getMaxStackSize());
+    // System.out.println("=== 开始处理Chunk ===");
+    // System.out.println("Chunk信息: lineDefined=" + chunk.getLineDefined() + ",
+    // lastLineDefined="
+    // + chunk.getLastLineDefined() + ", numParams=" + chunk.getNumParams() + ",
+    // isVararg="
+    // + chunk.getIsVararg() + ", maxStackSize=" + chunk.getMaxStackSize());
 
-    //     // 先让指令处理器处理代码块，建立控制流和变量映射
-    //     instructionHandler.process(chunk);
+    // // 先让指令处理器处理代码块，建立控制流和变量映射
+    // instructionHandler.process(chunk);
 
-    //     // 生成代码块头部信息
-    //     if (chunk.getFunction().equals("main")) {
-    //         System.out.println("生成代码块头部信息...");
-    //         generateChunkHeader(chunk, context);
-    //     }
+    // // 生成代码块头部信息
+    // if (chunk.getFunction().equals("main")) {
+    // System.out.println("生成代码块头部信息...");
+    // generateChunkHeader(chunk, context);
+    // }
 
-    //     // 生成指令代码（使用AST）
-    //     System.out.println("生成AST代码...");
-    //     astCodeEmitter.emitAst(chunk, context, instructionHandler);
+    // // 生成指令代码（使用AST）
+    // System.out.println("生成AST代码...");
+    // astCodeEmitter.emitAst(chunk, context, instructionHandler);
 
-    //     // 关闭所有未结束的控制流结构
-    //     // System.out.println("关闭所有未结束的控制流结构...");
-    //     context.closeAllControlFlow();
+    // // 关闭所有未结束的控制流结构
+    // // System.out.println("关闭所有未结束的控制流结构...");
+    // context.closeAllControlFlow();
 
-    //     System.out.println("=== Chunk处理完成 ===");
+    // System.out.println("=== Chunk处理完成 ===");
 
-    //     contexts.add(context);
-    //     return "";
+    // contexts.add(context);
+    // return "";
     // }
 
     /**
@@ -141,21 +171,7 @@ public class LuaCodeGenerator {
         context.addEmptyLine();
     }
 
-    /**
-     * 设置指令处理器
-     * 
-     * @param instructionHandler 指令处理器
-     */
-    public void setInstructionHandler(InstructionHandler instructionHandler) {
-        this.instructionHandler = instructionHandler;
-    }
-
-    /**
-     * 获取指令处理器
-     * 
-     * @return 指令处理器
-     */
-    public InstructionHandler getInstructionHandler() {
-        return instructionHandler;
+    public InstructionHandler getInstructionHandler(String function) {
+        return handlers.get(function);
     }
 }

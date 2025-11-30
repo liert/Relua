@@ -1,6 +1,7 @@
 package com.github.relua.decompiler.ir;
 
 import com.github.relua.decompiler.BytecodeFormatter;
+import com.github.relua.decompiler.CodeGeneratorContext;
 import com.github.relua.decompiler.DecompilerPipeline;
 import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
@@ -27,8 +28,9 @@ public class IRBuilder {
      * @param instruction  指令
      * @param index        指令索引
      * @param currentState 当前寄存器状态
+     * @return 下一条指令的索引
      */
-    public void processInstruction(Chunk chunk, Instruction instruction, int index, Register currentState) {
+    public int processInstruction(Chunk chunk, Instruction instruction, int index, Register currentState) {
         Opcode opcode = instruction.getOpcode();
 
         // 根据操作码处理不同类型的指令
@@ -122,11 +124,11 @@ public class IRBuilder {
                 processSetUpvalInstruction(chunk, instruction, currentState);
                 break;
             default:
-                // 未知指令，暂时忽略
                 break;
         }
         Logger.debug(BytecodeFormatter.formatInstruction(chunk, instruction, index));
         Logger.debug(currentState.toString());
+        return index + 1;
     }
 
     // 以下是各种指令的处理方法
@@ -387,6 +389,11 @@ public class IRBuilder {
         int bx = instruction.getBx();
         // 记录为函数类型
         currentState.setRegisterEntity(a, chunk.getFunction() + "_" + bx, ValueType.FUNCTION, FromType.GLOBAL);
+
+        CodeGeneratorContext context = pipeline.getContext();
+        
+        // context.addUpvalue(bx, null, context, null, null);
+        
     }
 
     private void processVarargInstruction(Chunk chunk, Instruction instruction, Register currentState) {
@@ -397,11 +404,37 @@ public class IRBuilder {
     private void processGetUpvalInstruction(Chunk chunk, Instruction instruction, Register register) {
         // OP_GETUPVAL	A B	R(A) := UpValue[B]
         int a = instruction.getA();
-
+        int b = instruction.getB();
+        
+        // 从CodeGeneratorContext中获取上值
+        com.github.relua.decompiler.CodeGeneratorContext context = pipeline.getContext();
+        com.github.relua.model.Upvalue upvalue = context.getUpvalue(b);
+        
+        if (upvalue != null) {
+            // 更新寄存器状态
+            RegisterEntity registerEntity = register.getRegisterEntity(a);
+            registerEntity.setValue(upvalue.getName());
+            registerEntity.setType(com.github.relua.model.ValueType.OBJECT);
+            registerEntity.setFromType(FromType.UPVALUE);
+        } else {
+            // 如果上值不存在，使用默认值
+            RegisterEntity registerEntity = register.getRegisterEntity(a);
+            registerEntity.setValue("upvalue_" + b);
+            registerEntity.setType(com.github.relua.model.ValueType.OBJECT);
+            registerEntity.setFromType(com.github.relua.model.FromType.UPVALUE);
+        }
     }
 
     private void processSetUpvalInstruction(Chunk chunk, Instruction instruction, Register currentState) {
-        // 处理upvalue指令
-        // 不修改寄存器状态
+        // OP_SETUPVAL	A B	UpValue[B] := R(A)
+        int a = instruction.getA();
+        int b = instruction.getB();
+        
+        // 获取A寄存器的值
+        RegisterEntity registerEntity = currentState.getRegisterEntity(a);
+        
+        // 保存到CodeGeneratorContext的上值存储中
+        CodeGeneratorContext context = pipeline.getContext();
+        // context.addUpvalue(b, "upvalue_" + b, registerEntity.getValue(), registerEntity.getType(), registerEntity.getFromType());
     }
 }

@@ -46,7 +46,7 @@ public class LuacParser {
         ChunkParser chunkParser = new ChunkParser(reader);
         Chunk mainChunk = chunkParser.parse("main");
         luacFile.setMainChunk(mainChunk);
-
+        // System.exit(0);
         return luacFile;
     }
 
