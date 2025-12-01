@@ -10,6 +10,7 @@ import com.github.relua.model.Chunk;
 import com.github.relua.model.CodeLine;
 import com.github.relua.model.FromType;
 import com.github.relua.model.Register;
+import com.github.relua.model.Upvalue;
 import com.github.relua.model.ValueType;
 
 /**
@@ -102,6 +103,10 @@ public class LuaCodeGenerator {
         if (chunk.getFunction().equals("main")) {
             StringBuilder code = new StringBuilder();
             for (CodeGeneratorContext ctx : contexts) {
+                // Chunk tmp = context.getChunk();
+                for (Upvalue upvalue : ctx.getUpvalues()) {
+                    Logger.debug(upvalue.toString());
+                }
                 code.append("function ").append(ctx.getChunk().getFunction()).append("(");
                 for (int i = 0; i < ctx.getChunk().getNumParams(); i++) {
                     code.append("a").append(i);

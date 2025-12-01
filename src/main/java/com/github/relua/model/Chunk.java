@@ -216,6 +216,19 @@ public class Chunk {
     }
 
     /**
+     * 获取指定索引的指令
+     * 
+     * @param index 指令索引
+     * @return 指令
+     */
+    public Instruction getInstruction(int index) {
+        if (index >= 0 && index < instructions.size()) {
+            return instructions.get(index);
+        }
+        return null;
+    }
+
+    /**
      * 添加指令
      * @param instruction 指令
      */

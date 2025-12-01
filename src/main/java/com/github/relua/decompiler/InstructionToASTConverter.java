@@ -953,7 +953,7 @@ public class InstructionToASTConverter {
 
             pipeline.getContext().addThenBlock(currentThenBlock);
 
-            System.out.println("Then StartIndex = " + thenStart + ", Then EndIndex = " + thenEnd);
+            // System.out.println("Then StartIndex = " + thenStart + ", Then EndIndex = " + thenEnd);
 
             // ----------- 判断是否有 else 块 -----------
             Integer elseStart = null;

@@ -54,7 +54,7 @@ public class CodeGeneratorContext {
     private int thenIndex = 0;
     private Map<Integer, BasicBlock> thenBlocks = new HashMap<>(); // 基本块映射
     private Register register = new Register(); // 初始寄存器状态
-    private Map<String, Upvalue> upvalues = new HashMap<>(); // 上值存储，key为上值索引，value为上值对象
+    private List<Upvalue> upvalues = new ArrayList<>(); // 上值存储，key为上值索引，value为上值对象
 
     public CodeGeneratorContext() {
         this.codeLines = new ArrayList<>();
@@ -287,8 +287,8 @@ public class CodeGeneratorContext {
      * @param index 上值索引
      * @param upvalue 上值对象
      */
-    public void addUpvalue(String index, Upvalue upvalue) {
-        this.upvalues.put(index, upvalue);
+    public void addUpvalue(int index, Upvalue upvalue) {
+        this.upvalues.add(index, upvalue);
     }
 
     // /**
@@ -315,13 +315,17 @@ public class CodeGeneratorContext {
         return this.upvalues.get(index);
     }
 
+    public List<Upvalue> getUpvalues() {
+        return this.upvalues;
+    }
+
     /**
      * 移除上值
      * 
      * @param index 上值索引
      * @return 被移除的上值对象，如果不存在则返回null
      */
-    public Upvalue removeUpvalue(String index) {
+    public Upvalue removeUpvalue(int index) {
         return this.upvalues.remove(index);
     }
 
@@ -331,8 +335,8 @@ public class CodeGeneratorContext {
      * @param index 上值索引
      * @return 如果存在则返回true，否则返回false
      */
-    public boolean hasUpvalue(String index) {
-        return this.upvalues.containsKey(index);
+    public boolean hasUpvalue(int index) {
+        return this.upvalues.get(index) != null;
     }
 
     /**
@@ -340,9 +344,9 @@ public class CodeGeneratorContext {
      * 
      * @return 上值映射，key为上值索引，value为上值对象
      */
-    public Map<String, Upvalue> getAllUpvalues() {
-        return this.upvalues;
-    }
+    // public Li<String, Upvalue> getAllUpvalues() {
+    //     return this.upvalues;
+    // }
 
     /**
      * 生成最终的Lua代码字符串

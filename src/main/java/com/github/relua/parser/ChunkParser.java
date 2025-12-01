@@ -43,6 +43,7 @@ public class ChunkParser {
         int maxStackSize = reader.readUnsignedByte();
         Logger.info(String.format("上值数量: %d, 固定参数数量: %d, 是否可变参数: %s, 最大栈大小: %d", nups, numParams, isVararg == 1 ? "是" : "否", maxStackSize));
         
+        chunk.setNup(nups);
         chunk.setNumParams(numParams);
         chunk.setIsVararg(isVararg);
         chunk.setMaxStackSize(maxStackSize);

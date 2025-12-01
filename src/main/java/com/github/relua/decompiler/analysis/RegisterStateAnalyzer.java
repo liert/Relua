@@ -95,7 +95,7 @@ public class RegisterStateAnalyzer {
         }
 
         Register initRegister = pipeline.getContext().getRegister();
-        Logger.debug("初始寄存器状态: " + initRegister);
+        // Logger.debug("初始寄存器状态: " + initRegister);
         if (initRegister == null) {
             return;
         }
@@ -103,7 +103,7 @@ public class RegisterStateAnalyzer {
             RegisterEntity entity = initRegister.getRegisterEntity(i);
             inStates.get(0).setRegisterEntity(i, entity.getValue(), entity.getType(), entity.getFromType());
         }
-        Logger.debug("入口寄存器状态: " + inStates.get(0));
+        // Logger.debug("入口寄存器状态: " + inStates.get(0));
     }
 
     /**

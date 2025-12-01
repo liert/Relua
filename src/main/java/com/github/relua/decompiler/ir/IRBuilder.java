@@ -11,6 +11,7 @@ import com.github.relua.model.Instruction;
 import com.github.relua.model.Instruction.Opcode;
 import com.github.relua.model.Register;
 import com.github.relua.model.Register.RegisterEntity;
+import com.github.relua.model.Upvalue;
 import com.github.relua.util.TransformUtils;
 import com.github.relua.model.ValueType;
 
@@ -31,6 +32,7 @@ public class IRBuilder {
      * @return 下一条指令的索引
      */
     public int processInstruction(Chunk chunk, Instruction instruction, int index, Register currentState) {
+        Logger.debug(BytecodeFormatter.formatInstruction(chunk, instruction, index));
         Opcode opcode = instruction.getOpcode();
 
         // 根据操作码处理不同类型的指令
@@ -112,8 +114,7 @@ public class IRBuilder {
                 processCloseInstruction(chunk, instruction, currentState);
                 break;
             case CLOSURE: // 创建闭包
-                processClosureInstruction(chunk, instruction, currentState);
-                break;
+                return processClosureInstruction(chunk, instruction, currentState, index);
             case VARARG: // 可变参数
                 processVarargInstruction(chunk, instruction, currentState);
                 break;
@@ -126,8 +127,8 @@ public class IRBuilder {
             default:
                 break;
         }
-        Logger.debug(BytecodeFormatter.formatInstruction(chunk, instruction, index));
-        Logger.debug(currentState.toString());
+        
+        // Logger.debug(currentState.toString());
         return index + 1;
     }
 
@@ -383,17 +384,32 @@ public class IRBuilder {
         // 不修改寄存器状态
     }
 
-    private void processClosureInstruction(Chunk chunk, Instruction instruction, Register currentState) {
+    private int processClosureInstruction(Chunk chunk, Instruction instruction, Register currentState, int instructionIndex) {
         // OP_CLOSURE	A Bx	R(A) := closure(KPROTO[Bx], R(A), ... ,R(A+n))
         int a = instruction.getA();
         int bx = instruction.getBx();
-        // 记录为函数类型
-        currentState.setRegisterEntity(a, chunk.getFunction() + "_" + bx, ValueType.FUNCTION, FromType.GLOBAL);
 
-        CodeGeneratorContext context = pipeline.getContext();
+        String targetChunk = chunk.getFunction() + "_" + bx;
+        Logger.debug(String.format("创建闭包 %s 写入寄存器 R%d", targetChunk, a));
+
+        // 记录为函数类型
+        currentState.setRegisterEntity(a, targetChunk, ValueType.FUNCTION, FromType.GLOBAL);
+
+        CodeGeneratorContext context = pipeline.getContext(targetChunk);
+        Logger.debug(String.format("闭包 %s 上值数量 %d", targetChunk, context.getChunk().getNup()));
+        // Chunk targetChunkObj = context.getChunk();
+        // int nextInstructionIndex = instructionIndex + 1;
+        for (int i = 0; i < context.getChunk().getNup(); i++) {
+            instructionIndex = instructionIndex + 1;
+            Instruction nextInstruction = chunk.getInstruction(instructionIndex);
+            RegisterEntity RB = currentState.getRegisterEntity(nextInstruction.getB());
+            // RegisterEntity entity = currentState.getRegisterEntity(upvalueIndex);
+            context.addUpvalue(i, new Upvalue(i, RB.getName(), RB.getValue(), RB.getType(), RB.getFromType()));
+            Logger.debug(String.format("%s: 上值 %s 写入寄存器 R%d", targetChunk, RB.getName(), a + i));
+        }
         
         // context.addUpvalue(bx, null, context, null, null);
-        
+        return instructionIndex + 1;
     }
 
     private void processVarargInstruction(Chunk chunk, Instruction instruction, Register currentState) {
