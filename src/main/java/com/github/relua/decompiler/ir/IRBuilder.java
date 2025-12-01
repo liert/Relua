@@ -127,7 +127,7 @@ public class IRBuilder {
             default:
                 break;
         }
-        
+
         // Logger.debug(currentState.toString());
         return index + 1;
     }
@@ -224,12 +224,13 @@ public class IRBuilder {
 
         RegisterEntity RB = currentState.getRegisterEntity(b);
 
-        String value = String.format("%s[%s]", TransformUtils.transformRegister(RB), TransformUtils.transformRX(chunk, currentState, c));
+        String value = String.format("%s[%s]", TransformUtils.transformRegister(RB),
+                TransformUtils.transformRX(chunk, currentState, c));
         currentState.setRegisterEntity(a, value, ValueType.TABLE, FromType.GLOBAL);
     }
 
     private void processSetTableInstruction(Chunk chunk, Instruction instruction, Register currentState) {
-        // OP_SETTABLE	A B C	R(A)[RK(B)] := RK(C)
+        // OP_SETTABLE A B C R(A)[RK(B)] := RK(C)
         // 没有更新寄存器实体，直接记录为表访问
         int a = instruction.getA();
         int b = instruction.getB();
@@ -239,14 +240,15 @@ public class IRBuilder {
         // RegisterEntity RB = currentState.getRegisterEntity(b);
         // String cValue = "RK" + c;
         // if (c < chunk.getConstants().size()) {
-        //     cValue = chunk.getConstants().get(c).getValue().toString();
+        // cValue = chunk.getConstants().get(c).getValue().toString();
         // }
         // if (RB.getFromType() == FromType.GLOBAL) {
-        //     String value = String.format("%s[\"%s\"] = %s", RB.getValue(), cValue, cValue);
-        //     currentState.setRegisterEntity(a, value, ValueType.TABLE, FromType.GLOBAL);
+        // String value = String.format("%s[\"%s\"] = %s", RB.getValue(), cValue,
+        // cValue);
+        // currentState.setRegisterEntity(a, value, ValueType.TABLE, FromType.GLOBAL);
         // } else {
-        //     // 简单处理：记录为表访问
-        //     currentState.setRegisterEntity(a, "table_access", ValueType.TABLE);
+        // // 简单处理：记录为表访问
+        // currentState.setRegisterEntity(a, "table_access", ValueType.TABLE);
         // }
     }
 
@@ -315,11 +317,11 @@ public class IRBuilder {
     }
 
     private void processCallInstruction(Chunk chunk, Instruction instruction, Register currentState) {
-        // OP_TAILCALL	A B C	return R(A)(R(A+1), ... ,R(A+B-1))
+        // OP_TAILCALL A B C return R(A)(R(A+1), ... ,R(A+B-1))
         if (instruction.getOpcode() == Opcode.TAILCALL) {
             return;
         }
-        
+
         // OP_CALL A B C R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1))
         int a = instruction.getA();
         int b = instruction.getB();
@@ -342,12 +344,14 @@ public class IRBuilder {
                 int registerIndex = a + i;
                 // 更新寄存器状态，将返回值标记为UNKNOWN类型
                 String RAValue = RA.getValue().toString();
-                // Logger.debug(String.format("调用函数 %s %s", RAValue, RAValue.equals("require")));
+                // Logger.debug(String.format("调用函数 %s %s", RAValue,
+                // RAValue.equals("require")));
                 if (RAValue.equals("require")) {
                     RegisterEntity argsEntity = currentState.getRegisterEntity(a + 1);
                     RAValue = argsEntity.getValue().toString().replace(".", "_");
                     currentState.setRegisterEntity(registerIndex, RAValue, ValueType.OBJECT, FromType.GLOBAL);
-                    // Logger.debug(String.format("require 调用，返回值 %s 写入寄存器 R%d", RAValue, registerIndex));
+                    // Logger.debug(String.format("require 调用，返回值 %s 写入寄存器 R%d", RAValue,
+                    // registerIndex));
                     continue;
                 } else {
                     RAValue = "R" + registerIndex;
@@ -384,8 +388,9 @@ public class IRBuilder {
         // 不修改寄存器状态
     }
 
-    private int processClosureInstruction(Chunk chunk, Instruction instruction, Register currentState, int instructionIndex) {
-        // OP_CLOSURE	A Bx	R(A) := closure(KPROTO[Bx], R(A), ... ,R(A+n))
+    private int processClosureInstruction(Chunk chunk, Instruction instruction, Register currentState,
+            int instructionIndex) {
+        // OP_CLOSURE A Bx R(A) := closure(KPROTO[Bx], R(A), ... ,R(A+n))
         int a = instruction.getA();
         int bx = instruction.getBx();
 
@@ -395,6 +400,7 @@ public class IRBuilder {
         // 记录为函数类型
         currentState.setRegisterEntity(a, targetChunk, ValueType.FUNCTION, FromType.GLOBAL);
 
+        CodeGeneratorContext currentContext = pipeline.getContext();
         CodeGeneratorContext context = pipeline.getContext(targetChunk);
         Logger.debug(String.format("闭包 %s 上值数量 %d", targetChunk, context.getChunk().getNup()));
         // Chunk targetChunkObj = context.getChunk();
@@ -402,12 +408,20 @@ public class IRBuilder {
         for (int i = 0; i < context.getChunk().getNup(); i++) {
             instructionIndex = instructionIndex + 1;
             Instruction nextInstruction = chunk.getInstruction(instructionIndex);
-            RegisterEntity RB = currentState.getRegisterEntity(nextInstruction.getB());
-            // RegisterEntity entity = currentState.getRegisterEntity(upvalueIndex);
-            context.addUpvalue(i, new Upvalue(i, RB.getName(), RB.getValue(), RB.getType(), RB.getFromType()));
-            Logger.debug(String.format("%s: 上值 %s 写入寄存器 R%d", targetChunk, RB.getName(), a + i));
+            if (nextInstruction.getOpcode() == Opcode.MOVE) {
+                RegisterEntity RB = currentState.getRegisterEntity(nextInstruction.getB());
+                // RegisterEntity entity = currentState.getRegisterEntity(upvalueIndex);
+                context.addUpvalue(i, new Upvalue(i, RB.getName(), RB.getValue(), RB.getType(), RB.getFromType()));
+                Logger.debug(String.format("%s: 上值 %s 写入寄存器 R%d", targetChunk, RB.getName(), a + i));
+            } else if (nextInstruction.getOpcode() == Opcode.GETUPVAL) {
+                Upvalue upvalue = currentContext.getUpvalue(bx);
+                context.addUpvalue(i, upvalue);
+                Logger.debug(String.format("%s: 上值 %s 写入寄存器 R%d", targetChunk, upvalue.getName(), a + i));
+            } else {
+                Logger.error(String.format("%s: 未知上值指令 %s", chunk.getFunction(), nextInstruction));
+            }
         }
-        
+
         // context.addUpvalue(bx, null, context, null, null);
         return instructionIndex + 1;
     }
@@ -418,39 +432,39 @@ public class IRBuilder {
     }
 
     private void processGetUpvalInstruction(Chunk chunk, Instruction instruction, Register register) {
-        // OP_GETUPVAL	A B	R(A) := UpValue[B]
+        // OP_GETUPVAL A B R(A) := UpValue[B]
         int a = instruction.getA();
         int b = instruction.getB();
-        
+        RegisterEntity RA = register.getRegisterEntity(a);
+
         // 从CodeGeneratorContext中获取上值
-        com.github.relua.decompiler.CodeGeneratorContext context = pipeline.getContext();
-        com.github.relua.model.Upvalue upvalue = context.getUpvalue(b);
-        
+        CodeGeneratorContext context = pipeline.getContext();
+        Upvalue upvalue = context.getUpvalue(b);
+
         if (upvalue != null) {
             // 更新寄存器状态
-            RegisterEntity registerEntity = register.getRegisterEntity(a);
-            registerEntity.setValue(upvalue.getName());
-            registerEntity.setType(com.github.relua.model.ValueType.OBJECT);
-            registerEntity.setFromType(FromType.UPVALUE);
+            RA.setValue(upvalue.getValue());
+            RA.setType(upvalue.getType());
+            RA.setFromType(upvalue.getFromType());
         } else {
             // 如果上值不存在，使用默认值
-            RegisterEntity registerEntity = register.getRegisterEntity(a);
-            registerEntity.setValue("upvalue_" + b);
-            registerEntity.setType(com.github.relua.model.ValueType.OBJECT);
-            registerEntity.setFromType(com.github.relua.model.FromType.UPVALUE);
+            RA.setValue("upvalue_" + b);
+            RA.setType(ValueType.OBJECT);
+            RA.setFromType(FromType.CONSTANT);
         }
     }
 
     private void processSetUpvalInstruction(Chunk chunk, Instruction instruction, Register currentState) {
-        // OP_SETUPVAL	A B	UpValue[B] := R(A)
+        // OP_SETUPVAL A B UpValue[B] := R(A)
         int a = instruction.getA();
         int b = instruction.getB();
-        
+
         // 获取A寄存器的值
         RegisterEntity registerEntity = currentState.getRegisterEntity(a);
-        
+
         // 保存到CodeGeneratorContext的上值存储中
         CodeGeneratorContext context = pipeline.getContext();
-        // context.addUpvalue(b, "upvalue_" + b, registerEntity.getValue(), registerEntity.getType(), registerEntity.getFromType());
+        // context.addUpvalue(b, "upvalue_" + b, registerEntity.getValue(),
+        // registerEntity.getType(), registerEntity.getFromType());
     }
 }

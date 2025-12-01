@@ -288,7 +288,7 @@ public class CodeGeneratorContext {
      * @param upvalue 上值对象
      */
     public void addUpvalue(int index, Upvalue upvalue) {
-        this.upvalues.add(index, upvalue);
+        this.upvalues.add(upvalue);
     }
 
     // /**

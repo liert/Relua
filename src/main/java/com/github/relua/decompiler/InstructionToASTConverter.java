@@ -9,6 +9,7 @@ import com.github.relua.model.Instruction;
 import com.github.relua.model.Instruction.Opcode;
 import com.github.relua.model.Register;
 import com.github.relua.model.Register.RegisterEntity;
+import com.github.relua.model.Upvalue;
 import com.github.relua.model.ValueType;
 import com.github.relua.util.TransformUtils;
 
@@ -108,6 +109,8 @@ public class InstructionToASTConverter {
                 return convertJmpInstruction(instruction, instructionIndex);
             case CLOSURE:
                 return convertClosureInstruction(instruction, instructionIndex);
+            case GETUPVAL:
+                return convertGetUpvalInstruction(instruction, instructionIndex);
             default:
                 // 对于其他指令，生成一个默认的表达式节点
                 StringConst opcodeStr = new StringConst(opcode.toString(), new SourcePos(instructionIndex, -1));
@@ -517,8 +520,8 @@ public class InstructionToASTConverter {
         List<Expression> right = new ArrayList<>();
         right.add(source);
         right.add(tableAccess);
-        // return new Assign(left, right, new SourcePos(instructionIndex, -1));
-        return null;
+        return new Assign(left, right, new SourcePos(instructionIndex, -1));
+        // return null;
     }
 
     /**
@@ -1018,4 +1021,30 @@ public class InstructionToASTConverter {
         
         return new Assign(targets, values, new SourcePos(instructionIndex, -1));
     }
+
+    /**
+     * 转换GETUPVAL指令
+     *
+     * @param instruction      指令
+     * @param instructionIndex 指令索引
+     * @return 生成的AST节点
+     */
+    private Object convertGetUpvalInstruction(Instruction instruction, int instructionIndex) {
+        // OP_GETUPVAL A Bx R(A) := UpValue[Bx]
+        int a = instruction.getA();
+        int bx = instruction.getBx();
+        
+        // 从上下文获取上值信息
+        // CodeGeneratorContext context = pipeline.getContext();
+        // Upvalue upvalue = context.getUpvalue(bx);
+        
+        // 生成赋值语句，将上值赋值给寄存器
+        // Name target = new Name("R" + a, new SourcePos(instructionIndex, -1));
+        // List<Expression> targets = new ArrayList<>();
+        // targets.add(target);
+        // List<Expression> values = new ArrayList<>();
+        // values.add(new Name(upvalue.getName(), new SourcePos(instructionIndex, -1)));
+        return null;
+    }
+    
 }
