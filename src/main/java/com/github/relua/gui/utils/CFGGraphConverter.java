@@ -34,6 +34,8 @@ public class CFGGraphConverter {
     public void convertToGraph(Chunk chunk) {
         // 清空现有图形
         graphView.clearGraph();
+        // 切换到图形视图模式
+        graphView.switchToGraphMode();
         
         System.out.println("CFGGraphConverter.convertToGraph(Chunk): chunk = " + chunk);
         

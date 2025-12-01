@@ -11,21 +11,20 @@ import com.github.relua.gui.views.FileTreeView;
 import com.github.relua.gui.views.LogView;
 import com.github.relua.gui.utils.ASTGraphConverter;
 import com.github.relua.gui.utils.CFGGraphConverter;
-import com.github.relua.decompiler.Decompiler;
-import com.github.relua.parser.LuacParser;
 import com.github.relua.model.LuacFile;
-import com.github.relua.ast.AstNode;
+import com.github.relua.model.Chunk;
+import com.github.relua.model.Instruction;
+import com.github.relua.model.Constant;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.layout.HBox;
-import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * 主界面控制器类，处理主界面的交互逻辑
@@ -89,7 +88,11 @@ public class MainController {
     
     // 视图菜单项
     @FXML
-    private MenuItem menuItemToggleGraph;
+    private MenuItem menuItemBytecodeView;
+    @FXML
+    private MenuItem menuItemAstView;
+    @FXML
+    private MenuItem menuItemCfgView;
     @FXML
     private MenuItem menuItemZoomIn;
     @FXML
@@ -116,10 +119,6 @@ public class MainController {
     private Button btnZoomOut;
     @FXML
     private Button btnResetZoom;
-    @FXML
-    private Button btnToggleGraph;
-    @FXML
-    private Button btnToggleViewType;
     
     // 文件树相关
     @FXML
@@ -151,13 +150,13 @@ public class MainController {
     // CFG到图形的转换器
     private CFGGraphConverter cfgGraphConverter;
     
-    // 当前视图类型
-    private ViewType currentViewType = ViewType.AST;
-    
-    // 视图类型枚举
-    private enum ViewType {
-        AST, CFG
+    // 子视图类型枚举
+    private enum SubViewType {
+        NONE, BYTECODE, AST, CFG
     }
+    
+    // 当前激活的子视图类型
+    private SubViewType currentSubViewType = SubViewType.NONE;
     
     // 当前打开的文件
     private File currentFile;
@@ -217,10 +216,14 @@ public class MainController {
         i18nService.initializeMenus(menuFile, menuEdit, menuView, menuHelp);
         i18nService.initializeFileMenuItems(menuItemOpen, menuItemOpenFolder, menuItemSave, menuItemSaveAs, menuItemExit);
         i18nService.initializeEditMenuItems(menuItemUndo, menuItemRedo, menuItemCut, menuItemCopy, menuItemPaste);
-        i18nService.initializeViewMenuItems(menuItemToggleGraph, menuItemZoomIn, menuItemZoomOut, menuItemResetZoom);
+        i18nService.initializeViewMenuItems(menuItemZoomIn, menuItemZoomOut, menuItemResetZoom);
         i18nService.initializeHelpMenuItems(menuItemAbout);
-        i18nService.initializeToolbarButtons(btnOpen, btnSave, btnUndo, btnRedo, btnZoomIn, btnZoomOut, btnResetZoom, btnToggleGraph, btnToggleViewType);
+        i18nService.initializeToolbarButtons(btnOpen, btnSave, btnUndo, btnRedo, btnZoomIn, btnZoomOut, btnResetZoom);
         i18nService.initializeLabels(luaCodeLabel, astGraphLabel, logLabel, btnClearLog);
+        
+        // 默认隐藏右侧图形视图，仅保留文件树和代码视图
+        mainSplitPane.getItems().remove(graphContainer);
+        graphContainer.setVisible(false);
         
         // 设置初始状态
         updateStatus(i18nService.getInitialStatusText());
@@ -237,6 +240,11 @@ public class MainController {
         editMenuHandler = new EditMenuHandler(textEditorView);
         viewMenuHandler = new ViewMenuHandler(graphVisualizationView, mainSplitPane, graphContainer);
         helpMenuHandler = new HelpMenuHandler(i18nService);
+        
+        // 设置文件树的文件打开回调
+        fileTreeView.setOnFileOpenCallback(fileNode -> {
+            fileMenuHandler.openFile(fileNode.getFile());
+        });
     }
     
     /**
@@ -245,24 +253,17 @@ public class MainController {
      */
     @FXML
     private void handleOpenFolder(ActionEvent event) {
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Open Folder");
-        fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));
+        // 使用DirectoryChooser来选择文件夹，而不是FileChooser
+        javafx.stage.DirectoryChooser directoryChooser = new javafx.stage.DirectoryChooser();
+        directoryChooser.setTitle("Open Folder");
+        directoryChooser.setInitialDirectory(new File(System.getProperty("user.home")));
         
-        // 创建一个虚拟的文件过滤器，用于模拟文件夹选择
-        fileChooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("Folders", "*")
-        );
-        
-        File selectedFile = fileChooser.showOpenDialog(new Stage());
-        if (selectedFile != null) {
-            // 如果选择的是文件，获取其父文件夹
-            File folder = selectedFile.isDirectory() ? selectedFile : selectedFile.getParentFile();
-            if (folder != null) {
-                // 加载文件夹内容到文件树
-                fileTreeView.loadFolder(folder);
-                updateStatus("Folder opened: " + folder.getName());
-            }
+        // 显示文件夹选择对话框
+        File selectedFolder = directoryChooser.showDialog(new Stage());
+        if (selectedFolder != null) {
+            // 加载文件夹内容到文件树
+            fileTreeView.loadFolder(selectedFolder);
+            updateStatus("Folder opened: " + selectedFolder.getName());
         }
     }
     
@@ -334,10 +335,7 @@ public class MainController {
     
     // 视图菜单事件处理方法
     
-    @FXML
-    private void handleToggleGraph(ActionEvent event) {
-        viewMenuHandler.handleToggleGraph(event);
-    }
+    
     
     @FXML
     private void handleZoomIn(ActionEvent event) {
@@ -355,28 +353,240 @@ public class MainController {
     }
     
     /**
-     * 处理切换视图事件（AST/CFG）
+     * 处理字节码视图事件
      * @param event 事件对象
      */
     @FXML
-    private void handleToggleViewType(ActionEvent event) {
-        // 切换视图类型
-        currentViewType = (currentViewType == ViewType.AST) ? ViewType.CFG : ViewType.AST;
-        
-        // 更新标签文本
-        if (currentViewType == ViewType.AST) {
-            astGraphLabel.setText("AST视图");
-        } else {
-            astGraphLabel.setText("CFG视图");
+    private void handleBytecodeView(ActionEvent event) {
+        toggleSubView(SubViewType.BYTECODE);
+    }
+    
+    /**
+     * 处理AST视图事件
+     * @param event 事件对象
+     */
+    @FXML
+    private void handleAstView(ActionEvent event) {
+        toggleSubView(SubViewType.AST);
+    }
+    
+    /**
+     * 处理CFG视图事件
+     * @param event 事件对象
+     */
+    @FXML
+    private void handleCfgView(ActionEvent event) {
+        toggleSubView(SubViewType.CFG);
+    }
+    
+    /**
+     * 切换子视图
+     * @param subViewType 子视图类型
+     */
+    private void toggleSubView(SubViewType subViewType) {
+        // 如果当前已经是该子视图，则关闭它
+        if (currentSubViewType == subViewType) {
+            closeSubView();
+            return;
         }
         
-        // 根据当前视图类型重新生成图形
-        if (fileMenuHandler.getCurrentLuacFile() != null) {
-            if (currentViewType == ViewType.AST) {
-                astGraphConverter.convertToGraph(fileMenuHandler.getCurrentLuacFile());
-            } else {
-                cfgGraphConverter.convertToGraph(fileMenuHandler.getCurrentLuacFile());
+        // 激活新的子视图
+        currentSubViewType = subViewType;
+        
+        // 确保图形容器可见
+        if (!graphContainer.isVisible()) {
+            if (!mainSplitPane.getItems().contains(graphContainer)) {
+                mainSplitPane.getItems().add(graphContainer);
             }
+            graphContainer.setVisible(true);
+        }
+        
+        // 根据子视图类型更新标题
+        updateSubViewTitle(subViewType);
+        
+        // 执行视图转换（在后台线程中）
+        executeSubViewConversion(subViewType);
+    }
+    
+    /**
+     * 关闭当前子视图
+     */
+    private void closeSubView() {
+        currentSubViewType = SubViewType.NONE;
+        mainSplitPane.getItems().remove(graphContainer);
+        graphContainer.setVisible(false);
+        updateStatus("子视图已关闭");
+    }
+    
+    /**
+     * 更新子视图标题
+     * @param subViewType 子视图类型
+     */
+    private void updateSubViewTitle(SubViewType subViewType) {
+        switch (subViewType) {
+            case BYTECODE:
+                astGraphLabel.setText("字节码视图");
+                break;
+            case AST:
+                astGraphLabel.setText("AST视图");
+                break;
+            case CFG:
+                astGraphLabel.setText("CFG视图");
+                break;
+            default:
+                astGraphLabel.setText("子视图");
+        }
+    }
+    
+    /**
+     * 执行子视图转换（在后台线程中）
+     * @param subViewType 子视图类型
+     */
+    private void executeSubViewConversion(SubViewType subViewType) {
+        // 获取当前打开的LuacFile
+        LuacFile luacFile = fileMenuHandler.getCurrentLuacFile();
+        if (luacFile == null) {
+            updateStatus("请先打开一个文件");
+            return;
+        }
+        
+        // 创建并启动后台任务
+        javafx.concurrent.Task<Void> task = new javafx.concurrent.Task<Void>() {
+            @Override
+            protected Void call() throws Exception {
+                // 更新状态信息
+                updateMessage("正在生成" + getSubViewName(subViewType) + "...");
+                
+                // 根据子视图类型执行转换
+                switch (subViewType) {
+                    case BYTECODE:
+                        // 字节码视图处理逻辑
+                        updateMessage("正在生成字节码视图...");
+                        generateBytecodeView(luacFile);
+                        break;
+                    case AST:
+                        // AST视图处理逻辑
+                        updateMessage("正在生成AST视图...");
+                        astGraphConverter.convertToGraph(luacFile);
+                        break;
+                    case CFG:
+                        // CFG视图处理逻辑
+                        updateMessage("正在生成CFG视图...");
+                        cfgGraphConverter.convertToGraph(luacFile);
+                        break;
+                }
+                
+                return null;
+            }
+            
+            @Override
+            protected void succeeded() {
+                updateStatus(getSubViewName(subViewType) + "生成成功");
+            }
+            
+            @Override
+            protected void failed() {
+                updateStatus("生成" + getSubViewName(subViewType) + "失败: " + getException().getMessage());
+            }
+        };
+        
+        // 绑定状态信息
+        task.messageProperty().addListener((obs, oldMsg, newMsg) -> updateStatus(newMsg));
+        
+        // 启动任务线程
+        Thread thread = new Thread(task);
+        thread.setDaemon(true);
+        thread.start();
+    }
+    
+    /**
+     * 生成字节码视图
+     * @param luacFile Luac文件对象
+     */
+    private void generateBytecodeView(LuacFile luacFile) {
+        // 获取主代码块
+        Chunk mainChunk = luacFile.getMainChunk();
+        if (mainChunk == null) {
+            return;
+        }
+        
+        // 生成字节码内容
+        StringBuilder bytecodeContent = new StringBuilder();
+        
+        // 添加文件头信息
+        bytecodeContent.append("=== Luac File Header ===\n");
+        bytecodeContent.append(String.format("Version: %s\n", luacFile.getLuaVersion()));
+        bytecodeContent.append(String.format("Endianness: %s\n", luacFile.isLittleEndian() ? "Little Endian" : "Big Endian"));
+        bytecodeContent.append(String.format("Instruction Size: %d bytes\n", luacFile.getInstructionSize()));
+        bytecodeContent.append(String.format("Lua Number Size: %d bytes\n", luacFile.getLuaNumberSize()));
+        bytecodeContent.append(String.format("Integral Flag: %d\n\n", luacFile.getIntegralFlag()));
+        
+        // 添加主代码块信息
+        bytecodeContent.append("=== Main Chunk ===\n");
+        bytecodeContent.append(String.format("Function: %s\n", mainChunk.getFunction()));
+        bytecodeContent.append(String.format("Line Defined: %d\n", mainChunk.getLineDefined()));
+        bytecodeContent.append(String.format("Last Line Defined: %d\n", mainChunk.getLastLineDefined()));
+        bytecodeContent.append(String.format("Parameters: %d\n", mainChunk.getNumParams()));
+        bytecodeContent.append(String.format("Vararg: %d\n", mainChunk.getIsVararg()));
+        bytecodeContent.append(String.format("Max Stack Size: %d\n", mainChunk.getMaxStackSize()));
+        bytecodeContent.append(String.format("Upvalues: %d\n", mainChunk.getNup()));
+        bytecodeContent.append(String.format("Instructions: %d\n", mainChunk.getInstructions().size()));
+        bytecodeContent.append(String.format("Constants: %d\n", mainChunk.getConstants().size()));
+        bytecodeContent.append(String.format("Sub Chunks: %d\n", mainChunk.getSubChunks().size()));
+        bytecodeContent.append(String.format("Local Vars: %d\n\n", mainChunk.getLocalVars().size()));
+        
+        // 添加指令列表
+        bytecodeContent.append("=== Instructions ===\n");
+        bytecodeContent.append(String.format("%4s | %8s | %-12s | %s\n", "PC", "Code", "Opcode", "Operands"));
+        bytecodeContent.append("----+--------+------------+--------\n");
+        
+        List<Instruction> instructions = mainChunk.getInstructions();
+        for (int i = 0; i < instructions.size(); i++) {
+            Instruction instr = instructions.get(i);
+            String codeHex = String.format("0x%08X", instr.getCode());
+            String opcode = instr.getOpcode().name();
+            String operands = String.format("A=%d B=%d C=%d Bx=%d sBx=%d", 
+                                          instr.getA(), instr.getB(), instr.getC(), 
+                                          instr.getBx(), instr.getSBx());
+            
+            bytecodeContent.append(String.format("%4d | %8s | %-12s | %s\n", i, codeHex, opcode, operands));
+        }
+        
+        // 添加常量表
+        bytecodeContent.append("\n=== Constants ===\n");
+        List<Constant> constants = mainChunk.getConstants();
+        for (int i = 0; i < constants.size(); i++) {
+            Constant constant = constants.get(i);
+            bytecodeContent.append(String.format("%4d: %s\n", i, constant.toString()));
+        }
+        
+        // 添加局部变量表
+        bytecodeContent.append("\n=== Local Variables ===\n");
+        List<Chunk.LocalVar> localVars = mainChunk.getLocalVars();
+        for (Chunk.LocalVar localVar : localVars) {
+            bytecodeContent.append(String.format("%s: startPC=%d endPC=%d\n", 
+                                          localVar.getName(), localVar.getStartPC(), localVar.getEndPC()));
+        }
+        
+        // 将字节码内容显示在图形视图中
+        graphVisualizationView.setTextContent(bytecodeContent.toString());
+    }
+    
+    /**
+     * 获取子视图名称
+     * @param subViewType 子视图类型
+     * @return 子视图名称
+     */
+    private String getSubViewName(SubViewType subViewType) {
+        switch (subViewType) {
+            case BYTECODE:
+                return "字节码视图";
+            case AST:
+                return "AST视图";
+            case CFG:
+                return "CFG视图";
+            default:
+                return "子视图";
         }
     }
     

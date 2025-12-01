@@ -10,6 +10,7 @@ import javafx.scene.input.MouseEvent;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * 文件树视图类，用于显示文件系统的树状结构
@@ -18,6 +19,7 @@ public class FileTreeView {
     private TreeView<FileNode> treeView;
     private TreeItem<FileNode> rootItem;
     private Map<String, Image> iconMap;
+    private Consumer<FileNode> onFileOpenCallback;
     
     /**
      * 构造函数
@@ -159,8 +161,18 @@ public class FileTreeView {
      * @param fileNode 文件节点
      */
     private void handleFileOpen(FileNode fileNode) {
-        // 这里可以添加文件打开的逻辑，例如通知主控制器打开文件
-        System.out.println("打开文件: " + fileNode.getPath());
+        // 调用文件打开回调
+        if (onFileOpenCallback != null) {
+            onFileOpenCallback.accept(fileNode);
+        }
+    }
+    
+    /**
+     * 设置文件打开回调
+     * @param callback 文件打开回调
+     */
+    public void setOnFileOpenCallback(Consumer<FileNode> callback) {
+        this.onFileOpenCallback = callback;
     }
     
     /**

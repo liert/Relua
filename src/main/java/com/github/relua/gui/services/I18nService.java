@@ -56,13 +56,11 @@ public class I18nService {
     
     /**
      * 初始化视图菜单项的国际化文本
-     * @param menuItemToggleGraph 切换图形菜单项
      * @param menuItemZoomIn 放大菜单项
      * @param menuItemZoomOut 缩小菜单项
      * @param menuItemResetZoom 重置缩放菜单项
      */
-    public void initializeViewMenuItems(MenuItem menuItemToggleGraph, MenuItem menuItemZoomIn, MenuItem menuItemZoomOut, MenuItem menuItemResetZoom) {
-        menuItemToggleGraph.setText(I18nUtil.getString("menu.view.toggleGraph"));
+    public void initializeViewMenuItems(MenuItem menuItemZoomIn, MenuItem menuItemZoomOut, MenuItem menuItemResetZoom) {
         menuItemZoomIn.setText(I18nUtil.getString("menu.view.zoomIn"));
         menuItemZoomOut.setText(I18nUtil.getString("menu.view.zoomOut"));
         menuItemResetZoom.setText(I18nUtil.getString("menu.view.resetZoom"));
@@ -85,10 +83,8 @@ public class I18nService {
      * @param btnZoomIn 放大按钮
      * @param btnZoomOut 缩小按钮
      * @param btnResetZoom 重置缩放按钮
-     * @param btnToggleGraph 切换图形按钮
-     * @param btnToggleViewType 切换视图类型按钮
      */
-    public void initializeToolbarButtons(Button btnOpen, Button btnSave, Button btnUndo, Button btnRedo, Button btnZoomIn, Button btnZoomOut, Button btnResetZoom, Button btnToggleGraph, Button btnToggleViewType) {
+    public void initializeToolbarButtons(Button btnOpen, Button btnSave, Button btnUndo, Button btnRedo, Button btnZoomIn, Button btnZoomOut, Button btnResetZoom) {
         btnOpen.setText(I18nUtil.getString("toolbar.open"));
         btnSave.setText(I18nUtil.getString("toolbar.save"));
         btnUndo.setText(I18nUtil.getString("toolbar.undo"));
@@ -96,8 +92,6 @@ public class I18nService {
         btnZoomIn.setText(I18nUtil.getString("toolbar.zoomIn"));
         btnZoomOut.setText(I18nUtil.getString("toolbar.zoomOut"));
         btnResetZoom.setText(I18nUtil.getString("toolbar.resetZoom"));
-        btnToggleGraph.setText(I18nUtil.getString("toolbar.toggleGraph"));
-        btnToggleViewType.setText(I18nUtil.getString("toolbar.toggleViewType"));
     }
     
     /**

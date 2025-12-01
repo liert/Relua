@@ -32,6 +32,17 @@ public class GraphVisualizationView {
     // 当前缩放级别
     private double currentScale = 1.0;
     
+    // 视图模式枚举
+    private enum ViewMode {
+        GRAPH, TEXT
+    }
+    
+    // 当前视图模式
+    private ViewMode currentViewMode = ViewMode.GRAPH;
+    
+    // 文本内容
+    private String textContent = "";
+    
     // 拖拽相关变量
     private int draggedNodeIndex = -1; // 当前正在拖动的节点索引，-1表示没有节点被拖动
     private double dragOffsetX = 0; // 鼠标按下时相对于节点左上角的X偏移
@@ -254,7 +265,7 @@ public class GraphVisualizationView {
     }
     
     /**
-     * 绘制图形
+     * 绘制图形，根据当前视图模式绘制图形或文本
      */
     private void drawGraph() {
         // 清空画布
@@ -264,6 +275,21 @@ public class GraphVisualizationView {
         gc.save();
         gc.scale(currentScale, currentScale);
         
+        if (currentViewMode == ViewMode.GRAPH) {
+            // 绘制图形
+            drawGraphContent();
+        } else {
+            // 绘制文本
+            drawTextContent();
+        }
+        
+        gc.restore();
+    }
+    
+    /**
+     * 绘制图形内容
+     */
+    private void drawGraphContent() {
         // 绘制边
         gc.setStroke(Color.BLACK);
         gc.setLineWidth(1.0);
@@ -347,8 +373,28 @@ public class GraphVisualizationView {
                 startY += LINE_HEIGHT;
             }
         }
+    }
+    
+    /**
+     * 绘制文本内容
+     */
+    private void drawTextContent() {
+        // 设置文本样式
+        gc.setFill(Color.BLACK);
+        gc.setFont(Font.font("Consolas", 12));
         
-        gc.restore();
+        // 分割文本为多行
+        String[] lines = textContent.split("\\n");
+        
+        // 绘制每行文本
+        double x = 20 / currentScale;
+        double y = 30 / currentScale;
+        double lineHeight = 15 / currentScale;
+        
+        for (String line : lines) {
+            gc.fillText(line, x, y);
+            y += lineHeight;
+        }
     }
     
     /**
@@ -604,6 +650,33 @@ public class GraphVisualizationView {
      */
     public void resetZoom() {
         currentScale = 1.0;
+        drawGraph();
+    }
+    
+    /**
+     * 设置文本内容并切换到文本视图模式
+     * @param text 要显示的文本内容
+     */
+    public void setTextContent(String text) {
+        this.textContent = text;
+        this.currentViewMode = ViewMode.TEXT;
+        drawGraph();
+    }
+    
+    /**
+     * 切换到图形视图模式
+     */
+    public void switchToGraphMode() {
+        this.currentViewMode = ViewMode.GRAPH;
+        drawGraph();
+    }
+    
+    /**
+     * 清除文本内容
+     */
+    public void clearText() {
+        this.textContent = "";
+        this.currentViewMode = ViewMode.GRAPH;
         drawGraph();
     }
     

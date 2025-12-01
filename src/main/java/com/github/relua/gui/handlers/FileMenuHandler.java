@@ -73,6 +73,16 @@ public class FileMenuHandler {
 
         File file = fileChooser.showOpenDialog(new Stage());
         if (file != null) {
+            openFile(file);
+        }
+    }
+    
+    /**
+     * 直接打开指定文件
+     * @param file 文件对象
+     */
+    public void openFile(File file) {
+        if (file != null) {
             currentFile = file;
             updateFileLabel(file.getName());
             updateStatus("Opening file...");
@@ -100,9 +110,7 @@ public class FileMenuHandler {
                 // 显示反编译结果
                 textEditorView.setText(luaCode);
 
-                // 可视化AST
-                astGraphConverter.convertToGraph(luacFile);
-
+                // 仅加载代码视图，跳过AST和CFG转换（按需加载）
                 updateStatus("File opened successfully");
             } catch (Exception e) {
                 updateStatus("Error opening file: " + e.getMessage());

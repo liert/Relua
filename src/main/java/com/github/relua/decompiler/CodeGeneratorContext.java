@@ -1,5 +1,9 @@
 package com.github.relua.decompiler;
 
+import com.github.relua.ast.AstNode;
+import com.github.relua.ast.Block;
+import com.github.relua.ast.Statement;
+import com.github.relua.ast.AstPrinter;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.CodeLine;
 import com.github.relua.model.Register;
@@ -47,7 +51,8 @@ public class CodeGeneratorContext {
     }
 
     private Chunk chunk; // 当前正在处理的代码块
-    private List<CodeLine> codeLines; // 生成的代码行列表
+    private Block astBlock; // 存储生成的AST节点
+    private List<CodeLine> codeLines; // 生成的代码行列表（保留用于兼容）
     private int currentIndent; // 当前缩进级别
     private Stack<ControlFlowElement> controlFlowStack; // 控制流栈，用于跟踪if-else嵌套结构
     private Set<Integer> labelPCs = new HashSet<>(); // 标签指令的PC值集合
@@ -55,9 +60,34 @@ public class CodeGeneratorContext {
     private Map<Integer, BasicBlock> thenBlocks = new HashMap<>(); // 基本块映射
     private Register register = new Register(); // 初始寄存器状态
     private List<Upvalue> upvalues = new ArrayList<>(); // 上值存储，key为上值索引，value为上值对象
+    
+    // 用于跟踪pending的SELF指令，用于方法调用绑定
+    private Map<Integer, PendingSelf> pendingSelfCalls = new HashMap<>();
+    
+    /**
+     * 存储pending的SELF指令信息
+     */
+    public static class PendingSelf {
+        private final int baseRegister; // 基础寄存器B
+        private final String methodName; // 方法名RK(C)
+        
+        public PendingSelf(int baseRegister, String methodName) {
+            this.baseRegister = baseRegister;
+            this.methodName = methodName;
+        }
+        
+        public int getBaseRegister() {
+            return baseRegister;
+        }
+        
+        public String getMethodName() {
+            return methodName;
+        }
+    }
 
     public CodeGeneratorContext() {
         this.codeLines = new ArrayList<>();
+        this.astBlock = new Block(null);
         this.currentIndent = 0;
         this.controlFlowStack = new Stack<>();
     }
@@ -68,6 +98,7 @@ public class CodeGeneratorContext {
     public CodeGeneratorContext(Chunk chunk) {
         this.chunk = chunk;
         this.codeLines = new ArrayList<>();
+        this.astBlock = new Block(null);
         this.currentIndent = 0;
         this.controlFlowStack = new Stack<>();
     }
@@ -79,6 +110,7 @@ public class CodeGeneratorContext {
         this.chunk = chunk;
         this.register = register;
         this.codeLines = new ArrayList<>();
+        this.astBlock = new Block(null);
         this.currentIndent = 0;
         this.controlFlowStack = new Stack<>();
     }
@@ -312,7 +344,10 @@ public class CodeGeneratorContext {
      * @return 上值对象，如果不存在则返回null
      */
     public Upvalue getUpvalue(int index) {
-        return this.upvalues.get(index);
+        if (index >= 0 && index < this.upvalues.size()) {
+            return this.upvalues.get(index);
+        }
+        return null;
     }
 
     public List<Upvalue> getUpvalues() {
@@ -326,7 +361,10 @@ public class CodeGeneratorContext {
      * @return 被移除的上值对象，如果不存在则返回null
      */
     public Upvalue removeUpvalue(int index) {
-        return this.upvalues.remove(index);
+        if (index >= 0 && index < this.upvalues.size()) {
+            return this.upvalues.remove(index);
+        }
+        return null;
     }
 
     /**
@@ -336,7 +374,7 @@ public class CodeGeneratorContext {
      * @return 如果存在则返回true，否则返回false
      */
     public boolean hasUpvalue(int index) {
-        return this.upvalues.get(index) != null;
+        return index >= 0 && index < this.upvalues.size() && this.upvalues.get(index) != null;
     }
 
     /**
@@ -349,16 +387,79 @@ public class CodeGeneratorContext {
     // }
 
     /**
+     * 添加pending的SELF指令
+     * 
+     * @param registerA 寄存器A
+     * @param baseRegister 基础寄存器B
+     * @param methodName 方法名RK(C)
+     */
+    public void addPendingSelf(int registerA, int baseRegister, String methodName) {
+        this.pendingSelfCalls.put(registerA, new PendingSelf(baseRegister, methodName));
+    }
+    
+    /**
+     * 获取pending的SELF指令
+     * 
+     * @param registerA 寄存器A
+     * @return PendingSelf对象，如果不存在则返回null
+     */
+    public PendingSelf getPendingSelf(int registerA) {
+        return this.pendingSelfCalls.get(registerA);
+    }
+    
+    /**
+     * 移除pending的SELF指令
+     * 
+     * @param registerA 寄存器A
+     * @return 被移除的PendingSelf对象，如果不存在则返回null
+     */
+    public PendingSelf removePendingSelf(int registerA) {
+        return this.pendingSelfCalls.remove(registerA);
+    }
+    
+    /**
+     * 清除所有pending的SELF指令
+     */
+    public void clearPendingSelfCalls() {
+        this.pendingSelfCalls.clear();
+    }
+
+    /**
+     * 添加AST语句到代码块
+     * 
+     * @param statement AST语句节点
+     */
+    public void addStatement(Statement statement) {
+        this.astBlock.statements.add(statement);
+    }
+    
+    /**
+     * 获取AST代码块
+     * 
+     * @return AST代码块
+     */
+    public Block getAstBlock() {
+        return this.astBlock;
+    }
+    
+    /**
+     * 设置AST代码块
+     * 
+     * @param astBlock AST代码块
+     */
+    public void setAstBlock(Block astBlock) {
+        this.astBlock = astBlock;
+    }
+    
+    /**
      * 生成最终的Lua代码字符串
      * 
      * @return 生成的Lua代码
      */
     public String generateCode() {
-        StringBuilder sb = new StringBuilder();
-        for (CodeLine line : codeLines) {
-            sb.append(line.toIndentedString(INDENT_STRING)).append("\n");
-        }
-        return sb.toString();
+        // 使用AST打印机生成代码
+        AstPrinter printer = new AstPrinter();
+        return astBlock.accept(printer);
     }
 
     /**

@@ -48,7 +48,15 @@
                 <!-- 视图菜单 -->
                 <Menu fx:id="menuView">
                     <items>
-                        <MenuItem fx:id="menuItemToggleGraph" onAction="#handleToggleGraph" />
+                        <!-- 子视图子菜单 -->
+                        <Menu text="子视图">
+                            <items>
+                                <MenuItem fx:id="menuItemBytecodeView" onAction="#handleBytecodeView" text="字节码视图" />
+                                <MenuItem fx:id="menuItemAstView" onAction="#handleAstView" text="AST视图" />
+                                <MenuItem fx:id="menuItemCfgView" onAction="#handleCfgView" text="CFG视图" />
+                            </items>
+                        </Menu>
+                        <!-- 缩放相关菜单项 -->
                         <MenuItem fx:id="menuItemZoomIn" onAction="#handleZoomIn" />
                         <MenuItem fx:id="menuItemZoomOut" onAction="#handleZoomOut" />
                         <MenuItem fx:id="menuItemResetZoom" onAction="#handleResetZoom" />
@@ -79,8 +87,7 @@
                 <Button fx:id="btnZoomOut" onAction="#handleZoomOut" />
                 <Button fx:id="btnResetZoom" onAction="#handleResetZoom" />
                 <Separator orientation="VERTICAL" />
-                <Button fx:id="btnToggleGraph" onAction="#handleToggleGraph" />
-                <Button fx:id="btnToggleViewType" onAction="#handleToggleViewType" text="切换视图" />
+                
             </ToolBar>
             
             <!-- 主内容区域和日志窗口的垂直分割面板 -->

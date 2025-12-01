@@ -1,11 +1,13 @@
 package com.github.relua.gui.utils;
 
 import com.github.relua.gui.views.GraphVisualizationView;
+import com.github.relua.model.Chunk;
 import com.github.relua.model.LuacFile;
 import com.github.relua.ast.AstNode;
 import com.github.relua.ast.AstVisitor;
 import com.github.relua.decompiler.CodeGeneratorContext;
 import com.github.relua.decompiler.InstructionHandler;
+import com.github.relua.decompiler.LuaCodeGenerator;
 
 /**
  * AST到图形的转换器，用于将Relua的AST转换为JavaFX Canvas的图形表示
@@ -29,6 +31,8 @@ public class ASTGraphConverter {
     public void convertToGraph(Object astNode) {
         // 清空现有图形
         graphView.clearGraph();
+        // 切换到图形视图模式
+        graphView.switchToGraphMode();
         
         if (astNode != null) {
             if (astNode instanceof LuacFile) {
@@ -60,10 +64,12 @@ public class ASTGraphConverter {
     private void processLuacFile(LuacFile luacFile) {
         try {
             // 创建代码生成上下文
-            CodeGeneratorContext codeGenContext = new CodeGeneratorContext();
+            Chunk mainChunk = luacFile.getMainChunk();
+            LuaCodeGenerator generator = new LuaCodeGenerator(mainChunk);
+            CodeGeneratorContext codeGenContext = new CodeGeneratorContext(mainChunk, null);
             
             // 创建指令处理器
-            InstructionHandler instructionHandler = new InstructionHandler(codeGenContext);
+            InstructionHandler instructionHandler = new InstructionHandler(generator, codeGenContext);
             
             // 处理主代码块，生成AST节点
             instructionHandler.process(luacFile.getMainChunk());

@@ -129,6 +129,9 @@ public class InstructionToASTConverter {
         int a = instruction.getA();
         int b = instruction.getB();
 
+        // 清除目标寄存器的pending SELF指令
+        pipeline.getContext().removePendingSelf(a);
+
         // 获取寄存器状态
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         RegisterEntity sourceEntity = registerState.getRegisterEntity(b);
@@ -146,7 +149,23 @@ public class InstructionToASTConverter {
             if (sourceEntity.getType() == ValueType.STRING) {
                 source = new StringConst(sourceEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
             } else if (sourceEntity.getType() == ValueType.NUMBER) {
-                source = new NumberConst((Double) sourceEntity.getValue(), new SourcePos(instructionIndex, -1));
+                Object value = sourceEntity.getValue();
+                Double numberValue;
+                if (value instanceof Double) {
+                    numberValue = (Double) value;
+                } else if (value instanceof String) {
+                    // 尝试将字符串转换为Double
+                    try {
+                        numberValue = Double.parseDouble((String) value);
+                    } catch (NumberFormatException e) {
+                        // 如果转换失败，使用默认值0.0
+                        numberValue = 0.0;
+                    }
+                } else {
+                    // 其他类型，使用默认值0.0
+                    numberValue = 0.0;
+                }
+                source = new NumberConst(numberValue, new SourcePos(instructionIndex, -1));
             } else if (sourceEntity.getType() == ValueType.BOOLEAN) {
                 source = new BooleanConst((Boolean) sourceEntity.getValue(), new SourcePos(instructionIndex, -1));
             } else if (sourceEntity.getType() == ValueType.NIL) {
@@ -179,6 +198,9 @@ public class InstructionToASTConverter {
         // OP_LOADK A Bx R(A) := Kst(Bx)
         int a = instruction.getA();
         int bx = instruction.getBx();
+
+        // 清除目标寄存器的pending SELF指令
+        pipeline.getContext().removePendingSelf(a);
 
         // 目标变量名
         List<String> names = new ArrayList<>();
@@ -228,6 +250,9 @@ public class InstructionToASTConverter {
         int a = instruction.getA();
         boolean boolValue = instruction.getB() != 0;
 
+        // 清除目标寄存器的pending SELF指令
+        pipeline.getContext().removePendingSelf(a);
+
         // 目标变量
         Expression target = new Name("R" + a, new SourcePos(instructionIndex, -1));
 
@@ -252,6 +277,11 @@ public class InstructionToASTConverter {
     private AstNode convertLoadNilInstruction(Instruction instruction, int instructionIndex) {
         int a = instruction.getA();
         int b = instruction.getB();
+
+        // 清除所有被修改寄存器的pending SELF指令
+        for (int i = a; i <= b; i++) {
+            pipeline.getContext().removePendingSelf(i);
+        }
 
         // LOADNIL指令：R(a) := nil, R(a+1) := nil, ..., R(b) := nil
         Block block = new Block(new SourcePos(instructionIndex, -1));
@@ -283,6 +313,9 @@ public class InstructionToASTConverter {
     private AstNode convertGetGlobalInstruction(Instruction instruction, int instructionIndex) {
         int a = instruction.getA();
         int bx = instruction.getBx();
+
+        // 清除目标寄存器的pending SELF指令
+        pipeline.getContext().removePendingSelf(a);
 
         // 从常量表读取字符串
         String name = chunk.getConstants().get(bx).getValue().toString();
@@ -377,6 +410,9 @@ public class InstructionToASTConverter {
         int b = instruction.getB();
         int c = instruction.getC();
 
+        // 清除目标寄存器的pending SELF指令
+        pipeline.getContext().removePendingSelf(a);
+
         // 目标变量名
         List<String> names = new ArrayList<>();
         names.add("R" + a);
@@ -436,7 +472,10 @@ public class InstructionToASTConverter {
         if (b < 256) {
             index = new Name(TransformUtils.transformRegister(register.getRegisterEntity(b)), pos);
         } else {
-            index = new StringConst(chunk.getConstant(b - 256).getValue().toString(), pos);
+            Constant constant = chunk.getConstant(b - 256);
+            Object value = constant != null ? constant.getValue() : null;
+            String stringValue = value != null ? value.toString() : "";
+            index = new StringConst(stringValue, pos);
         }
         Expression tableAccess = new IndexExpr(table, index, pos);
 
@@ -445,7 +484,10 @@ public class InstructionToASTConverter {
         if (c < 256) {
             source = new Name(TransformUtils.transformRegister(register.getRegisterEntity(c)), pos);
         } else {
-            source = new StringConst(chunk.getConstant(c - 256).getValue().toString(), pos);
+            Constant constant = chunk.getConstant(c - 256);
+            Object value = constant != null ? constant.getValue() : null;
+            String stringValue = value != null ? value.toString() : "";
+            source = new StringConst(stringValue, pos);
         }
 
         // 赋值语句
@@ -495,33 +537,25 @@ public class InstructionToASTConverter {
         int b = instruction.getB();
         int c = instruction.getC();
 
-        Register register = pipeline.getRegisterByInstructionIndex(instructionIndex);
-        SourcePos pos = new SourcePos(instructionIndex, -1);
-
-        // 目标变量名
-        List<String> names = new ArrayList<>();
-        names.add("R" + (a + 1));
-        names.add("R" + a);
-        // 源变量
-        Expression source = new Name("R" + b, new SourcePos(instructionIndex, -1));
-        // 索引表达式
-        Expression index = null;
+        // 获取方法名
+        String methodName = null;
         if (c < 256) {
-            index = new Name(TransformUtils.transformRegister(register.getRegisterEntity(c)), pos);
+            Register register = pipeline.getRegisterByInstructionIndex(instructionIndex);
+            methodName = TransformUtils.transformRegister(register.getRegisterEntity(c));
         } else {
-            index = new StringConst(chunk.getConstant(c - 256).getValue().toString(), pos);
+            methodName = chunk.getConstant(c - 256).getValue().toString();
+        }
+        
+        // 处理字符串类型，去除引号
+        if (methodName != null && methodName.startsWith("\"") && methodName.endsWith("\"")) {
+            methodName = methodName.substring(1, methodName.length() - 1);
         }
 
-        Expression tableAccess = new IndexExpr(source, index, new SourcePos(instructionIndex, -1));
-        // 赋值语句
-        List<Expression> left = new ArrayList<>();
-        left.add(new Name("R" + (a + 1), new SourcePos(instructionIndex, -1)));
-        left.add(new Name("R" + a, new SourcePos(instructionIndex, -1)));
-        List<Expression> right = new ArrayList<>();
-        right.add(source);
-        right.add(tableAccess);
-        return new Assign(left, right, new SourcePos(instructionIndex, -1));
-        // return null;
+        // 存储pending的SELF指令，不生成AST节点
+        pipeline.getContext().addPendingSelf(a, b, methodName);
+        
+        // SELF指令不生成代码，返回null
+        return null;
     }
 
     /**
@@ -536,6 +570,9 @@ public class InstructionToASTConverter {
         int b = instruction.getB();
         int c = instruction.getC();
         Opcode opcode = instruction.getOpcode();
+
+        // 清除目标寄存器的pending SELF指令
+        pipeline.getContext().removePendingSelf(a);
 
         // 算术指令：R(a) := R(b) op R(c)
         // 目标变量
@@ -570,6 +607,9 @@ public class InstructionToASTConverter {
         int b = instruction.getB();
         Opcode opcode = instruction.getOpcode();
 
+        // 清除目标寄存器的pending SELF指令
+        pipeline.getContext().removePendingSelf(a);
+
         // 一元指令：R(a) := op R(b)
         // 目标变量
         Expression target = new Name("R" + a, new SourcePos(instructionIndex, -1));
@@ -600,6 +640,9 @@ public class InstructionToASTConverter {
         int a = instruction.getA();
         int b = instruction.getB();
         int c = instruction.getC();
+
+        // 清除目标寄存器的pending SELF指令
+        pipeline.getContext().removePendingSelf(a);
 
         Register register = pipeline.getRegisterByInstructionIndex(instructionIndex);
 
@@ -658,20 +701,38 @@ public class InstructionToASTConverter {
         int c = instruction.getC();
 
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
+        SourcePos pos = new SourcePos(instructionIndex, -1);
 
-        // 函数本体
-        Expression func = resolveExpressionFromRegister(a, instructionIndex, registerState);
+        // 检查是否有pending的SELF指令
+        CodeGeneratorContext.PendingSelf pendingSelf = pipeline.getContext().getPendingSelf(a);
+        Expression func;
+        boolean isMethodCall = false;
+
+        if (pendingSelf != null) {
+            // 这是一个方法调用
+            isMethodCall = true;
+            
+            // 解析对象表达式（base register）
+            Expression obj = resolveExpressionFromRegister(pendingSelf.getBaseRegister(), instructionIndex, registerState);
+            
+            // 创建成员访问表达式作为函数调用的callee
+            func = new MemberExpr(obj, pendingSelf.getMethodName(), pos);
+            
+            // 移除pending的SELF指令
+            pipeline.getContext().removePendingSelf(a);
+        } else {
+            // 普通函数调用
+            func = resolveExpressionFromRegister(a, instructionIndex, registerState);
+        }
 
         // 参数列表
         List<Expression> args = resolveCallArguments(a, b, instructionIndex, registerState);
-
-        SourcePos pos = new SourcePos(instructionIndex, -1);
 
         // 创建返回值列表
         List<Expression> returns = new ArrayList<>();
 
         // 创建调用表达式
-        FunctionCall call = new FunctionCall(func, args, false, returns, pos);
+        FunctionCall call = new FunctionCall(func, args, isMethodCall, returns, pos);
 
         if (instruction.getOpcode() == Opcode.TAILCALL) {
             return new UnaryOp("return", call, pos);
@@ -1002,6 +1063,9 @@ public class InstructionToASTConverter {
         int a = instruction.getA();
         int bx = instruction.getBx();
         
+        // 清除目标寄存器的pending SELF指令
+        pipeline.getContext().removePendingSelf(a);
+        
         // 从寄存器状态获取函数名
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         RegisterEntity entity = registerState.getRegisterEntity(a);
@@ -1033,6 +1097,9 @@ public class InstructionToASTConverter {
         // OP_GETUPVAL A Bx R(A) := UpValue[Bx]
         int a = instruction.getA();
         int bx = instruction.getBx();
+        
+        // 清除目标寄存器的pending SELF指令
+        pipeline.getContext().removePendingSelf(a);
         
         // 从上下文获取上值信息
         // CodeGeneratorContext context = pipeline.getContext();

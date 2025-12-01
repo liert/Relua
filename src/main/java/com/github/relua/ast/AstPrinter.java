@@ -40,16 +40,11 @@ public class AstPrinter implements AstVisitor<String> {
     @Override
     public String visit(Block node) {
         StringBuilder sb = new StringBuilder();
-        // sb.append("do\n");
-        // indent();
         for (Statement stmt : node.statements) {
             sb.append(getIndent());
             sb.append(stmt.accept(this));
             sb.append("\n");
         }
-        // dedent();
-        // sb.append(getIndent());
-        // sb.append("end");
         return sb.toString();
     }
     
@@ -100,19 +95,14 @@ public class AstPrinter implements AstVisitor<String> {
             sb.append(" then\n");
             indent();
             String thanString = node.blocks.get(i).accept(this);
-            // System.out.println("thenString: " + thanString);
             sb.append(thanString);
-            sb.append("\n");
             dedent();
         }
         if (node.elseBlock != null) {
-            
-            
             sb.append(getIndent());
             sb.append("else\n");
             indent();
             sb.append(node.elseBlock.accept(this));
-            sb.append("\n");
             dedent();
         }
         sb.append(getIndent());
@@ -274,7 +264,18 @@ public class AstPrinter implements AstVisitor<String> {
     @Override
     public String visit(FunctionCall node) {
         StringBuilder sb = new StringBuilder();
-        sb.append(node.callee.accept(this));
+        
+        if (node.isMethodCall && node.callee instanceof MemberExpr) {
+            // 方法调用，使用冒号语法
+            MemberExpr memberExpr = (MemberExpr) node.callee;
+            sb.append(memberExpr.table.accept(this));
+            sb.append(":");
+            sb.append(memberExpr.member);
+        } else {
+            // 普通函数调用
+            sb.append(node.callee.accept(this));
+        }
+        
         sb.append("(");
         sb.append(join(node.args.stream().map(expr -> expr.accept(this)).collect(Collectors.toList()), ", "));
         sb.append(")");
@@ -295,11 +296,9 @@ public class AstPrinter implements AstVisitor<String> {
         }
         sb.append(")\n");
         indent();
-        sb.append(getIndent());
         sb.append(node.body.accept(this));
-        sb.append("\n");
         dedent();
-        sb.append("end");
+        sb.append("end\n");
         return sb.toString();
     }
     

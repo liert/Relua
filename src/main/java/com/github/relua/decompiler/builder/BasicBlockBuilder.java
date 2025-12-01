@@ -1,15 +1,12 @@
 package com.github.relua.decompiler.builder;
 
-import java.security.cert.PKIXRevocationChecker.Option;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import com.github.relua.decompiler.BasicBlock;
-import com.github.relua.decompiler.BytecodeFormatter;
 import com.github.relua.decompiler.DecompilerPipeline;
-import com.github.relua.decompiler.InstructionHandler;
 import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
@@ -81,7 +78,14 @@ public class BasicBlockBuilder {
         BasicBlock currentBlock = new BasicBlock(0);
         basicBlocks.add(currentBlock);
 
+        boolean encounteredReturn = false;
+
         for (int i = 0; i < instructions.size(); i++) {
+            // 如果已经遇到了RETURN指令，跳过后续无法访问的指令
+            if (encounteredReturn) {
+                break;
+            }
+
             // Logger.debug(BytecodeFormatter.formatInstruction(chunk, instructions.get(i), i));
             if (instructionToBlockMap.containsKey(i)) {
                 currentBlock = instructionToBlockMap.get(i);
@@ -106,6 +110,9 @@ public class BasicBlockBuilder {
                     instructionToBlockMap.put(i + 1, currentBlock);
                 }
             }
+
+            // 标记是否遇到了RETURN指令
+            encounteredReturn = opcode == Opcode.RETURN || opcode == Opcode.TAILCALL;
         }
     }
 
@@ -116,9 +123,9 @@ public class BasicBlockBuilder {
      * @return 是否是基本块结束指令
      */
     private boolean isBlockEndInstruction(Opcode opcode) {
-        return opcode == Opcode.JMP || opcode == Opcode.RETURN ||
+        return opcode == Opcode.JMP || 
                 opcode == Opcode.FORLOOP || opcode == Opcode.FORPREP ||
-                opcode == Opcode.TFORLOOP || opcode == Opcode.TAILCALL ||
+                opcode == Opcode.TFORLOOP || 
                 opcode == Opcode.EQ || opcode == Opcode.LT || opcode == Opcode.LE;
     }
 

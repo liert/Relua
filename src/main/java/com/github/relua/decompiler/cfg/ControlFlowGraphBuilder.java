@@ -114,6 +114,9 @@ public class ControlFlowGraphBuilder {
     }
 
     private void addEdge(Chunk chunk, BasicBlock from, int instIndex) {
+        if (from == null) {
+            return;
+        }
         BasicBlock to = pipeline.getBasicBlock(chunk.getFunction(), instIndex);
         if (to != null) {
             from.addSuccessor(to);

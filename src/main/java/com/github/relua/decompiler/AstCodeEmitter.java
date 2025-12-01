@@ -19,18 +19,19 @@ public class AstCodeEmitter {
         // 获取指令处理器生成的AST
         AstNode ast = handler.generateASTFromChunk(chunk);
 
-        // 创建AST打印机
-        AstPrinter astPrinter = new AstPrinter();
-
-        // 生成Lua代码
-        String luaCode = ast.accept(astPrinter);
-
-        // 将Lua代码添加到上下文
-        String[] lines = luaCode.split("\\n");
-        for (String line : lines) {
-            if (!line.trim().isEmpty()) {
-                context.addCodeLine(line);
+        // 如果生成的是Block，直接设置为上下文的astBlock
+        if (ast instanceof com.github.relua.ast.Block) {
+            context.setAstBlock((com.github.relua.ast.Block) ast);
+        } else {
+            // 否则，创建一个新的Block，并将AST添加到其中
+            com.github.relua.ast.Block block = new com.github.relua.ast.Block(null);
+            if (ast instanceof com.github.relua.ast.Statement) {
+                block.statements.add((com.github.relua.ast.Statement) ast);
+            } else if (ast instanceof com.github.relua.ast.Expression) {
+                com.github.relua.ast.Expression expr = (com.github.relua.ast.Expression) ast;
+                block.statements.add(new com.github.relua.ast.ExpressionStatement(expr, expr.pos));
             }
+            context.setAstBlock(block);
         }
     }
 }

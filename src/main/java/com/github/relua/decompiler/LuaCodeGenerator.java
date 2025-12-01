@@ -5,12 +5,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.github.relua.ast.AstPrinter;
+import com.github.relua.ast.Block;
+import com.github.relua.ast.FunctionDeclaration;
+import com.github.relua.ast.FunctionLiteral;
 import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.CodeLine;
 import com.github.relua.model.FromType;
 import com.github.relua.model.Register;
-import com.github.relua.model.Upvalue;
 import com.github.relua.model.ValueType;
 
 /**
@@ -90,8 +93,6 @@ public class LuaCodeGenerator {
 
         System.out.println("=== Chunk处理完成 ===");
 
-        contexts.add(context);
-
         for (Chunk subChunk : chunk.getSubChunks()) {
             Register temp = new Register();
             for (int i = 0; i < subChunk.getNumParams(); i++) {
@@ -101,24 +102,39 @@ public class LuaCodeGenerator {
         }
 
         if (chunk.getFunction().equals("main")) {
-            StringBuilder code = new StringBuilder();
+            // 为main函数创建一个主Block
+            Block mainBlock = new Block(null);
+            
             for (CodeGeneratorContext ctx : contexts) {
-                // Chunk tmp = context.getChunk();
-                for (Upvalue upvalue : ctx.getUpvalues()) {
-                    Logger.debug(upvalue.toString());
-                }
-                code.append("function ").append(ctx.getChunk().getFunction()).append("(");
-                for (int i = 0; i < ctx.getChunk().getNumParams(); i++) {
-                    code.append("a").append(i);
-                    if (i < ctx.getChunk().getNumParams() - 1) {
-                        code.append(", ");
+                Chunk ctxChunk = ctx.getChunk();
+                String funcName = ctxChunk.getFunction();
+                
+                if (funcName.equals("main")) {
+                    // main函数不需要包装，直接添加其内容
+                    mainBlock.statements.addAll(ctx.getAstBlock().statements);
+                } else {
+                    // 为其他函数创建FunctionDeclaration节点
+                    
+                    // 准备函数参数
+                    List<String> params = new ArrayList<>();
+                    for (int i = 0; i < ctxChunk.getNumParams(); i++) {
+                        params.add("a" + i);
                     }
+                    
+                    // 创建FunctionLiteral
+                    FunctionLiteral funcLit = new FunctionLiteral(params, false, ctx.getAstBlock(), null);
+                    
+                    // 创建FunctionDeclaration
+                    FunctionDeclaration funcDecl = new FunctionDeclaration(funcName, funcLit, false, null);
+                    
+                    // 添加到主Block
+                    mainBlock.statements.add(funcDecl);
                 }
-                code.append(") {\n");
-                code.append(ctx.generateCode());
-                code.append("}\n\n");
             }
-            return code.toString();
+            
+            // 使用AstPrinter生成代码
+            AstPrinter printer = new AstPrinter();
+            return mainBlock.accept(printer);
         }
         return "";
     }

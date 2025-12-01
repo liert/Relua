@@ -395,14 +395,14 @@ public class IRBuilder {
         int bx = instruction.getBx();
 
         String targetChunk = chunk.getFunction() + "_" + bx;
-        Logger.debug(String.format("创建闭包 %s 写入寄存器 R%d", targetChunk, a));
+        // Logger.debug(String.format("创建闭包 %s 写入寄存器 R%d", targetChunk, a));
 
         // 记录为函数类型
         currentState.setRegisterEntity(a, targetChunk, ValueType.FUNCTION, FromType.GLOBAL);
 
         CodeGeneratorContext currentContext = pipeline.getContext();
         CodeGeneratorContext context = pipeline.getContext(targetChunk);
-        Logger.debug(String.format("闭包 %s 上值数量 %d", targetChunk, context.getChunk().getNup()));
+        // Logger.debug(String.format("闭包 %s 上值数量 %d", targetChunk, context.getChunk().getNup()));
         // Chunk targetChunkObj = context.getChunk();
         // int nextInstructionIndex = instructionIndex + 1;
         for (int i = 0; i < context.getChunk().getNup(); i++) {
@@ -412,11 +412,11 @@ public class IRBuilder {
                 RegisterEntity RB = currentState.getRegisterEntity(nextInstruction.getB());
                 // RegisterEntity entity = currentState.getRegisterEntity(upvalueIndex);
                 context.addUpvalue(i, new Upvalue(i, RB.getName(), RB.getValue(), RB.getType(), RB.getFromType()));
-                Logger.debug(String.format("%s: 上值 %s 写入寄存器 R%d", targetChunk, RB.getName(), a + i));
+                // Logger.debug(String.format("%s: 上值 %s 写入寄存器 R%d", targetChunk, RB.getName(), a + i));
             } else if (nextInstruction.getOpcode() == Opcode.GETUPVAL) {
                 Upvalue upvalue = currentContext.getUpvalue(bx);
                 context.addUpvalue(i, upvalue);
-                Logger.debug(String.format("%s: 上值 %s 写入寄存器 R%d", targetChunk, upvalue.getName(), a + i));
+                // Logger.debug(String.format("%s: 上值 %s 写入寄存器 R%d", targetChunk, upvalue.getName(), a + i));
             } else {
                 Logger.error(String.format("%s: 未知上值指令 %s", chunk.getFunction(), nextInstruction));
             }
