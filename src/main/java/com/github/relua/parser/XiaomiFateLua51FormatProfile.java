@@ -64,7 +64,7 @@ public class XiaomiFateLua51FormatProfile extends AbstractLua51FormatProfile {
 
     @Override
     public Instruction decodeInstruction(int pc, int raw) {
-        return new Instruction(pc, raw, mapOpcode(raw & 0x3F));
+        return new Instruction(pc, raw, mapOpcode(raw));
     }
 
     @Override
@@ -85,32 +85,87 @@ public class XiaomiFateLua51FormatProfile extends AbstractLua51FormatProfile {
         }
     }
 
-    private Opcode mapOpcode(int opcodeValue) {
+    private Opcode mapOpcode(int raw) {
+        int opcodeValue = raw & 0x3F;
         switch (opcodeValue) {
             case 1:
                 return Opcode.CLOSURE;
+            case 2:
+                int c = (raw >> 14) & 0x1FF;
+                if (c == 0) {
+                    return Opcode.CLOSE;
+                }
+                return c == 3 ? Opcode.NOT : Opcode.UNM;
+            case 3:
+                return Opcode.LT;
+            case 5:
+                return Opcode.LT;
+            case 7:
+                return Opcode.SETLIST;
             case 6:
                 return Opcode.LOADK;
             case 8:
                 return Opcode.RETURN;
             case 9:
                 return Opcode.TEST;
+            case 10:
+                return Opcode.TFORLOOP;
+            case 11:
+                return Opcode.FORPREP;
+            case 12:
+                return Opcode.SUB;
+            case 13:
+                return Opcode.TAILCALL;
+            case 14:
+                return Opcode.DIV;
+            case 15:
+                return Opcode.SELF;
             case 16:
                 return Opcode.CALL;
             case 17:
                 return Opcode.SETTABLE;
+            case 18:
+                return Opcode.GETUPVAL;
             case 19:
                 return Opcode.EQ;
+            case 20:
+                return Opcode.EQ;
+            case 21:
+                return Opcode.CONCAT;
+            case 22:
+                return Opcode.LE;
+            case 23:
+                return Opcode.LE;
+            case 24:
+                return Opcode.LOADBOOL;
+            case 25:
+                return Opcode.MOD;
+            case 26:
+                return Opcode.FORLOOP;
             case 27:
                 return Opcode.GETTABLE;
+            case 28:
+                return Opcode.NEWTABLE;
+            case 30:
+                return Opcode.VARARG;
             case 31:
                 return Opcode.JMP;
+            case 33:
+                return Opcode.POW;
+            case 34:
+                return Opcode.MUL;
+            case 35:
+                return Opcode.TESTSET;
+            case 36:
+                return Opcode.MOVE;
+            case 37:
+                return Opcode.ADD;
             case 38:
                 return Opcode.GETGLOBAL;
             case 40:
                 return Opcode.SETGLOBAL;
             case 41:
-                return Opcode.NEWTABLE;
+                return Opcode.LOADNIL;
             default:
                 return Opcode.UNKNOWN;
         }
