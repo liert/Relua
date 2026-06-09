@@ -9,6 +9,8 @@ import com.github.relua.log.LogLevel;
 
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.io.PrintWriter;
 
 /**
@@ -95,8 +97,10 @@ public class Relua {
         }
         
         try {
+            final String finalInputFile = inputFile;
+            final boolean finalShowBytecode = showBytecode;
             // 执行反编译
-            String luaCode = decompileFile(inputFile, showBytecode);
+            String luaCode = runWithCapturedStdout(() -> decompileFile(finalInputFile, finalShowBytecode));
             
             // 输出结果
             if (outputFile != null) {
@@ -106,7 +110,7 @@ public class Relua {
                 System.out.println(luaCode); // 直接输出反编译结果，不经过日志
             }
         } catch (Exception e) {
-            Logger.error("Error: " + e.getMessage(), e);
+            System.err.println("Error: " + e.getMessage());
             System.exit(1);
         }
     }
@@ -116,13 +120,32 @@ public class Relua {
      */
     private static void initLogger() {
         LogConfig config = new LogConfig();
-        config.setLogLevel(LogLevel.DEBUG);
-        config.setConsoleOutput(true);
+        config.setLogLevel(LogLevel.WARNING);
+        config.setConsoleOutput(Boolean.getBoolean("relua.logToConsole"));
         config.setFileOutput(false);
         config.setLogFilePath("logs/relua.log");
         config.setMaxFileSize(10 * 1024 * 1024); // 10MB
         config.setMaxBackupFiles(5);
         Logger.init(config);
+    }
+
+    private static String runWithCapturedStdout(DecompileAction action) throws Exception {
+        if (Boolean.getBoolean("relua.debugOutput")) {
+            return action.run();
+        }
+
+        PrintStream originalOut = System.out;
+        try {
+            System.setOut(new PrintStream(new ByteArrayOutputStream()));
+            return action.run();
+        } finally {
+            System.setOut(originalOut);
+        }
+    }
+
+    @FunctionalInterface
+    private interface DecompileAction {
+        String run() throws Exception;
     }
     
     /**

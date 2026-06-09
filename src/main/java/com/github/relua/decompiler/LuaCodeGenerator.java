@@ -2,13 +2,22 @@ package com.github.relua.decompiler;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import com.github.relua.ast.Assign;
 import com.github.relua.ast.AstPrinter;
 import com.github.relua.ast.Block;
+import com.github.relua.ast.Expression;
 import com.github.relua.ast.FunctionDeclaration;
 import com.github.relua.ast.FunctionLiteral;
+import com.github.relua.ast.GlobalAssign;
+import com.github.relua.ast.IndexExpr;
+import com.github.relua.ast.Name;
+import com.github.relua.ast.Statement;
+import com.github.relua.ast.StringConst;
 import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.CodeLine;
@@ -102,6 +111,16 @@ public class LuaCodeGenerator {
         }
 
         if (chunk.getFunction().equals("main")) {
+            Map<String, CodeGeneratorContext> contextByFunction = new HashMap<>();
+            for (CodeGeneratorContext ctx : contexts) {
+                contextByFunction.put(ctx.getChunk().getFunction(), ctx);
+            }
+
+            Set<String> emittedFunctions = new HashSet<>();
+            for (CodeGeneratorContext ctx : contexts) {
+                inlineClosureDeclarations(ctx.getAstBlock(), contextByFunction, emittedFunctions);
+            }
+
             // 为main函数创建一个主Block
             Block mainBlock = new Block(null);
             
@@ -112,17 +131,13 @@ public class LuaCodeGenerator {
                 if (funcName.equals("main")) {
                     // main函数不需要包装，直接添加其内容
                     mainBlock.statements.addAll(ctx.getAstBlock().statements);
+                } else if (emittedFunctions.contains(funcName)) {
+                    // 已经在闭包创建位置内联为函数声明
+                    continue;
                 } else {
                     // 为其他函数创建FunctionDeclaration节点
                     
-                    // 准备函数参数
-                    List<String> params = new ArrayList<>();
-                    for (int i = 0; i < ctxChunk.getNumParams(); i++) {
-                        params.add("a" + i);
-                    }
-                    
-                    // 创建FunctionLiteral
-                    FunctionLiteral funcLit = new FunctionLiteral(params, false, ctx.getAstBlock(), null);
+                    FunctionLiteral funcLit = createFunctionLiteral(ctx);
                     
                     // 创建FunctionDeclaration
                     FunctionDeclaration funcDecl = new FunctionDeclaration(funcName, funcLit, false, null);
@@ -137,6 +152,99 @@ public class LuaCodeGenerator {
             return mainBlock.accept(printer);
         }
         return "";
+    }
+
+    private void inlineClosureDeclarations(Block block, Map<String, CodeGeneratorContext> contextByFunction,
+            Set<String> emittedFunctions) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+
+        List<Statement> rewritten = new ArrayList<>();
+        for (Statement statement : block.statements) {
+            FunctionDeclaration functionDeclaration = asClosureDeclaration(statement, contextByFunction);
+            if (functionDeclaration != null) {
+                emittedFunctions.add(extractClosureName(statement));
+                inlineClosureDeclarations(functionDeclaration.func.body, contextByFunction, emittedFunctions);
+                rewritten.add(functionDeclaration);
+            } else {
+                rewritten.add(statement);
+            }
+        }
+
+        block.statements.clear();
+        block.statements.addAll(rewritten);
+    }
+
+    private FunctionDeclaration asClosureDeclaration(Statement statement,
+            Map<String, CodeGeneratorContext> contextByFunction) {
+        String targetName = extractClosureTarget(statement);
+        String closureName = extractClosureName(statement);
+        if (targetName.startsWith("R") || !contextByFunction.containsKey(closureName)) {
+            return null;
+        }
+
+        CodeGeneratorContext closureContext = contextByFunction.get(closureName);
+        FunctionLiteral literal = createFunctionLiteral(closureContext);
+        return new FunctionDeclaration(targetName, literal, false, statement.pos);
+    }
+
+    private String extractClosureName(Statement statement) {
+        if (statement instanceof Assign) {
+            Assign assign = (Assign) statement;
+            if (assign.right.size() == 1 && assign.right.get(0) instanceof Name) {
+                return ((Name) assign.right.get(0)).name;
+            }
+        }
+        if (statement instanceof GlobalAssign) {
+            GlobalAssign assign = (GlobalAssign) statement;
+            if (assign.right.size() == 1 && assign.right.get(0) instanceof Name) {
+                return ((Name) assign.right.get(0)).name;
+            }
+        }
+        return "";
+    }
+
+    private String extractClosureTarget(Statement statement) {
+        if (statement instanceof Assign) {
+            Assign assign = (Assign) statement;
+            if (assign.left.size() == 1) {
+                return expressionToFunctionName(assign.left.get(0));
+            }
+        }
+        if (statement instanceof GlobalAssign) {
+            GlobalAssign assign = (GlobalAssign) statement;
+            if (assign.names.size() == 1) {
+                return assign.names.get(0);
+            }
+        }
+        return "";
+    }
+
+    private String expressionToFunctionName(Expression expression) {
+        if (expression instanceof Name) {
+            return ((Name) expression).name;
+        }
+        if (expression instanceof IndexExpr) {
+            IndexExpr indexExpr = (IndexExpr) expression;
+            String tableName = expressionToFunctionName(indexExpr.table);
+            if (!tableName.isEmpty() && indexExpr.index instanceof StringConst) {
+                String key = ((StringConst) indexExpr.index).value;
+                if (key.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+                    return tableName + "." + key;
+                }
+            }
+        }
+        return "";
+    }
+
+    private FunctionLiteral createFunctionLiteral(CodeGeneratorContext context) {
+        Chunk functionChunk = context.getChunk();
+        List<String> params = new ArrayList<>();
+        for (int i = 0; i < functionChunk.getNumParams(); i++) {
+            params.add("a" + i);
+        }
+        return new FunctionLiteral(params, false, context.getAstBlock(), null);
     }
 
     /**
