@@ -38,8 +38,12 @@ public class ChunkParser {
         Chunk chunk = new Chunk();
         chunk.setFunction(function);
         
-        // 解析函数定义行号
-        chunk.setSource(reader.readInt());
+        // 解析source字符串。小米样本主函数通常为空，子函数可能复用父级source。
+        int sourceSize = reader.readInt();
+        if (sourceSize > 0) {
+            reader.readBytes(sourceSize);
+        }
+        chunk.setSource(0);
         chunk.setLineDefined(reader.readInt());
         chunk.setLastLineDefined(reader.readInt());
         Logger.info(String.format("源文件索引: %d, 起始行号: %d, 结束行号: %d", chunk.getSource(), chunk.getLineDefined(), chunk.getLastLineDefined()));
@@ -70,8 +74,12 @@ public class ChunkParser {
         // 解析行号表
         parseLineNumbers(chunk);
         
-        // 解析Upvalue
-        int unknown = reader.readInt();
+        // 兼容部分魔改固件缺失或裁剪的尾部debug/upvalue字段。
+        try {
+            reader.readInt();
+        } catch (EOFException e) {
+            System.err.println("Warning: Reached end of file while parsing trailing upvalue/debug field.");
+        }
 
         return chunk;
     }

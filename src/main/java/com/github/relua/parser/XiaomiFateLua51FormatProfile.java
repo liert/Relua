@@ -56,6 +56,9 @@ public class XiaomiFateLua51FormatProfile extends AbstractLua51FormatProfile {
         if ((type & 0xFF) == 7) {
             return Constant.string(readXorString(reader));
         }
+        if ((type & 0xFF) == 12) {
+            return Constant.number(reader.readInt());
+        }
         return super.parseConstant(type, reader);
     }
 
@@ -71,6 +74,8 @@ public class XiaomiFateLua51FormatProfile extends AbstractLua51FormatProfile {
                 return Opcode.TEST;
             case 16:
                 return Opcode.CALL;
+            case 17:
+                return Opcode.SETTABLE;
             case 19:
                 return Opcode.EQ;
             case 27:
@@ -81,6 +86,8 @@ public class XiaomiFateLua51FormatProfile extends AbstractLua51FormatProfile {
                 return Opcode.GETGLOBAL;
             case 40:
                 return Opcode.SETGLOBAL;
+            case 41:
+                return Opcode.NEWTABLE;
             default:
                 return Opcode.UNKNOWN;
         }
