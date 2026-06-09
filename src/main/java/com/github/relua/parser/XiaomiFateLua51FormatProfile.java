@@ -162,6 +162,8 @@ public class XiaomiFateLua51FormatProfile extends AbstractLua51FormatProfile {
                 return Opcode.ADD;
             case 38:
                 return Opcode.GETGLOBAL;
+            case 39:
+                return Opcode.SETUPVAL;
             case 40:
                 return Opcode.SETGLOBAL;
             case 41:
