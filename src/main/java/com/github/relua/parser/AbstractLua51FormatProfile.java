@@ -2,6 +2,7 @@ package com.github.relua.parser;
 
 import java.io.IOException;
 
+import com.github.relua.model.Chunk;
 import com.github.relua.model.Constant;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.LuacFile;
@@ -27,6 +28,27 @@ public abstract class AbstractLua51FormatProfile implements BytecodeFormatProfil
     @Override
     public Instruction decodeInstruction(int pc, int raw) {
         return new Instruction(pc, raw);
+    }
+
+    @Override
+    public void parseChunkHeader(BinaryReader reader, Chunk chunk) throws IOException {
+        chunk.setSource(readSource(reader));
+        chunk.setLineDefined(reader.readInt());
+        chunk.setLastLineDefined(reader.readInt());
+        chunk.setNup(reader.readUnsignedByte());
+        chunk.setNumParams(reader.readUnsignedByte());
+        chunk.setIsVararg(reader.readUnsignedByte());
+        chunk.setMaxStackSize(reader.readUnsignedByte());
+    }
+
+    protected int readSource(BinaryReader reader) throws IOException {
+        readString(reader);
+        return 0;
+    }
+
+    @Override
+    public String readString(BinaryReader reader) throws IOException {
+        return reader.readLuaString();
     }
 
     @Override

@@ -1,7 +1,9 @@
 package com.github.relua.parser;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
+import com.github.relua.model.Chunk;
 import com.github.relua.model.Constant;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.LuacFile;
@@ -47,19 +49,40 @@ public class XiaomiFateLua51FormatProfile extends AbstractLua51FormatProfile {
     }
 
     @Override
+    public void parseChunkHeader(BinaryReader reader, Chunk chunk) throws IOException {
+        // Confirmed from Xiaomi luac LoadFunction: numparams, source, nups,
+        // linedefined, is_vararg, lastlinedefined, maxstacksize.
+        chunk.setNumParams(reader.readUnsignedByte());
+        readString(reader);
+        chunk.setSource(0);
+        chunk.setNup(reader.readUnsignedByte());
+        chunk.setLineDefined(reader.readInt());
+        chunk.setIsVararg(reader.readUnsignedByte());
+        chunk.setLastLineDefined(reader.readInt());
+        chunk.setMaxStackSize(reader.readUnsignedByte());
+    }
+
+    @Override
     public Instruction decodeInstruction(int pc, int raw) {
         return new Instruction(pc, raw, mapOpcode(raw & 0x3F));
     }
 
     @Override
     public Constant parseConstant(byte type, BinaryReader reader) throws IOException {
-        if ((type & 0xFF) == 7) {
-            return Constant.string(readXorString(reader));
+        switch (type & 0xFF) {
+            case 3:
+                return Constant.nil();
+            case 4:
+                return Constant.booleanConstant(reader.readByte() != 0);
+            case 6:
+                return Constant.number(reader.readLuaNumber());
+            case 7:
+                return Constant.string(readString(reader));
+            case 12:
+                return Constant.number(reader.readInt());
+            default:
+                throw new IOException("Unknown Xiaomi constant type: " + (type & 0xFF));
         }
-        if ((type & 0xFF) == 12) {
-            return Constant.number(reader.readInt());
-        }
-        return super.parseConstant(type, reader);
     }
 
     private Opcode mapOpcode(int opcodeValue) {
@@ -93,18 +116,23 @@ public class XiaomiFateLua51FormatProfile extends AbstractLua51FormatProfile {
         }
     }
 
+    @Override
+    public String readString(BinaryReader reader) throws IOException {
+        return readXorString(reader);
+    }
+
     private String readXorString(BinaryReader reader) throws IOException {
         int length = reader.readInt();
-        if (length <= 0) {
+        if (length == 0) {
             return "";
         }
 
         byte[] bytes = reader.readBytes(length);
-        int key = bytes[length - 1] & 0xFF;
+        int key = 13 * length + 55;
         byte[] decoded = new byte[length - 1];
         for (int i = 0; i < decoded.length; i++) {
             decoded[i] = (byte) ((bytes[i] & 0xFF) ^ key);
         }
-        return new String(decoded, "UTF-8");
+        return new String(decoded, StandardCharsets.UTF_8);
     }
 }

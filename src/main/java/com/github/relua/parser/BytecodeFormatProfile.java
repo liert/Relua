@@ -3,6 +3,7 @@ package com.github.relua.parser;
 import java.io.IOException;
 
 import com.github.relua.model.Constant;
+import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.LuacFile;
 
@@ -12,6 +13,10 @@ public interface BytecodeFormatProfile {
     boolean matches(byte[] firstBytes);
 
     void parseHeader(BinaryReader reader, LuacFile luacFile, byte[] firstBytes) throws IOException;
+
+    void parseChunkHeader(BinaryReader reader, Chunk chunk) throws IOException;
+
+    String readString(BinaryReader reader) throws IOException;
 
     Instruction decodeInstruction(int pc, int raw);
 

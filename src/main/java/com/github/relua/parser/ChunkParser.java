@@ -38,26 +38,10 @@ public class ChunkParser {
         Chunk chunk = new Chunk();
         chunk.setFunction(function);
         
-        // 解析source字符串。小米样本主函数通常为空，子函数可能复用父级source。
-        int sourceSize = reader.readInt();
-        if (sourceSize > 0) {
-            reader.readBytes(sourceSize);
-        }
-        chunk.setSource(0);
-        chunk.setLineDefined(reader.readInt());
-        chunk.setLastLineDefined(reader.readInt());
+        formatProfile.parseChunkHeader(reader, chunk);
         Logger.info(String.format("源文件索引: %d, 起始行号: %d, 结束行号: %d", chunk.getSource(), chunk.getLineDefined(), chunk.getLastLineDefined()));
-        
-        int nups = reader.readUnsignedByte();
-        int numParams = reader.readUnsignedByte();
-        int isVararg = reader.readUnsignedByte();
-        int maxStackSize = reader.readUnsignedByte();
-        Logger.info(String.format("上值数量: %d, 固定参数数量: %d, 是否可变参数: %s, 最大栈大小: %d", nups, numParams, isVararg == 1 ? "是" : "否", maxStackSize));
-        
-        chunk.setNup(nups);
-        chunk.setNumParams(numParams);
-        chunk.setIsVararg(isVararg);
-        chunk.setMaxStackSize(maxStackSize);
+        Logger.info(String.format("上值数量: %d, 固定参数数量: %d, 是否可变参数: %s, 最大栈大小: %d",
+                chunk.getNup(), chunk.getNumParams(), chunk.getIsVararg() == 1 ? "是" : "否", chunk.getMaxStackSize()));
         
         // 解析指令列表
         parseInstructions(chunk);
@@ -68,18 +52,14 @@ public class ChunkParser {
         // 解析子代码块
         parseSubChunks(chunk);
         
-        // 解析局部变量表
-        parseLocalVars(chunk);
-        
         // 解析行号表
         parseLineNumbers(chunk);
-        
-        // 兼容部分魔改固件缺失或裁剪的尾部debug/upvalue字段。
-        try {
-            reader.readInt();
-        } catch (EOFException e) {
-            System.err.println("Warning: Reached end of file while parsing trailing upvalue/debug field.");
-        }
+
+        // 解析局部变量表
+        parseLocalVars(chunk);
+
+        // 解析Upvalue名称表
+        parseUpvalueNames();
 
         return chunk;
     }
@@ -165,7 +145,7 @@ public class ChunkParser {
             
             for (int i = 0; i < localVarCount; i++) {
                 try {
-                    String name = reader.readLuaString();
+                    String name = formatProfile.readString(reader);
                     int startPC = reader.readInt();
                     int endPC = reader.readInt();
                     
@@ -201,6 +181,22 @@ public class ChunkParser {
             }
         } catch (EOFException e) {
             System.err.println("Warning: Reached end of file while parsing line number count.");
+        }
+    }
+
+    private void parseUpvalueNames() throws IOException {
+        try {
+            int upvalueNameCount = reader.readInt();
+            for (int i = 0; i < upvalueNameCount; i++) {
+                try {
+                    formatProfile.readString(reader);
+                } catch (EOFException e) {
+                    System.err.println("Warning: Reached end of file while parsing upvalue name " + i + ".");
+                    break;
+                }
+            }
+        } catch (EOFException e) {
+            System.err.println("Warning: Reached end of file while parsing upvalue name count.");
         }
     }
 }
