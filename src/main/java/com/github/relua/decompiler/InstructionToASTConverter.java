@@ -111,6 +111,14 @@ public class InstructionToASTConverter {
                 return convertClosureInstruction(instruction, instructionIndex);
             case GETUPVAL:
                 return convertGetUpvalInstruction(instruction, instructionIndex);
+            case SETUPVAL:
+            case CLOSE:
+            case SETLIST:
+            case FORPREP:
+            case FORLOOP:
+            case TFORLOOP:
+            case VARARG:
+                return null;
             default:
                 // 对于其他指令，生成一个默认的表达式节点
                 StringConst opcodeStr = new StringConst(opcode.toString(), new SourcePos(instructionIndex, -1));
@@ -595,6 +603,7 @@ public class InstructionToASTConverter {
         int a = instruction.getA();
         int b = instruction.getB();
         Opcode opcode = instruction.getOpcode();
+        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
 
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
@@ -607,7 +616,7 @@ public class InstructionToASTConverter {
         Expression operand = new Name("R" + b, new SourcePos(instructionIndex, -1));
 
         // 一元操作
-        String opStr = opcode.toString().toLowerCase();
+        String opStr = unaryOperator(opcode, registerState.getRegisterEntity(b));
         Expression unaryOp = new UnaryOp(opStr, operand, new SourcePos(instructionIndex, -1));
 
         List<Expression> leftList = new ArrayList<>();
@@ -615,6 +624,19 @@ public class InstructionToASTConverter {
         List<Expression> rightList = new ArrayList<>();
         rightList.add(unaryOp);
         return new Assign(leftList, rightList, new SourcePos(instructionIndex, -1));
+    }
+
+    private String unaryOperator(Opcode opcode, RegisterEntity operand) {
+        if (opcode == Opcode.NOT) {
+            return "not";
+        }
+        if (opcode == Opcode.UNM) {
+            return "-";
+        }
+        if (opcode == Opcode.LEN) {
+            return operand.getType() == ValueType.NUMBER ? "-" : "#";
+        }
+        return opcode.toString().toLowerCase();
     }
 
     /**

@@ -91,11 +91,14 @@ public class XiaomiFateLua51FormatProfile extends AbstractLua51FormatProfile {
             case 1:
                 return Opcode.CLOSURE;
             case 2:
-                int c = (raw >> 14) & 0x1FF;
-                if (c == 0) {
+                int unaryMode = (raw >> 14) & 0x1FF;
+                if (unaryMode == 0) {
                     return Opcode.CLOSE;
                 }
-                return c == 3 ? Opcode.NOT : Opcode.UNM;
+                if (unaryMode == 1) {
+                    return Opcode.LEN;
+                }
+                return unaryMode == 3 ? Opcode.NOT : Opcode.UNM;
             case 3:
                 return Opcode.LT;
             case 5:
