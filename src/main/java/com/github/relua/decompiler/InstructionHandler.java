@@ -650,6 +650,13 @@ public class InstructionHandler {
     public AstNode generateASTFromChunk(Chunk chunk) {
         System.out.println("\n=== 开始生成AST ===");
 
+        StructuredPatternEmitter structuredEmitter = new StructuredPatternEmitter(pipeline);
+        Block structuredBlock = structuredEmitter.emitIfStructured(chunk);
+        if (structuredBlock != null) {
+            System.out.println("=== AST生成完成（结构化模式） ===\n");
+            return structuredBlock;
+        }
+
         // 计算支配关系
         // System.out.println("1. 计算支配关系...");
         List<BasicBlock> basicBlocks = pipeline.getBasicBlocks(chunk.getFunction());

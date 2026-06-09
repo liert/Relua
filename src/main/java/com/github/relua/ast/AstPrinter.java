@@ -253,6 +253,12 @@ public class AstPrinter implements AstVisitor<String> {
     
     @Override
     public String visit(IndexExpr node) {
+        if (node.index instanceof StringConst) {
+            String key = ((StringConst) node.index).value;
+            if (key.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+                return node.table.accept(this) + "." + key;
+            }
+        }
         return node.table.accept(this) + "[" + node.index.accept(this) + "]";
     }
     
