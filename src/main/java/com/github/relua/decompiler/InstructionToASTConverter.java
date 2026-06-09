@@ -6,10 +6,10 @@ import com.github.relua.model.Chunk;
 import com.github.relua.model.Constant;
 import com.github.relua.model.FromType;
 import com.github.relua.model.Instruction;
-import com.github.relua.model.Instruction.Opcode;
+import com.github.relua.model.Opcode;
 import com.github.relua.model.Register;
 import com.github.relua.model.Register.RegisterEntity;
-import com.github.relua.model.Upvalue;
+import com.github.relua.model.UpValue;
 import com.github.relua.model.ValueType;
 import com.github.relua.util.TransformUtils;
 
@@ -428,12 +428,7 @@ public class InstructionToASTConverter {
             table = new Name(RB.getValue().toString(), pos);
         }
 
-        Expression index = null;
-        if (c < 256) {
-            index = new Name(TransformUtils.transformRegister(registerState.getRegisterEntity(c)), pos);
-        } else {
-            index = new StringConst(chunk.getConstant(c - 256).getValue().toString(), pos);
-        }
+        Expression index = rkExpression(registerState, c, pos);
         Expression tableAccess = new IndexExpr(table, index, pos);
 
         List<Expression> right = new ArrayList<>();
@@ -468,27 +463,11 @@ public class InstructionToASTConverter {
             tableName = RA.getName();
         }
         Expression table = new Name(tableName, pos);
-        Expression index = null;
-        if (b < 256) {
-            index = new Name(TransformUtils.transformRegister(register.getRegisterEntity(b)), pos);
-        } else {
-            Constant constant = chunk.getConstant(b - 256);
-            Object value = constant != null ? constant.getValue() : null;
-            String stringValue = value != null ? value.toString() : "";
-            index = new StringConst(stringValue, pos);
-        }
+        Expression index = rkExpression(register, b, pos);
         Expression tableAccess = new IndexExpr(table, index, pos);
 
         // 源变量
-        Expression source = null;
-        if (c < 256) {
-            source = new Name(TransformUtils.transformRegister(register.getRegisterEntity(c)), pos);
-        } else {
-            Constant constant = chunk.getConstant(c - 256);
-            Object value = constant != null ? constant.getValue() : null;
-            String stringValue = value != null ? value.toString() : "";
-            source = new StringConst(stringValue, pos);
-        }
+        Expression source = rkExpression(register, c, pos);
 
         // 赋值语句
         List<Expression> left = new ArrayList<>();
@@ -556,6 +535,16 @@ public class InstructionToASTConverter {
         
         // SELF指令不生成代码，返回null
         return null;
+    }
+
+    private Expression rkExpression(Register register, int rk, SourcePos pos) {
+        if (rk >= 256) {
+            Constant constant = chunk.getConstant(rk - 256);
+            Object value = constant != null ? constant.getValue() : null;
+            String stringValue = value != null ? value.toString() : "";
+            return new StringConst(stringValue, pos);
+        }
+        return new Name(TransformUtils.transformRegister(register.getRegisterEntity(rk)), pos);
     }
 
     /**

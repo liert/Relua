@@ -39,6 +39,12 @@ public class BinaryReader {
         return dis.readByte();
     }
 
+    public byte[] readBytes(int length) throws IOException {
+        byte[] bytes = new byte[length];
+        dis.readFully(bytes);
+        return bytes;
+    }
+
     /**
      * 读取一个无符号字节
      * @return 无符号字节值

@@ -1,0 +1,103 @@
+package com.github.relua.parser;
+
+import java.io.IOException;
+
+import com.github.relua.model.Constant;
+import com.github.relua.model.Instruction;
+import com.github.relua.model.LuacFile;
+import com.github.relua.model.Opcode;
+
+public class XiaomiFateLua51FormatProfile extends AbstractLua51FormatProfile {
+    private static final byte[] XIAOMI_MAGIC = { 0x1B, 'F', 'a', 't', 'e', '/', 'Z', 0x1B };
+
+    @Override
+    public String getName() {
+        return "Xiaomi Fate Lua 5.1";
+    }
+
+    @Override
+    public boolean matches(byte[] firstBytes) {
+        if (firstBytes == null || firstBytes.length < 4) {
+            return false;
+        }
+        for (int i = 0; i < firstBytes.length && i < XIAOMI_MAGIC.length; i++) {
+            if (firstBytes[i] != XIAOMI_MAGIC[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public void parseHeader(BinaryReader reader, LuacFile luacFile, byte[] firstBytes) throws IOException {
+        byte[] magic = new byte[XIAOMI_MAGIC.length];
+        System.arraycopy(firstBytes, 0, magic, 0, firstBytes.length);
+        for (int i = firstBytes.length; i < magic.length; i++) {
+            magic[i] = reader.readByte();
+        }
+        for (int i = 0; i < XIAOMI_MAGIC.length; i++) {
+            if (magic[i] != XIAOMI_MAGIC[i]) {
+                throw new IOException("Invalid Xiaomi Fate Lua header");
+            }
+        }
+
+        luacFile.setMagicNumber(magic);
+        luacFile.setVersion(reader.readByte());
+        readCommonHeader(reader, luacFile);
+    }
+
+    @Override
+    public Instruction decodeInstruction(int pc, int raw) {
+        return new Instruction(pc, raw, mapOpcode(raw & 0x3F));
+    }
+
+    @Override
+    public Constant parseConstant(byte type, BinaryReader reader) throws IOException {
+        if ((type & 0xFF) == 7) {
+            return Constant.string(readXorString(reader));
+        }
+        return super.parseConstant(type, reader);
+    }
+
+    private Opcode mapOpcode(int opcodeValue) {
+        switch (opcodeValue) {
+            case 1:
+                return Opcode.CLOSURE;
+            case 6:
+                return Opcode.LOADK;
+            case 8:
+                return Opcode.RETURN;
+            case 9:
+                return Opcode.TEST;
+            case 16:
+                return Opcode.CALL;
+            case 19:
+                return Opcode.EQ;
+            case 27:
+                return Opcode.GETTABLE;
+            case 31:
+                return Opcode.JMP;
+            case 38:
+                return Opcode.GETGLOBAL;
+            case 40:
+                return Opcode.SETGLOBAL;
+            default:
+                return Opcode.UNKNOWN;
+        }
+    }
+
+    private String readXorString(BinaryReader reader) throws IOException {
+        int length = reader.readInt();
+        if (length <= 0) {
+            return "";
+        }
+
+        byte[] bytes = reader.readBytes(length);
+        int key = bytes[length - 1] & 0xFF;
+        byte[] decoded = new byte[length - 1];
+        for (int i = 0; i < decoded.length; i++) {
+            decoded[i] = (byte) ((bytes[i] & 0xFF) ^ key);
+        }
+        return new String(decoded, "UTF-8");
+    }
+}

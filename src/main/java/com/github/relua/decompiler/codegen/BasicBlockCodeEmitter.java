@@ -10,7 +10,7 @@ import com.github.relua.decompiler.InstructionHandler;
 import com.github.relua.manager.RegisterManager;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
-import com.github.relua.model.Instruction.Opcode;
+import com.github.relua.model.Opcode;
 import com.github.relua.model.Register;
 import com.github.relua.util.BasicBlockUtils;
 import com.github.relua.util.RegisterUtils;
@@ -120,9 +120,9 @@ public class BasicBlockCodeEmitter {
             boolean hasTestInstruction = false;
             for (int i = block.getStartIndex(); i <= block.getEndIndex(); i++) {
                 if (i < instructions.size()) {
-                    com.github.relua.model.Instruction.Opcode opcode = instructions.get(i).getOpcode();
-                    if (opcode == com.github.relua.model.Instruction.Opcode.TEST || opcode == com.github.relua.model.Instruction.Opcode.TESTSET ||
-                            opcode == com.github.relua.model.Instruction.Opcode.EQ || opcode == com.github.relua.model.Instruction.Opcode.LT || opcode == com.github.relua.model.Instruction.Opcode.LE) {
+                    com.github.relua.model.Opcode opcode = instructions.get(i).getOpcode();
+                    if (opcode == com.github.relua.model.Opcode.TEST || opcode == com.github.relua.model.Opcode.TESTSET ||
+                            opcode == com.github.relua.model.Opcode.EQ || opcode == com.github.relua.model.Opcode.LT || opcode == com.github.relua.model.Opcode.LE) {
                         hasTestInstruction = true;
                         break;
                     }
@@ -167,9 +167,9 @@ public class BasicBlockCodeEmitter {
         com.github.relua.model.Instruction conditionInstruction = null;
         for (int i = block.getStartIndex(); i <= block.getEndIndex(); i++) {
             if (i < instructions.size()) {
-                com.github.relua.model.Instruction.Opcode opcode = instructions.get(i).getOpcode();
-                if (opcode == com.github.relua.model.Instruction.Opcode.TEST || opcode == com.github.relua.model.Instruction.Opcode.TESTSET ||
-                        opcode == com.github.relua.model.Instruction.Opcode.EQ || opcode == com.github.relua.model.Instruction.Opcode.LT || opcode == com.github.relua.model.Instruction.Opcode.LE) {
+                com.github.relua.model.Opcode opcode = instructions.get(i).getOpcode();
+                if (opcode == com.github.relua.model.Opcode.TEST || opcode == com.github.relua.model.Opcode.TESTSET ||
+                        opcode == com.github.relua.model.Opcode.EQ || opcode == com.github.relua.model.Opcode.LT || opcode == com.github.relua.model.Opcode.LE) {
                     conditionInstruction = instructions.get(i);
                     break;
                 }
@@ -278,12 +278,12 @@ public class BasicBlockCodeEmitter {
 
         // 检查循环的第一条指令，确定循环类型
         Instruction firstInstruction = instructions.get(block.getStartIndex());
-        Instruction.Opcode opcode = firstInstruction.getOpcode();
+        Opcode opcode = firstInstruction.getOpcode();
 
-        if (opcode == Instruction.Opcode.FORLOOP || opcode == com.github.relua.model.Instruction.Opcode.FORPREP) {
+        if (opcode == Opcode.FORLOOP || opcode == com.github.relua.model.Opcode.FORPREP) {
             // 这是for循环，暂时生成while循环框架
             context.addCodeLine("while true do");
-        } else if (opcode == com.github.relua.model.Instruction.Opcode.TFORLOOP) {
+        } else if (opcode == com.github.relua.model.Opcode.TFORLOOP) {
             // 这是泛型for循环，暂时生成while循环框架
             context.addCodeLine("while true do");
         } else {
@@ -306,3 +306,4 @@ public class BasicBlockCodeEmitter {
         context.addEndStatement();
     }
 }
+

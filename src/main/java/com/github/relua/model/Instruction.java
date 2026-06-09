@@ -1,6 +1,6 @@
 package com.github.relua.model;
 
-import com.github.relua.model.Instruction.Opcode;
+import com.github.relua.opcode.OpcodeProps;
 
 /**
  * Lua指令模型
@@ -19,23 +19,7 @@ public class Instruction {
     private static final int POS_B = (POS_C + SIZE_C);
     private static final int POS_Bx = POS_C;
 
-    // Lua 5.1/5.2 操作码定义
-    public enum Opcode {
-        // 加载和存储指令
-        MOVE, LOADK, LOADBOOL, LOADNIL, GETUPVAL, GETGLOBAL, GETTABLE,
-        SETGLOBAL, SETUPVAL, SETTABLE, NEWTABLE, SELF,
-        // 算术指令
-        ADD, SUB, MUL, DIV, MOD, POW, UNM, NOT, LEN,
-        // 比较和逻辑指令
-        CONCAT, JMP, EQ, LT, LE,
-        // 表操作指令
-        TEST, TESTSET, CALL, TAILCALL, RETURN, FORLOOP, FORPREP,
-        // 函数定义和调用指令
-        TFORLOOP, SETLIST, CLOSE, CLOSURE, VARARG,
-        // 未知操作码
-        UNKNOWN
-    }
-
+    private final int pc;
     private long code; // 原始指令码
     private Opcode opcode; // 操作码
     private int a; // 操作数A
@@ -51,6 +35,11 @@ public class Instruction {
      * @param code 原始指令码
      */
     public Instruction(int code) {
+        this(0, code);
+    }
+
+    public Instruction(int pc, int code) {
+        this.pc = pc;
         // long ucode =
         this.code = code & 0xFFFFFFFFL;
         int opcodeValue = (int) (code & 0x3F);
@@ -61,6 +50,17 @@ public class Instruction {
             this.opcode = Opcode.UNKNOWN;
         }
         decodeOperands();
+    }
+
+    public Instruction(int pc, int code, Opcode opcode) {
+        this.pc = pc;
+        this.code = code & 0xFFFFFFFFL;
+        this.opcode = opcode == null ? Opcode.UNKNOWN : opcode;
+        decodeOperands();
+    }
+
+    public Instruction(int pc, int code, OpcodeProps props, Proto proto) {
+        this(pc, code);
     }
 
     /**
@@ -103,7 +103,7 @@ public class Instruction {
                 c = (int) (ucode >> 14) & 0xFF;
                 break;
             case SETTABLE:
-                // OP_SETTABLE	A B C	R(A)[RK(B)] := RK(C)
+                // OP_SETTABLE A B C R(A)[RK(B)] := RK(C)
                 // 其中RK(B)和RK(C)可以是寄存器或常量
                 // 大于256的B、C表示常量索引
                 // 小于256的B、C表示寄存器索引
@@ -132,9 +132,9 @@ public class Instruction {
             case EQ:
             case LT:
             case LE:
-                a = 0;
+                a = (int) (ucode >> 6) & 0xFF;
                 b = (int) (ucode >> 23) & 0x1FF;
-                c = (int) (ucode >> 15) & 0x1FF;
+                c = (int) (ucode >> 14) & 0x1FF;
                 break;
             case JMP:
                 a = 0;
@@ -158,6 +158,10 @@ public class Instruction {
      */
     public int getCode() {
         return (int) code;
+    }
+
+    public int getPc() {
+        return pc;
     }
 
     /**

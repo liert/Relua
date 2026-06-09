@@ -1,6 +1,7 @@
 package com.github.relua.decompiler;
 
 import com.github.relua.model.LuacFile;
+import com.github.relua.util.BytecodeFormatter;
 
 import java.util.List;
 

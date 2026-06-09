@@ -1,16 +1,17 @@
-package com.github.relua.decompiler;
+package com.github.relua.util;
 
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Constant;
 import com.github.relua.model.Instruction;
+import com.github.relua.model.Opcode;
 
 /**
  * 字节码格式化工具类
  */
 public class BytecodeFormatter {
-    
     /**
      * 格式化单个指令为字节码字符串
+     * 
      * @param chunk 代码块
      * @param instruction 指令
      * @param index 指令索引
@@ -43,7 +44,7 @@ public class BytecodeFormatter {
      * @param sb 字符串构建器
      */
     private static void appendOperands(Instruction instruction, StringBuilder sb) {
-        Instruction.Opcode opcode = instruction.getOpcode();
+        Opcode opcode = instruction.getOpcode();
         int a = instruction.getA();
         int b = instruction.getB();
         int c = instruction.getC();
@@ -156,7 +157,7 @@ public class BytecodeFormatter {
      * @param sb 字符串构建器
      */
     private static void generateRegisterOperation(Chunk chunk, Instruction instruction, StringBuilder sb) {
-        Instruction.Opcode opcode = instruction.getOpcode();
+        Opcode opcode = instruction.getOpcode();
         int a = instruction.getA();
         int b = instruction.getB();
         int c = instruction.getC();
@@ -207,20 +208,10 @@ public class BytecodeFormatter {
                 sb.append(String.format("UpValue[%d] := R%d", b, a));
                 break;
             case GETTABLE:
-                constant = chunk.getConstant(bx);
-                if (constant != null) {
-                    sb.append(String.format("R%d := R%d[\"%s\"]", a, b, constant.getValue()));
-                } else {
-                    sb.append(String.format("R%d := R%d[RK%d]", a, b, c));
-                }
+                sb.append(String.format("R%d := %s[%s]", a, rkToString(chunk, b), rkToString(chunk, c)));
                 break;
             case SETTABLE:
-                constant = chunk.getConstant(bx);
-                if (constant != null) {
-                    sb.append(String.format("R%d[\"%s\"] := R%d", a, constant.getValue(), c));
-                } else {
-                    sb.append(String.format("R%d[RK%d] := R%d", a, b, c));
-                }
+                sb.append(String.format("%s[%s] := %s", rkToString(chunk, a), rkToString(chunk, b), rkToString(chunk, c)));
                 break;
             case ADD:
                 sb.append(String.format("R%d := R%d + R%d", a, b, c));
@@ -256,13 +247,13 @@ public class BytecodeFormatter {
                 sb.append(String.format("goto %d", sbx));
                 break;
             case EQ:
-                sb.append(String.format("if R%d == R%d then goto %d", b, c, sbx));
+                sb.append(String.format("if %s == %s then goto %d", rkToString(chunk, b), rkToString(chunk, c), sbx));
                 break;
             case LT:
-                sb.append(String.format("if R%d < R%d then goto %d", b, c, sbx));
+                sb.append(String.format("if %s < %s then goto %d", rkToString(chunk, b), rkToString(chunk, c), sbx));
                 break;
             case LE:
-                sb.append(String.format("if R%d <= R%d then goto %d", b, c, sbx));
+                sb.append(String.format("if %s <= %s then goto %d", rkToString(chunk, b), rkToString(chunk, c), sbx));
                 break;
             case TEST:
                 sb.append(String.format("if %s R%d then goto %d", (c == 0 ? "" : "not"), a, sbx));
@@ -320,5 +311,16 @@ public class BytecodeFormatter {
                 sb.append(instruction.toString());
                 break;
         }
+    }
+
+    private static String rkToString(Chunk chunk, int rk) {
+        if (rk >= 256) {
+            Constant constant = chunk.getConstant(rk - 256);
+            if (constant != null) {
+                return constant.toString();
+            }
+            return "K" + (rk - 256);
+        }
+        return "R" + rk;
     }
 }

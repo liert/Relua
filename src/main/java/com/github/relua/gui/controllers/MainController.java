@@ -15,6 +15,7 @@ import com.github.relua.model.LuacFile;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Constant;
+import com.github.relua.model.LocalVar;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
@@ -562,8 +563,8 @@ public class MainController {
         
         // 添加局部变量表
         bytecodeContent.append("\n=== Local Variables ===\n");
-        List<Chunk.LocalVar> localVars = mainChunk.getLocalVars();
-        for (Chunk.LocalVar localVar : localVars) {
+        List<LocalVar> localVars = mainChunk.getLocalVars();
+        for (LocalVar localVar : localVars) {
             bytecodeContent.append(String.format("%s: startPC=%d endPC=%d\n", 
                                           localVar.getName(), localVar.getStartPC(), localVar.getEndPC()));
         }

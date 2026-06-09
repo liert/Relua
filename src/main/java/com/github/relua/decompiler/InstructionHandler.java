@@ -4,7 +4,7 @@ import com.github.relua.ast.*;
 import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
-import com.github.relua.model.Instruction.Opcode;
+import com.github.relua.model.Opcode;
 import com.github.relua.model.Register;
 import com.github.relua.model.Register.RegisterEntity;
 import com.github.relua.model.ValueType;

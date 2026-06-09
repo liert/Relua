@@ -3,7 +3,7 @@ package com.github.relua.model;
 /**
  * 上值(Upvalue)类，用于表示Lua闭包中的上值
  */
-public class Upvalue {
+public class UpValue {
     private int index; // 上值索引
     private String name; // 上值名称
     private Object value; // 上值的值
@@ -19,7 +19,7 @@ public class Upvalue {
      * @param type 上值的类型
      * @param fromType 上值的来源类型
      */
-    public Upvalue(int index, String name, Object value, ValueType type, FromType fromType) {
+    public UpValue(int index, String name, Object value, ValueType type, FromType fromType) {
         this.index = index;
         this.name = name;
         this.value = value;
@@ -33,7 +33,7 @@ public class Upvalue {
      * @param index 上值索引
      * @param name 上值名称
      */
-    public Upvalue(int index, String name) {
+    public UpValue(int index, String name) {
         this(index, name, null, ValueType.NIL, FromType.NIL);
     }
 

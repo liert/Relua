@@ -4,7 +4,7 @@ import com.github.relua.manager.RegisterManager;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Constant;
 import com.github.relua.model.Instruction;
-import com.github.relua.model.Instruction.Opcode;
+import com.github.relua.model.Opcode;
 import com.github.relua.model.Register;
 import com.github.relua.model.ValueType;
 import com.github.relua.model.Register.RegisterEntity;
@@ -745,3 +745,4 @@ public class InstructionCodeEmitter {
         return "R" + register;
     }
 }
+

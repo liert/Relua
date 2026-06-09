@@ -4,6 +4,7 @@ import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Constant;
 import com.github.relua.model.Instruction;
+import com.github.relua.model.LocalVar;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -13,13 +14,19 @@ import java.io.IOException;
  */
 public class ChunkParser {
     private BinaryReader reader;
+    private BytecodeFormatProfile formatProfile;
 
     /**
      * 构造函数
      * @param reader 二进制读取器
      */
     public ChunkParser(BinaryReader reader) {
+        this(reader, new StandardLua51FormatProfile());
+    }
+
+    public ChunkParser(BinaryReader reader, BytecodeFormatProfile formatProfile) {
         this.reader = reader;
+        this.formatProfile = formatProfile == null ? new StandardLua51FormatProfile() : formatProfile;
     }
 
     /**
@@ -82,7 +89,7 @@ public class ChunkParser {
             for (int i = 0; i < instructionCount; i++) {
                 // 读取指令，使用4字节int
                 int code = reader.readInt();
-                Instruction instruction = new Instruction(code);
+                Instruction instruction = formatProfile.decodeInstruction(i, code);
                 chunk.addInstruction(instruction);
             }
         } catch (EOFException e) {
@@ -103,7 +110,7 @@ public class ChunkParser {
             for (int i = 0; i < constantCount; i++) {
                 try {
                     byte type = reader.readByte();
-                    Constant constant = parseConstant(type);
+                    Constant constant = formatProfile.parseConstant(type, reader);
                     chunk.addConstant(constant);
                 } catch (EOFException e) {
                     System.err.println("Warning: Reached end of file while parsing constant " + i + ".");
@@ -112,38 +119,6 @@ public class ChunkParser {
             }
         } catch (EOFException e) {
             System.err.println("Warning: Reached end of file while parsing constant count.");
-        }
-    }
-
-    /**
-     * 解析单个常量
-     * @param type 常量类型
-     * @return 常量
-     * @throws IOException IO异常
-     */
-    private Constant parseConstant(byte type) throws IOException {
-        try {
-            switch (type) {
-                case 0: // nil
-                    return Constant.nil();
-                case 1: // boolean
-                    boolean boolValue = reader.readByte() != 0;
-                    return Constant.booleanConstant(boolValue);
-                case 3: // number
-                    double numValue = reader.readLuaNumber();
-                    return Constant.number(numValue);
-                case 4: // string
-                    String strValue = reader.readLuaString();
-                    return Constant.string(strValue);
-                case 9: // int <openwrt>
-                    int intValue = reader.readInt();
-                    return Constant.number(intValue);
-                default:
-                    throw new IOException("Unknown constant type: " + type);
-            }
-        } catch (EOFException e) {
-            System.err.println("Warning: Reached end of file while parsing constant of type " + type + ".");
-            return Constant.nil(); // 返回默认值
         }
     }
 
@@ -186,7 +161,7 @@ public class ChunkParser {
                     int startPC = reader.readInt();
                     int endPC = reader.readInt();
                     
-                    Chunk.LocalVar localVar = new Chunk.LocalVar(name, startPC, endPC);
+                    LocalVar localVar = new LocalVar(name, startPC, endPC);
                     chunk.addLocalVar(localVar);
                 } catch (EOFException e) {
                     System.err.println("Warning: Reached end of file while parsing local variable " + i + ".");

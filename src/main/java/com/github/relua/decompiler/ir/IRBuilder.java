@@ -1,6 +1,5 @@
 package com.github.relua.decompiler.ir;
 
-import com.github.relua.decompiler.BytecodeFormatter;
 import com.github.relua.decompiler.CodeGeneratorContext;
 import com.github.relua.decompiler.DecompilerPipeline;
 import com.github.relua.log.Logger;
@@ -8,10 +7,11 @@ import com.github.relua.model.Chunk;
 import com.github.relua.model.Constant;
 import com.github.relua.model.FromType;
 import com.github.relua.model.Instruction;
-import com.github.relua.model.Instruction.Opcode;
+import com.github.relua.model.Opcode;
 import com.github.relua.model.Register;
 import com.github.relua.model.Register.RegisterEntity;
-import com.github.relua.model.Upvalue;
+import com.github.relua.model.UpValue;
+import com.github.relua.util.BytecodeFormatter;
 import com.github.relua.util.TransformUtils;
 import com.github.relua.model.ValueType;
 
@@ -411,10 +411,10 @@ public class IRBuilder {
             if (nextInstruction.getOpcode() == Opcode.MOVE) {
                 RegisterEntity RB = currentState.getRegisterEntity(nextInstruction.getB());
                 // RegisterEntity entity = currentState.getRegisterEntity(upvalueIndex);
-                context.addUpvalue(i, new Upvalue(i, RB.getName(), RB.getValue(), RB.getType(), RB.getFromType()));
+                context.addUpvalue(i, new UpValue(i, RB.getName(), RB.getValue(), RB.getType(), RB.getFromType()));
                 // Logger.debug(String.format("%s: 上值 %s 写入寄存器 R%d", targetChunk, RB.getName(), a + i));
             } else if (nextInstruction.getOpcode() == Opcode.GETUPVAL) {
-                Upvalue upvalue = currentContext.getUpvalue(bx);
+                UpValue upvalue = currentContext.getUpvalue(bx);
                 context.addUpvalue(i, upvalue);
                 // Logger.debug(String.format("%s: 上值 %s 写入寄存器 R%d", targetChunk, upvalue.getName(), a + i));
             } else {
@@ -439,7 +439,7 @@ public class IRBuilder {
 
         // 从CodeGeneratorContext中获取上值
         CodeGeneratorContext context = pipeline.getContext();
-        Upvalue upvalue = context.getUpvalue(b);
+        UpValue upvalue = context.getUpvalue(b);
 
         if (upvalue != null) {
             // 更新寄存器状态
@@ -468,3 +468,4 @@ public class IRBuilder {
         // registerEntity.getType(), registerEntity.getFromType());
     }
 }
+

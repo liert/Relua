@@ -8,7 +8,7 @@ import com.github.relua.model.Chunk;
 import com.github.relua.model.CodeLine;
 import com.github.relua.model.Register;
 import com.github.relua.model.CodeLine.CodeType;
-import com.github.relua.model.Upvalue;
+import com.github.relua.model.UpValue;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,7 +59,7 @@ public class CodeGeneratorContext {
     private int thenIndex = 0;
     private Map<Integer, BasicBlock> thenBlocks = new HashMap<>(); // 基本块映射
     private Register register = new Register(); // 初始寄存器状态
-    private List<Upvalue> upvalues = new ArrayList<>(); // 上值存储，key为上值索引，value为上值对象
+    private List<UpValue> upvalues = new ArrayList<>(); // 上值存储，key为上值索引，value为上值对象
     
     // 用于跟踪pending的SELF指令，用于方法调用绑定
     private Map<Integer, PendingSelf> pendingSelfCalls = new HashMap<>();
@@ -319,7 +319,7 @@ public class CodeGeneratorContext {
      * @param index 上值索引
      * @param upvalue 上值对象
      */
-    public void addUpvalue(int index, Upvalue upvalue) {
+    public void addUpvalue(int index, UpValue upvalue) {
         this.upvalues.add(upvalue);
     }
 
@@ -343,14 +343,14 @@ public class CodeGeneratorContext {
      * @param index 上值索引
      * @return 上值对象，如果不存在则返回null
      */
-    public Upvalue getUpvalue(int index) {
+    public UpValue getUpvalue(int index) {
         if (index >= 0 && index < this.upvalues.size()) {
             return this.upvalues.get(index);
         }
         return null;
     }
 
-    public List<Upvalue> getUpvalues() {
+    public List<UpValue> getUpvalues() {
         return this.upvalues;
     }
 
@@ -360,7 +360,7 @@ public class CodeGeneratorContext {
      * @param index 上值索引
      * @return 被移除的上值对象，如果不存在则返回null
      */
-    public Upvalue removeUpvalue(int index) {
+    public UpValue removeUpvalue(int index) {
         if (index >= 0 && index < this.upvalues.size()) {
             return this.upvalues.remove(index);
         }

@@ -6,7 +6,7 @@ import com.github.relua.decompiler.BasicBlock;
 import com.github.relua.decompiler.DecompilerPipeline;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
-import com.github.relua.model.Instruction.Opcode;
+import com.github.relua.model.Opcode;
 
 public class ControlFlowGraphBuilder {
     private final DecompilerPipeline pipeline;
@@ -123,3 +123,4 @@ public class ControlFlowGraphBuilder {
         }
     }
 }
+

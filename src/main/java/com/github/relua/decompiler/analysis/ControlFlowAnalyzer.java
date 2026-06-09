@@ -11,7 +11,7 @@ import com.github.relua.decompiler.DecompilerPipeline;
 import com.github.relua.decompiler.IfElsePattern;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
-import com.github.relua.model.Instruction.Opcode;
+import com.github.relua.model.Opcode;
 import com.github.relua.util.BasicBlockUtils;
 
 public class ControlFlowAnalyzer {
@@ -345,3 +345,4 @@ public class ControlFlowAnalyzer {
         return false;
     }
 }
+
