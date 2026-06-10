@@ -114,7 +114,7 @@ public class RegisterStateAnalyzer {
      */
     public Register getRegisterByInstructionIndex(int instructionIndex) {
         if (instructionIndex >= 0 && instructionIndex < inStates.size()) {
-            return inStates.get(instructionIndex);
+            return new Register(inStates.get(instructionIndex));
         }
         return new Register();
     }

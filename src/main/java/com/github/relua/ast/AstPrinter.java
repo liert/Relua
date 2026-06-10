@@ -283,7 +283,11 @@ public class AstPrinter implements AstVisitor<String> {
         }
         
         sb.append("(");
-        sb.append(join(node.args.stream().map(expr -> expr.accept(this)).collect(Collectors.toList()), ", "));
+        List<Expression> printArgs = node.args;
+        if (node.isMethodCall && node.callee instanceof MemberExpr && !printArgs.isEmpty()) {
+            printArgs = printArgs.subList(1, printArgs.size());
+        }
+        sb.append(join(printArgs.stream().map(expr -> expr.accept(this)).collect(Collectors.toList()), ", "));
         sb.append(")");
         return sb.toString();
     }

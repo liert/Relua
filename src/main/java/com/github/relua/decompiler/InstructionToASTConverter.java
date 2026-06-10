@@ -890,20 +890,36 @@ public class InstructionToASTConverter {
                     return new StringConst(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
                 case NUMBER:
                     // 数值常量
-                    return new NumberConst((Double) entity.getValue(), new SourcePos(instructionIndex, -1));
+                    if (entity.getValue() instanceof Double) {
+                        return new NumberConst((Double) entity.getValue(), new SourcePos(instructionIndex, -1));
+                    } else if (entity.getValue() instanceof Integer) {
+                        return new NumberConst(((Integer) entity.getValue()).doubleValue(), new SourcePos(instructionIndex, -1));
+                    } else {
+                        return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
+                    }
                 case BOOLEAN:
                     // 布尔值常量
-                    return new BooleanConst((Boolean) entity.getValue(), new SourcePos(instructionIndex, -1));
+                    if (entity.getValue() instanceof Boolean) {
+                        return new BooleanConst((Boolean) entity.getValue(), new SourcePos(instructionIndex, -1));
+                    } else {
+                        return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
+                    }
                 case NIL:
                     // nil值
                     return new NilConst(new SourcePos(instructionIndex, -1));
                 default:
-                    // 未知类型，使用寄存器名作为占位符
+                    // 未知类型，如果值不为 null 且不是 "nil"，使用值名，否则使用寄存器名作为占位符
+                    if (entity.getValue() != null && !entity.getValue().equals("nil")) {
+                        return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
+                    }
                     return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
             }
         } catch (Exception e) {
-            // 处理异常，返回寄存器名作为占位符
+            // 处理异常，如果值不为空则返回值的名称，否则返回寄存器名作为占位符
             System.out.println("异常寄存器: " + entity);
+            if (entity != null && entity.getValue() != null) {
+                return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
+            }
             return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
         }
 
@@ -928,6 +944,23 @@ public class InstructionToASTConverter {
                 Expression arg = resolveExpressionFromRegister(argRegister, instructionIndex, registerState);
                 args.add(arg);
             }
+        } else if (b == 0) {
+            // b = 0表示传递了前一个多返回值函数或vararg调用的所有返回值
+            int top = a + 1;
+            for (int i = instructionIndex - 1; i >= 0; i--) {
+                Instruction prev = chunk.getInstruction(i);
+                if (prev.getOpcode() == Opcode.CALL && prev.getC() == 0) {
+                    top = prev.getA();
+                    break;
+                }
+                if (prev.getOpcode() == Opcode.VARARG && prev.getB() == 0) {
+                    top = prev.getA();
+                    break;
+                }
+            }
+            for (int i = a + 1; i <= top; i++) {
+                args.add(resolveExpressionFromRegister(i, instructionIndex, registerState));
+            }
         }
 
         return args;
@@ -946,13 +979,28 @@ public class InstructionToASTConverter {
 
         // RETURN指令：return R(a), R(a+1), ..., R(a+b-2)
         List<Expression> values = new ArrayList<>();
+        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
 
         // 返回值
         if (b > 1) {
-            values.add(new Name("R" + a, new SourcePos(instructionIndex, -1)));
-
-            if (b > 2) {
-                values.add(new Vararg(new SourcePos(instructionIndex, -1)));
+            for (int i = 0; i < b - 1; i++) {
+                values.add(resolveExpressionFromRegister(a + i, instructionIndex, registerState));
+            }
+        } else if (b == 0) {
+            int top = a;
+            for (int i = instructionIndex - 1; i >= 0; i--) {
+                Instruction prev = chunk.getInstruction(i);
+                if (prev.getOpcode() == Opcode.CALL && prev.getC() == 0) {
+                    top = prev.getA();
+                    break;
+                }
+                if (prev.getOpcode() == Opcode.VARARG && prev.getB() == 0) {
+                    top = prev.getA();
+                    break;
+                }
+            }
+            for (int i = a; i <= top; i++) {
+                values.add(resolveExpressionFromRegister(i, instructionIndex, registerState));
             }
         }
 
