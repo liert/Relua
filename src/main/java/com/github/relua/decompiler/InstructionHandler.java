@@ -648,12 +648,12 @@ public class InstructionHandler {
      * @return 生成的AST根节点
      */
     public AstNode generateASTFromChunk(Chunk chunk) {
-        System.out.println("\n=== 开始生成AST ===");
+        // System.out.println("\n=== 开始生成AST ===");
 
         StructuredPatternEmitter structuredEmitter = new StructuredPatternEmitter(pipeline);
         Block structuredBlock = structuredEmitter.emitIfStructured(chunk);
         if (structuredBlock != null) {
-            System.out.println("=== AST生成完成（结构化模式） ===\n");
+            // System.out.println("=== AST生成完成（结构化模式） ===\n");
             return structuredBlock;
         }
 
@@ -702,7 +702,7 @@ public class InstructionHandler {
         //     System.out.println("   AST子节点数量: " + ((Block) ast).statements.size());
         // }
 
-        System.out.println("=== AST生成完成 ===\n");
+        // System.out.println("=== AST生成完成 ===\n");
         return ast;
     }
 
@@ -714,37 +714,37 @@ public class InstructionHandler {
      * @return 生成的AST节点
      */
     private AstNode generateRegionAST(SESERegion region, Chunk chunk) {
-        System.out.println("     - 生成区域AST，类型: " + region.getType());
+        // System.out.println("     - 生成区域AST，类型: " + region.getType());
 
         AstNode regionNode;
         switch (region.getType()) {
             case IF_THEN:
-                System.out.println("     - 生成IF_THEN AST节点");
+                // System.out.println("     - 生成IF_THEN AST节点");
                 regionNode = generateIfThenAST(region, chunk);
                 break;
             case IF_THEN_ELSE:
-                System.out.println("     - 生成IF_THEN_ELSE AST节点");
+                // System.out.println("     - 生成IF_THEN_ELSE AST节点");
                 regionNode = generateIfThenElseAST(region, chunk);
                 break;
             case WHILE_LOOP:
-                System.out.println("     - 生成WHILE_LOOP AST节点");
+                // System.out.println("     - 生成WHILE_LOOP AST节点");
                 regionNode = generateWhileLoopAST(region, chunk);
                 break;
             case SEQUENCE:
-                System.out.println("     - 生成SEQUENCE AST节点");
+                // System.out.println("     - 生成SEQUENCE AST节点");
                 regionNode = generateSequenceAST(region, chunk);
                 break;
             case SIMPLE_BLOCK:
-                System.out.println("     - 生成SIMPLE_BLOCK AST节点");
+                // System.out.println("     - 生成SIMPLE_BLOCK AST节点");
                 regionNode = generateSimpleBlockAST(region, chunk);
                 break;
             default:
-                System.out.println("     - 生成默认BLOCK AST节点，类型: " + region.getType());
+                // System.out.println("     - 生成默认BLOCK AST节点，类型: " + region.getType());
                 // 对于其他类型的区域，生成默认的块节点
                 Block defaultBlock = new Block(new SourcePos(0, -1));
                 // 添加区域内的所有指令对应的AST节点
                 for (BasicBlock block : region.getBlocks()) {
-                    System.out.println("     - 添加基本块到默认BLOCK: " + block.getStartIndex() + "-" + block.getEndIndex());
+                    // System.out.println("     - 添加基本块到默认BLOCK: " + block.getStartIndex() + "-" + block.getEndIndex());
                     AstNode basicBlockNode = generateBasicBlockAST(block, chunk);
                     if (basicBlockNode instanceof Block) {
                         defaultBlock.statements.addAll(((Block) basicBlockNode).statements);
@@ -754,9 +754,9 @@ public class InstructionHandler {
                 break;
         }
 
-        System.out.println(
-                "     - 区域AST生成完成，类型: " + regionNode.type + ", 子节点数量: "
-                        + (regionNode instanceof Block ? ((Block) regionNode).statements.size() : 0));
+        // System.out.println(
+        //         "     - 区域AST生成完成，类型: " + regionNode.type + ", 子节点数量: "
+        //                 + (regionNode instanceof Block ? ((Block) regionNode).statements.size() : 0));
         return regionNode;
     }
 
@@ -957,7 +957,7 @@ public class InstructionHandler {
 
                 } else if (result instanceof Expression) {
                     Expression expr = (Expression) result;
-                    System.out.println("         生成表达式节点，包装为ExpressionStatement");
+                    // System.out.println("         生成表达式节点，包装为ExpressionStatement");
                     // 将表达式包装为表达式语句
                     blockNode.statements.add(new ExpressionStatement(expr, expr.pos));
                 } else {
@@ -966,7 +966,7 @@ public class InstructionHandler {
             }
         }
 
-        System.out.println("       - 基本块AST生成完成，子节点数量: " + blockNode.statements.size());
+        // System.out.println("       - 基本块AST生成完成，子节点数量: " + blockNode.statements.size());
         return blockNode;
     }
 

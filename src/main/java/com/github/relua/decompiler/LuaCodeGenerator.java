@@ -79,28 +79,28 @@ public class LuaCodeGenerator {
         CodeGeneratorContext context = handler.getContext();
 
         // System.out.println("=== 开始处理Chunk ===");
-        System.out.println("Chunk信息: lineDefined=" + chunk.getLineDefined() + ", lastLineDefined="
-                + chunk.getLastLineDefined() + ", numParams=" + chunk.getNumParams() + ", isVararg="
-                + chunk.getIsVararg() + ", maxStackSize=" + chunk.getMaxStackSize());
+        // System.out.println("Chunk信息: lineDefined=" + chunk.getLineDefined() + ", lastLineDefined="
+        //         + chunk.getLastLineDefined() + ", numParams=" + chunk.getNumParams() + ", isVararg="
+        //         + chunk.getIsVararg() + ", maxStackSize=" + chunk.getMaxStackSize());
 
         // 先让指令处理器处理代码块，建立控制流和变量映射
         handler.process(chunk);
 
         // 生成代码块头部信息
         if (chunk.getFunction().equals("main")) {
-            System.out.println("生成代码块头部信息...");
+            // System.out.println("生成代码块头部信息...");
             generateChunkHeader(chunk, context);
         }
 
         // 生成指令代码（使用AST）
-        System.out.println("生成AST代码...");
+        // System.out.println("生成AST代码...");
         astCodeEmitter.emitAst(chunk, context, handler);
 
         // 关闭所有未结束的控制流结构
         // System.out.println("关闭所有未结束的控制流结构...");
         context.closeAllControlFlow();
 
-        System.out.println("=== Chunk处理完成 ===");
+        // System.out.println("=== Chunk处理完成 ===");
 
         for (Chunk subChunk : chunk.getSubChunks()) {
             Register temp = new Register();

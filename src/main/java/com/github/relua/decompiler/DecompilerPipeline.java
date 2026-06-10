@@ -52,7 +52,7 @@ public class DecompilerPipeline {
         controlFlowAnalyzer.analyze(chunk);
 
         // 打印所有基本块的类型
-        System.out.println("\n===== 基本块信息 =====");
+        // System.out.println("\n===== 基本块信息 =====");
         for (int i = 0; i < basicBlockBuilder.getBasicBlocks().size(); i++) {
             BasicBlock block = basicBlockBuilder.getBasicBlocks().get(i);
             String blockType = "普通块";
@@ -63,30 +63,30 @@ public class DecompilerPipeline {
             } else if (block.isElseBlock()) {
                 blockType = "ELSE块";
             }
-            System.out.println("块 " + i + ": [" + block.getStartIndex() + "-" + block.getEndIndex() + "]");
-            System.out.println("  类型: " + blockType);
+            // System.out.println("块 " + i + ": [" + block.getStartIndex() + "-" + block.getEndIndex() + "]");
+            // System.out.println("  类型: " + blockType);
         }
 
         // 构建控制流图
         cfgBuilder.build(chunk);
         // 打印CFG结构
-        System.out.println("\n===== 控制流图结构 =====");
+        // System.out.println("\n===== 控制流图结构 =====");
         for (int i = 0; i < basicBlockBuilder.getBasicBlocks().size(); i++) {
             BasicBlock block = basicBlockBuilder.getBasicBlocks().get(i);
-            System.out.println("块 " + i + " -> 后继:");
+            // System.out.println("块 " + i + " -> 后继:");
             for (BasicBlock successor : block.getSuccessors()) {
                 // 查找后继块的索引
                 int succIndex = basicBlockBuilder.getBasicBlocks().indexOf(successor);
-                System.out.println("  -> 块 " + succIndex + ": [" + successor.getStartIndex() + "-"
-                        + successor.getEndIndex() + "]");
+                // System.out.println("  -> 块 " + succIndex + ": [" + successor.getStartIndex() + "-"
+                //         + successor.getEndIndex() + "]");
             }
 
-            System.out.println("块 " + i + " <- 前驱:");
+            // System.out.println("块 " + i + " <- 前驱:");
             for (BasicBlock predecessor : block.getPredecessors()) {
                 // 查找前驱块的索引
                 int predIndex = basicBlockBuilder.getBasicBlocks().indexOf(predecessor);
-                System.out.println("  <- 块 " + predIndex + ": [" + predecessor.getStartIndex() + "-"
-                        + predecessor.getEndIndex() + "]");
+                // System.out.println("  <- 块 " + predIndex + ": [" + predecessor.getStartIndex() + "-"
+                //         + predecessor.getEndIndex() + "]");
             }
         }
 

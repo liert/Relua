@@ -916,7 +916,7 @@ public class InstructionToASTConverter {
             }
         } catch (Exception e) {
             // 处理异常，如果值不为空则返回值的名称，否则返回寄存器名作为占位符
-            System.out.println("异常寄存器: " + entity);
+            // System.out.println("异常寄存器: " + entity);
             if (entity != null && entity.getValue() != null) {
                 return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
             }
