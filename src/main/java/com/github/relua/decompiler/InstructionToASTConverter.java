@@ -1205,12 +1205,8 @@ public class InstructionToASTConverter {
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
         
-        // 从寄存器状态获取函数名
-        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
-        RegisterEntity entity = registerState.getRegisterEntity(a);
-        
-        // 生成函数名
-        String funcName = entity.getValue().toString();
+        // 生成函数名：直接使用子 Chunk 对应的闭包函数标识符
+        String funcName = chunk.getFunction() + "_" + bx;
         
         // 创建函数引用表达式
         Name funcRef = new Name(funcName, new SourcePos(instructionIndex, -1));

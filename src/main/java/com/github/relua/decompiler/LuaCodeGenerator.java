@@ -160,6 +160,7 @@ public class LuaCodeGenerator {
             return;
         }
 
+        // 第一遍：重写闭包声明，并收集所有已被内联的函数名
         List<Statement> rewritten = new ArrayList<>();
         for (Statement statement : block.statements) {
             FunctionDeclaration functionDeclaration = asClosureDeclaration(statement, contextByFunction);
@@ -172,8 +173,35 @@ public class LuaCodeGenerator {
             }
         }
 
+        // 第二遍：过滤掉对已被内联的闭包的多余临时寄存器赋值
+        List<Statement> finalStatements = new ArrayList<>();
+        for (Statement statement : rewritten) {
+            if (isTemporaryRegisterClosureAssign(statement, emittedFunctions)) {
+                continue;
+            }
+            finalStatements.add(statement);
+        }
+
         block.statements.clear();
-        block.statements.addAll(rewritten);
+        block.statements.addAll(finalStatements);
+    }
+
+    private boolean isTemporaryRegisterClosureAssign(Statement statement, Set<String> emittedFunctions) {
+        if (statement instanceof Assign) {
+            Assign assign = (Assign) statement;
+            if (assign.left.size() == 1 && assign.right.size() == 1) {
+                Expression left = assign.left.get(0);
+                Expression right = assign.right.get(0);
+                if (left instanceof Name && right instanceof Name) {
+                    String leftName = ((Name) left).name;
+                    String rightName = ((Name) right).name;
+                    if (leftName.startsWith("R") && emittedFunctions.contains(rightName)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private FunctionDeclaration asClosureDeclaration(Statement statement,
