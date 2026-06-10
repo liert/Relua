@@ -23,13 +23,3 @@ public class TableConstructor extends Expression {
         return visitor.visit(this);
     }
 }
-
-class TableField {
-    public final Expression key;
-    public final Expression value;
-    
-    public TableField(Expression key, Expression value) {
-        this.key = key;
-        this.value = value;
-    }
-}

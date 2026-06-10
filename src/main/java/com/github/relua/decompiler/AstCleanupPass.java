@@ -29,13 +29,20 @@ import com.github.relua.ast.ReturnStatement;
 import com.github.relua.ast.Statement;
 import com.github.relua.ast.TableConstructor;
 import com.github.relua.ast.UnaryOp;
-import com.github.relua.ast.WhileStatement;
+import com.github.relua.ast.WhileStatement;import com.github.relua.decompiler.analysis.DataFlowAnalyzer;
+import com.github.relua.decompiler.analysis.StructureRestorer;
 
 public class AstCleanupPass {
     public void cleanup(Block block) {
         if (block == null) {
             return;
         }
+
+        // 1. 数据流变量内联及点号/冒号语法糖还原
+        new DataFlowAnalyzer().optimize(block);
+
+        // 2. 结构化控制流还原与 GOTO/Label 消解
+        new StructureRestorer().restructure(block);
 
         Set<TableConstructor> consumedTables = Collections.newSetFromMap(new IdentityHashMap<>());
         collectConsumedTables(block, consumedTables, true);

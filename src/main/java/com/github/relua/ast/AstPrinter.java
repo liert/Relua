@@ -238,6 +238,9 @@ public class AstPrinter implements AstVisitor<String> {
     
     @Override
     public String visit(NumberConst node) {
+        if (node.value % 1 == 0) {
+            return String.valueOf((long) node.value);
+        }
         return String.valueOf(node.value);
     }
     
