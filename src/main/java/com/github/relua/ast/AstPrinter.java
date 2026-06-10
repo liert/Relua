@@ -117,10 +117,9 @@ public class AstPrinter implements AstVisitor<String> {
         sb.append(node.condition.accept(this));
         sb.append(" do\n");
         indent();
-        sb.append(getIndent());
         sb.append(node.body.accept(this));
-        sb.append("\n");
         dedent();
+        sb.append(getIndent());
         sb.append("end");
         return sb.toString();
     }
@@ -130,10 +129,9 @@ public class AstPrinter implements AstVisitor<String> {
         StringBuilder sb = new StringBuilder();
         sb.append("repeat\n");
         indent();
-        sb.append(getIndent());
         sb.append(node.body.accept(this));
-        sb.append("\n");
         dedent();
+        sb.append(getIndent());
         sb.append("until ");
         sb.append(node.condition.accept(this));
         return sb.toString();
@@ -154,10 +152,9 @@ public class AstPrinter implements AstVisitor<String> {
         }
         sb.append(" do\n");
         indent();
-        sb.append(getIndent());
         sb.append(node.body.accept(this));
-        sb.append("\n");
         dedent();
+        sb.append(getIndent());
         sb.append("end");
         return sb.toString();
     }
@@ -171,10 +168,9 @@ public class AstPrinter implements AstVisitor<String> {
         sb.append(join(node.iterators.stream().map(expr -> expr.accept(this)).collect(Collectors.toList()), ", "));
         sb.append(" do\n");
         indent();
-        sb.append(getIndent());
         sb.append(node.body.accept(this));
-        sb.append("\n");
         dedent();
+        sb.append(getIndent());
         sb.append("end");
         return sb.toString();
     }

@@ -36,50 +36,65 @@ public class RegisterStateAnalyzer {
         // 初始化所有指令的输入和输出状态
         resetRegisterStates(numInstructions);
 
-        // 遍历所有基本块
-        for (BasicBlock block : pipeline.getBasicBlocks(chunk.getFunction())) {
-            // 合并前驱块的输出状态作为当前块的输入状态
-            Register mergedInput = RegisterUtils.mergePredecessors(block);
+        boolean changed = true;
+        int maxIterations = 20; // 避免死循环
+        int iter = 0;
 
-            // 先更新块的输入状态（如果有变化）
-            if (!mergedInput.equals(block.getInputState())) {
-                block.setInputState(mergedInput);
-                // changed = true;
-            }
+        while (changed && iter < maxIterations) {
+            changed = false;
+            iter++;
 
-            // 使用更新后的输入状态来处理块内指令
-            Register currentState = new Register(block.getInputState());
-            // 当为第一条指令时设置初始寄存器状态
-            if (block.getStartIndex() == 0) {
-                Register register = inStates.get(0);
-                for (RegisterEntity entity : register.getRegisterEntities()) {
-                    currentState.setRegisterEntity(entity.getIndex(), entity.getValue(), entity.getType(), entity.getFromType());
+            // 遍历所有基本块
+            for (BasicBlock block : pipeline.getBasicBlocks(chunk.getFunction())) {
+                // 合并前驱块的输出状态作为当前块的输入状态
+                Register mergedInput = RegisterUtils.mergePredecessors(block);
+
+                // 先更新块的输入状态（如果有变化）
+                if (!mergedInput.equals(block.getInputState())) {
+                    block.setInputState(mergedInput);
+                    changed = true;
                 }
-            }
-            
-            // 处理块内指令
-            for (int i = block.getStartIndex(); i <= block.getEndIndex();) {
-                if (i < numInstructions) {
-                    // 更新指令i的输入状态
-                    if (!currentState.equals(inStates.get(i))) {
-                        inStates.set(i, new Register(currentState));
-                        // changed = true;
-                    }
 
-                    // 处理指令，更新当前状态
-                    int originalIndex = i;
-                    i = pipeline.processInstruction(chunk, instructions.get(i), i, currentState);
-
-                    // 更新指令i的输出状态
-                    if (!currentState.equals(outStates.get(originalIndex))) {
-                        outStates.set(originalIndex, new Register(currentState));
+                // 使用更新后的输入状态来处理块内指令
+                Register currentState = new Register(block.getInputState());
+                // 当为第一条指令时设置初始寄存器状态
+                if (block.getStartIndex() == 0) {
+                    Register register = inStates.get(0);
+                    for (RegisterEntity entity : register.getRegisterEntities()) {
+                        currentState.setRegisterEntity(entity.getIndex(), entity.getValue(), entity.getType(), entity.getFromType());
                     }
                 }
-            }
+                
+                // 处理块内指令
+                for (int i = block.getStartIndex(); i <= block.getEndIndex();) {
+                    if (i < numInstructions) {
+                        int originalIndex = i;
+                        // 更新指令i的输入状态
+                        if (!currentState.equals(inStates.get(i))) {
+                            inStates.set(i, new Register(currentState));
+                            changed = true;
+                        }
 
-            // 更新块的输出状态
-            if (!currentState.equals(block.getOutputState())) {
-                block.setOutputState(currentState);
+                        // 处理指令，更新当前状态
+                        int nextI = pipeline.processInstruction(chunk, instructions.get(i), i, currentState);
+
+                        // 更新指令i的输出状态
+                        if (!currentState.equals(outStates.get(originalIndex))) {
+                            outStates.set(originalIndex, new Register(currentState));
+                            changed = true;
+                        }
+                        
+                        i = nextI;
+                    } else {
+                        break;
+                    }
+                }
+
+                // 更新块的输出状态
+                if (!currentState.equals(block.getOutputState())) {
+                    block.setOutputState(currentState);
+                    changed = true;
+                }
             }
         }
     }

@@ -54,14 +54,35 @@ public class RegisterUtils {
 
             // 如果两个寄存器实体类型相同且值相同，保持不变
             if (entity1.getType() == entity2.getType() &&
+                    entity1.getValue() != null &&
                     entity1.getValue().equals(entity2.getValue())) {
                 continue;
             }
 
-            // 否则，标记为UNKNOWN类型，等待后续指令进一步确定
-            merged.setRegisterEntity(index, "R" + index, ValueType.UNKNOWN, FromType.UNKNOWN);
+            // 规则：修复跨 Block 数据流分析中的符号丢失。
+            // 如果其中一个是未知类型，或者值是默认的寄存器名称 "Rxx"，而另一个是已知的具体符号，则优先保留具体符号。
+            if (isDefaultOrUnknown(entity1) && !isDefaultOrUnknown(entity2)) {
+                merged.setRegisterEntity(index, entity2.getValue(), entity2.getType(), entity2.getFromType());
+            } else if (!isDefaultOrUnknown(entity1) && isDefaultOrUnknown(entity2)) {
+                // 保持 state1 的具体符号，无需修改
+            } else {
+                // 否则，标记为UNKNOWN类型，等待后续指令进一步确定
+                merged.setRegisterEntity(index, "R" + index, ValueType.UNKNOWN, FromType.UNKNOWN);
+            }
         }
 
         return merged;
+    }
+
+    private static boolean isDefaultOrUnknown(RegisterEntity entity) {
+        if (entity == null || entity.getType() == ValueType.UNKNOWN) {
+            return true;
+        }
+        Object val = entity.getValue();
+        if (val == null) {
+            return true;
+        }
+        String s = val.toString();
+        return s.equals("nil") || s.matches("R\\d+");
     }
 }

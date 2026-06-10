@@ -19,7 +19,13 @@ public class StructureRestorer {
             restructureNestedBlocks(stmt);
         }
 
-        // 2. 重组当前 Block 层的条件分支与消解 goto
+        // 2. 重构泛型 for 循环 (FORGPREP/FORGLOOP 拓扑还原)
+        restoreForInLoops(block);
+
+        // 3. 重构结构化的 if-else 分支
+        eliminateStructuredIfElse(block);
+
+        // 4. 重组当前 Block 层的条件分支与消解其余简单的 goto
         eliminateDanglingGotos(block);
     }
 
@@ -207,6 +213,335 @@ public class StructureRestorer {
             case "<=": return ">";
             case ">=": return "<";
             default:   return null;
+        }
+    }
+
+    private void restoreForInLoops(Block block) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+        List<Statement> stmts = block.statements;
+        boolean changed = true;
+        
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < stmts.size(); i++) {
+                Statement stmt = stmts.get(i);
+                
+                // 1. 寻找 3 个连续的迭代内部寄存器的赋值语句
+                if (isForInIteratorAssign(stmt)) {
+                    int regA = getFirstRegisterIndex(stmt);
+                    if (regA == -1) continue;
+                    
+                    // 2. 语句 i+1 必须是 GotoStatement
+                    if (i + 1 < stmts.size() && stmts.get(i + 1) instanceof GotoStatement) {
+                        GotoStatement prepGoto = (GotoStatement) stmts.get(i + 1);
+                        String labelEnd = prepGoto.label;
+                        
+                        // 3. 语句 i+2 必须是 LabelStatement，代表 Label_Start
+                        if (i + 2 < stmts.size() && stmts.get(i + 2) instanceof LabelStatement) {
+                            LabelStatement startLabel = (LabelStatement) stmts.get(i + 2);
+                            String labelStart = startLabel.label;
+                            
+                            // 4. 寻找 Label_End
+                            int labelEndIndex = findLabelIndex(stmts, i + 3, labelEnd);
+                            if (labelEndIndex != -1 && labelEndIndex + 1 < stmts.size() 
+                                    && stmts.get(labelEndIndex + 1) instanceof GotoStatement) {
+                                GotoStatement loopGoto = (GotoStatement) stmts.get(labelEndIndex + 1);
+                                
+                                // 5. 循环尾的 GotoStatement 必须跳回 Label_Start
+                                if (loopGoto.label.equals(labelStart)) {
+                                    
+                                    // 匹配成功！
+                                    List<Expression> iterators = getIteratorExpressions(stmt);
+                                    
+                                    // 提取循环体语句
+                                    List<Statement> bodyStmts = new ArrayList<>();
+                                    for (int k = i + 3; k < labelEndIndex; k++) {
+                                        bodyStmts.add(stmts.get(k));
+                                    }
+                                    
+                                    Block bodyBlock = new Block(new SourcePos(i + 3, -1));
+                                    bodyBlock.statements.addAll(bodyStmts);
+                                    
+                                    // 重命名循环变量 (A+3, A+4 -> k, v) 并隐藏其内部寄存器
+                                    String kName = "R" + (regA + 3);
+                                    String vName = "R" + (regA + 4);
+                                    renameVariable(bodyBlock, kName, "k");
+                                    renameVariable(bodyBlock, vName, "v");
+                                    
+                                    List<String> names = new ArrayList<>();
+                                    names.add("k");
+                                    names.add("v");
+                                    
+                                    ForIn forIn = new ForIn(names, iterators, bodyBlock, stmt.pos);
+                                    
+                                    stmts.set(i, forIn);
+                                    
+                                    // 从后往前移出多余的跳转和 Label 语句
+                                    for (int k = labelEndIndex + 1; k > i; k--) {
+                                        stmts.remove(k);
+                                    }
+                                    
+                                    // 递归重构循环体
+                                    restructure(bodyBlock);
+                                    
+                                    changed = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean isForInIteratorAssign(Statement stmt) {
+        if (stmt instanceof Assign) {
+            Assign assign = (Assign) stmt;
+            if (assign.left.size() == 3) {
+                return areContinuousRegisters(assign.left.get(0), assign.left.get(1), assign.left.get(2));
+            }
+        } else if (stmt instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) stmt;
+            if (local.names.size() == 3) {
+                return areContinuousRegisterNames(local.names.get(0), local.names.get(1), local.names.get(2));
+            }
+        }
+        return false;
+    }
+
+    private boolean areContinuousRegisters(Expression e1, Expression e2, Expression e3) {
+        if (e1 instanceof Name && e2 instanceof Name && e3 instanceof Name) {
+            return areContinuousRegisterNames(((Name) e1).name, ((Name) e2).name, ((Name) e3).name);
+        }
+        return false;
+    }
+
+    private boolean areContinuousRegisterNames(String n1, String n2, String n3) {
+        if (n1.matches("R\\d+") && n2.matches("R\\d+") && n3.matches("R\\d+")) {
+            int r1 = Integer.parseInt(n1.substring(1));
+            int r2 = Integer.parseInt(n2.substring(1));
+            int r3 = Integer.parseInt(n3.substring(1));
+            return r2 == r1 + 1 && r3 == r1 + 2;
+        }
+        return false;
+    }
+
+    private int getFirstRegisterIndex(Statement stmt) {
+        String name = null;
+        if (stmt instanceof Assign) {
+            Assign assign = (Assign) stmt;
+            if (!assign.left.isEmpty() && assign.left.get(0) instanceof Name) {
+                name = ((Name) assign.left.get(0)).name;
+            }
+        } else if (stmt instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) stmt;
+            if (!local.names.isEmpty()) {
+                name = local.names.get(0);
+            }
+        }
+        if (name != null && name.matches("R\\d+")) {
+            return Integer.parseInt(name.substring(1));
+        }
+        return -1;
+    }
+
+    private List<Expression> getIteratorExpressions(Statement stmt) {
+        if (stmt instanceof Assign) {
+            return ((Assign) stmt).right;
+        } else if (stmt instanceof LocalAssign) {
+            return ((LocalAssign) stmt).right;
+        }
+        return new ArrayList<>();
+    }
+
+    private void renameVariable(AstNode node, String oldName, String newName) {
+        if (node == null) return;
+        if (node instanceof Name) {
+            Name nameNode = (Name) node;
+            if (nameNode.name.equals(oldName)) {
+                nameNode.name = newName;
+            }
+        } else if (node instanceof Assign) {
+            Assign assign = (Assign) node;
+            for (Expression left : assign.left) {
+                renameVariable(left, oldName, newName);
+            }
+            for (Expression right : assign.right) {
+                renameVariable(right, oldName, newName);
+            }
+        } else if (node instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) node;
+            for (int i = 0; i < local.names.size(); i++) {
+                if (local.names.get(i).equals(oldName)) {
+                    local.names.set(i, newName);
+                }
+            }
+            for (Expression right : local.right) {
+                renameVariable(right, oldName, newName);
+            }
+        } else if (node instanceof GlobalAssign) {
+            GlobalAssign glob = (GlobalAssign) node;
+            for (int i = 0; i < glob.names.size(); i++) {
+                if (glob.names.get(i).equals(oldName)) {
+                    glob.names.set(i, newName);
+                }
+            }
+            for (Expression right : glob.right) {
+                renameVariable(right, oldName, newName);
+            }
+        } else if (node instanceof ExpressionStatement) {
+            renameVariable(((ExpressionStatement) node).expression, oldName, newName);
+        } else if (node instanceof ReturnStatement) {
+            for (Expression val : ((ReturnStatement) node).values) {
+                renameVariable(val, oldName, newName);
+            }
+        } else if (node instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) node;
+            for (Expression cond : ifStmt.conditions) {
+                renameVariable(cond, oldName, newName);
+            }
+            for (Block nested : ifStmt.blocks) {
+                renameVariable(nested, oldName, newName);
+            }
+            renameVariable(ifStmt.elseBlock, oldName, newName);
+        } else if (node instanceof WhileStatement) {
+            WhileStatement wh = (WhileStatement) node;
+            renameVariable(wh.condition, oldName, newName);
+            renameVariable(wh.body, oldName, newName);
+        } else if (node instanceof RepeatStatement) {
+            RepeatStatement rep = (RepeatStatement) node;
+            renameVariable(rep.condition, oldName, newName);
+            renameVariable(rep.body, oldName, newName);
+        } else if (node instanceof ForNumeric) {
+            ForNumeric fn = (ForNumeric) node;
+            renameVariable(fn.start, oldName, newName);
+            renameVariable(fn.end, oldName, newName);
+            renameVariable(fn.step, oldName, newName);
+            renameVariable(fn.body, oldName, newName);
+        } else if (node instanceof ForIn) {
+            ForIn fi = (ForIn) node;
+            for (int i = 0; i < fi.names.size(); i++) {
+                if (fi.names.get(i).equals(oldName)) {
+                    fi.names.set(i, newName);
+                }
+            }
+            for (Expression exp : fi.iterators) {
+                renameVariable(exp, oldName, newName);
+            }
+            renameVariable(fi.body, oldName, newName);
+        } else if (node instanceof FunctionDeclaration) {
+            renameVariable(((FunctionDeclaration) node).func, oldName, newName);
+        } else if (node instanceof Block) {
+            for (Statement stmt : ((Block) node).statements) {
+                renameVariable(stmt, oldName, newName);
+            }
+        } else if (node instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) node;
+            renameVariable(binary.left, oldName, newName);
+            renameVariable(binary.right, oldName, newName);
+        } else if (node instanceof UnaryOp) {
+            renameVariable(((UnaryOp) node).expr, oldName, newName);
+        } else if (node instanceof IndexExpr) {
+            IndexExpr idx = (IndexExpr) node;
+            renameVariable(idx.table, oldName, newName);
+            renameVariable(idx.index, oldName, newName);
+        } else if (node instanceof MemberExpr) {
+            renameVariable(((MemberExpr) node).table, oldName, newName);
+        } else if (node instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) node;
+            renameVariable(call.callee, oldName, newName);
+            for (Expression arg : call.args) {
+                renameVariable(arg, oldName, newName);
+            }
+        } else if (node instanceof TableConstructor) {
+            TableConstructor tc = (TableConstructor) node;
+            if (tc.fields != null) {
+                for (TableField field : tc.fields) {
+                    renameVariable(field.key, oldName, newName);
+                    renameVariable(field.value, oldName, newName);
+                }
+            }
+        } else if (node instanceof FunctionLiteral) {
+            renameVariable(((FunctionLiteral) node).body, oldName, newName);
+        }
+    }
+
+    private void eliminateStructuredIfElse(Block block) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+        List<Statement> stmts = block.statements;
+        boolean changed = true;
+        
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < stmts.size(); i++) {
+                Statement stmt = stmts.get(i);
+                
+                if (isGotoIfStatement(stmt)) {
+                    IfStatement ifStmt = (IfStatement) stmt;
+                    GotoStatement gotoElse = (GotoStatement) ifStmt.blocks.get(0).statements.get(0);
+                    String labelElse = gotoElse.label;
+                    
+                    // 寻找匹配的 LabelStatement labelElse
+                    int labelElseIndex = findLabelIndex(stmts, i + 1, labelElse);
+                    if (labelElseIndex != -1) {
+                        // 检查在 labelElseIndex 之前，紧接着的那条语句是否是 GotoStatement (Label_End)
+                        if (labelElseIndex > 0 && stmts.get(labelElseIndex - 1) instanceof GotoStatement) {
+                            GotoStatement gotoEnd = (GotoStatement) stmts.get(labelElseIndex - 1);
+                            String labelEnd = gotoEnd.label;
+                            
+                            // 寻找 Label_End
+                            int labelEndIndex = findLabelIndex(stmts, labelElseIndex + 1, labelEnd);
+                            if (labelEndIndex != -1) {
+                                // 检查安全性：没有其它地方跳转到 labelElse 和 labelEnd
+                                if (!hasOtherGotosTo(stmts, labelElse, i) && !hasOtherGotosTo(stmts, labelEnd, labelElseIndex - 1)) {
+                                    
+                                    // 提取 then body
+                                    List<Statement> thenStmts = new ArrayList<>();
+                                    for (int m = i + 1; m < labelElseIndex - 1; m++) {
+                                        thenStmts.add(stmts.get(m));
+                                    }
+                                    Block thenBlock = new Block(new SourcePos(i + 1, -1));
+                                    thenBlock.statements.addAll(thenStmts);
+                                    
+                                    // 提取 else body
+                                    List<Statement> elseStmts = new ArrayList<>();
+                                    for (int m = labelElseIndex + 1; m < labelEndIndex; m++) {
+                                        elseStmts.add(stmts.get(m));
+                                    }
+                                    Block elseBlock = new Block(new SourcePos(labelElseIndex + 1, -1));
+                                    elseBlock.statements.addAll(elseStmts);
+                                    
+                                    // 对条件取反
+                                    Expression originalCond = ifStmt.conditions.get(0);
+                                    Expression newCond = negateCondition(originalCond);
+                                    
+                                    // 重构 IfStatement
+                                    IfStatement newIf = new IfStatement(newCond, thenBlock, elseBlock, ifStmt.pos);
+                                    
+                                    stmts.set(i, newIf);
+                                    
+                                    // 从后往前移出旧语句段
+                                    for (int m = labelEndIndex; m > i; m--) {
+                                        stmts.remove(m);
+                                    }
+                                    
+                                    // 递归重构 thenBlock 和 elseBlock
+                                    restructure(thenBlock);
+                                    restructure(elseBlock);
+                                    
+                                    changed = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
