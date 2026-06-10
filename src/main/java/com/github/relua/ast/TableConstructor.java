@@ -13,6 +13,10 @@ public class TableConstructor extends Expression {
     public void addArrayField(Expression value) {
         this.fields.add(new TableField(null, value));
     }
+
+    public boolean isEmpty() {
+        return fields.isEmpty();
+    }
     
     @Override
     public <R> R accept(AstVisitor<R> visitor) {

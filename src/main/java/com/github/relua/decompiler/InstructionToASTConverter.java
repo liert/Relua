@@ -866,6 +866,10 @@ public class InstructionToASTConverter {
     private Expression resolveExpressionFromRegister(int registerIndex, int instructionIndex, Register registerState) {
         RegisterEntity entity = registerState.getRegisterEntity(registerIndex);
         if (entity.getValue() instanceof Expression) {
+            if (entity.getValue() instanceof TableConstructor
+                    && ((TableConstructor) entity.getValue()).isEmpty()) {
+                return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
+            }
             return (Expression) entity.getValue();
         }
         String tableName = TransformUtils.transformRegister(entity);

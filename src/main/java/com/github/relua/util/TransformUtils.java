@@ -7,6 +7,7 @@ import com.github.relua.ast.Expression;
 import com.github.relua.ast.Name;
 import com.github.relua.ast.SourcePos;
 import com.github.relua.ast.StringConst;
+import com.github.relua.ast.TableConstructor;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.FromType;
 import com.github.relua.model.Register;
@@ -37,6 +38,10 @@ public class TransformUtils {
 
     public static Expression transformToAstNode(RegisterEntity register, int instructionIndex) {
         if (register.getValue() instanceof Expression) {
+            if (register.getValue() instanceof TableConstructor
+                    && ((TableConstructor) register.getValue()).isEmpty()) {
+                return new Name(register.getName(), new SourcePos(instructionIndex, -1));
+            }
             return (Expression) register.getValue();
         }
         switch (register.getType()) {
