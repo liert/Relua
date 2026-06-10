@@ -935,6 +935,11 @@ public class InstructionHandler {
                     blockNode.statements.add(new LabelStatement("L" + i, new SourcePos(i, -1)));
                 }
                 Instruction instruction = instructions.get(i);
+                PendingIf conditionalJump = converter.tryConvertConditionalJump(instructions, i);
+                if (conditionalJump != null) {
+                    i = appendPendingIf(blockNode, conditionalJump, chunk, converter);
+                    continue;
+                }
                 // Logger.debug(BytecodeFormatter.formatInstruction(chunk, instruction, i));
                 // 使用转换器将指令转换为AST节点
                 // Register registerState = pipeline.getRegisterByInstructionIndex(i);
@@ -943,53 +948,7 @@ public class InstructionHandler {
                 // Object result = null;
                 if (result instanceof PendingIf) {
                     // 处理待完成的IF节点
-                    PendingIf pending = (PendingIf) result;
-                    Logger.debug(String.format("生成PendingIf节点，条件: %s, then: %d-%d, else: %d-%d, flag: %b, astNodes: %d", pending.condition, pending.thenStart, pending.thenEnd, pending.elseStart, pending.elseEnd, pending.flag, pending.astNodes.size()));
-
-                    // 标记then块范围的所有基本块为已访问
-                    markBlocksAsVisited(chunk, pending.thenStart, pending.thenEnd);
-
-                    // 构建then块
-                    Block thenBlock = buildBlock(pending.thenStart, pending.thenEnd, chunk, converter);
-
-                    // 构建else块（如果存在）
-                    Block elseBlock = null;
-                    if (pending.elseStart != null) {
-                        // 标记else块范围的所有基本块为已访问
-                        markBlocksAsVisited(chunk, pending.elseStart, pending.elseEnd);
-                        elseBlock = buildBlock(pending.elseStart, pending.elseEnd, chunk, converter);
-                        // System.out.println("         else范围: " + pending.elseStart + "-" + pending.elseEnd);
-                    }
-
-                    // 如果附加的astnode不为空，根据flag值添加到对应的块
-                    if (!pending.astNodes.isEmpty()) {
-                        if (pending.flag) {
-                            // flag为true，添加到then块
-                            for (AstNode node : pending.astNodes) {
-                                if (node instanceof Statement) {
-                                    thenBlock.statements.add((Statement) node);
-                                }
-                            }
-                        } else {
-                            // flag为false，添加到else块
-                            if (elseBlock == null) {
-                                // 如果没有else块，创建一个新的
-                                elseBlock = new Block(pending.pos);
-                            }
-                            for (AstNode node : pending.astNodes) {
-                                if (node instanceof Statement) {
-                                    elseBlock.statements.add((Statement) node);
-                                }
-                            }
-                        }
-                    }
-
-                    // 创建完整的IfStatement节点
-                    IfStatement ifStmt = new IfStatement(pending.condition, thenBlock, elseBlock, pending.pos);
-                    blockNode.statements.add(ifStmt);
-
-                    // 跳过IF在字节码中的范围
-                    i = pending.elseEnd != null ? pending.elseEnd : pending.thenEnd;
+                    i = appendPendingIf(blockNode, (PendingIf) result, chunk, converter);
                     // System.out.println("         跳过IF范围，i更新为: " + i);
                 } else if (result instanceof Statement) {
                     Statement stmt = (Statement) result;
@@ -1043,6 +1002,44 @@ public class InstructionHandler {
         }
     }
 
+    private int appendPendingIf(Block blockNode, PendingIf pending, Chunk chunk, InstructionToASTConverter converter) {
+        Logger.debug(String.format("生成PendingIf节点，条件: %s, then: %d-%d, else: %d-%d, flag: %b, astNodes: %d",
+                pending.condition, pending.thenStart, pending.thenEnd, pending.elseStart, pending.elseEnd,
+                pending.flag, pending.astNodes.size()));
+
+        markBlocksAsVisited(chunk, pending.pos.pc, pending.pos.pc + 1);
+        markBlocksAsVisited(chunk, pending.thenStart, pending.thenEnd);
+        Block thenBlock = buildBlock(pending.thenStart, pending.thenEnd, chunk, converter);
+
+        Block elseBlock = null;
+        if (pending.elseStart != null) {
+            markBlocksAsVisited(chunk, pending.elseStart, pending.elseEnd);
+            elseBlock = buildBlock(pending.elseStart, pending.elseEnd, chunk, converter);
+        }
+
+        if (!pending.astNodes.isEmpty()) {
+            if (pending.flag) {
+                for (AstNode node : pending.astNodes) {
+                    if (node instanceof Statement) {
+                        thenBlock.statements.add((Statement) node);
+                    }
+                }
+            } else {
+                if (elseBlock == null) {
+                    elseBlock = new Block(pending.pos);
+                }
+                for (AstNode node : pending.astNodes) {
+                    if (node instanceof Statement) {
+                        elseBlock.statements.add((Statement) node);
+                    }
+                }
+            }
+        }
+
+        blockNode.statements.add(new IfStatement(pending.condition, thenBlock, elseBlock, pending.pos));
+        return pending.elseEnd != null ? pending.elseEnd : pending.thenEnd;
+    }
+
     // /**
     //  * 收集所有跳转目标PC
     //  * 
@@ -1083,6 +1080,11 @@ public class InstructionHandler {
         for (int pc = start; pc <= end; pc++) {
             if (pc < instructions.size()) {
                 Instruction inst = instructions.get(pc);
+                PendingIf conditionalJump = converter.tryConvertConditionalJump(instructions, pc);
+                if (conditionalJump != null) {
+                    pc = appendPendingIf(block, conditionalJump, chunk, converter);
+                    continue;
+                }
                 Object node = converter.convertInstructionToAST(inst, pc);
 
                 if (node instanceof Statement) {
@@ -1091,22 +1093,7 @@ public class InstructionHandler {
                     block.statements.add(new ExpressionStatement((Expression) node, ((Expression) node).pos));
                 } else if (node instanceof PendingIf) {
                     // 递归处理嵌套的IF
-                    PendingIf pending = (PendingIf) node;
-                    System.out.println(String.format("         生成PendingIf节点，条件: %s, then: %d-%d, else: %d-%d", pending.condition, pending.thenStart, pending.thenEnd, pending.elseStart, pending.elseEnd));
-                    Block thenBlock = buildBlock(pending.thenStart, pending.thenEnd, chunk, converter);
-                    Block elseBlock = null;
-                    if (pending.elseStart != null) {
-                        elseBlock = buildBlock(pending.elseStart, pending.elseEnd, chunk, converter);
-                    }
-
-                    block.statements.add(new IfStatement(
-                            pending.condition,
-                            thenBlock,
-                            elseBlock,
-                            pending.pos));
-
-                    // 跳过嵌套IF的范围
-                    pc = pending.elseEnd != null ? pending.elseEnd : pending.thenEnd;
+                    pc = appendPendingIf(block, (PendingIf) node, chunk, converter);
                 }
             }
         }

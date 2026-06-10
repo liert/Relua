@@ -48,6 +48,22 @@ public class InstructionToASTConverter {
         return convertInstructionToAST(instruction, instructionIndex);
     }
 
+    public PendingIf tryConvertConditionalJump(List<Instruction> instructions, int instructionIndex) {
+        if (instructionIndex < 0 || instructionIndex + 1 >= instructions.size()) {
+            return null;
+        }
+
+        Instruction condition = instructions.get(instructionIndex);
+        Instruction jump = instructions.get(instructionIndex + 1);
+        if (!isComparisonInstruction(condition) || jump.getOpcode() != Opcode.JMP) {
+            return null;
+        }
+
+        convertInstructionToAST(condition, instructionIndex);
+        Object result = convertInstructionToAST(jump, instructionIndex + 1);
+        return result instanceof PendingIf ? (PendingIf) result : null;
+    }
+
     /**
      * 将指令转换为AST节点或PendingIf对象（主转换方法）
      * 
@@ -504,10 +520,14 @@ public class InstructionToASTConverter {
         SourcePos pos = new SourcePos(instructionIndex, -1);
 
         // 赋值语句
+        String targetName = TransformUtils.transformRegister(RA);
+        if ("{}".equals(targetName)) {
+            targetName = "R" + a;
+        }
         List<Expression> left = new ArrayList<>();
-        left.add(new Name(TransformUtils.transformRegister(RA), pos));
+        left.add(new Name(targetName, pos));
         List<Expression> right = new ArrayList<>();
-        right.add(new Name("{}", pos));
+        right.add(new TableConstructor(new ArrayList<>(), pos));
         return new Assign(left, right, pos);
     }
 
@@ -582,7 +602,7 @@ public class InstructionToASTConverter {
         Expression right = new Name("R" + c, new SourcePos(instructionIndex, -1));
 
         // 二元操作
-        String opStr = opcode.toString().toLowerCase();
+        String opStr = arithmeticOperator(opcode);
         Expression binaryOp = new BinaryOp(opStr, left, right, new SourcePos(instructionIndex, -1));
 
         List<Expression> leftList = new ArrayList<>();
@@ -624,6 +644,25 @@ public class InstructionToASTConverter {
         List<Expression> rightList = new ArrayList<>();
         rightList.add(unaryOp);
         return new Assign(leftList, rightList, new SourcePos(instructionIndex, -1));
+    }
+
+    private String arithmeticOperator(Opcode opcode) {
+        switch (opcode) {
+            case ADD:
+                return "+";
+            case SUB:
+                return "-";
+            case MUL:
+                return "*";
+            case DIV:
+                return "/";
+            case MOD:
+                return "%";
+            case POW:
+                return "^";
+            default:
+                return opcode.toString().toLowerCase();
+        }
     }
 
     private String unaryOperator(Opcode opcode, RegisterEntity operand) {
@@ -900,25 +939,38 @@ public class InstructionToASTConverter {
      * @return 生成的AST节点
      */
     private AstNode convertComparisonInstruction(Instruction instruction, int instructionIndex) {
-        // OP_JMP sBx pc+=sBx
         int a = instruction.getA();
         int b = instruction.getB();
         int c = instruction.getC();
         Opcode opcode = instruction.getOpcode();
+        SourcePos pos = new SourcePos(instructionIndex, -1);
+        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
 
-        // 比较指令：if (R(a) op R(b)) then pc += c
+        Expression left = rkExpression(registerState, b, pos);
+        Expression right = rkExpression(registerState, c, pos);
+        String opStr = comparisonOperator(opcode, a);
+        Expression condition = new BinaryOp(opStr, left, right, pos);
 
-        // 左操作数
-        Expression left = new Name("R" + a, new SourcePos(instructionIndex, -1));
+        pendingTest = new PendingTest(condition, true, instructionIndex, PendingTest.TestType.TEST, pos);
+        return null;
+    }
 
-        // 右操作数
-        Expression right = new Name("R" + b, new SourcePos(instructionIndex, -1));
+    private String comparisonOperator(Opcode opcode, int a) {
+        if (opcode == Opcode.EQ) {
+            return a == 0 ? "==" : "~=";
+        }
+        if (opcode == Opcode.LT) {
+            return a == 0 ? "<" : ">=";
+        }
+        if (opcode == Opcode.LE) {
+            return a == 0 ? "<=" : ">";
+        }
+        return opcode.toString().toLowerCase();
+    }
 
-        // 二元比较操作
-        String opStr = opcode.toString().toLowerCase();
-        Expression binaryOp = new BinaryOp(opStr, left, right, new SourcePos(instructionIndex, -1));
-
-        return binaryOp;
+    private boolean isComparisonInstruction(Instruction instruction) {
+        Opcode opcode = instruction.getOpcode();
+        return opcode == Opcode.EQ || opcode == Opcode.LT || opcode == Opcode.LE;
     }
 
     /**
