@@ -21,7 +21,9 @@ public class AstCodeEmitter {
 
         // 如果生成的是Block，直接设置为上下文的astBlock
         if (ast instanceof com.github.relua.ast.Block) {
-            context.setAstBlock((com.github.relua.ast.Block) ast);
+            com.github.relua.ast.Block block = (com.github.relua.ast.Block) ast;
+            new AstCleanupPass().cleanup(block);
+            context.setAstBlock(block);
         } else {
             // 否则，创建一个新的Block，并将AST添加到其中
             com.github.relua.ast.Block block = new com.github.relua.ast.Block(null);
@@ -31,6 +33,7 @@ public class AstCodeEmitter {
                 com.github.relua.ast.Expression expr = (com.github.relua.ast.Expression) ast;
                 block.statements.add(new com.github.relua.ast.ExpressionStatement(expr, expr.pos));
             }
+            new AstCleanupPass().cleanup(block);
             context.setAstBlock(block);
         }
     }

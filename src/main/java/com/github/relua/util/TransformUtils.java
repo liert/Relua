@@ -18,6 +18,9 @@ public class TransformUtils {
      * 
      */
     public static String transformRegister(RegisterEntity register) {
+        if (register.getValue() instanceof Expression) {
+            return register.getName();
+        }
         if (register.getFromType() == FromType.CONSTANT || register.getFromType() == FromType.GLOBAL) {
             return register.getValue().toString();
         }
@@ -33,6 +36,9 @@ public class TransformUtils {
     }
 
     public static Expression transformToAstNode(RegisterEntity register, int instructionIndex) {
+        if (register.getValue() instanceof Expression) {
+            return (Expression) register.getValue();
+        }
         switch (register.getType()) {
             case STRING:
                 return new StringConst(transformRegister(register), new SourcePos(instructionIndex, -1));

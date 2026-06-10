@@ -9,6 +9,10 @@ public class TableConstructor extends Expression {
         super(NodeType.TABLE_CONSTR, pos);
         this.fields = fields;
     }
+
+    public void addArrayField(Expression value) {
+        this.fields.add(new TableField(null, value));
+    }
     
     @Override
     public <R> R accept(AstVisitor<R> visitor) {

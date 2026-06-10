@@ -2,6 +2,9 @@ package com.github.relua.decompiler.ir;
 
 import com.github.relua.decompiler.CodeGeneratorContext;
 import com.github.relua.decompiler.DecompilerPipeline;
+import com.github.relua.ast.Expression;
+import com.github.relua.ast.SourcePos;
+import com.github.relua.ast.TableConstructor;
 import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Constant;
@@ -259,9 +262,8 @@ public class IRBuilder {
         int b = instruction.getB();
         int c = instruction.getC();
 
-        RegisterEntity RA = register.getRegisterEntity(a);
-
-        register.setRegisterEntity(a, "{}", ValueType.TABLE, FromType.CONSTANT);
+        register.setRegisterEntity(a, new TableConstructor(new java.util.ArrayList<>(), new SourcePos(instruction.getPc(), -1)),
+                ValueType.TABLE, FromType.CONSTANT);
     }
 
     private void processSelfInstruction(Chunk chunk, Instruction instruction, Register currentState) {
@@ -379,8 +381,19 @@ public class IRBuilder {
     }
 
     private void processSetListInstruction(Chunk chunk, Instruction instruction, Register currentState) {
-        // 处理SETLIST指令
-        // 不修改寄存器状态
+        int a = instruction.getA();
+        int b = instruction.getB();
+        RegisterEntity tableEntity = currentState.getRegisterEntity(a);
+        if (!(tableEntity.getValue() instanceof TableConstructor)) {
+            return;
+        }
+
+        TableConstructor table = (TableConstructor) tableEntity.getValue();
+        for (int i = 1; i <= b; i++) {
+            RegisterEntity valueEntity = currentState.getRegisterEntity(a + i);
+            Expression value = TransformUtils.transformToAstNode(valueEntity, instruction.getPc());
+            table.addArrayField(value);
+        }
     }
 
     private void processCloseInstruction(Chunk chunk, Instruction instruction, Register currentState) {

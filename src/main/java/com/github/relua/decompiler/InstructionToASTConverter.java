@@ -514,6 +514,10 @@ public class InstructionToASTConverter {
         int b = instruction.getB();
         int c = instruction.getC();
 
+        if (isArrayTableInitialization(instructionIndex, a)) {
+            return null;
+        }
+
         Register register = pipeline.getRegisterByInstructionIndex(instructionIndex);
         RegisterEntity RA = register.getRegisterEntity(a);
 
@@ -524,11 +528,28 @@ public class InstructionToASTConverter {
         if ("{}".equals(targetName)) {
             targetName = "R" + a;
         }
+        Expression tableExpression = RA.getValue() instanceof TableConstructor
+                ? (TableConstructor) RA.getValue()
+                : new TableConstructor(new ArrayList<>(), pos);
         List<Expression> left = new ArrayList<>();
         left.add(new Name(targetName, pos));
         List<Expression> right = new ArrayList<>();
-        right.add(new TableConstructor(new ArrayList<>(), pos));
+        right.add(tableExpression);
         return new Assign(left, right, pos);
+    }
+
+    private boolean isArrayTableInitialization(int instructionIndex, int tableRegister) {
+        List<Instruction> instructions = chunk.getInstructions();
+        for (int pc = instructionIndex + 1; pc < instructions.size(); pc++) {
+            Instruction next = instructions.get(pc);
+            if (next.getOpcode() == Opcode.SETLIST && next.getA() == tableRegister) {
+                return true;
+            }
+            if (next.getOpcode() != Opcode.LOADK && next.getOpcode() != Opcode.MOVE) {
+                return false;
+            }
+        }
+        return false;
     }
 
     /**
@@ -844,6 +865,9 @@ public class InstructionToASTConverter {
      */
     private Expression resolveExpressionFromRegister(int registerIndex, int instructionIndex, Register registerState) {
         RegisterEntity entity = registerState.getRegisterEntity(registerIndex);
+        if (entity.getValue() instanceof Expression) {
+            return (Expression) entity.getValue();
+        }
         String tableName = TransformUtils.transformRegister(entity);
         if (tableName.equals("{}")) {
             return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
