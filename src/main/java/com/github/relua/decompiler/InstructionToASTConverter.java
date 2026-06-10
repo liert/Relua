@@ -590,8 +590,17 @@ public class InstructionToASTConverter {
         if (rk >= 256) {
             Constant constant = chunk.getConstant(rk - 256);
             Object value = constant != null ? constant.getValue() : null;
-            String stringValue = value != null ? value.toString() : "";
-            return new StringConst(stringValue, pos);
+            if (value == null) {
+                return new NilConst(pos);
+            } else if (value instanceof Double) {
+                // 数字常量：整数用 long 表示，浮点用 double
+                return new NumberConst((Double) value, pos);
+            } else if (value instanceof Boolean) {
+                return new BooleanConst((Boolean) value, pos);
+            } else {
+                // 字符串常量
+                return new StringConst(value.toString(), pos);
+            }
         }
         return new Name(TransformUtils.transformRegister(register.getRegisterEntity(rk)), pos);
     }
@@ -729,15 +738,32 @@ public class InstructionToASTConverter {
             Expression currentExpr;
 
             // 根据寄存器类型创建相应的表达式
-            if (currentEntity.getType() == ValueType.STRING) {
+            if (currentEntity.getType() == ValueType.STRING
+                    && currentEntity.getValue() != null) {
                 // 字符串常量
                 currentExpr = new StringConst(currentEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
-            } else if (currentEntity.getType() == ValueType.NUMBER) {
-                // 数值常量
-                currentExpr = new NumberConst((Double) currentEntity.getValue(), new SourcePos(instructionIndex, -1));
-            } else {
-                // 其他类型，作为变量处理
+            } else if (currentEntity.getType() == ValueType.NUMBER
+                    && currentEntity.getValue() != null) {
+                // 数值常量，安全类型转换
+                Object numVal = currentEntity.getValue();
+                double dVal;
+                if (numVal instanceof Double) {
+                    dVal = (Double) numVal;
+                } else if (numVal instanceof Integer) {
+                    dVal = ((Integer) numVal).doubleValue();
+                } else {
+                    try { dVal = Double.parseDouble(numVal.toString()); }
+                    catch (NumberFormatException e) { dVal = 0.0; }
+                }
+                currentExpr = new NumberConst(dVal, new SourcePos(instructionIndex, -1));
+            } else if (currentEntity.getValue() != null
+                    && !currentEntity.getValue().toString().equals("nil")
+                    && !currentEntity.getValue().toString().matches("R\\d+")) {
+                // 有具体值（全局变量名、函数名等）
                 currentExpr = new Name(currentEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
+            } else {
+                // UNKNOWN 类型或值为 nil/占位符，使用寄存器名避免输出 "nil"
+                currentExpr = new Name("R" + i, new SourcePos(instructionIndex, -1));
             }
 
             if (concatOp == null) {
