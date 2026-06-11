@@ -602,7 +602,16 @@ public class InstructionToASTConverter {
                 return new StringConst(value.toString(), pos);
             }
         }
-        return new Name(TransformUtils.transformRegister(register.getRegisterEntity(rk)), pos);
+        RegisterEntity entity = register.getRegisterEntity(rk);
+        if (entity != null) {
+            if (entity.getType() == ValueType.STRING) {
+                return new StringConst(TransformUtils.transformRegister(entity), pos);
+            }
+            if (entity.getFromType() == FromType.CONSTANT && entity.getValue() instanceof String) {
+                return new StringConst(entity.getValue().toString(), pos);
+            }
+        }
+        return TransformUtils.transformToAstNode(entity, pos.pc);
     }
 
     /**

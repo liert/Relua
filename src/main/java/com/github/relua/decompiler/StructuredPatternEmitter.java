@@ -6,12 +6,15 @@ import java.util.List;
 
 import com.github.relua.ast.BinaryOp;
 import com.github.relua.ast.Block;
+import com.github.relua.ast.BooleanConst;
 import com.github.relua.ast.Expression;
 import com.github.relua.ast.ExpressionStatement;
 import com.github.relua.ast.FunctionCall;
 import com.github.relua.ast.IfStatement;
 import com.github.relua.ast.IndexExpr;
 import com.github.relua.ast.Name;
+import com.github.relua.ast.NilConst;
+import com.github.relua.ast.NumberConst;
 import com.github.relua.ast.SourcePos;
 import com.github.relua.ast.Statement;
 import com.github.relua.ast.StringConst;
@@ -127,9 +130,26 @@ public class StructuredPatternEmitter {
         if (rk >= 256) {
             Constant constant = chunk.getConstant(rk - 256);
             Object value = constant != null ? constant.getValue() : null;
-            return new StringConst(value == null ? "" : value.toString(), pos);
+            if (value == null) {
+                return new NilConst(pos);
+            } else if (value instanceof Double) {
+                return new NumberConst((Double) value, pos);
+            } else if (value instanceof Boolean) {
+                return new BooleanConst((Boolean) value, pos);
+            } else {
+                return new StringConst(value.toString(), pos);
+            }
         }
-        return new Name(TransformUtils.transformRegister(register.getRegisterEntity(rk)), pos);
+        com.github.relua.model.Register.RegisterEntity entity = register.getRegisterEntity(rk);
+        if (entity != null) {
+            if (entity.getType() == com.github.relua.model.ValueType.STRING) {
+                return new StringConst(TransformUtils.transformRegister(entity), pos);
+            }
+            if (entity.getFromType() == com.github.relua.model.FromType.CONSTANT && entity.getValue() instanceof String) {
+                return new StringConst(entity.getValue().toString(), pos);
+            }
+        }
+        return TransformUtils.transformToAstNode(entity, pos.pc);
     }
 
     private class ShortCircuitAndIfPattern {
