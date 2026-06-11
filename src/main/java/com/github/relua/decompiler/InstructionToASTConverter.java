@@ -372,7 +372,7 @@ public class InstructionToASTConverter {
         // 从常量表读取字符串
         Object constVal = chunk.getConstants().get(bx).getValue();
         String name = constVal != null ? constVal.toString() : "";
-        if (name.startsWith("\"") && name.endsWith("\"")) {
+        if (name.length() >= 2 && name.startsWith("\"") && name.endsWith("\"")) {
             name = name.substring(1, name.length() - 1);
         }
 
@@ -581,7 +581,7 @@ public class InstructionToASTConverter {
         }
         
         // 处理字符串类型，去除引号
-        if (methodName != null && methodName.startsWith("\"") && methodName.endsWith("\"")) {
+        if (methodName != null && methodName.length() >= 2 && methodName.startsWith("\"") && methodName.endsWith("\"")) {
             methodName = methodName.substring(1, methodName.length() - 1);
         }
 

@@ -176,7 +176,7 @@ public class IRBuilder {
             // 处理字符串类型，去除引号
             if (type == ValueType.STRING) {
                 String strValue = value.toString();
-                if (strValue.startsWith("\"") && strValue.endsWith("\"")) {
+                if (strValue.length() >= 2 && strValue.startsWith("\"") && strValue.endsWith("\"")) {
                     value = strValue.substring(1, strValue.length() - 1);
                 }
             }
@@ -209,7 +209,7 @@ public class IRBuilder {
 
         if (bx < chunk.getConstants().size()) {
             String varName = chunk.getConstants().get(bx).getValue().toString();
-            if (varName.startsWith("\"") && varName.endsWith("\"")) {
+            if (varName.length() >= 2 && varName.startsWith("\"") && varName.endsWith("\"")) {
                 varName = varName.substring(1, varName.length() - 1);
             }
             currentState.setRegisterEntity(a, varName, ValueType.GLOBAL, FromType.GLOBAL);
@@ -223,7 +223,7 @@ public class IRBuilder {
 
         if (bx < chunk.getConstants().size()) {
             String varName = chunk.getConstants().get(bx).getValue().toString();
-            if (varName.startsWith("\"") && varName.endsWith("\"")) {
+            if (varName.length() >= 2 && varName.startsWith("\"") && varName.endsWith("\"")) {
                 varName = varName.substring(1, varName.length() - 1);
             }
             // 设置全局变量时，将寄存器标记为全局变量
