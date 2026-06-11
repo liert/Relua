@@ -325,8 +325,20 @@ public class IRBuilder {
         // 处理一元操作指令
         int a = instruction.getA();
         int b = instruction.getB();
-        // 简单处理：保持原类型
-        currentState.move(a, b);
+        Opcode opcode = instruction.getOpcode();
+        if (opcode == Opcode.LEN) {
+            // LEN 结果始终是数字
+            currentState.setRegisterEntity(a, null, ValueType.NUMBER, FromType.REGISTER);
+        } else if (opcode == Opcode.UNM) {
+            // UNM 结果始终是数字
+            currentState.setRegisterEntity(a, null, ValueType.NUMBER, FromType.REGISTER);
+        } else if (opcode == Opcode.NOT) {
+            // NOT 结果始终是布尔值
+            currentState.setRegisterEntity(a, null, ValueType.BOOLEAN, FromType.REGISTER);
+        } else {
+            // 其他一元指令：保持原类型
+            currentState.move(a, b);
+        }
     }
 
     private void processConcatInstruction(Chunk chunk, Instruction instruction, Register currentState) {

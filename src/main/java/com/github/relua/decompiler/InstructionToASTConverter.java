@@ -678,8 +678,9 @@ public class InstructionToASTConverter {
         // 目标变量
         Expression target = new Name("R" + a, new SourcePos(instructionIndex, -1));
 
-        // 操作数
-        Expression operand = new Name("R" + b, new SourcePos(instructionIndex, -1));
+        // 操作数：通过寄存器状态解析真实名称（如参数名、全局变量名等）
+        RegisterEntity operandEntity = registerState.getRegisterEntity(b);
+        Expression operand = TransformUtils.transformToAstNode(operandEntity, instructionIndex);
 
         // 一元操作
         String opStr = unaryOperator(opcode, registerState.getRegisterEntity(b));
