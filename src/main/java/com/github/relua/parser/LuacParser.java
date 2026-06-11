@@ -68,9 +68,24 @@ public class LuacParser {
      * @throws IOException IO异常
      */
     private BytecodeFormatProfile parseHeader(BinaryReader reader, LuacFile luacFile) throws IOException {
-        // 读取魔数
+        // 跳过 shebang 行（如 #!/usr/bin/lua\n）
+        byte firstByte = reader.readByte();
+        if (firstByte == '#') {
+            // 读取直到换行符结束
+            while (true) {
+                byte b = reader.readByte();
+                if (b == '\n' || b == '\r') {
+                    break;
+                }
+            }
+            // 读取真正的魔数第一个字节
+            firstByte = reader.readByte();
+        }
+
+        // 读取魔数（firstByte + 后续3字节）
         byte[] magicNumber = new byte[4];
-        for (int i = 0; i < 4; i++) {
+        magicNumber[0] = firstByte;
+        for (int i = 1; i < 4; i++) {
             magicNumber[i] = reader.readByte();
         }
 
