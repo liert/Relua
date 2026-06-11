@@ -1197,6 +1197,12 @@ public class InstructionToASTConverter {
 
         // ============= 识别 IF 结构：TEST + JMP =============
         if (pendingTest != null) {
+            // 向后跳转（循环条件）不生成 PendingIf，避免 buildBlock 范围回退导致无限递归
+            if (jmpTarget <= instructionIndex) {
+                pendingTest = null;
+                return null;
+            }
+
             // 使用之前记录的TEST信息生成PendingIf
             Expression condition = pendingTest.condition;
 
