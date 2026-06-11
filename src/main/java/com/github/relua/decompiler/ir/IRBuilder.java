@@ -441,7 +441,7 @@ public class IRBuilder {
                 context.addUpvalue(i, new UpValue(i, RB.getName(), RB.getValue(), RB.getType(), RB.getFromType()));
                 // Logger.debug(String.format("%s: 上值 %s 写入寄存器 R%d", targetChunk, RB.getName(), a + i));
             } else if (nextInstruction.getOpcode() == Opcode.GETUPVAL) {
-                UpValue upvalue = currentContext.getUpvalue(bx);
+                UpValue upvalue = currentContext.getUpvalue(nextInstruction.getB());
                 context.addUpvalue(i, upvalue);
                 // Logger.debug(String.format("%s: 上值 %s 写入寄存器 R%d", targetChunk, upvalue.getName(), a + i));
             } else {

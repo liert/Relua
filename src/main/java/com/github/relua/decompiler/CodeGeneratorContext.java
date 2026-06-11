@@ -320,7 +320,10 @@ public class CodeGeneratorContext {
      * @param upvalue 上值对象
      */
     public void addUpvalue(int index, UpValue upvalue) {
-        this.upvalues.add(upvalue);
+        while (this.upvalues.size() <= index) {
+            this.upvalues.add(null);
+        }
+        this.upvalues.set(index, upvalue);
     }
 
     // /**
