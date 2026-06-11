@@ -78,14 +78,7 @@ public class BasicBlockBuilder {
         BasicBlock currentBlock = new BasicBlock(0);
         basicBlocks.add(currentBlock);
 
-        boolean encounteredReturn = false;
-
         for (int i = 0; i < instructions.size(); i++) {
-            // 如果已经遇到了RETURN指令，跳过后续无法访问的指令
-            if (encounteredReturn) {
-                break;
-            }
-
             // Logger.debug(BytecodeFormatter.formatInstruction(chunk, instructions.get(i), i));
             if (instructionToBlockMap.containsKey(i)) {
                 currentBlock = instructionToBlockMap.get(i);
@@ -110,9 +103,6 @@ public class BasicBlockBuilder {
                     instructionToBlockMap.put(i + 1, currentBlock);
                 }
             }
-
-            // 标记是否遇到了RETURN指令
-            encounteredReturn = opcode == Opcode.RETURN || opcode == Opcode.TAILCALL;
         }
     }
 
