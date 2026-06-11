@@ -132,6 +132,10 @@ public class DataFlowAnalyzer {
      * 
      * 典型场景：GETTABLE R3 ... ; CALL R3 1 2 ; SETTABLE ... R3
      * GETTABLE的结果在CALL之前未被读取，被CALL的返回值覆盖，因此GETTABLE是死赋值。
+     * 
+     * 当死赋值的寄存器在重定义表达式中被引用时（如 R19 = string.len(R5) 被 R19 = R19 + 1 覆盖），
+     * 需要先将死值代入重定义表达式（R19 = string.len(R5) + 1），再移除死赋值，
+     * 避免后续内联时出现未定义的寄存器引用。
      */
     private void removeDeadRegisterAssignments(Block block) {
         List<Statement> stmts = block.statements;
@@ -146,15 +150,23 @@ public class DataFlowAnalyzer {
                     continue;
                 }
 
+                // 提取死赋值的右侧定义表达式
+                Expression deadExpr;
+                if (stmt instanceof Assign) {
+                    deadExpr = ((Assign) stmt).right.get(0);
+                } else {
+                    deadExpr = ((LocalAssign) stmt).right.get(0);
+                }
+
                 boolean foundUse = false;
-                boolean redefined = false;
+                int redefineIndex = -1;
 
                 for (int j = i + 1; j < stmts.size(); j++) {
                     Statement nextStmt = stmts.get(j);
 
                     // 检查该寄存器是否被重新定值
                     if (hasAssignmentTo(nextStmt, regName)) {
-                        redefined = true;
+                        redefineIndex = j;
                         break;
                     }
 
@@ -167,7 +179,14 @@ public class DataFlowAnalyzer {
                 }
 
                 // 寄存器在未被读取的情况下被重新定值，当前赋值为死赋值
-                if (redefined && !foundUse) {
+                if (redefineIndex != -1 && !foundUse) {
+                    // 如果重定义表达式引用了该寄存器，先将死值代入
+                    Statement redefineStmt = stmts.get(redefineIndex);
+                    if (countVariableUses(redefineStmt, regName) > 0) {
+                        Statement newRedefine = (Statement) replaceVariableWithExpression(
+                                redefineStmt, regName, deadExpr);
+                        stmts.set(redefineIndex, newRedefine);
+                    }
                     stmts.remove(i);
                     changed = true;
                     break;
