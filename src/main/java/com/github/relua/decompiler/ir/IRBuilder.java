@@ -227,8 +227,18 @@ public class IRBuilder {
 
         RegisterEntity RB = currentState.getRegisterEntity(b);
 
-        String value = String.format("%s[%s]", TransformUtils.transformRegister(RB),
-                TransformUtils.transformRX(chunk, currentState, c));
+        String rx = TransformUtils.transformRX(chunk, currentState, c);
+        String value;
+        if (rx.startsWith("\"") && rx.endsWith("\"") && rx.length() >= 2) {
+            String key = rx.substring(1, rx.length() - 1);
+            if (key.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+                value = String.format("%s.%s", TransformUtils.transformRegister(RB), key);
+            } else {
+                value = String.format("%s[%s]", TransformUtils.transformRegister(RB), rx);
+            }
+        } else {
+            value = String.format("%s[%s]", TransformUtils.transformRegister(RB), rx);
+        }
         currentState.setRegisterEntity(a, value, ValueType.TABLE, FromType.GLOBAL);
     }
 
@@ -309,8 +319,8 @@ public class IRBuilder {
     private void processConcatInstruction(Chunk chunk, Instruction instruction, Register currentState) {
         // OP_CONCAT A B C R(A) := R(B).. ... ..R(C)
         int a = instruction.getA();
-        // 简单处理：记录为字符串类型
-        currentState.setRegisterEntity(a, "R" + a, ValueType.STRING, FromType.REGISTER);
+        // 简单处理：记录为字符串类型，但值设为 null，代表一个未知的临时字符串变量
+        currentState.setRegisterEntity(a, null, ValueType.STRING, FromType.REGISTER);
     }
 
     private void processTestInstruction(Chunk chunk, Instruction instruction, Register currentState) {
@@ -345,12 +355,16 @@ public class IRBuilder {
             for (int i = 0; i < c - 1; i++) {
                 int registerIndex = a + i;
                 // 更新寄存器状态，将返回值标记为UNKNOWN类型
-                String RAValue = RA.getValue().toString();
+                String RAValue = (RA != null && RA.getValue() != null) ? RA.getValue().toString() : "";
                 // Logger.debug(String.format("调用函数 %s %s", RAValue,
                 // RAValue.equals("require")));
-                if (RAValue.equals("require")) {
+                if ("require".equals(RAValue)) {
                     RegisterEntity argsEntity = currentState.getRegisterEntity(a + 1);
-                    RAValue = argsEntity.getValue().toString().replace(".", "_");
+                    if (argsEntity != null && argsEntity.getValue() != null) {
+                        RAValue = argsEntity.getValue().toString().replace(".", "_");
+                    } else {
+                        RAValue = "R" + registerIndex;
+                    }
                     currentState.setRegisterEntity(registerIndex, RAValue, ValueType.OBJECT, FromType.GLOBAL);
                     // Logger.debug(String.format("require 调用，返回值 %s 写入寄存器 R%d", RAValue,
                     // registerIndex));

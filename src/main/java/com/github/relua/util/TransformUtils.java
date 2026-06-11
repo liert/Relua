@@ -19,10 +19,13 @@ public class TransformUtils {
      * 
      */
     public static String transformRegister(RegisterEntity register) {
+        if (register == null) {
+            return "";
+        }
         if (register.getValue() instanceof Expression) {
             return register.getName();
         }
-        if (register.getFromType() == FromType.CONSTANT || register.getFromType() == FromType.GLOBAL) {
+        if ((register.getFromType() == FromType.CONSTANT || register.getFromType() == FromType.GLOBAL) && register.getValue() != null) {
             return register.getValue().toString();
         }
         return register.getName();
@@ -32,11 +35,15 @@ public class TransformUtils {
         if (index < 256) {
             return transformRegister(register.getRegisterEntity(index));
         } else {
-            return  "\"" + chunk.getConstant(index - 256).getValue().toString() + "\"";
+            Object val = chunk.getConstant(index - 256).getValue();
+            return  "\"" + (val != null ? val.toString() : "") + "\"";
         }
     }
 
     public static Expression transformToAstNode(RegisterEntity register, int instructionIndex) {
+        if (register == null) {
+            return new Name("", new SourcePos(instructionIndex, -1));
+        }
         if (register.getValue() instanceof Expression) {
             if (register.getValue() instanceof TableConstructor
                     && ((TableConstructor) register.getValue()).isEmpty()) {
@@ -46,7 +53,10 @@ public class TransformUtils {
         }
         switch (register.getType()) {
             case STRING:
-                return new StringConst(transformRegister(register), new SourcePos(instructionIndex, -1));
+                if (register.getFromType() == FromType.CONSTANT && register.getValue() != null && !register.getName().equals(register.getValue().toString())) {
+                    return new StringConst(transformRegister(register), new SourcePos(instructionIndex, -1));
+                }
+                return new Name(transformRegister(register), new SourcePos(instructionIndex, -1));
             default:
                 return new Name(transformRegister(register), new SourcePos(instructionIndex, -1));
         }

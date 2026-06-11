@@ -24,6 +24,7 @@ import java.util.ArrayDeque;
 public class InstructionHandler {
     private CodeGeneratorContext codeGenContext; // 代码生成上下文
     private final DecompilerPipeline pipeline;
+    private Set<BasicBlock> reachableBlocks;
 
     /**
      * 构造函数
@@ -913,6 +914,13 @@ public class InstructionHandler {
      * @return 生成的AST节点
      */
     private AstNode generateBasicBlockAST(BasicBlock block, Chunk chunk) {
+        if (reachableBlocks == null || reachableBlocks.isEmpty()) {
+            reachableBlocks = getReachableBlocks(chunk);
+        }
+        // 如果块不可达，直接跳过
+        if (!reachableBlocks.contains(block)) {
+            return null;
+        }
         // 如果块已经被访问过，则跳过
         if (block.isVisited()) {
             // System.out.println("       - 跳过已访问的基本块，范围: " + block.getStartIndex() + "-" + block.getEndIndex());
@@ -1103,5 +1111,26 @@ public class InstructionHandler {
 
     public CodeGeneratorContext getContext() {
         return this.codeGenContext;
+    }
+
+    private Set<BasicBlock> getReachableBlocks(Chunk chunk) {
+        List<BasicBlock> basicBlocks = pipeline.getBasicBlocks(chunk.getFunction());
+        Set<BasicBlock> reachable = new HashSet<>();
+        if (basicBlocks.isEmpty()) {
+            return reachable;
+        }
+        java.util.Queue<BasicBlock> queue = new java.util.LinkedList<>();
+        BasicBlock entry = basicBlocks.get(0);
+        reachable.add(entry);
+        queue.add(entry);
+        while (!queue.isEmpty()) {
+            BasicBlock curr = queue.poll();
+            for (BasicBlock succ : curr.getSuccessors()) {
+                if (reachable.add(succ)) {
+                    queue.add(succ);
+                }
+            }
+        }
+        return reachable;
     }
 }

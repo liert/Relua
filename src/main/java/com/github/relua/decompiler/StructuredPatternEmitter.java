@@ -142,10 +142,8 @@ public class StructuredPatternEmitter {
         }
         com.github.relua.model.Register.RegisterEntity entity = register.getRegisterEntity(rk);
         if (entity != null) {
-            if (entity.getType() == com.github.relua.model.ValueType.STRING) {
-                return new StringConst(TransformUtils.transformRegister(entity), pos);
-            }
-            if (entity.getFromType() == com.github.relua.model.FromType.CONSTANT && entity.getValue() instanceof String) {
+            if (entity.getFromType() == com.github.relua.model.FromType.CONSTANT && entity.getValue() instanceof String
+                    && !entity.getName().equals(entity.getValue().toString())) {
                 return new StringConst(entity.getValue().toString(), pos);
             }
         }

@@ -170,9 +170,9 @@ public class InstructionToASTConverter {
 
             // 源值
             Expression source;
-            if (sourceEntity.getType() == ValueType.STRING) {
+            if (sourceEntity.getType() == ValueType.STRING && sourceEntity.getFromType() == FromType.CONSTANT && sourceEntity.getValue() != null && !sourceEntity.getName().equals(sourceEntity.getValue().toString())) {
                 source = new StringConst(sourceEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
-            } else if (sourceEntity.getType() == ValueType.NUMBER) {
+            } else if (sourceEntity.getType() == ValueType.NUMBER && sourceEntity.getValue() != null) {
                 Object value = sourceEntity.getValue();
                 Double numberValue;
                 if (value instanceof Double) {
@@ -190,13 +190,15 @@ public class InstructionToASTConverter {
                     numberValue = 0.0;
                 }
                 source = new NumberConst(numberValue, new SourcePos(instructionIndex, -1));
-            } else if (sourceEntity.getType() == ValueType.BOOLEAN) {
+            } else if (sourceEntity.getType() == ValueType.BOOLEAN && sourceEntity.getValue() != null) {
                 source = new BooleanConst((Boolean) sourceEntity.getValue(), new SourcePos(instructionIndex, -1));
             } else if (sourceEntity.getType() == ValueType.NIL) {
                 source = new NilConst(new SourcePos(instructionIndex, -1));
-            } else {
+            } else if (sourceEntity.getValue() != null) {
                 // 全局变量
                 source = new Name(sourceEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
+            } else {
+                source = new Name("R" + b, new SourcePos(instructionIndex, -1));
             }
 
             List<Expression> left = new ArrayList<>();
@@ -342,7 +344,8 @@ public class InstructionToASTConverter {
         pipeline.getContext().removePendingSelf(a);
 
         // 从常量表读取字符串
-        String name = chunk.getConstants().get(bx).getValue().toString();
+        Object constVal = chunk.getConstants().get(bx).getValue();
+        String name = constVal != null ? constVal.toString() : "";
         if (name.startsWith("\"") && name.endsWith("\"")) {
             name = name.substring(1, name.length() - 1);
         }
@@ -395,10 +398,10 @@ public class InstructionToASTConverter {
         // // nil值
         // source = new NilConst(new SourcePos(instructionIndex, -1));
         // } else
-        if (sourceEntity.getFromType() == FromType.GLOBAL) {
+        if (sourceEntity.getFromType() == FromType.GLOBAL && sourceEntity.getValue() != null) {
             // 全局变量
             source = new Name(sourceEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
-        } else if (sourceEntity.getFromType() == FromType.CONSTANT) {
+        } else if (sourceEntity.getFromType() == FromType.CONSTANT && sourceEntity.getValue() != null) {
             source = new StringConst(sourceEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
         } else {
             source = new Name("R" + a, new SourcePos(instructionIndex, -1));
@@ -407,7 +410,8 @@ public class InstructionToASTConverter {
         // 目标全局变量
         String name = "RK" + bx;
         if (bx < chunk.getConstants().size()) {
-            name = chunk.getConstants().get(bx).getValue().toString();
+            Object cv = chunk.getConstants().get(bx).getValue();
+            name = cv != null ? cv.toString() : "RK" + bx;
         }
 
         if (source != null) {
@@ -448,7 +452,7 @@ public class InstructionToASTConverter {
 
         // 表访问表达式
         Expression table = new Name("R" + b, pos);
-        if (RB.getType() == ValueType.GLOBAL) {
+        if (RB.getType() == ValueType.GLOBAL && RB.getValue() != null) {
             table = new Name(RB.getValue().toString(), pos);
         }
 
@@ -604,10 +608,8 @@ public class InstructionToASTConverter {
         }
         RegisterEntity entity = register.getRegisterEntity(rk);
         if (entity != null) {
-            if (entity.getType() == ValueType.STRING) {
-                return new StringConst(TransformUtils.transformRegister(entity), pos);
-            }
-            if (entity.getFromType() == FromType.CONSTANT && entity.getValue() instanceof String) {
+            if (entity.getFromType() == FromType.CONSTANT && entity.getValue() instanceof String
+                    && !entity.getName().equals(entity.getValue().toString())) {
                 return new StringConst(entity.getValue().toString(), pos);
             }
         }
@@ -748,7 +750,9 @@ public class InstructionToASTConverter {
 
             // 根据寄存器类型创建相应的表达式
             if (currentEntity.getType() == ValueType.STRING
-                    && currentEntity.getValue() != null) {
+                    && currentEntity.getFromType() == FromType.CONSTANT
+                    && currentEntity.getValue() != null
+                    && !currentEntity.getName().equals(currentEntity.getValue().toString())) {
                 // 字符串常量
                 currentExpr = new StringConst(currentEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
             } else if (currentEntity.getType() == ValueType.NUMBER
@@ -858,10 +862,12 @@ public class InstructionToASTConverter {
                 Name returnName = new Name("R" + (a + i), pos);
 
                 RegisterEntity RA = registerState.getRegisterEntity(a);
-                String RAValue = RA.getValue().toString();
-                if (RAValue.equals("require")) {
+                String RAValue = (RA != null && RA.getValue() != null) ? RA.getValue().toString() : "";
+                if ("require".equals(RAValue)) {
                     RegisterEntity argsEntity = registerState.getRegisterEntity(a + 1);
-                    returnName.name = argsEntity.getValue().toString().replace(".", "_");
+                    if (argsEntity != null && argsEntity.getValue() != null) {
+                        returnName.name = argsEntity.getValue().toString().replace(".", "_");
+                    }
                 }
 
                 targets.add(returnName);
@@ -919,10 +925,17 @@ public class InstructionToASTConverter {
                 case TABLE:
                 case OBJECT:
                     // 全局变量、函数引用、表引用
+                    if (entity.getValue() == null) {
+                        return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
+                    }
                     return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
                 case STRING:
-                    // 字符串常量
-                    return new StringConst(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
+                    // 只有当实体是常量（例如 FromType == CONSTANT）且其 value 不等于寄存器自身名称时才包装为 StringConst 
+                    if (entity.getFromType() == FromType.CONSTANT && entity.getValue() != null 
+                            && !entity.getName().equals(entity.getValue().toString())) {
+                        return new StringConst(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
+                    }
+                    return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
                 case NUMBER:
                     // 数值常量
                     if (entity.getValue() instanceof Double) {
@@ -930,6 +943,9 @@ public class InstructionToASTConverter {
                     } else if (entity.getValue() instanceof Integer) {
                         return new NumberConst(((Integer) entity.getValue()).doubleValue(), new SourcePos(instructionIndex, -1));
                     } else {
+                        if (entity.getValue() == null) {
+                            return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
+                        }
                         return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
                     }
                 case BOOLEAN:
@@ -937,6 +953,9 @@ public class InstructionToASTConverter {
                     if (entity.getValue() instanceof Boolean) {
                         return new BooleanConst((Boolean) entity.getValue(), new SourcePos(instructionIndex, -1));
                     } else {
+                        if (entity.getValue() == null) {
+                            return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
+                        }
                         return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
                     }
                 case NIL:
@@ -1101,7 +1120,7 @@ public class InstructionToASTConverter {
 
         // 操作数
         Name operand = new Name("R" + a, new SourcePos(instructionIndex, -1));
-        if (RA.getFromType() == FromType.GLOBAL) {
+        if (RA.getFromType() == FromType.GLOBAL && RA.getValue() != null) {
             operand.name = RA.getValue().toString();
         }
         Expression condition;

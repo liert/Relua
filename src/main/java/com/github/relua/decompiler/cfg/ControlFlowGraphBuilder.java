@@ -85,8 +85,8 @@ public class ControlFlowGraphBuilder {
                         currentBlock.addSuccessor(nextBlock);
                     }
                 }
-            } else if (opcode != Opcode.RETURN) {
-                // 其他非返回指令，添加下一条指令作为后继
+            } else if (opcode != Opcode.RETURN && opcode != Opcode.TAILCALL) {
+                // 其他非返回/尾调用指令，添加下一条指令作为后继
                 if (i + 1 < instructions.size()) {
                     BasicBlock nextBlock = pipeline.getBasicBlock(chunk.getFunction(), i + 1);
                     if (nextBlock != null && nextBlock != currentBlock) {
@@ -123,4 +123,3 @@ public class ControlFlowGraphBuilder {
         }
     }
 }
-

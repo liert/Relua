@@ -34,7 +34,7 @@ public enum LogLevel {
      * @return 如果当前级别大于等于指定级别则返回true，否则返回false
      */
     public boolean isGreaterOrEqual(LogLevel other) {
-        return this.level <= other.level;
+        return this.level >= other.level;
     }
 
     /**
