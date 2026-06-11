@@ -5,38 +5,57 @@ import com.github.relua.parser.LuacParser;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Decompiler测试用例
+ * Decompiler测试用例（小米 xqdatacenter.lua 反编译）
  */
 class DecompilerTest {
 
     @Test
-    void testDecompileVersionLua() throws IOException {
-        // 直接使用文件路径
-        String filePath = "F:\\liert\\www\\wr3000\\lua\\luci\\dispatcher.lua";
+    void testDecompileXqdatacenter() throws IOException {
+        // 小米固件 Fate Lua 字节码
+        String filePath = "src/test/resources/xiaomi/xqdatacenter.lua";
         File file = new File(filePath);
-        assertNotNull(file, "version.lua file not found");
-        assertTrue(file.exists(), "version.lua file does not exist");
-        
+        assertTrue(file.exists(), "xqdatacenter.lua file does not exist: " + file.getAbsolutePath());
+
         // 创建解析器和反编译器
         LuacParser parser = new LuacParser();
         Decompiler decompiler = new Decompiler();
-        
-        // 解析Luac文件
+
+        // 解析
         LuacFile luacFile = parser.parse(filePath);
-        assertNotNull(luacFile, "Failed to parse version.lua");
-        
+        assertNotNull(luacFile, "Failed to parse xqdatacenter.lua");
+
         // 反编译
         String luaCode = decompiler.decompile(luacFile);
-        assertNotNull(luaCode, "Failed to decompile version.lua");
+        assertNotNull(luaCode, "Failed to decompile");
         assertFalse(luaCode.isEmpty(), "Decompiled code is empty");
-        
-        // 打印反编译结果
-        System.out.println("Decompiled version.lua:");
-        System.out.println(luaCode);
+
+        // 写入输出文件
+        try (PrintWriter writer = new PrintWriter(new FileWriter("target/xqdatacenter_decompiled.lua"))) {
+            writer.print(luaCode);
+        }
+
+        // 打印 tunnelRequest 函数内容用于验证
+        System.out.println("=== tunnelRequest 函数 ===");
+        String[] lines = luaCode.split("\n");
+        boolean inTunnel = false;
+        int count = 0;
+        for (String line : lines) {
+            if (line.contains("function tunnelRequest")) {
+                inTunnel = true;
+                count = 0;
+            }
+            if (inTunnel) {
+                System.out.println(line);
+                count++;
+                if (count > 30) break;
+            }
+        }
     }
 }

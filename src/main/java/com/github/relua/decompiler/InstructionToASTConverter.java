@@ -522,19 +522,11 @@ public class InstructionToASTConverter {
             return null;
         }
 
-        Register register = pipeline.getRegisterByInstructionIndex(instructionIndex);
-        RegisterEntity RA = register.getRegisterEntity(a);
-
         SourcePos pos = new SourcePos(instructionIndex, -1);
 
-        // 赋值语句
-        String targetName = TransformUtils.transformRegister(RA);
-        if ("{}".equals(targetName)) {
-            targetName = "R" + a;
-        }
-        Expression tableExpression = RA.getValue() instanceof TableConstructor
-                ? (TableConstructor) RA.getValue()
-                : new TableConstructor(new ArrayList<>(), pos);
+        // NEWTABLE 的目标变量始终用寄存器名 R+a，避免使用指令执行前残留的旧值
+        String targetName = "R" + a;
+        Expression tableExpression = new TableConstructor(new ArrayList<>(), pos);
         List<Expression> left = new ArrayList<>();
         left.add(new Name(targetName, pos));
         List<Expression> right = new ArrayList<>();
@@ -632,25 +624,28 @@ public class InstructionToASTConverter {
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
 
-        // 算术指令：R(a) := R(b) op R(c)
+        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
+        SourcePos pos = new SourcePos(instructionIndex, -1);
+
+        // 算术指令：R(a) := RK(b) op RK(c)
         // 目标变量
-        Expression target = new Name("R" + a, new SourcePos(instructionIndex, -1));
+        Expression target = new Name("R" + a, pos);
 
-        // 左操作数
-        Expression left = new Name("R" + b, new SourcePos(instructionIndex, -1));
+        // 左操作数：解析真实的寄存器/常量名称
+        Expression left = rkExpression(registerState, b, pos);
 
-        // 右操作数
-        Expression right = new Name("R" + c, new SourcePos(instructionIndex, -1));
+        // 右操作数：解析真实的寄存器/常量名称
+        Expression right = rkExpression(registerState, c, pos);
 
         // 二元操作
         String opStr = arithmeticOperator(opcode);
-        Expression binaryOp = new BinaryOp(opStr, left, right, new SourcePos(instructionIndex, -1));
+        Expression binaryOp = new BinaryOp(opStr, left, right, pos);
 
         List<Expression> leftList = new ArrayList<>();
         leftList.add(target);
         List<Expression> rightList = new ArrayList<>();
         rightList.add(binaryOp);
-        return new Assign(leftList, rightList, new SourcePos(instructionIndex, -1));
+        return new Assign(leftList, rightList, pos);
     }
 
     /**

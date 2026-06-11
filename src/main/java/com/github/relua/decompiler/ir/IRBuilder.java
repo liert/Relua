@@ -145,9 +145,17 @@ public class IRBuilder {
         // 获取源寄存器的实体
         RegisterEntity srcEntity = currentState.getRegisterEntity(b);
 
-        // 复制源寄存器的完整状态到目标寄存器
-        // 确保复制所有属性，包括值和类型
-        currentState.setRegisterEntity(a, srcEntity.getValue(), srcEntity.getType(), srcEntity.getFromType());
+        // 对于 TABLE 类型（无论是否为空），目标寄存器记录为对源寄存器的命名引用
+        // 这样 CALL 参数展开时能显示正确的寄存器名（如 R0, R3 而非 {} 或 R5）
+        if (srcEntity.getType() == ValueType.TABLE) {
+            currentState.setRegisterEntity(a, "R" + b, ValueType.TABLE, FromType.GLOBAL);
+        } else if (srcEntity.getType() == ValueType.UNKNOWN && srcEntity.getValue() == null) {
+            // 当源是算术结果（UNKNOWN/null）时，目标记录为对源的命名引用
+            currentState.setRegisterEntity(a, "R" + b, ValueType.UNKNOWN, FromType.REGISTER);
+        } else {
+            // 复制源寄存器的完整状态到目标寄存器
+            currentState.setRegisterEntity(a, srcEntity.getValue(), srcEntity.getType(), srcEntity.getFromType());
+        }
     }
 
     private void processLoadKInstruction(Chunk chunk, Instruction instruction, Register currentState) {
@@ -302,10 +310,10 @@ public class IRBuilder {
     }
 
     private void processArithmeticInstruction(Chunk chunk, Instruction instruction, Register currentState) {
-        // 处理算术指令
+        // 处理算术指令 R(A) := RK(B) op RK(C)
         int a = instruction.getA();
-        // 简单处理：记录为数字类型
-        currentState.setRegisterEntity(a, "arithmetic_result", ValueType.NUMBER);
+        // 将结果标记为 REGISTER 类型，名称为 null，后续读取时会输出 R+a 形式
+        currentState.setRegisterEntity(a, null, ValueType.UNKNOWN, FromType.REGISTER);
     }
 
     private void processUnaryInstruction(Chunk chunk, Instruction instruction, Register currentState) {
