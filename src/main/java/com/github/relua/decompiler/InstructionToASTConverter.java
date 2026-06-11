@@ -775,9 +775,8 @@ public class InstructionToASTConverter {
                 }
                 currentExpr = new NumberConst(dVal, new SourcePos(instructionIndex, -1));
             } else if (currentEntity.getValue() != null
-                    && !currentEntity.getValue().toString().equals("nil")
-                    && !currentEntity.getValue().toString().matches("R\\d+")) {
-                // 有具体值（全局变量名、函数名等）
+                    && !currentEntity.getValue().toString().equals("nil")) {
+                // 有具体值（全局变量名、函数名、或寄存器引用如 "R4"）
                 currentExpr = new Name(currentEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
             } else {
                 // UNKNOWN 类型或值为 nil/占位符，使用寄存器名避免输出 "nil"
