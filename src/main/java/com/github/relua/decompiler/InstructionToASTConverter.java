@@ -1116,7 +1116,12 @@ public class InstructionToASTConverter {
      * @return 生成的AST节点（返回null，不输出AST节点）
      */
     private AstNode convertTestInstruction(Instruction instruction, int instructionIndex) {
-        // OP_TEST A C if not (R(A) <=> C) then pc++
+        // OP_TEST A C : if not (R(A) <=> C) then pc++
+        // Lua 编译器对 if x 使用 codenot 后 TEST R 0 (C=0),
+        // 对 if not x 使用 TEST R 1 (C=1)。
+        // 因此反编译器条件映射为:
+        //   C=0 → "R[A]" (对应源码 if x)
+        //   C=1 → "not R[A]" (对应源码 if not x)
         int a = instruction.getA();
         int c = instruction.getC();
 
@@ -1132,12 +1137,8 @@ public class InstructionToASTConverter {
 
         // 根据c的值构建条件表达式
         if (c == 0) {
-            // TEST A 0: if not (R[A] <=> 0) then PC++
-            // 相当于 if R[A] then ...
             condition = operand;
         } else {
-            // TEST A 1: if not (R[A] <=> 1) then PC++
-            // 相当于 if not R[A] then ...
             condition = new Name("not " + operand.name, new SourcePos(instructionIndex, -1));
         }
 
@@ -1156,7 +1157,10 @@ public class InstructionToASTConverter {
      * @return
      */
     private AstNode convertTestSetInstruction(Instruction instruction, int instructionIndex) {
-        // OP_TESTSET A B C if (R(B) <=> C) then R(A) := R(B) else pc++
+        // OP_TESTSET A B C : if (R(B) <=> C) then R(A) := R(B) else pc++
+        // Lua 编译器约定:
+        //   C=0 → 源码条件为 "not x" (TESTSET 用于 and/or 短路)
+        //   C=1 → 源码条件为 "x"
         int a = instruction.getA();
         int b = instruction.getB();
         int c = instruction.getC();

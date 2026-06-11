@@ -52,6 +52,9 @@ public class AstCleanupPass {
         // 2.5 再次清理空的if块（结构恢复可能产生新的空分支）
         removeEmptyIfBlocks(block);
 
+        // 2.6 移除 return 后的死代码
+        removeDeadCodeAfterReturn(block);
+
         Set<TableConstructor> consumedTables = Collections.newSetFromMap(new IdentityHashMap<>());
         collectConsumedTables(block, consumedTables, true);
         removeConsumedTemporaryTables(block, consumedTables);
@@ -189,6 +192,91 @@ public class AstCleanupPass {
             }
         }
         return true;
+    }
+
+    /**
+     * 判断语句是否为终结语句（return, tailcall, 或所有分支都返回的 if-else）。
+     */
+    private boolean isTerminatingStatement(Statement stmt) {
+        if (stmt instanceof ReturnStatement) {
+            return true;
+        }
+        if (stmt instanceof ExpressionStatement) {
+            Expression expr = ((ExpressionStatement) stmt).expression;
+            if (expr instanceof UnaryOp && "return".equals(((UnaryOp) expr).op)) {
+                return true;
+            }
+        }
+        // if-else 所有分支都以终结语句结尾 → 整个 if 是终结的
+        if (stmt instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) stmt;
+            if (ifStmt.elseBlock == null || isEffectivelyEmpty(ifStmt.elseBlock)) {
+                return false; // 没有 else，不保证终结
+            }
+            // 检查所有 then/elseif 块
+            for (Block b : ifStmt.blocks) {
+                if (!blockEndsWithTerminator(b)) {
+                    return false;
+                }
+            }
+            // 检查 else 块
+            return blockEndsWithTerminator(ifStmt.elseBlock);
+        }
+        return false;
+    }
+
+    /**
+     * 判断块是否以终结语句结尾（递归检查最后一条语句）。
+     */
+    private boolean blockEndsWithTerminator(Block block) {
+        if (block == null || block.statements.isEmpty()) {
+            return false;
+        }
+        Statement last = block.statements.get(block.statements.size() - 1);
+        return isTerminatingStatement(last);
+    }
+
+    /**
+     * 移除 return 语句之后的死代码（不可达语句）。
+     * 同时递归处理嵌套块（if/while/for 等内部的 block）。
+     */
+    private void removeDeadCodeAfterReturn(Block block) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+
+        // 递归处理嵌套块
+        for (Statement statement : block.statements) {
+            if (statement instanceof IfStatement) {
+                IfStatement ifStmt = (IfStatement) statement;
+                for (Block nested : ifStmt.blocks) {
+                    removeDeadCodeAfterReturn(nested);
+                }
+                removeDeadCodeAfterReturn(ifStmt.elseBlock);
+            } else if (statement instanceof FunctionDeclaration) {
+                removeDeadCodeAfterReturn(((FunctionDeclaration) statement).func.body);
+            } else if (statement instanceof WhileStatement) {
+                removeDeadCodeAfterReturn(((WhileStatement) statement).body);
+            } else if (statement instanceof ForNumeric) {
+                removeDeadCodeAfterReturn(((ForNumeric) statement).body);
+            } else if (statement instanceof ForIn) {
+                removeDeadCodeAfterReturn(((ForIn) statement).body);
+            }
+        }
+
+        // 在当前块中，找到第一条终结语句（return/tailcall/全分支返回的if），
+        // 移除其后的所有语句
+        List<Statement> stmts = block.statements;
+        for (int i = 0; i < stmts.size(); i++) {
+            boolean isTerminating = isTerminatingStatement(stmts.get(i));
+            if (isTerminating) {
+                if (i + 1 < stmts.size()) {
+                    List<Statement> toRemove = new ArrayList<>(stmts.subList(i + 1, stmts.size()));
+                    stmts.removeAll(toRemove);
+                }
+                break;
+            }
+        }
     }
 
     /**

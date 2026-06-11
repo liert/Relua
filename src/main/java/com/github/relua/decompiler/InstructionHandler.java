@@ -957,9 +957,12 @@ public class InstructionHandler {
                     // 处理待完成的IF节点
                     i = appendPendingIf(blockNode, (PendingIf) result, chunk, converter);
                 } else if (result instanceof Statement) {
-                    Statement stmt = (Statement) result;
-                    // System.out.println("         生成指令AST节点，类型: " + stmt.type);
-                    blockNode.statements.add(stmt);
+                    // 如果返回的是 Block（如 LOADNIL），展平以避免双重缩进
+                    if (result instanceof Block) {
+                        blockNode.statements.addAll(((Block) result).statements);
+                    } else {
+                        blockNode.statements.add((Statement) result);
+                    }
 
                 } else if (result instanceof Expression) {
                     Expression expr = (Expression) result;
@@ -1150,7 +1153,13 @@ public class InstructionHandler {
                 Object node = converter.convertInstructionToAST(inst, pc);
 
                 if (node instanceof Statement) {
-                    block.statements.add((Statement) node);
+                    // 如果返回的是 Block（如 LOADNIL 生成的多赋值语句块），
+                    // 将其内部语句展平到当前块，避免嵌套 Block 导致的双重缩进
+                    if (node instanceof Block) {
+                        block.statements.addAll(((Block) node).statements);
+                    } else {
+                        block.statements.add((Statement) node);
+                    }
                 } else if (node instanceof Expression) {
                     block.statements.add(new ExpressionStatement((Expression) node, ((Expression) node).pos));
                 } else if (node instanceof PendingIf) {
