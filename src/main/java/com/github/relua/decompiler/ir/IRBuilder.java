@@ -152,6 +152,11 @@ public class IRBuilder {
         } else if (srcEntity.getType() == ValueType.UNKNOWN && srcEntity.getValue() == null) {
             // 当源是算术结果（UNKNOWN/null）时，目标记录为对源的命名引用
             currentState.setRegisterEntity(a, "R" + b, ValueType.UNKNOWN, FromType.REGISTER);
+        } else if (srcEntity.getType() == ValueType.NIL) {
+            // 源是 nil：不传播 NIL 类型，避免后续 MOVE 链将 literal nil 传递到
+            // 方法调用位置（如 R7:match(...) 变成 nil:match(...)）。
+            // 将目标标记为 UNKNOWN，让转换器输出寄存器名而非 nil 常量。
+            currentState.setRegisterEntity(a, "R" + a, ValueType.UNKNOWN, FromType.REGISTER);
         } else {
             // 复制源寄存器的完整状态到目标寄存器
             currentState.setRegisterEntity(a, srcEntity.getValue(), srcEntity.getType(), srcEntity.getFromType());
@@ -497,10 +502,12 @@ public class IRBuilder {
         // 获取A寄存器的值
         RegisterEntity registerEntity = currentState.getRegisterEntity(a);
 
-        // 保存到CodeGeneratorContext的上值存储中
+        // 将寄存器的当前状态写入上值，使后续 GETUPVAL 能读到最新值
         CodeGeneratorContext context = pipeline.getContext();
-        // context.addUpvalue(b, "upvalue_" + b, registerEntity.getValue(),
-        // registerEntity.getType(), registerEntity.getFromType());
+        UpValue upvalue = context.getUpvalue(b);
+        String name = (upvalue != null) ? upvalue.getName() : ("upvalue_" + b);
+        context.addUpvalue(b, new UpValue(b, name,
+                registerEntity.getValue(), registerEntity.getType(), registerEntity.getFromType()));
     }
 }
 
