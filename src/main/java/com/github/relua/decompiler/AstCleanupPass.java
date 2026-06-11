@@ -49,6 +49,9 @@ public class AstCleanupPass {
         // 2. 结构化控制流还原与 GOTO/Label 消解
         new StructureRestorer().restructure(block);
 
+        // 2.5 再次清理空的if块（结构恢复可能产生新的空分支）
+        removeEmptyIfBlocks(block);
+
         Set<TableConstructor> consumedTables = Collections.newSetFromMap(new IdentityHashMap<>());
         collectConsumedTables(block, consumedTables, true);
         removeConsumedTemporaryTables(block, consumedTables);
@@ -82,28 +85,174 @@ public class AstCleanupPass {
             }
         }
 
-        // 移除空的if块：then块为空且无else分支
+        // 先清除if块中残留的join-point goto/label（结构恢复的副产物）
+        for (Statement statement : block.statements) {
+            if (statement instanceof IfStatement) {
+                stripTrailingJoinGotos((IfStatement) statement);
+            }
+        }
+
+        // 处理空的if分支
         List<Statement> rewritten = new ArrayList<>();
         for (Statement statement : block.statements) {
             if (statement instanceof IfStatement) {
                 IfStatement ifStmt = (IfStatement) statement;
                 boolean allThenEmpty = true;
                 for (Block b : ifStmt.blocks) {
-                    if (b == null || b.statements.isEmpty()) {
+                    if (isEffectivelyEmpty(b)) {
                         continue;
                     }
                     allThenEmpty = false;
                     break;
                 }
-                if (allThenEmpty && (ifStmt.elseBlock == null || ifStmt.elseBlock.statements.isEmpty())) {
-                    // then块和else块都为空，移除整个if语句
+
+                boolean hasElse = !isEffectivelyEmpty(ifStmt.elseBlock);
+
+                if (allThenEmpty && !hasElse) {
+                    // then块全部为空且无else（或else也为空），移除整个if语句
                     continue;
                 }
+
+                if (allThenEmpty && hasElse && ifStmt.conditions.size() == 1) {
+                    // 单条件：then块为空但else非空 → 取反条件，提升else为then
+                    Expression invertedCond = negateExpression(ifStmt.conditions.get(0));
+                    List<Expression> newConds = new ArrayList<>();
+                    newConds.add(invertedCond);
+                    List<Block> newBlocks = new ArrayList<>();
+                    newBlocks.add(ifStmt.elseBlock);
+                    IfStatement newIf = new IfStatement(newConds, newBlocks, null, ifStmt.pos);
+                    rewritten.add(newIf);
+                    continue;
+                }
+
+                if (!allThenEmpty && hasElse) {
+                    // 对于多条件(elseif)链，过滤掉空的分支
+                    List<Expression> newConds = new ArrayList<>();
+                    List<Block> newBlocks = new ArrayList<>();
+                    for (int i = 0; i < ifStmt.conditions.size(); i++) {
+                        Block b = ifStmt.blocks.get(i);
+                        if (!isEffectivelyEmpty(b)) {
+                            newConds.add(ifStmt.conditions.get(i));
+                            newBlocks.add(b);
+                        }
+                    }
+                    if (newConds.isEmpty()) {
+                        continue;
+                    }
+                    if (newConds.size() != ifStmt.conditions.size()) {
+                        IfStatement newIf = new IfStatement(newConds, newBlocks, ifStmt.elseBlock, ifStmt.pos);
+                        rewritten.add(newIf);
+                        continue;
+                    }
+                }
+
+                if (!allThenEmpty && !hasElse && ifStmt.elseBlock != null) {
+                    // else块存在但为空（或仅含goto），then非空 → 移除空的else分支
+                    if (ifStmt.conditions.size() == 1) {
+                        IfStatement newIf = new IfStatement(
+                                ifStmt.conditions.get(0),
+                                ifStmt.blocks.get(0),
+                                null,
+                                ifStmt.pos);
+                        rewritten.add(newIf);
+                        continue;
+                    } else {
+                        IfStatement newIf = new IfStatement(
+                                new ArrayList<>(ifStmt.conditions),
+                                new ArrayList<>(ifStmt.blocks),
+                                null,
+                                ifStmt.pos);
+                        rewritten.add(newIf);
+                        continue;
+                    }
+                }
+
+                rewritten.add(statement);
+            } else {
+                rewritten.add(statement);
             }
-            rewritten.add(statement);
         }
         block.statements.clear();
         block.statements.addAll(rewritten);
+    }
+
+    /**
+     * 判断块是否为空或仅包含 GotoStatement/LabelStatement（join-point 残留）
+     */
+    private boolean isEffectivelyEmpty(Block block) {
+        if (block == null || block.statements.isEmpty()) {
+            return true;
+        }
+        for (Statement stmt : block.statements) {
+            if (!(stmt instanceof GotoStatement) && !(stmt instanceof LabelStatement)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 清除 IfStatement 的 then/else 块末尾的 join-point GotoStatement
+     */
+    private void stripTrailingJoinGotos(IfStatement ifStmt) {
+        for (Block b : ifStmt.blocks) {
+            if (b != null) {
+                stripTrailingGotosFromBlock(b);
+            }
+        }
+        if (ifStmt.elseBlock != null) {
+            stripTrailingGotosFromBlock(ifStmt.elseBlock);
+        }
+    }
+
+    private void stripTrailingGotosFromBlock(Block block) {
+        if (block == null || block.statements.isEmpty()) {
+            return;
+        }
+        // 递归处理嵌套的 if 块
+        for (Statement stmt : block.statements) {
+            if (stmt instanceof IfStatement) {
+                stripTrailingJoinGotos((IfStatement) stmt);
+            }
+        }
+        // 移除块末尾的 GotoStatement 和 LabelStatement
+        while (!block.statements.isEmpty()) {
+            Statement last = block.statements.get(block.statements.size() - 1);
+            if (last instanceof GotoStatement || last instanceof LabelStatement) {
+                block.statements.remove(block.statements.size() - 1);
+            } else {
+                break;
+            }
+        }
+    }
+
+    /**
+     * 对条件表达式取反
+     */
+    private Expression negateExpression(Expression expr) {
+        if (expr instanceof UnaryOp && ((UnaryOp) expr).op.equals("not")) {
+            return ((UnaryOp) expr).expr;
+        }
+        if (expr instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) expr;
+            String negatedOp = getNegatedOperator(binary.op);
+            if (negatedOp != null) {
+                return new BinaryOp(negatedOp, binary.left, binary.right, binary.pos);
+            }
+        }
+        return new UnaryOp("not", expr, expr.pos);
+    }
+
+    private String getNegatedOperator(String op) {
+        switch (op) {
+            case "==": return "~=";
+            case "~=": return "==";
+            case "<":  return ">=";
+            case ">":  return "<=";
+            case "<=": return ">";
+            case ">=": return "<";
+            default:   return null;
+        }
     }
 
     private void removeConsumedTemporaryTables(Block block, Set<TableConstructor> consumedTables) {

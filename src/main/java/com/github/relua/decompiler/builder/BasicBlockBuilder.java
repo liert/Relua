@@ -71,6 +71,15 @@ public class BasicBlockBuilder {
                 if (jumpTarget >= 0 && jumpTarget < instructions.size()) {
                     isJumpTarget[jumpTarget] = true;
                 }
+                // TFORLOOP 的跳转目标也需要注册为 label PC，
+                // 使得内层 for-in 的 backward JMP 能找到对应的 LabelStatement
+                pipeline.getContext().addLabelPC(jumpTarget);
+                // 注册 TFORLOOP 区域 PC，防止被 if-body 吞没
+                pipeline.getContext().addTforRegionPC(i);        // TFORLOOP 本身
+                pipeline.getContext().addTforRegionPC(jumpTarget); // 跳转目标 label
+                if (i + 1 < instructions.size()) {
+                    pipeline.getContext().addTforRegionPC(i + 1); // TFORLOOP 后面的 backward JMP
+                }
             }
         }
 

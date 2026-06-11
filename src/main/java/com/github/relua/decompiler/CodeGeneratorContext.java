@@ -56,6 +56,7 @@ public class CodeGeneratorContext {
     private int currentIndent; // 当前缩进级别
     private Stack<ControlFlowElement> controlFlowStack; // 控制流栈，用于跟踪if-else嵌套结构
     private Set<Integer> labelPCs = new HashSet<>(); // 标签指令的PC值集合
+    private Set<Integer> tforRegionPCs = new HashSet<>(); // TFORLOOP 相关区域的PC值（TFORLOOP、backward JMP、target label）
     private int thenIndex = 0;
     private Map<Integer, BasicBlock> thenBlocks = new HashMap<>(); // 基本块映射
     private Register register = new Register(); // 初始寄存器状态
@@ -279,6 +280,26 @@ public class CodeGeneratorContext {
      */
     public boolean isLabelPC(int pc) {
         return labelPCs.contains(pc);
+    }
+
+    /**
+     * 添加 TFORLOOP 区域相关的 PC 值
+     * 包括 TFORLOOP 本身、其后的 backward JMP、以及跳转目标 label
+     * 
+     * @param pc 需要保护的 PC 值
+     */
+    public void addTforRegionPC(int pc) {
+        tforRegionPCs.add(pc);
+    }
+
+    /**
+     * 检查 PC 是否属于 TFORLOOP 区域（需要防止被 if-body 吞没）
+     * 
+     * @param pc PC值
+     * @return 如果是 TFORLOOP 区域则返回 true
+     */
+    public boolean isTforRegionPC(int pc) {
+        return tforRegionPCs.contains(pc);
     }
 
     /**

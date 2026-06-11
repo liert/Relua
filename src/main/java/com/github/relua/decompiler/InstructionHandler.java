@@ -953,11 +953,9 @@ public class InstructionHandler {
                 // Register registerState = pipeline.getRegisterByInstructionIndex(i);
                 // System.out.println("         寄存器状态: " + registerState);
                 Object result = converter.convertInstructionToAST(instruction, i);
-                // Object result = null;
                 if (result instanceof PendingIf) {
                     // 处理待完成的IF节点
                     i = appendPendingIf(blockNode, (PendingIf) result, chunk, converter);
-                    // System.out.println("         跳过IF范围，i更新为: " + i);
                 } else if (result instanceof Statement) {
                     Statement stmt = (Statement) result;
                     // System.out.println("         生成指令AST节点，类型: " + stmt.type);
@@ -1010,19 +1008,69 @@ public class InstructionHandler {
         }
     }
 
+    /**
+     * 调整范围的结束位置以包含 for-in 循环的 TFORLOOP。
+     * 如果范围内有 JMP 指向 TFORLOOP（for-in 前向跳转），
+     * 将结束位置扩展到包含 TFORLOOP，使 iterator + body + TFORLOOP 在同一块中。
+     * backward JMP 不在此范围内，它会被 buildBlock 主循环单独处理，
+     * 确保 backward goto 与 iterator 在同一层级。
+     * 同时标记 TFORLOOP 所在的基本块为已访问，防止主循环重复处理。
+     */
+    private int adjustEndForForIn(int start, int end, Chunk chunk) {
+        List<Instruction> instructions = chunk.getInstructions();
+        int result = end;
+        for (int pc = start; pc <= result && pc < instructions.size(); pc++) {
+            Instruction inst = instructions.get(pc);
+            if (inst.getOpcode() == Opcode.JMP) {
+                int target = pc + 1 + inst.getSBx();
+                if (target >= 0 && target < instructions.size()
+                        && codeGenContext.isTforRegionPC(target)
+                        && instructions.get(target).getOpcode() == Opcode.TFORLOOP) {
+                    // 找到 for-in 前向跳转，扩展到包含 TFORLOOP（不含 backward JMP）
+                    if (target > result) {
+                        result = target;
+                    }
+                    // 标记 TFORLOOP 所在的基本块为已访问，
+                    // 防止 appendPendingIf 返回值跳过它后被主循环重复处理
+                    markBlocksAsVisited(chunk, target, target);
+                }
+            }
+        }
+        return result;
+    }
+
     private int appendPendingIf(Block blockNode, PendingIf pending, Chunk chunk, InstructionToASTConverter converter) {
         Logger.debug(String.format("生成PendingIf节点，条件: %s, then: %d-%d, else: %d-%d, flag: %b, astNodes: %d",
                 pending.condition, pending.thenStart, pending.thenEnd, pending.elseStart, pending.elseEnd,
                 pending.flag, pending.astNodes.size()));
 
+        int thenStart = pending.thenStart;
+        int thenEnd = pending.thenEnd;
+        Integer elseStart = pending.elseStart;
+        Integer elseEnd = pending.elseEnd;
+
+        // 调整 thenEnd：如果 then 范围内有 for-in 前向跳转（JMP 到 TFORLOOP），
+        // 将 thenEnd 扩展到包含 TFORLOOP 和 backward JMP，使整个 for-in 结构在同一块中
+        thenEnd = adjustEndForForIn(thenStart, thenEnd, chunk);
+
+        // 调整 else 范围
+        if (elseStart != null && elseEnd != null) {
+            if (codeGenContext.isTforRegionPC(elseStart)) {
+                elseStart = null;
+                elseEnd = null;
+            } else {
+                elseEnd = adjustEndForForIn(elseStart, elseEnd, chunk);
+            }
+        }
+
         markBlocksAsVisited(chunk, pending.pos.pc, pending.pos.pc + 1);
-        markBlocksAsVisited(chunk, pending.thenStart, pending.thenEnd);
-        Block thenBlock = buildBlock(pending.thenStart, pending.thenEnd, chunk, converter);
+        markBlocksAsVisited(chunk, thenStart, thenEnd);
+        Block thenBlock = buildBlock(thenStart, thenEnd, chunk, converter);
 
         Block elseBlock = null;
-        if (pending.elseStart != null) {
-            markBlocksAsVisited(chunk, pending.elseStart, pending.elseEnd);
-            elseBlock = buildBlock(pending.elseStart, pending.elseEnd, chunk, converter);
+        if (elseStart != null) {
+            markBlocksAsVisited(chunk, elseStart, elseEnd);
+            elseBlock = buildBlock(elseStart, elseEnd, chunk, converter);
         }
 
         if (!pending.astNodes.isEmpty()) {
@@ -1045,7 +1093,7 @@ public class InstructionHandler {
         }
 
         blockNode.statements.add(new IfStatement(pending.condition, thenBlock, elseBlock, pending.pos));
-        return pending.elseEnd != null ? pending.elseEnd : pending.thenEnd;
+        return elseEnd != null ? elseEnd : thenEnd;
     }
 
     // /**
@@ -1085,8 +1133,14 @@ public class InstructionHandler {
         Block block = new Block(new SourcePos(start, -1));
         List<Instruction> instructions = chunk.getInstructions();
 
+        // 清除残留的 pendingTest 状态，防止外层条件指令的状态泄漏到本块
+        converter.clearPendingTest();
+
         for (int pc = start; pc <= end; pc++) {
             if (pc < instructions.size()) {
+                if (codeGenContext.isLabelPC(pc)) {
+                    block.statements.add(new LabelStatement("L" + pc, new SourcePos(pc, -1)));
+                }
                 Instruction inst = instructions.get(pc);
                 PendingIf conditionalJump = converter.tryConvertConditionalJump(instructions, pc);
                 if (conditionalJump != null) {

@@ -27,6 +27,14 @@ public class InstructionToASTConverter {
     private PendingTest pendingTest = null;
 
     /**
+     * 清除残留的 pendingTest 状态。
+     * 在 buildBlock 入口调用，防止外层条件指令的 pendingTest 泄漏到内层块。
+     */
+    public void clearPendingTest() {
+        this.pendingTest = null;
+    }
+
+    /**
      * 构造函数
      * 
      * @param chunk              代码块
