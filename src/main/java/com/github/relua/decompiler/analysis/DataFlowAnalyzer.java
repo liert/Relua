@@ -19,10 +19,14 @@ public class DataFlowAnalyzer {
             optimizeNestedBlocks(stmt);
         }
 
-        // 2. 在当前 Block 层级执行局部变量内联 (Expression Inlining)
+        // 2. 先消除死寄存器赋值（被后续赋值覆盖且未被读取的寄存器赋值）
+        // 必须在内联之前执行，否则内联会消耗覆盖赋值导致死赋值无法被检测
+        removeDeadRegisterAssignments(block);
+
+        // 3. 在当前 Block 层级执行局部变量内联 (Expression Inlining)
         inlineBlockVariables(block);
 
-        // 3. 自底向上重写当前 Block 里的所有表达式（还原点号和冒号语法糖）
+        // 4. 自底向上重写当前 Block 里的所有表达式（还原点号和冒号语法糖）
         rewriteBlockExpressions(block);
     }
 
@@ -58,10 +62,13 @@ public class DataFlowAnalyzer {
             for (int i = 0; i < stmts.size(); i++) {
                 Statement stmt = stmts.get(i);
                 if (isRegisterAssign(stmt)) {
-                    Assign assign = (Assign) stmt;
-                    Name leftName = (Name) assign.left.get(0);
-                    String regName = leftName.name;
-                    Expression defExpr = assign.right.get(0);
+                    String regName = getAssignedRegisterName(stmt);
+                    Expression defExpr;
+                    if (stmt instanceof Assign) {
+                        defExpr = ((Assign) stmt).right.get(0);
+                    } else {
+                        defExpr = ((LocalAssign) stmt).right.get(0);
+                    }
 
                     // 收集定义表达式中依赖的所有变量名
                     Set<String> dependencies = new HashSet<>();
@@ -78,6 +85,12 @@ public class DataFlowAnalyzer {
 
                         // 检查在这期间依赖 of 变量是否被重新定值
                         if (hasAssignmentTo(nextStmt, dependencies)) {
+                            dependencyBroken = true;
+                        }
+
+                        // 检查 R_x 是否被用作表写入目标（如 R0["key"] = value），
+                        // 此时 R_x 指向的表发生了变异，R_x 不再等价于最初的定值表达式。
+                        if (registerUsedAsMutatedTable(nextStmt, regName)) {
                             dependencyBroken = true;
                         }
 
@@ -113,16 +126,84 @@ public class DataFlowAnalyzer {
         }
     }
 
+    /**
+     * 消除死寄存器赋值：如果某个寄存器的赋值在其后被同一寄存器的另一次赋值覆盖，
+     * 且期间没有任何语句读取该寄存器，则该赋值是死赋值，可以安全移除。
+     * 
+     * 典型场景：GETTABLE R3 ... ; CALL R3 1 2 ; SETTABLE ... R3
+     * GETTABLE的结果在CALL之前未被读取，被CALL的返回值覆盖，因此GETTABLE是死赋值。
+     */
+    private void removeDeadRegisterAssignments(Block block) {
+        List<Statement> stmts = block.statements;
+        boolean changed = true;
+
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < stmts.size(); i++) {
+                Statement stmt = stmts.get(i);
+                String regName = getAssignedRegisterName(stmt);
+                if (regName == null) {
+                    continue;
+                }
+
+                boolean foundUse = false;
+                boolean redefined = false;
+
+                for (int j = i + 1; j < stmts.size(); j++) {
+                    Statement nextStmt = stmts.get(j);
+
+                    // 检查该寄存器是否被重新定值
+                    if (hasAssignmentTo(nextStmt, regName)) {
+                        redefined = true;
+                        break;
+                    }
+
+                    // 检查该寄存器是否被读取
+                    int uses = countVariableUses(nextStmt, regName);
+                    if (uses > 0) {
+                        foundUse = true;
+                        break;
+                    }
+                }
+
+                // 寄存器在未被读取的情况下被重新定值，当前赋值为死赋值
+                if (redefined && !foundUse) {
+                    stmts.remove(i);
+                    changed = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    /**
+     * 获取语句中赋值的寄存器名称（支持 Assign 和 LocalAssign）
+     * 如果不是寄存器赋值则返回 null
+     */
+    private String getAssignedRegisterName(Statement stmt) {
+        if (stmt instanceof Assign) {
+            Assign assign = (Assign) stmt;
+            if (assign.left.size() == 1 && assign.right.size() == 1
+                    && assign.left.get(0) instanceof Name) {
+                String name = ((Name) assign.left.get(0)).name;
+                if (name.matches("R\\d+")) {
+                    return name;
+                }
+            }
+        } else if (stmt instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) stmt;
+            if (local.names.size() == 1) {
+                String name = local.names.get(0);
+                if (name.matches("R\\d+")) {
+                    return name;
+                }
+            }
+        }
+        return null;
+    }
+
     private boolean isRegisterAssign(Statement stmt) {
-        if (!(stmt instanceof Assign)) {
-            return false;
-        }
-        Assign assign = (Assign) stmt;
-        if (assign.left.size() != 1 || assign.right.size() != 1) {
-            return false;
-        }
-        Expression left = assign.left.get(0);
-        return left instanceof Name && ((Name) left).name.matches("R\\d+");
+        return getAssignedRegisterName(stmt) != null;
     }
 
     private boolean isComplexControlFlow(Statement stmt) {
@@ -132,6 +213,26 @@ public class DataFlowAnalyzer {
             || stmt instanceof ForNumeric 
             || stmt instanceof ForIn 
             || stmt instanceof FunctionDeclaration;
+    }
+
+    /**
+     * 检查语句是否对指定寄存器进行了表字段写入（如 R0["key"] = value）。
+     * 这种操作会修改寄存器指向的表内容，即寄存器发生了"别名逃逸"，
+     * 此时不能将寄存器简单的内联为初始定值。
+     */
+    private boolean registerUsedAsMutatedTable(Statement stmt, String regName) {
+        if (stmt instanceof Assign) {
+            Assign assign = (Assign) stmt;
+            for (Expression left : assign.left) {
+                if (left instanceof IndexExpr) {
+                    IndexExpr idx = (IndexExpr) left;
+                    if (idx.table instanceof Name && ((Name) idx.table).name.equals(regName)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private void collectReferencedVariables(Expression expr, Set<String> vars) {

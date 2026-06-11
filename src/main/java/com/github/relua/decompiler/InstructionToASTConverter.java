@@ -208,7 +208,7 @@ public class InstructionToASTConverter {
             // return new Assign(left, right, new SourcePos(instructionIndex, -1));
             return null;
         } else {
-            // 如果是寄存器之间的移动，不生成单独的AST节点，因为这通常是编译器优化的结果
+            // 如果是寄存器之间的移动，不生成单独的AST节点，这通常是编译器优化的结果
             return null;
         }
     }
@@ -313,6 +313,20 @@ public class InstructionToASTConverter {
         Block block = new Block(new SourcePos(instructionIndex, -1));
 
         for (int i = a; i <= b; i++) {
+            // 如果这个 nil 只是紧随其后的 CALL/TAILCALL 的实参准备，不生成独立赋值。
+            // 例如：
+            //   MOVE     R7 R3
+            //   LOADNIL  R8 R8
+            //   LOADBOOL R9 0 0
+            //   LOADBOOL R10 1 0
+            //   CALL     R6 5 1
+            // 应恢复为：
+            //   R6(R7, nil, false, true)
+            // 而不是额外输出：
+            //   R8 = nil
+            if (isRegisterConsumedByFollowingCallArgument(i, instructionIndex)) {
+                continue;
+            }
             // 目标变量
             Expression target = new Name("R" + i, new SourcePos(instructionIndex, -1));
 
@@ -324,6 +338,10 @@ public class InstructionToASTConverter {
             List<Expression> right = new ArrayList<>();
             right.add(source);
             block.statements.add(new Assign(left, right, new SourcePos(instructionIndex, -1)));
+        }
+
+        if (block.statements.isEmpty()) {
+            return null;
         }
 
         return block;
@@ -382,22 +400,6 @@ public class InstructionToASTConverter {
         RegisterEntity sourceEntity = registerState.getRegisterEntity(a);
 
         Expression source = null;
-        // if (sourceEntity.getType() == ValueType.STRING) {
-        // // 字符串常量
-        // source = new StringConst(sourceEntity.getValue().toString(), new
-        // SourcePos(instructionIndex, -1));
-        // } else if (sourceEntity.getType() == ValueType.NUMBER) {
-        // // 数值常量
-        // source = new NumberConst((Double) sourceEntity.getValue(), new
-        // SourcePos(instructionIndex, -1));
-        // } else if (sourceEntity.getType() == ValueType.BOOLEAN) {
-        // // 布尔值常量
-        // source = new BooleanConst((Boolean) sourceEntity.getValue(), new
-        // SourcePos(instructionIndex, -1));
-        // } else if (sourceEntity.getType() == ValueType.NIL) {
-        // // nil值
-        // source = new NilConst(new SourcePos(instructionIndex, -1));
-        // } else
         if (sourceEntity.getFromType() == FromType.GLOBAL && sourceEntity.getValue() != null) {
             // 全局变量
             source = new Name(sourceEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
@@ -1205,11 +1207,8 @@ public class InstructionToASTConverter {
 
             pipeline.getContext().addThenBlock(currentThenBlock);
 
-            // System.out.println("Then StartIndex = " + thenStart + ", Then EndIndex = " + thenEnd);
-
             // ----------- 判断是否有 else 块 -----------
             Integer elseStart = null;
-            // BasicBlock elseBlock = instructionHandler.getBlockByStartIndex(elseStart);
             Integer elseEnd = null;
 
             // then-block 最后一条可能是 JMP → 说明有 else
@@ -1220,6 +1219,15 @@ public class InstructionToASTConverter {
                     if (endTarget - 1 > jmpTarget) {
                         elseStart = jmpTarget;
                         elseEnd = endTarget - 1;
+                        
+                        // 精化elseEnd：检查候选else范围中是否有来自外层作用域的跳转目标。
+                        // 如果有，则将else块截断在该跳转目标之前，避免将外层if的else体
+                        // 错误地包含到当前if的else中（例如嵌套if链中，内层if的then块
+                        // 以JMP结尾，但JMP的目标跨越了外层if的else体边界）。
+                        int refinedEnd = refineElseEndByOuterJumpTargets(chunk, pendingTest.pc, jmpTarget, elseEnd);
+                        if (refinedEnd < elseEnd) {
+                            elseEnd = refinedEnd;
+                        }
                     }
                 }
             }
@@ -1297,5 +1305,145 @@ public class InstructionToASTConverter {
         // values.add(new Name(upvalue.getName(), new SourcePos(instructionIndex, -1)));
         return null;
     }
-    
+
+    private boolean isRegisterConsumedByFollowingCallArgument(int registerIndex, int instructionIndex) {
+        List<Instruction> instructions = chunk.getInstructions();
+
+        for (int pc = instructionIndex + 1; pc < instructions.size(); pc++) {
+            Instruction next = instructions.get(pc);
+            Opcode opcode = next.getOpcode();
+
+            if (opcode == Opcode.CALL || opcode == Opcode.TAILCALL) {
+                int callA = next.getA();
+                int callB = next.getB();
+
+                // B == 1 表示无参数。
+                if (callB == 1) {
+                    return false;
+                }
+
+                // B > 1 表示参数是 R(A+1) ... R(A+B-1)。
+                if (callB > 1) {
+                    return registerIndex >= callA + 1 && registerIndex <= callA + callB - 1;
+                }
+
+                // B == 0 是开放参数列表，这里保守处理。
+                return registerIndex > callA;
+            }
+
+            // 如果在 CALL 前这个寄存器被重写了，当前 LOADNIL 就不是 CALL 参数来源。
+            if (writesRegister(next, registerIndex)) {
+                return false;
+            }
+
+            // 跨控制流边界不向前吞 LOADNIL，避免误删普通 nil 赋值。
+            if (isForwardScanBarrier(opcode)) {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean writesRegister(Instruction instruction, int registerIndex) {
+        Opcode opcode = instruction.getOpcode();
+        int a = instruction.getA();
+
+        switch (opcode) {
+            case MOVE:
+            case LOADK:
+            case LOADBOOL:
+            case GETGLOBAL:
+            case GETTABLE:
+            case NEWTABLE:
+            case ADD:
+            case SUB:
+            case MUL:
+            case DIV:
+            case MOD:
+            case POW:
+            case UNM:
+            case NOT:
+            case LEN:
+            case CONCAT:
+            case GETUPVAL:
+            case CLOSURE:
+            case VARARG:
+                return a == registerIndex;
+
+            case LOADNIL:
+                return registerIndex >= instruction.getA() && registerIndex <= instruction.getB();
+
+            case SELF:
+                return registerIndex == a || registerIndex == a + 1;
+
+            case CALL:
+            case TAILCALL:
+                int c = instruction.getC();
+                if (c == 1) {
+                    return false;
+                }
+                if (c == 0) {
+                    return registerIndex == a;
+                }
+                return registerIndex >= a && registerIndex <= a + c - 2;
+
+            default:
+                return false;
+        }
+    }
+
+    private boolean isForwardScanBarrier(Opcode opcode) {
+        switch (opcode) {
+            case JMP:
+            case RETURN:
+            case FORPREP:
+            case FORLOOP:
+            case TFORLOOP:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * 精化else块的结束位置，排除来自外层作用域的跳转目标之间的代码。
+     * 当内层if的then块以JMP结尾时，该JMP的目标(endTarget)可能远大于
+     * jmpTarget(当前if的else起始)。如果jmpTarget到endTarget之间存在
+     * 来自外层if的跳转目标，说明外层else体的代码被错误地纳入了内层else。
+     * 
+     * @param chunk          代码块
+     * @param testPc         TEST/EQ指令的PC（当前if的条件指令）
+     * @param elseStart      候选else起始(即jmpTarget)
+     * @param candidateEnd   候选else结束(endTarget - 1)
+     * @return 精化后的else结束位置
+     */
+    private int refineElseEndByOuterJumpTargets(Chunk chunk, int testPc, int elseStart, int candidateEnd) {
+        List<Instruction> instructions = chunk.getInstructions();
+
+        // 收集在testPc之前（即外层）的JMP指令所指向的跳转目标
+        java.util.Set<Integer> outerJumpTargets = new java.util.HashSet<>();
+        for (int pc = 0; pc < testPc; pc++) {
+            Instruction inst = instructions.get(pc);
+            if (inst.getOpcode() == Opcode.JMP && inst.getA() == 0) {
+                int target = pc + 1 + inst.getSBx();
+                if (target > elseStart && target <= candidateEnd) {
+                    outerJumpTargets.add(target);
+                }
+            }
+        }
+
+        // 找到最早的外层跳转目标
+        int minTarget = Integer.MAX_VALUE;
+        for (int target : outerJumpTargets) {
+            if (target < minTarget) {
+                minTarget = target;
+            }
+        }
+
+        if (minTarget != Integer.MAX_VALUE) {
+            return minTarget - 1;
+        }
+        return candidateEnd;
+    }
 }

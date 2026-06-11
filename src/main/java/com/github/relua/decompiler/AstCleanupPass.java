@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.HashSet;
 
 import com.github.relua.ast.Assign;
 import com.github.relua.ast.BinaryOp;
@@ -42,6 +43,9 @@ public class AstCleanupPass {
         // 1. 数据流变量内联及点号/冒号语法糖还原
         new DataFlowAnalyzer().optimize(block);
 
+        // 1.5 清理空的if块（nil-guard等模式产生的空条件分支）
+        removeEmptyIfBlocks(block);
+
         // 2. 结构化控制流还原与 GOTO/Label 消解
         new StructureRestorer().restructure(block);
 
@@ -49,6 +53,57 @@ public class AstCleanupPass {
         collectConsumedTables(block, consumedTables, true);
         removeConsumedTemporaryTables(block, consumedTables);
         removeJoinGotos(block);
+
+        // 3. 把函数体顶层第一次出现的寄存器赋值恢复为 local
+        declareTopLevelLocals(block);
+    }
+
+    private void removeEmptyIfBlocks(Block block) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+
+        // 先递归处理嵌套块中的空if
+        for (Statement statement : block.statements) {
+            if (statement instanceof IfStatement) {
+                IfStatement ifStmt = (IfStatement) statement;
+                for (Block nested : ifStmt.blocks) {
+                    removeEmptyIfBlocks(nested);
+                }
+                removeEmptyIfBlocks(ifStmt.elseBlock);
+            } else if (statement instanceof FunctionDeclaration) {
+                removeEmptyIfBlocks(((FunctionDeclaration) statement).func.body);
+            } else if (statement instanceof WhileStatement) {
+                removeEmptyIfBlocks(((WhileStatement) statement).body);
+            } else if (statement instanceof ForNumeric) {
+                removeEmptyIfBlocks(((ForNumeric) statement).body);
+            } else if (statement instanceof ForIn) {
+                removeEmptyIfBlocks(((ForIn) statement).body);
+            }
+        }
+
+        // 移除空的if块：then块为空且无else分支
+        List<Statement> rewritten = new ArrayList<>();
+        for (Statement statement : block.statements) {
+            if (statement instanceof IfStatement) {
+                IfStatement ifStmt = (IfStatement) statement;
+                boolean allThenEmpty = true;
+                for (Block b : ifStmt.blocks) {
+                    if (b == null || b.statements.isEmpty()) {
+                        continue;
+                    }
+                    allThenEmpty = false;
+                    break;
+                }
+                if (allThenEmpty && (ifStmt.elseBlock == null || ifStmt.elseBlock.statements.isEmpty())) {
+                    // then块和else块都为空，移除整个if语句
+                    continue;
+                }
+            }
+            rewritten.add(statement);
+        }
+        block.statements.clear();
+        block.statements.addAll(rewritten);
     }
 
     private void removeConsumedTemporaryTables(Block block, Set<TableConstructor> consumedTables) {
@@ -275,5 +330,135 @@ public class AstCleanupPass {
                 collectReferencedLabels(((FunctionDeclaration) statement).func.body, referencedLabels);
             }
         }
+    }
+
+    private void declareTopLevelLocals(Block block) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+
+        Set<String> declared = new HashSet<>();
+        List<Statement> rewritten = new ArrayList<>();
+
+        for (Statement statement : block.statements) {
+            rewritten.add(declareStatementLocalIfNeeded(statement, declared, true));
+        }
+
+        block.statements.clear();
+        block.statements.addAll(rewritten);
+    }
+
+    private Statement declareStatementLocalIfNeeded(Statement statement, Set<String> declared, boolean allowNewLocal) {
+        if (statement instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) statement;
+            declared.addAll(local.names);
+            return statement;
+        }
+
+        if (statement instanceof GlobalAssign) {
+            return statement;
+        }
+
+        if (statement instanceof Assign) {
+            Assign assign = (Assign) statement;
+
+            if (allowNewLocal
+                    && assign.left.size() == 1
+                    && assign.right.size() == 1
+                    && assign.left.get(0) instanceof Name) {
+                String name = ((Name) assign.left.get(0)).name;
+
+                if (!declared.contains(name) && shouldDeclareLocal(name, assign.right.get(0))) {
+                    declared.add(name);
+
+                    List<String> names = new ArrayList<>();
+                    names.add(name);
+
+                    return new LocalAssign(names, assign.right, assign.pos);
+                }
+
+                if (declared.contains(name)) {
+                    return statement;
+                }
+            }
+
+            return statement;
+        }
+
+        // 不在 if/while/repeat/for 的嵌套块里新建 local，避免把条件分支里的第一次赋值误判成局部声明。
+        // 已经在父块声明过的变量，嵌套块里继续保持普通赋值。
+        if (statement instanceof IfStatement) {
+            IfStatement ifStatement = (IfStatement) statement;
+
+            for (Block nested : ifStatement.blocks) {
+                rewriteNestedBlockWithoutNewLocals(nested, declared);
+            }
+
+            rewriteNestedBlockWithoutNewLocals(ifStatement.elseBlock, declared);
+            return statement;
+        }
+
+        if (statement instanceof WhileStatement) {
+            rewriteNestedBlockWithoutNewLocals(((WhileStatement) statement).body, declared);
+            return statement;
+        }
+
+        if (statement instanceof RepeatStatement) {
+            rewriteNestedBlockWithoutNewLocals(((RepeatStatement) statement).body, declared);
+            return statement;
+        }
+
+        if (statement instanceof ForNumeric) {
+            rewriteNestedBlockWithoutNewLocals(((ForNumeric) statement).body, declared);
+            return statement;
+        }
+
+        if (statement instanceof ForIn) {
+            rewriteNestedBlockWithoutNewLocals(((ForIn) statement).body, declared);
+            return statement;
+        }
+
+        if (statement instanceof FunctionDeclaration) {
+            // 函数声明本身有自己的作用域，不共享当前函数的 declared 集合
+            declareTopLevelLocals(((FunctionDeclaration) statement).func.body);
+            return statement;
+        }
+
+        return statement;
+    }
+
+    private void rewriteNestedBlockWithoutNewLocals(Block block, Set<String> declared) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+
+        List<Statement> rewritten = new ArrayList<>();
+
+        for (Statement statement : block.statements) {
+            rewritten.add(declareStatementLocalIfNeeded(statement, declared, false));
+        }
+
+        block.statements.clear();
+        block.statements.addAll(rewritten);
+    }
+
+    private boolean shouldDeclareLocal(String name, Expression right) {
+        // R0/R1/R2/R3... 是 Lua VM 函数帧寄存器，第一次显式赋值应恢复成 local
+        if (name.matches("R\\d+")) {
+            return true;
+        }
+
+        // require 返回值虽然被 convertCallInstruction 改名成 luci_util 这种形式，
+        // 但本质仍然是当前函数寄存器里的局部值，不是 GETGLOBAL/SETGLOBAL。
+        return isRequireCall(right);
+    }
+
+    private boolean isRequireCall(Expression expression) {
+        if (!(expression instanceof FunctionCall)) {
+            return false;
+        }
+
+        FunctionCall call = (FunctionCall) expression;
+        return call.callee instanceof Name && "require".equals(((Name) call.callee).name);
     }
 }
