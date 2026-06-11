@@ -42,14 +42,13 @@ public class ControlFlowGraphBuilder {
                 // fallback：普通顺序
                 addEdge(chunk, currentBlock, i + 1);
             } else if (opcode == Opcode.EQ || opcode == Opcode.LT || opcode == Opcode.LE) {
-                Instruction jmp = instructions.get(i + 1);
-                int target = i + 1 + jmp.getSBx(); // 跳转目标
-
-                // true → 跳转到目标
-                addEdge(chunk, currentBlock, target);
-
-                // false → 顺序执行
+                // 比较指令后面总是紧跟 JMP，两者在同一个基本块中或相邻块中。
+                // true分支：跳过JMP → 落入 i+2
                 addEdge(chunk, currentBlock, i + 2);
+
+                // false分支：执行JMP → 连接到JMP所在的块（i+1），
+                // 由JMP块自身的边将控制流传递到跳转目标。
+                addEdge(chunk, currentBlock, i + 1);
 
                 continue;
             } else if (opcode == Opcode.FORLOOP) {
