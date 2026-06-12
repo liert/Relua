@@ -265,11 +265,7 @@ public class InstructionToASTConverter {
         // 左侧目标: R(A)
         Expression left = new Name("R" + a, pos);
 
-        // List<Expression> right = new ArrayList<>();
-        // right.add(source);
-        // return new LocalAssign(names, right, new SourcePos(instructionIndex, -1));
-        // return new Assign(left, source, pos);
-        return null;
+        return new Assign(left, source, pos);
     }
 
     /**
@@ -297,8 +293,7 @@ public class InstructionToASTConverter {
         left.add(target);
         List<Expression> right = new ArrayList<>();
         right.add(source);
-        // return new Assign(left, right, new SourcePos(instructionIndex, -1));
-        return null;
+        return new Assign(left, right, new SourcePos(instructionIndex, -1));
     }
 
     /**
@@ -939,6 +934,9 @@ public class InstructionToASTConverter {
                     if (entity.getFromType() == FromType.CONSTANT && entity.getValue() != null 
                             && !entity.getName().equals(entity.getValue().toString())) {
                         return new StringConst(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
+                    }
+                    if (entity.getValue() != null) {
+                        return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
                     }
                     return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
                 case NUMBER:
