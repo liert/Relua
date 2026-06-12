@@ -497,20 +497,25 @@ public class IRBuilder {
         int b = instruction.getB();
         RegisterEntity RA = register.getRegisterEntity(a);
 
-        // 从CodeGeneratorContext中获取上值
         CodeGeneratorContext context = pipeline.getContext();
         UpValue upvalue = context.getUpvalue(b);
 
         if (upvalue != null) {
-            // 更新寄存器状态
-            RA.setValue(upvalue.getValue());
-            RA.setType(upvalue.getType());
-            RA.setFromType(upvalue.getFromType());
+            // 如果上值是常量或全局引入符号，优先保留其状态；如果是局部寄存器变量，直接返回上值变量名字本身，避免被内部赋值污染
+            if ((upvalue.getFromType() == FromType.CONSTANT || upvalue.getFromType() == FromType.GLOBAL) && upvalue.getValue() != null) {
+                RA.setValue(upvalue.getValue());
+                RA.setType(upvalue.getType());
+                RA.setFromType(upvalue.getFromType());
+            } else {
+                RA.setValue(upvalue.getName());
+                RA.setType(ValueType.OBJECT);
+                RA.setFromType(FromType.GLOBAL);
+            }
         } else {
             // 如果上值不存在，使用默认值
             RA.setValue("upvalue_" + b);
             RA.setType(ValueType.OBJECT);
-            RA.setFromType(FromType.CONSTANT);
+            RA.setFromType(FromType.GLOBAL);
         }
     }
 

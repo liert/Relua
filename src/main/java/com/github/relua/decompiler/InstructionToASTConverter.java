@@ -136,6 +136,7 @@ public class InstructionToASTConverter {
             case GETUPVAL:
                 return convertGetUpvalInstruction(instruction, instructionIndex);
             case SETUPVAL:
+                return convertSetUpvalInstruction(instruction, instructionIndex);
             case CLOSE:
             case SETLIST:
             case FORPREP:
@@ -457,7 +458,9 @@ public class InstructionToASTConverter {
 
         // 表访问表达式
         Expression table = new Name("R" + b, pos);
-        if (RB.getType() == ValueType.GLOBAL && RB.getValue() != null) {
+        if (RB.getValue() instanceof Expression) {
+            table = (Expression) RB.getValue();
+        } else if ((RB.getType() == ValueType.GLOBAL || RB.getFromType() == FromType.GLOBAL) && RB.getValue() != null) {
             table = new Name(RB.getValue().toString(), pos);
         }
 
@@ -823,7 +826,12 @@ public class InstructionToASTConverter {
             isMethodCall = true;
             
             // 解析对象表达式（base register）
-            Expression obj = resolveExpressionFromRegister(pendingSelf.getBaseRegister(), instructionIndex, registerState);
+            // 如果 base 寄存器与 target 寄存器 a 相同，则 base 已经被 SELF 指令覆盖，其原始值备份在 a + 1 中
+            int baseReg = pendingSelf.getBaseRegister();
+            if (baseReg == a) {
+                baseReg = a + 1;
+            }
+            Expression obj = resolveExpressionFromRegister(baseReg, instructionIndex, registerState);
             
             // 创建成员访问表达式作为函数调用的callee
             func = new MemberExpr(obj, pendingSelf.getMethodName(), pos);
@@ -928,7 +936,17 @@ public class InstructionToASTConverter {
                     if (entity.getValue() == null) {
                         return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
                     }
-                    return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
+                    String valStr = entity.getValue().toString();
+                    SourcePos pos = new SourcePos(instructionIndex, -1);
+                    if (valStr.contains(".")) {
+                        String[] parts = valStr.split("\\.");
+                        Expression current = new Name(parts[0], pos);
+                        for (int i = 1; i < parts.length; i++) {
+                            current = new MemberExpr(current, parts[i], pos);
+                        }
+                        return current;
+                    }
+                    return new Name(valStr, pos);
                 case STRING:
                     // 只有当实体是常量（例如 FromType == CONSTANT）且其 value 不等于寄存器自身名称时才包装为 StringConst 
                     if (entity.getFromType() == FromType.CONSTANT && entity.getValue() != null 
@@ -1320,6 +1338,32 @@ public class InstructionToASTConverter {
         // List<Expression> values = new ArrayList<>();
         // values.add(new Name(upvalue.getName(), new SourcePos(instructionIndex, -1)));
         return null;
+    }
+
+    /**
+     * 转换SETUPVAL指令
+     * 
+     * @param instruction      指令
+     * @param instructionIndex 指令索引
+     * @return 生成的AST节点
+     */
+    private AstNode convertSetUpvalInstruction(Instruction instruction, int instructionIndex) {
+        // OP_SETUPVAL A B UpValue[B] := R(A)
+        int a = instruction.getA();
+        int b = instruction.getB();
+
+        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
+        RegisterEntity RA = registerState.getRegisterEntity(a);
+
+        CodeGeneratorContext context = pipeline.getContext();
+        UpValue upvalue = context.getUpvalue(b);
+        String upvalueName = (upvalue != null) ? upvalue.getName() : ("upvalue_" + b);
+
+        SourcePos pos = new SourcePos(instructionIndex, -1);
+        Expression left = new Name(upvalueName, pos);
+        Expression right = TransformUtils.transformToAstNode(RA, instructionIndex);
+
+        return new Assign(left, right, pos);
     }
 
     private boolean isRegisterConsumedByFollowingCallArgument(int registerIndex, int instructionIndex) {

@@ -116,6 +116,7 @@ public class DataFlowAnalyzer {
                     if (useCount == 1 && !dependencyBroken && !escaped && useIndex != -1) {
                         Statement useStmt = stmts.get(useIndex);
                         Statement newUseStmt = (Statement) replaceVariableWithExpression(useStmt, regName, defExpr);
+                        newUseStmt = (Statement) rewriteNode(newUseStmt);
                         stmts.set(useIndex, newUseStmt);
                         stmts.remove(i);
                         changed = true;
@@ -743,8 +744,9 @@ public class DataFlowAnalyzer {
                     }
                 }
 
+
+
                 if (memberCallee != null && isSameExpression(firstArg, table)) {
-                    newArgs.remove(0); // 移除首个隐式参数
                     return new FunctionCall(memberCallee, newArgs, true, call.returns, call.pos);
                 }
             }
@@ -783,6 +785,22 @@ public class DataFlowAnalyzer {
             return ((BooleanConst) e1).value == ((BooleanConst) e2).value;
         }
         if (e1 instanceof NilConst) {
+            return true;
+        }
+        if (e1 instanceof FunctionCall) {
+            FunctionCall f1 = (FunctionCall) e1;
+            FunctionCall f2 = (FunctionCall) e2;
+            if (f1.isMethodCall != f2.isMethodCall || !isSameExpression(f1.callee, f2.callee)) {
+                return false;
+            }
+            if (f1.args.size() != f2.args.size()) {
+                return false;
+            }
+            for (int j = 0; j < f1.args.size(); j++) {
+                if (!isSameExpression(f1.args.get(j), f2.args.get(j))) {
+                    return false;
+                }
+            }
             return true;
         }
         return false;
