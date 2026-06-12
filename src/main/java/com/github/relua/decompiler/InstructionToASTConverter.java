@@ -1139,7 +1139,7 @@ public class InstructionToASTConverter {
         if (c == 0) {
             condition = operand;
         } else {
-            condition = new Name("not " + operand.name, new SourcePos(instructionIndex, -1));
+            condition = new UnaryOp("not", operand, new SourcePos(instructionIndex, -1));
         }
 
         // 记录TEST信息，供后续JMP指令使用
@@ -1170,9 +1170,9 @@ public class InstructionToASTConverter {
         RegisterEntity RB = registerState.getRegisterEntity(b);
 
         // 操作数 根据c的值构建条件表达式
-        Expression condition = new Name(TransformUtils.transformRegister(RB), new SourcePos(instructionIndex, -1));
+        Expression condition = TransformUtils.transformToAstNode(RB, instructionIndex);
         if (c == 1) {
-            condition = new Name("not " + TransformUtils.transformRegister(RB), new SourcePos(instructionIndex, -1));
+            condition = new UnaryOp("not", condition, new SourcePos(instructionIndex, -1));
         }
 
         Assign assign = new Assign(TransformUtils.transformToAstNode(RA, instructionIndex), TransformUtils.transformToAstNode(RB, instructionIndex), new SourcePos(instructionIndex, -1));
