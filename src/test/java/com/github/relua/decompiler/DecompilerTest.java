@@ -58,4 +58,24 @@ class DecompilerTest {
             }
         }
     }
+
+    @Test
+    void testDecompileHttp() throws IOException {
+        String filePath = "src/test/resources/xiaomi/http.lua";
+        File file = new File(filePath);
+        assertTrue(file.exists(), "http.lua file does not exist: " + file.getAbsolutePath());
+
+        LuacParser parser = new LuacParser();
+        Decompiler decompiler = new Decompiler();
+
+        LuacFile luacFile = parser.parse(filePath);
+        assertNotNull(luacFile, "Failed to parse http.lua");
+
+        String luaCode = decompiler.decompile(luacFile);
+        assertNotNull(luaCode, "Failed to decompile");
+
+        try (PrintWriter writer = new PrintWriter(new FileWriter("target/http_decompiled.lua"))) {
+            writer.print(luaCode);
+        }
+    }
 }

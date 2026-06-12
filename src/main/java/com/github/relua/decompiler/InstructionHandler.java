@@ -649,61 +649,32 @@ public class InstructionHandler {
      * @return 生成的AST根节点
      */
     public AstNode generateASTFromChunk(Chunk chunk) {
-        // System.out.println("\n=== 开始生成AST ===");
-
         StructuredPatternEmitter structuredEmitter = new StructuredPatternEmitter(pipeline);
         Block structuredBlock = structuredEmitter.emitIfStructured(chunk);
         if (structuredBlock != null) {
-            // System.out.println("=== AST生成完成（结构化模式） ===\n");
             return structuredBlock;
         }
 
         // 计算支配关系
-        // System.out.println("1. 计算支配关系...");
         List<BasicBlock> basicBlocks = pipeline.getBasicBlocks(chunk.getFunction());
-        BasicBlock entry = basicBlocks.get(0); // 假设第一个基本块是入口
+        BasicBlock entry = basicBlocks.get(0);
         Map<BasicBlock, Set<BasicBlock>> dom = computeDominators(basicBlocks, entry);
-        // System.out.println("   支配关系计算完成，基本块数量: " + basicBlocks.size());
-        // 打印支配关系
-        // System.out.println("   支配关系详情:");
-        // for (Map.Entry<BasicBlock, Set<BasicBlock>> e : dom.entrySet()) {
-        //     int blockIdx = basicBlocks.indexOf(e.getKey());
-        //     System.out.print("     块 " + blockIdx + " 被 ");
-        //     for (BasicBlock d : e.getValue()) {
-        //         System.out.print("块 " + basicBlocks.indexOf(d) + " ");
-        //     }
-        //     System.out.println("支配");
-        // }
 
         // 查找出口基本块
-        // System.out.println("2. 查找出口基本块...");
         BasicBlock exit = findExitBlock(basicBlocks);
-        // System.out.println("   出口基本块: " + exit.getStartIndex() + "-" + exit.getEndIndex());
 
         // 计算后支配关系
-        // System.out.println("3. 计算后支配关系...");
         Map<BasicBlock, Set<BasicBlock>> postDom = computePostDominators(basicBlocks, exit);
-        // System.out.println("   后支配关系计算完成");
 
         // 检测SESE区域
-        // System.out.println("4. 检测SESE区域...");
         List<SESERegion> regions = detectSESERegions(basicBlocks, dom, postDom, chunk);
-        // System.out.println("   检测到SESE区域数量: " + regions.size());
 
         // 折叠SESE区域
-        // System.out.println("5. 折叠SESE区域...");
         List<SESERegion> collapsedRegions = collapseRegions(regions, dom, postDom);
-        // System.out.println("   折叠后SESE区域数量: " + collapsedRegions.size());
 
         // 生成AST
-        // System.out.println("6. 生成AST节点...");
         AstNode ast = generateAST(collapsedRegions, chunk);
-        // System.out.println("   AST生成完成，根节点类型: " + ast.type);
-        // if (ast instanceof Block) {
-        //     System.out.println("   AST子节点数量: " + ((Block) ast).statements.size());
-        // }
 
-        // System.out.println("=== AST生成完成 ===\n");
         return ast;
     }
 
@@ -1070,8 +1041,48 @@ public class InstructionHandler {
         markBlocksAsVisited(chunk, thenStart, thenEnd);
         Block thenBlock = buildBlock(thenStart, thenEnd, chunk, converter);
 
+        // Absorb trailing return/tailcall from gap between thenEnd and elseStart
+        // When lastThenBlock shrinks thenEnd, instructions like RETURN may be left in the gap.
+        // If the then-block ends with an if(no else) and the gap starts with return/tailcall,
+        // move the return into the inner if's then-block so the then-block always terminates.
+        if (elseStart != null) {
+            List<Instruction> instrs = chunk.getInstructions();
+            int gapStart = thenEnd + 1;
+            if (gapStart < elseStart && gapStart < instrs.size()) {
+                Instruction gapInst = instrs.get(gapStart);
+                boolean isReturn = gapInst.getOpcode() == Opcode.RETURN;
+                boolean isTailcall = gapInst.getOpcode() == Opcode.TAILCALL;
+                if (isReturn || isTailcall) {
+                    List<Statement> ts = thenBlock.statements;
+                    Statement lastNonLabel = null;
+                    for (int k = ts.size() - 1; k >= 0; k--) {
+                        if (!(ts.get(k) instanceof LabelStatement)) {
+                            lastNonLabel = ts.get(k);
+                            break;
+                        }
+                    }
+                    if (lastNonLabel instanceof IfStatement) {
+                        IfStatement innerIf = (IfStatement) lastNonLabel;
+                        if (innerIf.elseBlock == null && !innerIf.blocks.isEmpty()) {
+                            // Convert the return/tailcall instruction
+                            InstructionToASTConverter tempConv = new InstructionToASTConverter(chunk, pipeline);
+                            Object retNode = tempConv.convertInstructionToAST(gapInst, gapStart);
+                            if (retNode instanceof Statement) {
+                                innerIf.blocks.get(0).statements.add((Statement) retNode);
+                                markBlocksAsVisited(chunk, gapStart, gapStart);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         Block elseBlock = null;
         if (elseStart != null) {
+            // 标记 thenEnd+1 到 elseEnd 范围内的所有基本块为已访问，
+            // 防止 then 块末尾的死代码（如 return 后的 JMP）和 else 块体
+            // 被外层 generateBasicBlockAST 循环重复处理
+            markBlocksAsVisited(chunk, thenEnd + 1, elseEnd);
             markBlocksAsVisited(chunk, elseStart, elseEnd);
             elseBlock = buildBlock(elseStart, elseEnd, chunk, converter);
         }
@@ -1095,8 +1106,110 @@ public class InstructionHandler {
             }
         }
 
+        // ========== 重构：当 then 块总是终止时，将 else 代码移到 if 之后 ==========
+        // 模式: if cond then ...; return end else B end  →  if cond then ...; return end; B
+        boolean restructured = false;
+
+        if (elseBlock != null && !isEffectivelyEmpty(elseBlock)) {
+            if (blockAlwaysTerminates(thenBlock)) {
+                // then 块总是终止 → else 代码是后续代码，移到 if 之后
+                blockNode.statements.addAll(elseBlock.statements);
+                elseBlock = null;
+                restructured = true;
+            }
+        }
+
         blockNode.statements.add(new IfStatement(pending.condition, thenBlock, elseBlock, pending.pos));
+
+        // 处理 if 语句后多余的裸 return：
+        // 当 if 所有分支都有 return 时，后面的裸 return（无返回值）是冗余的
+        if (restructured) {
+            IfStatement justAdded = null;
+            for (int k = blockNode.statements.size() - 1; k >= 0; k--) {
+                if (blockNode.statements.get(k) instanceof IfStatement) {
+                    justAdded = (IfStatement) blockNode.statements.get(k);
+                    break;
+                }
+            }
+            if (justAdded != null && ifAllBranchesTerminate(justAdded)) {
+                List<Statement> bs = blockNode.statements;
+                int ifIdx = bs.indexOf(justAdded);
+                boolean onlyLabelsAndBareReturn = true;
+                int bareReturnIdx = -1;
+                for (int k = ifIdx + 1; k < bs.size(); k++) {
+                    if (bs.get(k) instanceof LabelStatement) {
+                        continue;
+                    }
+                    if (bs.get(k) instanceof ReturnStatement
+                            && ((ReturnStatement) bs.get(k)).values.isEmpty()
+                            && bareReturnIdx == -1) {
+                        bareReturnIdx = k;
+                    } else {
+                        onlyLabelsAndBareReturn = false;
+                        break;
+                    }
+                }
+                if (onlyLabelsAndBareReturn && bareReturnIdx != -1) {
+                    // 移除裸 return 及其前面的 label
+                    while (bs.size() > ifIdx + 1) {
+                        bs.remove(bs.size() - 1);
+                    }
+                }
+            }
+        }
+
         return elseEnd != null ? elseEnd : thenEnd;
+    }
+
+    // ========== if-else 重构辅助方法 ==========
+
+    /**
+     * 判断块是否以终结语句结尾（return/tailcall/全分支返回的if-else）。
+     * 跳过末尾的 LabelStatement。
+     */
+    private boolean blockAlwaysTerminates(Block block) {
+        return blockEndsWithTerminator(block);
+    }
+
+    private boolean blockEndsWithTerminator(Block block) {
+        if (block == null || block.statements.isEmpty()) return false;
+        for (int i = block.statements.size() - 1; i >= 0; i--) {
+            if (!(block.statements.get(i) instanceof LabelStatement)) {
+                return isTerminatingStatement(block.statements.get(i));
+            }
+        }
+        return false;
+    }
+
+    private boolean isTerminatingStatement(Statement stmt) {
+        if (stmt instanceof ReturnStatement) return true;
+        if (stmt instanceof ExpressionStatement) {
+            Expression expr = ((ExpressionStatement) stmt).expression;
+            if (expr instanceof UnaryOp && "return".equals(((UnaryOp) expr).op)) return true;
+        }
+        if (stmt instanceof IfStatement) {
+            return ifAllBranchesTerminate((IfStatement) stmt);
+        }
+        return false;
+    }
+
+    private boolean isEffectivelyEmpty(Block block) {
+        if (block == null) return true;
+        for (Statement s : block.statements) {
+            if (!(s instanceof LabelStatement) && !(s instanceof GotoStatement)) return false;
+        }
+        return true;
+    }
+
+    /**
+     * 检查 IfStatement 的所有分支（then/elseif/else）是否都以终结语句结尾。
+     */
+    private boolean ifAllBranchesTerminate(IfStatement ifStmt) {
+        for (Block b : ifStmt.blocks) {
+            if (!blockEndsWithTerminator(b)) return false;
+        }
+        if (ifStmt.elseBlock == null || isEffectivelyEmpty(ifStmt.elseBlock)) return false;
+        return blockEndsWithTerminator(ifStmt.elseBlock);
     }
 
     // /**

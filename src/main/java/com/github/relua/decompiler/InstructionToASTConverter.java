@@ -1229,9 +1229,14 @@ public class InstructionToASTConverter {
             BasicBlock block = pipeline.getBlockByStartIndex(chunk.getFunction(), thenStart);
             if (block != null && chunk.getInstructions().get(block.getEndIndex() - 1).getOpcode() != Opcode.TEST &&
                     chunk.getInstructions().get(block.getEndIndex()).getOpcode() == Opcode.JMP) {
-                thenEnd = block.getEndIndex();
+                Instruction jmpInst = chunk.getInstructions().get(block.getEndIndex());
+                int endTarget = block.getEndIndex() + 1 + jmpInst.getSBx();
+                if (endTarget >= jmpTarget) {
+                    thenEnd = block.getEndIndex();
+                }
             }
             // 获取上一个then块的结束索引
+            int originalThenEnd = thenEnd;
             BasicBlock lastThenBlock = pipeline.getContext().getLastThenBlock();
             if (lastThenBlock != null && lastThenBlock.getEndIndex() > thenStart
                     && lastThenBlock.getEndIndex() < thenEnd) {
@@ -1253,16 +1258,33 @@ public class InstructionToASTConverter {
                     if (endTarget - 1 > jmpTarget) {
                         elseStart = jmpTarget;
                         elseEnd = endTarget - 1;
-                        
-                        // 精化elseEnd：检查候选else范围中是否有来自外层作用域的跳转目标。
-                        // 如果有，则将else块截断在该跳转目标之前，避免将外层if的else体
-                        // 错误地包含到当前if的else中（例如嵌套if链中，内层if的then块
-                        // 以JMP结尾，但JMP的目标跨越了外层if的else体边界）。
-                        int refinedEnd = refineElseEndByOuterJumpTargets(chunk, pendingTest.pc, jmpTarget, elseEnd);
-                        if (refinedEnd < elseEnd) {
-                            elseEnd = refinedEnd;
+                    }
+                }
+            }
+
+            // 如果 lastThenBlock 缩减了 thenEnd，被排除的区间内可能存在前向 JMP，
+            // 该 JMP 跳过了 else 体（即 then 块末尾的 return/break 后紧跟的 JMP 跳过 else）。
+            // 扫描被排除的指令，找到这样的 JMP 来恢复 else 块。
+            if (elseStart == null && thenEnd < originalThenEnd) {
+                List<Instruction> instrs = chunk.getInstructions();
+                for (int scanPc = thenEnd + 1; scanPc <= originalThenEnd && scanPc < instrs.size(); scanPc++) {
+                    Instruction scanInst = instrs.get(scanPc);
+                    if (scanInst.getOpcode() == Opcode.JMP && scanInst.getA() == 0) {
+                        int scanTarget = scanPc + 1 + scanInst.getSBx();
+                        if (scanTarget > scanPc + 1) {  // forward jump
+                            elseStart = jmpTarget;
+                            elseEnd = scanTarget - 1;
+                            break;
                         }
                     }
+                }
+            }
+
+            // 精化elseEnd：检查候选else范围中是否有来自外层作用域的跳转目标。
+            if (elseStart != null && elseEnd != null) {
+                int refinedEnd = refineElseEndByOuterJumpTargets(chunk, pendingTest.pc, jmpTarget, elseEnd);
+                if (refinedEnd < elseEnd) {
+                    elseEnd = refinedEnd;
                 }
             }
 
