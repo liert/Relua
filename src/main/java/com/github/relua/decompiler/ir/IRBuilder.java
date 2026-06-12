@@ -470,13 +470,10 @@ public class IRBuilder {
             Instruction nextInstruction = chunk.getInstruction(instructionIndex);
             if (nextInstruction.getOpcode() == Opcode.MOVE) {
                 RegisterEntity RB = currentState.getRegisterEntity(nextInstruction.getB());
-                // RegisterEntity entity = currentState.getRegisterEntity(upvalueIndex);
                 context.addUpvalue(i, new UpValue(i, RB.getName(), RB.getValue(), RB.getType(), RB.getFromType()));
-                // Logger.debug(String.format("%s: 上值 %s 写入寄存器 R%d", targetChunk, RB.getName(), a + i));
             } else if (nextInstruction.getOpcode() == Opcode.GETUPVAL) {
                 UpValue upvalue = currentContext.getUpvalue(nextInstruction.getB());
                 context.addUpvalue(i, upvalue);
-                // Logger.debug(String.format("%s: 上值 %s 写入寄存器 R%d", targetChunk, upvalue.getName(), a + i));
             } else {
                 Logger.error(String.format("%s: 未知上值指令 %s", chunk.getFunction(), nextInstruction));
             }
@@ -501,9 +498,18 @@ public class IRBuilder {
         UpValue upvalue = context.getUpvalue(b);
 
         if (upvalue != null) {
-            // 如果上值是常量或全局引入符号，优先保留其状态；如果是局部寄存器变量，直接返回上值变量名字本身，避免被内部赋值污染
-            if ((upvalue.getFromType() == FromType.CONSTANT || upvalue.getFromType() == FromType.GLOBAL) && upvalue.getValue() != null) {
-                RA.setValue(upvalue.getValue());
+            // 仅对基础字面量常量进行值传播
+            boolean isBasicConstant = false;
+            Object val = upvalue.getValue();
+            if (val != null) {
+                if (val instanceof String || val instanceof Number || val instanceof Boolean) {
+                    isBasicConstant = true;
+                }
+            }
+
+            // 如果上值是基础字面量常量或全局引入符号，优先保留其状态；如果是局部寄存器变量，直接返回上值变量名字本身，避免被内部赋值污染
+            if ((upvalue.getFromType() == FromType.GLOBAL || (upvalue.getFromType() == FromType.CONSTANT && isBasicConstant)) && val != null) {
+                RA.setValue(val);
                 RA.setType(upvalue.getType());
                 RA.setFromType(upvalue.getFromType());
             } else {

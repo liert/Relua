@@ -78,4 +78,24 @@ class DecompilerTest {
             writer.print(luaCode);
         }
     }
+
+    @Test
+    void testDecompileXQSecureUtil() throws IOException {
+        String filePath = "src/test/resources/xiaomi/XQSecureUtil.lua";
+        File file = new File(filePath);
+        assertTrue(file.exists(), "XQSecureUtil.lua file does not exist: " + file.getAbsolutePath());
+
+        LuacParser parser = new LuacParser();
+        Decompiler decompiler = new Decompiler();
+
+        LuacFile luacFile = parser.parse(filePath);
+        assertNotNull(luacFile, "Failed to parse XQSecureUtil.lua");
+
+        String luaCode = decompiler.decompile(luacFile);
+        assertNotNull(luaCode, "Failed to decompile");
+
+        try (PrintWriter writer = new PrintWriter(new FileWriter("target/XQSecureUtil_decompiled.lua"))) {
+            writer.print(luaCode);
+        }
+    }
 }

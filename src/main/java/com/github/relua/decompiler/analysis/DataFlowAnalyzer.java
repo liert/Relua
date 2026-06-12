@@ -122,6 +122,19 @@ public class DataFlowAnalyzer {
                         changed = true;
                         break;
                     }
+
+                    // 如果使用次数为 0，且右侧表达式是没有副作用的常量/别名，可以直接安全删除该赋值语句
+                    if (useCount == 0) {
+                        if (defExpr instanceof StringConst 
+                                || defExpr instanceof NumberConst 
+                                || defExpr instanceof BooleanConst 
+                                || defExpr instanceof NilConst 
+                                || defExpr instanceof Name) {
+                            stmts.remove(i);
+                            changed = true;
+                            break;
+                        }
+                    }
                 }
             }
         }

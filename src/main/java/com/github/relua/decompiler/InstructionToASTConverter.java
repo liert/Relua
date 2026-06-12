@@ -403,15 +403,7 @@ public class InstructionToASTConverter {
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         RegisterEntity sourceEntity = registerState.getRegisterEntity(a);
 
-        Expression source = null;
-        if (sourceEntity.getFromType() == FromType.GLOBAL && sourceEntity.getValue() != null) {
-            // 全局变量
-            source = new Name(sourceEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
-        } else if (sourceEntity.getFromType() == FromType.CONSTANT && sourceEntity.getValue() != null) {
-            source = new StringConst(sourceEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
-        } else {
-            source = new Name("R" + a, new SourcePos(instructionIndex, -1));
-        }
+        Expression source = TransformUtils.transformToAstNode(sourceEntity, instructionIndex);
 
         // 目标全局变量
         String name = "RK" + bx;
@@ -453,7 +445,6 @@ public class InstructionToASTConverter {
 
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         RegisterEntity RB = registerState.getRegisterEntity(b);
-
         SourcePos pos = new SourcePos(instructionIndex, -1);
 
         // 表访问表达式
