@@ -34,7 +34,7 @@ public class RegisterStateAnalyzer {
         int numInstructions = instructions.size();
 
         // 初始化所有指令的输入和输出状态
-        resetRegisterStates(numInstructions);
+        resetRegisterStates(numInstructions, chunk);
 
         boolean changed = true;
         int maxIterations = 20; // 避免死循环
@@ -99,7 +99,7 @@ public class RegisterStateAnalyzer {
         }
     }
 
-    private void resetRegisterStates(int numInstructions) {
+    private void resetRegisterStates(int numInstructions, Chunk chunk) {
         inStates.clear();
         outStates.clear();
         // 初始化所有指令的输入和输出状态
@@ -109,7 +109,7 @@ public class RegisterStateAnalyzer {
             outStates.add(new Register());
         }
 
-        Register initRegister = pipeline.getContext().getRegister();
+        Register initRegister = pipeline.getContext(chunk.getFunction()).getRegister();
         // Logger.debug("初始寄存器状态: " + initRegister);
         if (initRegister == null) {
             return;

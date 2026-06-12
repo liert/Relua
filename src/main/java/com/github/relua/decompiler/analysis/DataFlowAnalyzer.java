@@ -342,8 +342,12 @@ public class DataFlowAnalyzer {
                 return 1;
             }
         } else if (node instanceof Assign) {
-            // 只在右侧表达式中统计 Use (左侧是定值 Def)
             Assign assign = (Assign) node;
+            for (Expression left : assign.left) {
+                if (!(left instanceof Name)) {
+                    count += countVariableUses(left, varName);
+                }
+            }
             for (Expression right : assign.right) {
                 count += countVariableUses(right, varName);
             }
@@ -443,11 +447,19 @@ public class DataFlowAnalyzer {
 
         if (root instanceof Assign) {
             Assign assign = (Assign) root;
+            List<Expression> newLeft = new ArrayList<>();
+            for (Expression left : assign.left) {
+                if (!(left instanceof Name)) {
+                    newLeft.add((Expression) replaceVariableWithExpression(left, varName, replacement));
+                } else {
+                    newLeft.add(left);
+                }
+            }
             List<Expression> newRight = new ArrayList<>();
             for (Expression right : assign.right) {
                 newRight.add((Expression) replaceVariableWithExpression(right, varName, replacement));
             }
-            return new Assign(assign.left, newRight, assign.pos);
+            return new Assign(newLeft, newRight, assign.pos);
         }
 
         if (root instanceof LocalAssign) {
