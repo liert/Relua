@@ -81,10 +81,16 @@ public class Instruction {
             case RETURN:
             case TAILCALL:
             case VARARG:
+                a = (int) (ucode >> 6) & 0xFF;
+                b = (int) (ucode >> 23) & 0x1FF;
+                c = 0;
+                break;
             case FORLOOP:
             case FORPREP:
                 a = (int) (ucode >> 6) & 0xFF;
-                b = (int) (ucode >> 23) & 0x1FF;
+                bx = (int) (ucode >> 14);
+                sbx = bx - 131071;
+                b = 0;
                 c = 0;
                 break;
             case LOADK:

@@ -149,14 +149,16 @@ public class IRBuilder {
         // 这样 CALL 参数展开时能显示正确的寄存器名（如 R0, R3 而非 {} 或 R5）
         if (srcEntity.getType() == ValueType.TABLE) {
             currentState.setRegisterEntity(a, "R" + b, ValueType.TABLE, FromType.GLOBAL);
-        } else if (srcEntity.getType() == ValueType.UNKNOWN && srcEntity.getValue() == null) {
-            // 当源是算术结果（UNKNOWN/null）时，目标记录为对源的命名引用
-            currentState.setRegisterEntity(a, "R" + b, ValueType.UNKNOWN, FromType.REGISTER);
         } else if (srcEntity.getType() == ValueType.NIL) {
             // 源是 nil：不传播 NIL 类型，避免后续 MOVE 链将 literal nil 传递到
             // 方法调用位置（如 R7:match(...) 变成 nil:match(...)）。
             // 将目标标记为 UNKNOWN，让转换器输出寄存器名而非 nil 常量。
             currentState.setRegisterEntity(a, "R" + a, ValueType.UNKNOWN, FromType.REGISTER);
+        } else if (srcEntity.getValue() == null) {
+            // 当源没有具体的值时（包括 UNKNOWN, STRING, NUMBER, BOOLEAN 等中间计算结果），
+            // 目标记录为对源寄存器的命名引用。这样当目标寄存器被读取时，会使用源寄存器的名字（如 R12），
+            // 从而实现对未打印 MOVE 指令的变量别名/内联解析，避免生成未定义的目标寄存器名。
+            currentState.setRegisterEntity(a, "R" + b, srcEntity.getType(), FromType.REGISTER);
         } else {
             // 复制源寄存器的完整状态到目标寄存器
             currentState.setRegisterEntity(a, srcEntity.getValue(), srcEntity.getType(), srcEntity.getFromType());
@@ -415,8 +417,14 @@ public class IRBuilder {
     }
 
     private void processLoopInstruction(Chunk chunk, Instruction instruction, Register currentState) {
-        // 处理循环指令
-        // 不修改寄存器状态
+        Opcode opcode = instruction.getOpcode();
+        if (opcode == Opcode.FORPREP || opcode == Opcode.FORLOOP) {
+            int a = instruction.getA();
+            int loopVarReg = a + 3;
+            // 将循环变量寄存器设置为 UNKNOWN 类型，且值为其自身的寄存器名，
+            // 避免其默认被识别为 NIL 导致后续 MOVE 时目标寄存器被赋值为自己的寄存器名。
+            currentState.setRegisterEntity(loopVarReg, "R" + loopVarReg, ValueType.UNKNOWN, FromType.REGISTER);
+        }
     }
 
     private void processSetListInstruction(Chunk chunk, Instruction instruction, Register currentState) {
