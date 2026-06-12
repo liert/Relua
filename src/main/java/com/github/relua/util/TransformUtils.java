@@ -8,6 +8,7 @@ import com.github.relua.ast.Name;
 import com.github.relua.ast.SourcePos;
 import com.github.relua.ast.StringConst;
 import com.github.relua.ast.TableConstructor;
+import com.github.relua.ast.MemberExpr;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.FromType;
 import com.github.relua.model.Register;
@@ -51,14 +52,27 @@ public class TransformUtils {
             }
             return (Expression) register.getValue();
         }
+        
+        String regName = transformRegister(register);
+        SourcePos pos = new SourcePos(instructionIndex, -1);
+        
+        if (regName != null && regName.contains(".")) {
+            String[] parts = regName.split("\\.");
+            Expression current = new Name(parts[0], pos);
+            for (int i = 1; i < parts.length; i++) {
+                current = new MemberExpr(current, parts[i], pos);
+            }
+            return current;
+        }
+
         switch (register.getType()) {
             case STRING:
                 if (register.getFromType() == FromType.CONSTANT && register.getValue() != null && !register.getName().equals(register.getValue().toString())) {
-                    return new StringConst(transformRegister(register), new SourcePos(instructionIndex, -1));
+                    return new StringConst(regName, pos);
                 }
-                return new Name(transformRegister(register), new SourcePos(instructionIndex, -1));
+                return new Name(regName, pos);
             default:
-                return new Name(transformRegister(register), new SourcePos(instructionIndex, -1));
+                return new Name(regName, pos);
         }
     }
 }

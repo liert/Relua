@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.HashSet;
 
+import com.github.relua.ast.AstNode;
+import com.github.relua.ast.TableField;
 import com.github.relua.ast.Assign;
 import com.github.relua.ast.BinaryOp;
 import com.github.relua.ast.Block;
@@ -60,8 +62,8 @@ public class AstCleanupPass {
         removeConsumedTemporaryTables(block, consumedTables);
         removeJoinGotos(block);
 
-        // 3. 把函数体顶层第一次出现的寄存器赋值恢复为 local
-        declareTopLevelLocals(block);
+        // 3. 把函数体顶层第一次出现的寄存器赋值恢复为 local，主块无参数
+        declareTopLevelLocals(block, java.util.Collections.emptyList());
     }
 
     private void removeEmptyIfBlocks(Block block) {
@@ -569,31 +571,245 @@ public class AstCleanupPass {
         }
     }
 
-    private void declareTopLevelLocals(Block block) {
+    private void declareTopLevelLocals(Block block, List<String> params) {
         if (block == null || block.statements == null) {
             return;
         }
 
         Set<String> declared = new HashSet<>();
-        List<Statement> rewritten = new ArrayList<>();
+        Set<String> hoistedRegisters = new HashSet<>();
+        
+        boolean isFunction = (params != null);
+        if (isFunction) {
+            declared.addAll(params);
+            
+            // 收集当前函数块中使用的所有 R\d+ 寄存器
+            collectAllUsedRegisters(block, hoistedRegisters);
+            // 参数不需要在头部重定义
+            hoistedRegisters.removeAll(params);
+        }
 
+        List<Statement> rewritten = new ArrayList<>();
         for (Statement statement : block.statements) {
-            rewritten.add(declareStatementLocalIfNeeded(statement, declared, true));
+            declareStatementLocalIfNeeded(statement, declared, true, hoistedRegisters, rewritten);
         }
 
         block.statements.clear();
         block.statements.addAll(rewritten);
+
+        // 如果是子函数体，我们将所有收集到且未被 declared（即没有以 require 等形式改名或声明）的 hoisted 寄存器统一在头部进行声明
+        if (isFunction && !hoistedRegisters.isEmpty()) {
+            List<String> missing = new ArrayList<>();
+            for (String reg : hoistedRegisters) {
+                if (!declared.contains(reg)) {
+                    missing.add(reg);
+                }
+            }
+            if (!missing.isEmpty()) {
+                // 按寄存器数字排序
+                missing.sort((a, b) -> {
+                    try {
+                        int na = Integer.parseInt(a.substring(1));
+                        int nb = Integer.parseInt(b.substring(1));
+                        return Integer.compare(na, nb);
+                    } catch (Exception e) {
+                        return a.compareTo(b);
+                    }
+                });
+
+                // 在 Block 最头部插入 local 声明
+                block.statements.add(0, new LocalAssign(missing, new ArrayList<>(), block.pos));
+                declared.addAll(missing);
+            }
+        }
     }
 
-    private Statement declareStatementLocalIfNeeded(Statement statement, Set<String> declared, boolean allowNewLocal) {
+    private void collectAllUsedRegisters(AstNode node, Set<String> registers) {
+        if (node == null) {
+            return;
+        }
+        if (node instanceof Name) {
+            String name = ((Name) node).name;
+            if (name.matches("R\\d+")) {
+                registers.add(name);
+            }
+            return;
+        }
+        if (node instanceof Block) {
+            Block block = (Block) node;
+            if (block.statements != null) {
+                for (Statement stmt : block.statements) {
+                    collectAllUsedRegisters(stmt, registers);
+                }
+            }
+        } else if (node instanceof Assign) {
+            Assign assign = (Assign) node;
+            for (Expression expr : assign.left) {
+                collectAllUsedRegisters(expr, registers);
+            }
+            for (Expression expr : assign.right) {
+                collectAllUsedRegisters(expr, registers);
+            }
+        } else if (node instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) node;
+            for (String name : local.names) {
+                if (name.matches("R\\d+")) {
+                    registers.add(name);
+                }
+            }
+            if (local.right != null) {
+                for (Expression expr : local.right) {
+                    collectAllUsedRegisters(expr, registers);
+                }
+            }
+        } else if (node instanceof GlobalAssign) {
+            GlobalAssign glob = (GlobalAssign) node;
+            for (String name : glob.names) {
+                if (name.matches("R\\d+")) {
+                    registers.add(name);
+                }
+            }
+            if (glob.right != null) {
+                for (Expression expr : glob.right) {
+                    collectAllUsedRegisters(expr, registers);
+                }
+            }
+        } else if (node instanceof IfStatement) {
+            IfStatement ifs = (IfStatement) node;
+            if (ifs.conditions != null) {
+                for (Expression cond : ifs.conditions) {
+                    collectAllUsedRegisters(cond, registers);
+                }
+            }
+            if (ifs.blocks != null) {
+                for (Block blk : ifs.blocks) {
+                    collectAllUsedRegisters(blk, registers);
+                }
+            }
+            collectAllUsedRegisters(ifs.elseBlock, registers);
+        } else if (node instanceof WhileStatement) {
+            WhileStatement ws = (WhileStatement) node;
+            collectAllUsedRegisters(ws.condition, registers);
+            collectAllUsedRegisters(ws.body, registers);
+        } else if (node instanceof RepeatStatement) {
+            RepeatStatement rs = (RepeatStatement) node;
+            collectAllUsedRegisters(rs.condition, registers);
+            collectAllUsedRegisters(rs.body, registers);
+        } else if (node instanceof ForNumeric) {
+            ForNumeric fn = (ForNumeric) node;
+            if (fn.name.matches("R\\d+")) registers.add(fn.name);
+            collectAllUsedRegisters(fn.start, registers);
+            collectAllUsedRegisters(fn.end, registers);
+            collectAllUsedRegisters(fn.step, registers);
+            collectAllUsedRegisters(fn.body, registers);
+        } else if (node instanceof ForIn) {
+            ForIn fi = (ForIn) node;
+            for (String n : fi.names) {
+                if (n.matches("R\\d+")) registers.add(n);
+            }
+            if (fi.iterators != null) {
+                for (Expression expr : fi.iterators) {
+                    collectAllUsedRegisters(expr, registers);
+                }
+            }
+            collectAllUsedRegisters(fi.body, registers);
+        } else if (node instanceof FunctionDeclaration) {
+            FunctionDeclaration fd = (FunctionDeclaration) node;
+            if (fd.name.matches("R\\d+")) {
+                registers.add(fd.name);
+            }
+        } else if (node instanceof FunctionLiteral) {
+            // 匿名闭包的变量独立，不收集内层
+        } else if (node instanceof BinaryOp) {
+            BinaryOp bo = (BinaryOp) node;
+            collectAllUsedRegisters(bo.left, registers);
+            collectAllUsedRegisters(bo.right, registers);
+        } else if (node instanceof UnaryOp) {
+            collectAllUsedRegisters(((UnaryOp) node).expr, registers);
+        } else if (node instanceof IndexExpr) {
+            IndexExpr ie = (IndexExpr) node;
+            collectAllUsedRegisters(ie.table, registers);
+            collectAllUsedRegisters(ie.index, registers);
+        } else if (node instanceof MemberExpr) {
+            collectAllUsedRegisters(((MemberExpr) node).table, registers);
+        } else if (node instanceof FunctionCall) {
+            FunctionCall fc = (FunctionCall) node;
+            collectAllUsedRegisters(fc.callee, registers);
+            if (fc.args != null) {
+                for (Expression arg : fc.args) {
+                    collectAllUsedRegisters(arg, registers);
+                }
+            }
+        } else if (node instanceof TableConstructor) {
+            TableConstructor tc = (TableConstructor) node;
+            if (tc.fields != null) {
+                for (TableField tf : tc.fields) {
+                    collectAllUsedRegisters(tf.key, registers);
+                    collectAllUsedRegisters(tf.value, registers);
+                }
+            }
+        } else if (node instanceof ReturnStatement) {
+            ReturnStatement rs = (ReturnStatement) node;
+            if (rs.values != null) {
+                for (Expression val : rs.values) {
+                    collectAllUsedRegisters(val, registers);
+                }
+            }
+        } else if (node instanceof ExpressionStatement) {
+            collectAllUsedRegisters(((ExpressionStatement) node).expression, registers);
+        }
+    }
+
+    private void declareStatementLocalIfNeeded(Statement statement, Set<String> declared, boolean allowNewLocal, Set<String> hoistedRegisters, List<Statement> result) {
         if (statement instanceof LocalAssign) {
             LocalAssign local = (LocalAssign) statement;
-            declared.addAll(local.names);
-            return statement;
+            
+            List<String> hoistedInLocal = new ArrayList<>();
+            List<String> remainInLocal = new ArrayList<>();
+            for (String name : local.names) {
+                if (name.matches("R\\d+") && hoistedRegisters != null && hoistedRegisters.contains(name)) {
+                    hoistedInLocal.add(name);
+                } else {
+                    remainInLocal.add(name);
+                }
+            }
+            
+            if (hoistedInLocal.isEmpty()) {
+                declared.addAll(local.names);
+                result.add(local);
+                return;
+            }
+            
+            declared.addAll(remainInLocal);
+            
+            if (!remainInLocal.isEmpty()) {
+                List<Expression> remainRight = new ArrayList<>();
+                for (String rName : remainInLocal) {
+                    int idx = local.names.indexOf(rName);
+                    if (idx < local.right.size()) {
+                        remainRight.add(local.right.get(idx));
+                    }
+                }
+                result.add(new LocalAssign(remainInLocal, remainRight, local.pos));
+            }
+            
+            for (String hName : hoistedInLocal) {
+                int idx = local.names.indexOf(hName);
+                if (idx < local.right.size()) {
+                    Expression rightExpr = local.right.get(idx);
+                    List<Expression> leftList = new ArrayList<>();
+                    leftList.add(new Name(hName, local.pos));
+                    List<Expression> rightList = new ArrayList<>();
+                    rightList.add(rightExpr);
+                    result.add(new Assign(leftList, rightList, local.pos));
+                }
+            }
+            return;
         }
 
         if (statement instanceof GlobalAssign) {
-            return statement;
+            result.add(statement);
+            return;
         }
 
         if (statement instanceof Assign) {
@@ -606,20 +822,27 @@ public class AstCleanupPass {
                 String name = ((Name) assign.left.get(0)).name;
 
                 if (!declared.contains(name) && shouldDeclareLocal(name, assign.right.get(0))) {
+                    if (hoistedRegisters != null && hoistedRegisters.contains(name)) {
+                        result.add(statement);
+                        return;
+                    }
                     declared.add(name);
 
                     List<String> names = new ArrayList<>();
                     names.add(name);
 
-                    return new LocalAssign(names, assign.right, assign.pos);
+                    result.add(new LocalAssign(names, assign.right, assign.pos));
+                    return;
                 }
 
                 if (declared.contains(name)) {
-                    return statement;
+                    result.add(statement);
+                    return;
                 }
             }
 
-            return statement;
+            result.add(statement);
+            return;
         }
 
         // 不在 if/while/repeat/for 的嵌套块里新建 local，避免把条件分支里的第一次赋值误判成局部声明。
@@ -628,43 +851,49 @@ public class AstCleanupPass {
             IfStatement ifStatement = (IfStatement) statement;
 
             for (Block nested : ifStatement.blocks) {
-                rewriteNestedBlockWithoutNewLocals(nested, declared);
+                rewriteNestedBlockWithoutNewLocals(nested, declared, hoistedRegisters);
             }
 
-            rewriteNestedBlockWithoutNewLocals(ifStatement.elseBlock, declared);
-            return statement;
+            rewriteNestedBlockWithoutNewLocals(ifStatement.elseBlock, declared, hoistedRegisters);
+            result.add(statement);
+            return;
         }
 
         if (statement instanceof WhileStatement) {
-            rewriteNestedBlockWithoutNewLocals(((WhileStatement) statement).body, declared);
-            return statement;
+            rewriteNestedBlockWithoutNewLocals(((WhileStatement) statement).body, declared, hoistedRegisters);
+            result.add(statement);
+            return;
         }
 
         if (statement instanceof RepeatStatement) {
-            rewriteNestedBlockWithoutNewLocals(((RepeatStatement) statement).body, declared);
-            return statement;
+            rewriteNestedBlockWithoutNewLocals(((RepeatStatement) statement).body, declared, hoistedRegisters);
+            result.add(statement);
+            return;
         }
 
         if (statement instanceof ForNumeric) {
-            rewriteNestedBlockWithoutNewLocals(((ForNumeric) statement).body, declared);
-            return statement;
+            rewriteNestedBlockWithoutNewLocals(((ForNumeric) statement).body, declared, hoistedRegisters);
+            result.add(statement);
+            return;
         }
 
         if (statement instanceof ForIn) {
-            rewriteNestedBlockWithoutNewLocals(((ForIn) statement).body, declared);
-            return statement;
+            rewriteNestedBlockWithoutNewLocals(((ForIn) statement).body, declared, hoistedRegisters);
+            result.add(statement);
+            return;
         }
 
         if (statement instanceof FunctionDeclaration) {
             // 函数声明本身有自己的作用域，不共享当前函数的 declared 集合
-            declareTopLevelLocals(((FunctionDeclaration) statement).func.body);
-            return statement;
+            declareTopLevelLocals(((FunctionDeclaration) statement).func.body, ((FunctionDeclaration) statement).func.params);
+            result.add(statement);
+            return;
         }
 
-        return statement;
+        result.add(statement);
     }
 
-    private void rewriteNestedBlockWithoutNewLocals(Block block, Set<String> declared) {
+    private void rewriteNestedBlockWithoutNewLocals(Block block, Set<String> declared, Set<String> hoistedRegisters) {
         if (block == null || block.statements == null) {
             return;
         }
@@ -672,7 +901,7 @@ public class AstCleanupPass {
         List<Statement> rewritten = new ArrayList<>();
 
         for (Statement statement : block.statements) {
-            rewritten.add(declareStatementLocalIfNeeded(statement, declared, false));
+            declareStatementLocalIfNeeded(statement, declared, false, hoistedRegisters, rewritten);
         }
 
         block.statements.clear();

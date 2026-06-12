@@ -461,10 +461,11 @@ public class InstructionToASTConverter {
         List<Expression> right = new ArrayList<>();
         right.add(tableAccess);
         if (RB.getFromType() == FromType.GLOBAL) {
-            // return new Assign("R" + a, tableAccess, new SourcePos(instructionIndex, -1));
             return null;
         }
-        return new LocalAssign(names, right, pos);
+        List<Expression> left = new ArrayList<>();
+        left.add(new Name("R" + a, pos));
+        return new Assign(left, right, pos);
     }
 
     /**
