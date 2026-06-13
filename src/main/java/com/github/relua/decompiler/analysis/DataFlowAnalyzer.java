@@ -144,14 +144,12 @@ public class DataFlowAnalyzer {
                     // 安全删除条件：全局无引用（nextDefIdx == stmts.size()）或者被覆盖前无 Goto 跳转
                     int nextDefIdx = findNextDefinitionIndex(stmts, i + 1, regName);
                     boolean safeToDelete = false;
-                    if (useCount == 0 && (isTopLevel || stmt instanceof LocalAssign)) {
+                    if (useCount == 0) {
                         int totalUses = countTotalUsesInBlock(topBlock, regName);
                         if (totalUses == 0) {
-                            if (nextDefIdx == stmts.size()) {
-                                safeToDelete = true;
-                            } else if (!hasGotoStatement(stmts, i + 1, nextDefIdx)) {
-                                safeToDelete = true;
-                            }
+                            safeToDelete = true;
+                        } else if (nextDefIdx < stmts.size() && !hasGotoStatement(stmts, i + 1, nextDefIdx)) {
+                            safeToDelete = true;
                         }
                     }
                     if (safeToDelete) {
