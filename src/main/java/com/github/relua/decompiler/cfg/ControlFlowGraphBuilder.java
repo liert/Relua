@@ -90,6 +90,18 @@ public class ControlFlowGraphBuilder {
                         currentBlock.addSuccessor(nextBlock);
                     }
                 }
+            } else if (opcode == Opcode.LOADBOOL) {
+                if (inst.getC() != 0) {
+                    int target = i + 2;
+                    addEdge(chunk, currentBlock, target);
+                } else {
+                    if (i + 1 < instructions.size()) {
+                        BasicBlock nextBlock = pipeline.getBasicBlock(chunk.getFunction(), i + 1);
+                        if (nextBlock != null && nextBlock != currentBlock) {
+                            currentBlock.addSuccessor(nextBlock);
+                        }
+                    }
+                }
             } else if (opcode != Opcode.RETURN && opcode != Opcode.TAILCALL) {
                 // 其他非返回/尾调用指令，添加下一条指令作为后继
                 if (i + 1 < instructions.size()) {

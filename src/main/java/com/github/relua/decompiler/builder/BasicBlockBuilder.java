@@ -82,6 +82,14 @@ public class BasicBlockBuilder {
                 if (i + 1 < instructions.size()) {
                     pipeline.getContext().addTforRegionPC(i + 1); // TFORLOOP 后面的 backward JMP
                 }
+            } else if (opcode == Opcode.LOADBOOL) {
+                if (inst.getC() != 0) {
+                    int jumpTarget = i + 2;
+                    if (jumpTarget >= 0 && jumpTarget < instructions.size()) {
+                        isJumpTarget[jumpTarget] = true;
+                    }
+                    pipeline.getContext().addLabelPC(jumpTarget);
+                }
             }
         }
 
@@ -107,7 +115,11 @@ public class BasicBlockBuilder {
             // Logger.debug(String.format("[%s] : %s", i, opcode.toString()));
 
             // 检查是否是基本块结束指令
-            if (isBlockEndInstruction(opcode)) {
+            boolean isEnd = isBlockEndInstruction(opcode);
+            if (opcode == Opcode.LOADBOOL && instructions.get(i).getC() != 0) {
+                isEnd = true;
+            }
+            if (isEnd) {
                 if (i + 1 < instructions.size()) {
                     currentBlock = new BasicBlock(i + 1);
                     basicBlocks.add(currentBlock);

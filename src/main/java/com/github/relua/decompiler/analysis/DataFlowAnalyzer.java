@@ -127,8 +127,18 @@ public class DataFlowAnalyzer {
                         break;
                     }
 
-                    // 如果使用次数为 0，且右侧表达式是没有副作用的常量/别名，且后续不包含 Goto 语句，可以直接安全删除该赋值语句
-                    if (useCount == 0 && !hasGotoStatement(stmts, i + 1, stmts.size())) {
+                    // 如果使用次数为 0，且右侧表达式是没有副作用的常量/别名，可以直接安全删除该赋值语句
+                    // 安全删除条件：全局无引用（nextDefIdx == stmts.size()）或者被覆盖前无 Goto 跳转
+                    int nextDefIdx = findNextDefinitionIndex(stmts, i + 1, regName);
+                    boolean safeToDelete = false;
+                    if (useCount == 0) {
+                        if (nextDefIdx == stmts.size()) {
+                            safeToDelete = true;
+                        } else if (!hasGotoStatement(stmts, i + 1, nextDefIdx)) {
+                            safeToDelete = true;
+                        }
+                    }
+                    if (safeToDelete) {
                         if (defExpr instanceof StringConst 
                                 || defExpr instanceof NumberConst 
                                 || defExpr instanceof BooleanConst 
@@ -142,6 +152,15 @@ public class DataFlowAnalyzer {
                 }
             }
         }
+    }
+
+    private int findNextDefinitionIndex(List<Statement> stmts, int start, String regName) {
+        for (int j = start; j < stmts.size(); j++) {
+            if (hasAssignmentTo(stmts.get(j), regName)) {
+                return j;
+            }
+        }
+        return stmts.size();
     }
 
     /**

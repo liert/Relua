@@ -286,10 +286,11 @@ public class InstructionToASTConverter {
      * @param instructionIndex 指令索引
      * @return 生成的AST节点
      */
-    private AstNode convertLoadBoolInstruction(Instruction instruction, int instructionIndex) {
+    private Object convertLoadBoolInstruction(Instruction instruction, int instructionIndex) {
         // OP_LOADBOOL A B C R(A) := (Bool)B; if (C) pc++
         int a = instruction.getA();
         boolean boolValue = instruction.getB() != 0;
+        int c = instruction.getC();
 
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
@@ -304,7 +305,18 @@ public class InstructionToASTConverter {
         left.add(target);
         List<Expression> right = new ArrayList<>();
         right.add(source);
-        return new Assign(left, right, new SourcePos(instructionIndex, -1));
+        
+        Assign assign = new Assign(left, right, new SourcePos(instructionIndex, -1));
+        
+        if (c != 0) {
+            int jumpTarget = instructionIndex + 2;
+            Block block = new Block(new SourcePos(instructionIndex, -1));
+            block.statements.add(assign);
+            block.statements.add(new GotoStatement("L" + jumpTarget, new SourcePos(instructionIndex, -1)));
+            return block;
+        }
+        
+        return assign;
     }
 
     /**

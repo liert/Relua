@@ -109,6 +109,14 @@ public class CFGGenerator {
                 if (i + 1 < instructions.size()) {
                     codeGenContext.addTforRegionPC(i + 1); // TFORLOOP 后面的 backward JMP
                 }
+            } else if (opcode == Opcode.LOADBOOL) {
+                if (inst.getC() != 0) {
+                    int jumpTarget = i + 2;
+                    if (jumpTarget >= 0 && jumpTarget < instructions.size()) {
+                        isJumpTarget[jumpTarget] = true;
+                    }
+                    codeGenContext.addLabelPC(jumpTarget);
+                }
             }
         }
         
@@ -139,7 +147,11 @@ public class CFGGenerator {
             Opcode opcode = instructions.get(i).getOpcode();
 
             // 检查是否是基本块结束指令
-            if (isBlockEndInstruction(opcode)) {
+            boolean isEnd = isBlockEndInstruction(opcode);
+            if (opcode == Opcode.LOADBOOL && instructions.get(i).getC() != 0) {
+                isEnd = true;
+            }
+            if (isEnd) {
                 if (i + 1 < instructions.size()) {
                     currentBlock = new BasicBlock(i + 1);
                     basicBlocks.add(currentBlock);
@@ -236,6 +248,18 @@ public class CFGGenerator {
                     BasicBlock nextBlock = instructionToBlockMap.get(i + 1);
                     if (nextBlock != null && nextBlock != currentBlock) {
                         currentBlock.addSuccessor(nextBlock);
+                    }
+                }
+            } else if (opcode == Opcode.LOADBOOL) {
+                if (inst.getC() != 0) {
+                    int target = i + 2;
+                    addEdge(currentBlock, target);
+                } else {
+                    if (i + 1 < instructions.size()) {
+                        BasicBlock nextBlock = instructionToBlockMap.get(i + 1);
+                        if (nextBlock != null && nextBlock != currentBlock) {
+                            currentBlock.addSuccessor(nextBlock);
+                        }
                     }
                 }
             } else if (opcode != Opcode.RETURN) {
