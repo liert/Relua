@@ -236,8 +236,7 @@ public class DataFlowAnalyzer {
                 }
 
                 // 寄存器在未被读取的情况下被重新定值，当前赋值为死赋值，且在此期间不包含 Goto 语句
-                if (redefineIndex != -1 && !foundUse && !hasGotoStatement(stmts, i + 1, redefineIndex)
-                        && (isTopLevel || stmt instanceof LocalAssign)) {
+                if (redefineIndex != -1 && !foundUse && !hasGotoStatement(stmts, i + 1, redefineIndex)) {
                     // 如果重定义表达式引用了该寄存器，先将死值代入
                     Statement redefineStmt = stmts.get(redefineIndex);
                     if (countVariableUses(redefineStmt, regName) > 0) {

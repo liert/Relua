@@ -277,17 +277,38 @@ public class AstCleanupPass {
             }
         }
 
-        // 在当前块中，找到第一条终结语句（return/tailcall/全分支返回的if），
-        // 移除其后的所有语句
+        // 在当前块中，寻找无条件转移语句并移除其后的不可达代码
         List<Statement> stmts = block.statements;
         for (int i = 0; i < stmts.size(); i++) {
-            boolean isTerminating = isTerminatingStatement(stmts.get(i));
-            if (isTerminating) {
+            Statement s = stmts.get(i);
+            if (isTerminatingStatement(s)) {
                 if (i + 1 < stmts.size()) {
                     List<Statement> toRemove = new ArrayList<>(stmts.subList(i + 1, stmts.size()));
                     stmts.removeAll(toRemove);
                 }
                 break;
+            } else if (s instanceof GotoStatement) {
+                // 找到下一个 LabelStatement，移出它们之间的所有不可达语句
+                int nextLabelIdx = -1;
+                for (int k = i + 1; k < stmts.size(); k++) {
+                    if (stmts.get(k) instanceof LabelStatement) {
+                        nextLabelIdx = k;
+                        break;
+                    }
+                }
+                if (nextLabelIdx != -1) {
+                    if (nextLabelIdx > i + 1) {
+                        List<Statement> toRemove = new ArrayList<>(stmts.subList(i + 1, nextLabelIdx));
+                        stmts.removeAll(toRemove);
+                    }
+                } else {
+                    // 后面没有 Label 了，直接移除后面的全部语句
+                    if (i + 1 < stmts.size()) {
+                        List<Statement> toRemove = new ArrayList<>(stmts.subList(i + 1, stmts.size()));
+                        stmts.removeAll(toRemove);
+                    }
+                    break;
+                }
             }
         }
     }
