@@ -154,10 +154,9 @@ public class IRBuilder {
             // 方法调用位置（如 R7:match(...) 变成 nil:match(...)）。
             // 将目标标记为 UNKNOWN，让转换器输出寄存器名而非 nil 常量。
             currentState.setRegisterEntity(a, "R" + a, ValueType.UNKNOWN, FromType.REGISTER);
-        } else if (srcEntity.getValue() == null) {
-            // 当源没有具体的值时（包括 UNKNOWN, STRING, NUMBER, BOOLEAN 等中间计算结果），
-            // 目标记录为对源寄存器的命名引用。这样当目标寄存器被读取时，会使用源寄存器的名字（如 R12），
-            // 从而实现对未打印 MOVE 指令的变量别名/内联解析，避免生成未定义的目标寄存器名。
+        } else if (srcEntity.getValue() == null || srcEntity.getFromType() == FromType.REGISTER || srcEntity.getFromType() == FromType.UNKNOWN) {
+            // 当源没有具体的值，或者源是一个可变的寄存器引用（REGISTER/UNKNOWN）时，
+            // 目标记录为对源寄存器的直接命名引用，而不是复制其当前的间接值（避免寄存器覆盖导致的值解析错误）。
             currentState.setRegisterEntity(a, "R" + b, srcEntity.getType(), FromType.REGISTER);
         } else {
             // 复制源寄存器的完整状态到目标寄存器
