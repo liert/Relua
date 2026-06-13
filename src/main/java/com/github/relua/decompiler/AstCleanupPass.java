@@ -51,7 +51,7 @@ public class AstCleanupPass {
         }
 
         // 1. 数据流变量内联及点号/冒号语法糖还原
-        new DataFlowAnalyzer().optimize(block);
+        new DataFlowAnalyzer().optimize(block, parentDeclared, upvalueNames);
 
         // 1.5 清理空的if块（nil-guard等模式产生的空条件分支）
         removeEmptyIfBlocks(block);
@@ -63,7 +63,7 @@ public class AstCleanupPass {
         removeEmptyIfBlocks(block);
 
         // 2.5.5 再次执行数据流变量内联（消解 GOTO/Label 之后，许多原本因跳转阻碍而无法安全内联的变量现在可以安全内联了）
-        new DataFlowAnalyzer().optimize(block);
+        new DataFlowAnalyzer().optimize(block, parentDeclared, upvalueNames);
 
         // 2.6 移除 return 后的死代码
         removeDeadCodeAfterReturn(block);

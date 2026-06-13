@@ -9,8 +9,20 @@ import com.github.relua.ast.*;
 
 public class DataFlowAnalyzer {
     private Block topBlock;
+    private Set<String> parentDeclared = new java.util.HashSet<>();
+    private Set<String> upvalueNames = new java.util.HashSet<>();
 
     public void optimize(Block block) {
+        optimize(block, true);
+    }
+
+    public void optimize(Block block, Set<String> parentDeclared, Set<String> upvalueNames) {
+        if (parentDeclared != null) {
+            this.parentDeclared = parentDeclared;
+        }
+        if (upvalueNames != null) {
+            this.upvalueNames = upvalueNames;
+        }
         optimize(block, true);
     }
 
@@ -150,6 +162,13 @@ public class DataFlowAnalyzer {
                             safeToDelete = true;
                         } else if (nextDefIdx < stmts.size() && !hasGotoStatement(stmts, i + 1, nextDefIdx)) {
                             safeToDelete = true;
+                        } else if (nextDefIdx == stmts.size()) {
+                            if (!parentDeclared.contains(regName) && !upvalueNames.contains(regName)) {
+                                boolean terminates = isTopLevel || (!stmts.isEmpty() && stmts.get(stmts.size() - 1) instanceof ReturnStatement);
+                                if (terminates && !hasEscapingControlFlow(stmts, i + 1)) {
+                                    safeToDelete = true;
+                                }
+                            }
                         }
                     }
                     if (safeToDelete) {
@@ -941,6 +960,46 @@ public class DataFlowAnalyzer {
             count += countTotalUsesInBlock(((ForNumeric) stmt).body, regName);
         } else if (stmt instanceof ForIn) {
             count += countTotalUsesInBlock(((ForIn) stmt).body, regName);
+        }
+        return count;
+    }
+
+    private boolean hasEscapingControlFlow(List<Statement> stmts, int start) {
+        for (int k = start; k < stmts.size(); k++) {
+            if (countEscapes(stmts.get(k)) > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int countEscapes(com.github.relua.ast.AstNode node) {
+        if (node == null) return 0;
+        int count = 0;
+        if (node instanceof GotoStatement || node instanceof BreakStatement || node instanceof LabelStatement) {
+            count = 1;
+        } else if (node instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) node;
+            for (Block block : ifStmt.blocks) {
+                count += countEscapes(block);
+            }
+            count += countEscapes(ifStmt.elseBlock);
+        } else if (node instanceof WhileStatement) {
+            count += countEscapes(((WhileStatement) node).body);
+        } else if (node instanceof RepeatStatement) {
+            count += countEscapes(((RepeatStatement) node).body);
+        } else if (node instanceof ForNumeric) {
+            count += countEscapes(((ForNumeric) node).body);
+        } else if (node instanceof ForIn) {
+            count += countEscapes(((ForIn) node).body);
+        } else if (node instanceof Block) {
+            for (Statement stmt : ((Block) node).statements) {
+                count += countEscapes(stmt);
+            }
+        } else if (node instanceof FunctionDeclaration) {
+            count += countEscapes(((FunctionDeclaration) node).func.body);
+        } else if (node instanceof FunctionLiteral) {
+            count += countEscapes(((FunctionLiteral) node).body);
         }
         return count;
     }
