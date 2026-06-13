@@ -252,8 +252,26 @@ public class Instruction {
         return (int) (code >> POS_Bx) & mask(SIZE_Bx, 0);
     }
 
-    private int getArgSBx(int code) {
-        return (int) (getArgBx(code) - (((1 << SIZE_Bx) - 1) >> 1));
+    public int getNumericForPrepTarget(java.util.List<Instruction> instructions, int currentIndex) {
+        int prepIdx = -1;
+        for (int j = currentIndex - 1; j >= 0; j--) {
+            if (instructions.get(j).getOpcode() == Opcode.FORPREP && instructions.get(j).getA() == this.a) {
+                prepIdx = j;
+                break;
+            }
+        }
+        return prepIdx != -1 ? prepIdx + 1 : currentIndex + 1;
+    }
+
+    public int getNumericForLoopTarget(java.util.List<Instruction> instructions, int currentIndex) {
+        int loopIdx = -1;
+        for (int j = currentIndex + 1; j < instructions.size(); j++) {
+            if (instructions.get(j).getOpcode() == Opcode.FORLOOP && instructions.get(j).getA() == this.a) {
+                loopIdx = j;
+                break;
+            }
+        }
+        return loopIdx != -1 ? loopIdx : currentIndex + 1;
     }
 
     @Override

@@ -55,16 +55,18 @@ public class BasicBlockBuilder {
                 }
             } else if (opcode == Opcode.FORLOOP) {
                 // FORLOOP指令：pc += sBx
-                int jumpTarget = i + 1 + inst.getSBx();
+                int jumpTarget = inst.getSBx() == 0 ? inst.getNumericForPrepTarget(instructions, i) : i + 1 + inst.getSBx();
                 if (jumpTarget >= 0 && jumpTarget < instructions.size()) {
                     isJumpTarget[jumpTarget] = true;
                 }
+                pipeline.getContext().addLabelPC(jumpTarget);
             } else if (opcode == Opcode.FORPREP) {
                 // FORPREP指令：pc += sBx
-                int jumpTarget = i + 1 + inst.getSBx();
+                int jumpTarget = inst.getSBx() == 0 ? inst.getNumericForLoopTarget(instructions, i) : i + 1 + inst.getSBx();
                 if (jumpTarget >= 0 && jumpTarget < instructions.size()) {
                     isJumpTarget[jumpTarget] = true;
                 }
+                pipeline.getContext().addLabelPC(jumpTarget);
             } else if (opcode == Opcode.TFORLOOP) {
                 // TFORLOOP指令：如果条件满足，pc += sBx
                 int jumpTarget = i + 1 + inst.getSBx();

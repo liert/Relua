@@ -24,6 +24,9 @@ public class StructureRestorer {
         // 2. 重构泛型 for 循环 (FORGPREP/FORGLOOP 拓扑还原)
         restoreForInLoops(block);
 
+        // 2.5 重构数值 for 循环 (FORPREP/FORLOOP 拓扑还原)
+        restoreForNumericLoops(block);
+
         // 3. 重构结构化的 if-else 分支
         eliminateStructuredIfElse(block);
 
@@ -887,5 +890,132 @@ public class StructureRestorer {
                 }
             }
         }
+    }
+
+    private void restoreForNumericLoops(Block block) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+        List<Statement> stmts = block.statements;
+        boolean changed = true;
+        
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < stmts.size(); i++) {
+                if (i + 4 >= stmts.size()) {
+                    break;
+                }
+                
+                Statement s1 = stmts.get(i);
+                Statement s2 = stmts.get(i + 1);
+                Statement s3 = stmts.get(i + 2);
+                
+                int r1 = getAssignRegisterIndex(s1);
+                int r2 = getAssignRegisterIndex(s2);
+                int r3 = getAssignRegisterIndex(s3);
+                
+                if (r1 != -1 && r2 == r1 + 1 && r3 == r1 + 2) {
+                    Statement s4 = stmts.get(i + 3);
+                    if (s4 instanceof GotoStatement) {
+                        String labelEnd = ((GotoStatement) s4).label;
+                        
+                        Statement s5 = stmts.get(i + 4);
+                        if (s5 instanceof LabelStatement) {
+                            String labelStart = ((LabelStatement) s5).label;
+                            
+                            int endLabelIdx = findLabelIndex(stmts, i + 5, labelEnd);
+                            if (endLabelIdx != -1) {
+                                GotoStatement backGoto = null;
+                                int backGotoIdx = -1;
+                                if (endLabelIdx > 0 && stmts.get(endLabelIdx - 1) instanceof GotoStatement) {
+                                    backGoto = (GotoStatement) stmts.get(endLabelIdx - 1);
+                                    backGotoIdx = endLabelIdx - 1;
+                                } else if (endLabelIdx + 1 < stmts.size() && stmts.get(endLabelIdx + 1) instanceof GotoStatement) {
+                                    backGoto = (GotoStatement) stmts.get(endLabelIdx + 1);
+                                    backGotoIdx = endLabelIdx + 1;
+                                }
+                                
+                                if (backGoto != null && backGoto.label.equals(labelStart)) {
+                                    Expression startExpr = getAssignRightExpr(s1);
+                                    Expression limitExpr = getAssignRightExpr(s2);
+                                    Expression stepExpr = getAssignRightExpr(s3);
+                                    
+                                    if (isNumberOne(stepExpr)) {
+                                        stepExpr = null;
+                                    }
+                                    
+                                    String varName = "R" + (r1 + 3);
+                                    
+                                    int bodyEnd = (backGotoIdx < endLabelIdx) ? endLabelIdx - 1 : endLabelIdx;
+                                    Block bodyBlock = new Block(new SourcePos(i + 5, -1));
+                                    for (int k = i + 5; k < bodyEnd; k++) {
+                                        bodyBlock.statements.add(stmts.get(k));
+                                    }
+                                    
+                                    stripTrailingDanglingGotos(bodyBlock);
+                                    
+                                    ForNumeric forNum = new ForNumeric(varName, startExpr, limitExpr, stepExpr, bodyBlock, s1.pos);
+                                    
+                                    stmts.set(i, forNum);
+                                    
+                                    int removeLimit = Math.max(endLabelIdx, backGotoIdx);
+                                    for (int k = removeLimit; k > i; k--) {
+                                        stmts.remove(k);
+                                    }
+                                    
+                                    restructure(bodyBlock);
+                                    changed = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private int getAssignRegisterIndex(Statement stmt) {
+        if (stmt instanceof Assign) {
+            Assign assign = (Assign) stmt;
+            if (assign.left.size() == 1 && assign.left.get(0) instanceof Name) {
+                String name = ((Name) assign.left.get(0)).name;
+                if (name.matches("R\\d+")) {
+                    return Integer.parseInt(name.substring(1));
+                }
+            }
+        } else if (stmt instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) stmt;
+            if (local.names.size() == 1) {
+                String name = local.names.get(0);
+                if (name.matches("R\\d+")) {
+                    return Integer.parseInt(name.substring(1));
+                }
+            }
+        }
+        return -1;
+    }
+
+    private Expression getAssignRightExpr(Statement stmt) {
+        if (stmt instanceof Assign) {
+            Assign assign = (Assign) stmt;
+            if (assign.right.size() == 1) {
+                return assign.right.get(0);
+            }
+        } else if (stmt instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) stmt;
+            if (local.right.size() == 1) {
+                return local.right.get(0);
+            }
+        }
+        return null;
+    }
+
+    private boolean isNumberOne(Expression expr) {
+        if (expr instanceof NumberConst) {
+            NumberConst num = (NumberConst) expr;
+            return num.value == 1.0;
+        }
+        return false;
     }
 }

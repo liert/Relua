@@ -127,8 +127,8 @@ public class DataFlowAnalyzer {
                         break;
                     }
 
-                    // 如果使用次数为 0，且右侧表达式是没有副作用的常量/别名，可以直接安全删除该赋值语句
-                    if (useCount == 0) {
+                    // 如果使用次数为 0，且右侧表达式是没有副作用的常量/别名，且后续不包含 Goto 语句，可以直接安全删除该赋值语句
+                    if (useCount == 0 && !hasGotoStatement(stmts, i + 1, stmts.size())) {
                         if (defExpr instanceof StringConst 
                                 || defExpr instanceof NumberConst 
                                 || defExpr instanceof BooleanConst 
@@ -200,8 +200,8 @@ public class DataFlowAnalyzer {
                     }
                 }
 
-                // 寄存器在未被读取的情况下被重新定值，当前赋值为死赋值
-                if (redefineIndex != -1 && !foundUse) {
+                // 寄存器在未被读取的情况下被重新定值，当前赋值为死赋值，且在此期间不包含 Goto 语句
+                if (redefineIndex != -1 && !foundUse && !hasGotoStatement(stmts, i + 1, redefineIndex)) {
                     // 如果重定义表达式引用了该寄存器，先将死值代入
                     Statement redefineStmt = stmts.get(redefineIndex);
                     if (countVariableUses(redefineStmt, regName) > 0) {
@@ -837,5 +837,45 @@ public class DataFlowAnalyzer {
             return true;
         }
         return false;
+    }
+
+    private boolean hasGotoStatement(List<Statement> stmts, int start, int end) {
+        for (int k = start; k < end && k < stmts.size(); k++) {
+            if (countGotos(stmts.get(k)) > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int countGotos(com.github.relua.ast.AstNode node) {
+        if (node == null) return 0;
+        int count = 0;
+        if (node instanceof GotoStatement) {
+            count = 1;
+        } else if (node instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) node;
+            for (Block block : ifStmt.blocks) {
+                count += countGotos(block);
+            }
+            count += countGotos(ifStmt.elseBlock);
+        } else if (node instanceof WhileStatement) {
+            count += countGotos(((WhileStatement) node).body);
+        } else if (node instanceof RepeatStatement) {
+            count += countGotos(((RepeatStatement) node).body);
+        } else if (node instanceof ForNumeric) {
+            count += countGotos(((ForNumeric) node).body);
+        } else if (node instanceof ForIn) {
+            count += countGotos(((ForIn) node).body);
+        } else if (node instanceof Block) {
+            for (Statement stmt : ((Block) node).statements) {
+                count += countGotos(stmt);
+            }
+        } else if (node instanceof FunctionDeclaration) {
+            count += countGotos(((FunctionDeclaration) node).func.body);
+        } else if (node instanceof FunctionLiteral) {
+            count += countGotos(((FunctionLiteral) node).body);
+        }
+        return count;
     }
 }

@@ -53,16 +53,22 @@ public class ControlFlowGraphBuilder {
                 continue;
             } else if (opcode == Opcode.FORLOOP) {
                 // 处理FORLOOP指令
-                int jumpTarget = i + 1 + inst.getSBx();
+                int jumpTarget = inst.getSBx() == 0 ? inst.getNumericForPrepTarget(instructions, i) : i + 1 + inst.getSBx();
                 BasicBlock targetBlock = pipeline.getBasicBlock(chunk.getFunction(), jumpTarget);
                 if (targetBlock != null) {
                     currentBlock.addSuccessor(targetBlock);
                 }
 
-                // FORLOOP指令执行后总是跳转到循环头，所以不需要添加下一条指令作为后继
+                // FORLOOP 结束条件不满足时会流向下一条指令，所以需要添加下一条指令作为后继
+                if (i + 1 < instructions.size()) {
+                    BasicBlock nextBlock = pipeline.getBasicBlock(chunk.getFunction(), i + 1);
+                    if (nextBlock != null) {
+                        currentBlock.addSuccessor(nextBlock);
+                    }
+                }
             } else if (opcode == Opcode.FORPREP) {
                 // 处理FORPREP指令
-                int jumpTarget = i + 1 + inst.getSBx();
+                int jumpTarget = inst.getSBx() == 0 ? inst.getNumericForLoopTarget(instructions, i) : i + 1 + inst.getSBx();
                 BasicBlock targetBlock = pipeline.getBasicBlock(chunk.getFunction(), jumpTarget);
                 if (targetBlock != null) {
                     currentBlock.addSuccessor(targetBlock);

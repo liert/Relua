@@ -139,11 +139,35 @@ public class InstructionToASTConverter {
                 return convertSetUpvalInstruction(instruction, instructionIndex);
             case CLOSE:
             case SETLIST:
-            case FORPREP:
-            case FORLOOP:
             case TFORLOOP:
             case VARARG:
                 return null;
+            case FORPREP: {
+                int loopIdx = -1;
+                int a = instruction.getA();
+                for (int j = instructionIndex + 1; j < chunk.getInstructions().size(); j++) {
+                    Instruction target = chunk.getInstructions().get(j);
+                    if (target.getOpcode() == Opcode.FORLOOP && target.getA() == a) {
+                        loopIdx = j;
+                        break;
+                    }
+                }
+                int jumpTarget = loopIdx != -1 ? loopIdx : instructionIndex + 1;
+                return new GotoStatement("L" + jumpTarget, new SourcePos(instructionIndex, -1));
+            }
+            case FORLOOP: {
+                int prepIdx = -1;
+                int a = instruction.getA();
+                for (int j = instructionIndex - 1; j >= 0; j--) {
+                    Instruction target = chunk.getInstructions().get(j);
+                    if (target.getOpcode() == Opcode.FORPREP && target.getA() == a) {
+                        prepIdx = j;
+                        break;
+                    }
+                }
+                int jumpTarget = prepIdx != -1 ? prepIdx + 1 : instructionIndex + 1;
+                return new GotoStatement("L" + jumpTarget, new SourcePos(instructionIndex, -1));
+            }
             default:
                 // 对于其他指令，生成一个默认的表达式节点
                 StringConst opcodeStr = new StringConst(opcode.toString(), new SourcePos(instructionIndex, -1));
@@ -169,57 +193,43 @@ public class InstructionToASTConverter {
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         RegisterEntity sourceEntity = registerState.getRegisterEntity(b);
 
-        // 如果源寄存器是常量或全局变量，直接使用其值，否则返回null表示不生成单独的AST节点
-        if (sourceEntity.getType() == ValueType.STRING || sourceEntity.getType() == ValueType.NUMBER
-                || sourceEntity.getType() == ValueType.BOOLEAN || sourceEntity.getType() == ValueType.NIL
-                || sourceEntity.getType() == ValueType.GLOBAL) {
-            // MOVE指令：R(a) := R(b)，其中R(b)是常量或全局变量
-            // 目标变量
-            Expression target = new Name("R" + a, new SourcePos(instructionIndex, -1));
+        // 目标变量
+        Expression target = new Name("R" + a, new SourcePos(instructionIndex, -1));
 
-            // 源值
-            Expression source;
-            if (sourceEntity.getType() == ValueType.STRING && sourceEntity.getFromType() == FromType.CONSTANT && sourceEntity.getValue() != null && !sourceEntity.getName().equals(sourceEntity.getValue().toString())) {
-                source = new StringConst(sourceEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
-            } else if (sourceEntity.getType() == ValueType.NUMBER && sourceEntity.getValue() != null) {
-                Object value = sourceEntity.getValue();
-                Double numberValue;
-                if (value instanceof Double) {
-                    numberValue = (Double) value;
-                } else if (value instanceof String) {
-                    // 尝试将字符串转换为Double
-                    try {
-                        numberValue = Double.parseDouble((String) value);
-                    } catch (NumberFormatException e) {
-                        // 如果转换失败，使用默认值0.0
-                        numberValue = 0.0;
-                    }
-                } else {
-                    // 其他类型，使用默认值0.0
+        // 源值
+        Expression source;
+        if (sourceEntity.getType() == ValueType.STRING && sourceEntity.getFromType() == FromType.CONSTANT && sourceEntity.getValue() != null && !sourceEntity.getName().equals(sourceEntity.getValue().toString())) {
+            source = new StringConst(sourceEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
+        } else if (sourceEntity.getType() == ValueType.NUMBER && sourceEntity.getValue() != null) {
+            Object value = sourceEntity.getValue();
+            Double numberValue;
+            if (value instanceof Double) {
+                numberValue = (Double) value;
+            } else if (value instanceof String) {
+                try {
+                    numberValue = Double.parseDouble((String) value);
+                } catch (NumberFormatException e) {
                     numberValue = 0.0;
                 }
-                source = new NumberConst(numberValue, new SourcePos(instructionIndex, -1));
-            } else if (sourceEntity.getType() == ValueType.BOOLEAN && sourceEntity.getValue() != null) {
-                source = new BooleanConst((Boolean) sourceEntity.getValue(), new SourcePos(instructionIndex, -1));
-            } else if (sourceEntity.getType() == ValueType.NIL) {
-                source = new NilConst(new SourcePos(instructionIndex, -1));
-            } else if (sourceEntity.getValue() != null) {
-                // 全局变量
-                source = new Name(sourceEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
             } else {
-                source = new Name("R" + b, new SourcePos(instructionIndex, -1));
+                numberValue = 0.0;
             }
-
-            List<Expression> left = new ArrayList<>();
-            left.add(target);
-            List<Expression> right = new ArrayList<>();
-            right.add(source);
-            // return new Assign(left, right, new SourcePos(instructionIndex, -1));
-            return null;
+            source = new NumberConst(numberValue, new SourcePos(instructionIndex, -1));
+        } else if (sourceEntity.getType() == ValueType.BOOLEAN && sourceEntity.getValue() != null) {
+            source = new BooleanConst((Boolean) sourceEntity.getValue(), new SourcePos(instructionIndex, -1));
+        } else if (sourceEntity.getType() == ValueType.NIL) {
+            source = new NilConst(new SourcePos(instructionIndex, -1));
+        } else if (sourceEntity.getType() == ValueType.GLOBAL && sourceEntity.getValue() != null) {
+            source = new Name(sourceEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
         } else {
-            // 如果是寄存器之间的移动，不生成单独的AST节点，这通常是编译器优化的结果
-            return null;
+            source = new Name("R" + b, new SourcePos(instructionIndex, -1));
         }
+
+        List<Expression> left = new ArrayList<>();
+        left.add(target);
+        List<Expression> right = new ArrayList<>();
+        right.add(source);
+        return new Assign(left, right, new SourcePos(instructionIndex, -1));
     }
 
     /**

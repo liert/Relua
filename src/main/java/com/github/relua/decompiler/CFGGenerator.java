@@ -82,16 +82,18 @@ public class CFGGenerator {
                 }
             } else if (opcode == Opcode.FORLOOP) {
                 // FORLOOP指令：pc += sBx
-                int jumpTarget = i + 1 + inst.getSBx();
+                int jumpTarget = inst.getSBx() == 0 ? inst.getNumericForPrepTarget(instructions, i) : i + 1 + inst.getSBx();
                 if (jumpTarget >= 0 && jumpTarget < instructions.size()) {
                     isJumpTarget[jumpTarget] = true;
                 }
+                codeGenContext.addLabelPC(jumpTarget);
             } else if (opcode == Opcode.FORPREP) {
                 // FORPREP指令：pc += sBx
-                int jumpTarget = i + 1 + inst.getSBx();
+                int jumpTarget = inst.getSBx() == 0 ? inst.getNumericForLoopTarget(instructions, i) : i + 1 + inst.getSBx();
                 if (jumpTarget >= 0 && jumpTarget < instructions.size()) {
                     isJumpTarget[jumpTarget] = true;
                 }
+                codeGenContext.addLabelPC(jumpTarget);
             } else if (opcode == Opcode.TFORLOOP) {
                 // TFORLOOP指令：如果条件满足，pc += sBx
                 int jumpTarget = i + 1 + inst.getSBx();
@@ -199,16 +201,22 @@ public class CFGGenerator {
                 continue;
             } else if (opcode == Opcode.FORLOOP) {
                 // 处理FORLOOP指令
-                int jumpTarget = i + 1 + inst.getSBx();
+                int jumpTarget = inst.getSBx() == 0 ? inst.getNumericForPrepTarget(instructions, i) : i + 1 + inst.getSBx();
                 BasicBlock targetBlock = instructionToBlockMap.get(jumpTarget);
                 if (targetBlock != null) {
                     currentBlock.addSuccessor(targetBlock);
                 }
 
-                // FORLOOP指令执行后总是跳转到循环头，所以不需要添加下一条指令作为后继
+                // FORLOOP 结束条件不满足时会流向下一条指令，所以需要添加下一条指令作为后继
+                if (i + 1 < instructions.size()) {
+                    BasicBlock nextBlock = instructionToBlockMap.get(i + 1);
+                    if (nextBlock != null && nextBlock != currentBlock) {
+                        currentBlock.addSuccessor(nextBlock);
+                    }
+                }
             } else if (opcode == Opcode.FORPREP) {
                 // 处理FORPREP指令
-                int jumpTarget = i + 1 + inst.getSBx();
+                int jumpTarget = inst.getSBx() == 0 ? inst.getNumericForLoopTarget(instructions, i) : i + 1 + inst.getSBx();
                 BasicBlock targetBlock = instructionToBlockMap.get(jumpTarget);
                 if (targetBlock != null) {
                     currentBlock.addSuccessor(targetBlock);
