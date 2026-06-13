@@ -8,52 +8,60 @@ import java.util.Set;
 import com.github.relua.ast.*;
 
 public class DataFlowAnalyzer {
+    private Block topBlock;
 
     public void optimize(Block block) {
+        optimize(block, true);
+    }
+
+    private void optimize(Block block, boolean isTopLevel) {
         if (block == null || block.statements == null) {
             return;
+        }
+        if (this.topBlock == null) {
+            this.topBlock = block;
         }
 
         // 1. 递归优化所有嵌套的 Block
         for (Statement stmt : block.statements) {
-            optimizeNestedBlocks(stmt);
+            optimizeNestedBlocks(stmt, isTopLevel);
         }
 
         // 2. 先消除死寄存器赋值（被后续赋值覆盖且未被读取的寄存器赋值）
         // 必须在内联之前执行，否则内联会消耗覆盖赋值导致死赋值无法被检测
-        removeDeadRegisterAssignments(block);
+        removeDeadRegisterAssignments(block, isTopLevel);
 
         // 3. 在当前 Block 层级执行局部变量内联 (Expression Inlining)
-        inlineBlockVariables(block);
+        inlineBlockVariables(block, isTopLevel);
 
         // 4. 自底向上重写当前 Block 里的所有表达式（还原点号和冒号语法糖）
         rewriteBlockExpressions(block);
     }
 
-    private void optimizeNestedBlocks(Statement statement) {
+    private void optimizeNestedBlocks(Statement statement, boolean isTopLevel) {
         if (statement instanceof IfStatement) {
             IfStatement ifStmt = (IfStatement) statement;
             for (Block nested : ifStmt.blocks) {
-                optimize(nested);
+                optimize(nested, false);
             }
-            optimize(ifStmt.elseBlock);
+            optimize(ifStmt.elseBlock, false);
         } else if (statement instanceof FunctionDeclaration) {
-            optimize(((FunctionDeclaration) statement).func.body);
+            optimize(((FunctionDeclaration) statement).func.body, true);
         } else if (statement instanceof WhileStatement) {
-            optimize(((WhileStatement) statement).body);
+            optimize(((WhileStatement) statement).body, false);
         } else if (statement instanceof RepeatStatement) {
-            optimize(((RepeatStatement) statement).body);
+            optimize(((RepeatStatement) statement).body, false);
         } else if (statement instanceof ForNumeric) {
-            optimize(((ForNumeric) statement).body);
+            optimize(((ForNumeric) statement).body, false);
         } else if (statement instanceof ForIn) {
-            optimize(((ForIn) statement).body);
+            optimize(((ForIn) statement).body, false);
         }
     }
 
     /**
      * 对 Block 执行数据流变量内联优化
      */
-    private void inlineBlockVariables(Block block) {
+    private void inlineBlockVariables(Block block, boolean isTopLevel) {
         List<Statement> stmts = block.statements;
         boolean changed = true;
 
@@ -86,6 +94,11 @@ public class DataFlowAnalyzer {
 
                     for (int j = i + 1; j < stmts.size(); j++) {
                         Statement nextStmt = stmts.get(j);
+
+                        // 如果在定义和使用之间有任何控制流标签或跳转语句，这表示有控制流分叉/汇合，在此之后内联是不安全的
+                        if (nextStmt instanceof GotoStatement || nextStmt instanceof LabelStatement) {
+                            escaped = true;
+                        }
 
                         // 检查在这期间依赖 of 变量是否被重新定值
                         if (hasAssignmentTo(nextStmt, dependencies)) {
@@ -131,11 +144,14 @@ public class DataFlowAnalyzer {
                     // 安全删除条件：全局无引用（nextDefIdx == stmts.size()）或者被覆盖前无 Goto 跳转
                     int nextDefIdx = findNextDefinitionIndex(stmts, i + 1, regName);
                     boolean safeToDelete = false;
-                    if (useCount == 0) {
-                        if (nextDefIdx == stmts.size()) {
-                            safeToDelete = true;
-                        } else if (!hasGotoStatement(stmts, i + 1, nextDefIdx)) {
-                            safeToDelete = true;
+                    if (useCount == 0 && (isTopLevel || stmt instanceof LocalAssign)) {
+                        int totalUses = countTotalUsesInBlock(topBlock, regName);
+                        if (totalUses == 0) {
+                            if (nextDefIdx == stmts.size()) {
+                                safeToDelete = true;
+                            } else if (!hasGotoStatement(stmts, i + 1, nextDefIdx)) {
+                                safeToDelete = true;
+                            }
                         }
                     }
                     if (safeToDelete) {
@@ -174,7 +190,7 @@ public class DataFlowAnalyzer {
      * 需要先将死值代入重定义表达式（R19 = string.len(R5) + 1），再移除死赋值，
      * 避免后续内联时出现未定义的寄存器引用。
      */
-    private void removeDeadRegisterAssignments(Block block) {
+    private void removeDeadRegisterAssignments(Block block, boolean isTopLevel) {
         List<Statement> stmts = block.statements;
         boolean changed = true;
 
@@ -220,7 +236,8 @@ public class DataFlowAnalyzer {
                 }
 
                 // 寄存器在未被读取的情况下被重新定值，当前赋值为死赋值，且在此期间不包含 Goto 语句
-                if (redefineIndex != -1 && !foundUse && !hasGotoStatement(stmts, i + 1, redefineIndex)) {
+                if (redefineIndex != -1 && !foundUse && !hasGotoStatement(stmts, i + 1, redefineIndex)
+                        && (isTopLevel || stmt instanceof LocalAssign)) {
                     // 如果重定义表达式引用了该寄存器，先将死值代入
                     Statement redefineStmt = stmts.get(redefineIndex);
                     if (countVariableUses(redefineStmt, regName) > 0) {
@@ -272,7 +289,9 @@ public class DataFlowAnalyzer {
             || stmt instanceof RepeatStatement 
             || stmt instanceof ForNumeric 
             || stmt instanceof ForIn 
-            || stmt instanceof FunctionDeclaration;
+            || stmt instanceof FunctionDeclaration
+            || stmt instanceof GotoStatement
+            || stmt instanceof LabelStatement;
     }
 
     /**
@@ -894,6 +913,37 @@ public class DataFlowAnalyzer {
             count += countGotos(((FunctionDeclaration) node).func.body);
         } else if (node instanceof FunctionLiteral) {
             count += countGotos(((FunctionLiteral) node).body);
+        }
+        return count;
+    }
+
+    private int countTotalUsesInBlock(Block block, String regName) {
+        if (block == null || block.statements == null) {
+            return 0;
+        }
+        int count = 0;
+        for (Statement s : block.statements) {
+            count += countTotalUsesInStatement(s, regName);
+        }
+        return count;
+    }
+
+    private int countTotalUsesInStatement(Statement stmt, String regName) {
+        int count = countVariableUses(stmt, regName);
+        if (stmt instanceof IfStatement) {
+            IfStatement ifs = (IfStatement) stmt;
+            for (Block b : ifs.blocks) {
+                count += countTotalUsesInBlock(b, regName);
+            }
+            count += countTotalUsesInBlock(ifs.elseBlock, regName);
+        } else if (stmt instanceof WhileStatement) {
+            count += countTotalUsesInBlock(((WhileStatement) stmt).body, regName);
+        } else if (stmt instanceof RepeatStatement) {
+            count += countTotalUsesInBlock(((RepeatStatement) stmt).body, regName);
+        } else if (stmt instanceof ForNumeric) {
+            count += countTotalUsesInBlock(((ForNumeric) stmt).body, regName);
+        } else if (stmt instanceof ForIn) {
+            count += countTotalUsesInBlock(((ForIn) stmt).body, regName);
         }
         return count;
     }

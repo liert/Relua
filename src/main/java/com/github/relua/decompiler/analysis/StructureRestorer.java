@@ -16,6 +16,9 @@ public class StructureRestorer {
             return;
         }
 
+        // 0. 合并由 LOADBOOL 引起的跨 Block 控制流
+        mergeLoadBoolControlFlow(block);
+
         // 1. 递归重构嵌套的 Block
         for (Statement stmt : block.statements) {
             restructureNestedBlocks(stmt);
@@ -28,6 +31,8 @@ public class StructureRestorer {
         restoreForNumericLoops(block);
 
         // 3. 重构结构化的 if-else 分支
+        eliminateInvertedIfElse(block);
+        eliminateSingleGotoIfElse(block);
         eliminateStructuredIfElse(block);
 
         // 4. 重组当前 Block 层的条件分支与消解其余简单的 goto
@@ -1017,5 +1022,315 @@ public class StructureRestorer {
             return num.value == 1.0;
         }
         return false;
+    }
+
+    private void eliminateSingleGotoIfElse(Block block) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+        List<Statement> stmts = block.statements;
+        boolean changed = true;
+
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < stmts.size(); i++) {
+                Statement stmt = stmts.get(i);
+                if (stmt instanceof IfStatement) {
+                    IfStatement ifStmt = (IfStatement) stmt;
+                    if (ifStmt.conditions.size() == 1 && ifStmt.blocks.size() == 1 && ifStmt.elseBlock == null) {
+                        Block body = ifStmt.blocks.get(0);
+                        if (body.statements.isEmpty()) {
+                            continue;
+                        }
+                        Statement last = body.statements.get(body.statements.size() - 1);
+                        if (last instanceof GotoStatement) {
+                            GotoStatement gotoEnd = (GotoStatement) last;
+                            String labelEnd = gotoEnd.label;
+
+                            int labelEndIndex = findLabelIndex(stmts, i + 1, labelEnd);
+                            if (labelEndIndex != -1) {
+                                boolean hasOther = hasOtherGotosTo(stmts, labelEnd, i);
+                                if (!hasOther) {
+                                    // 提取 then block 语句 (除去最后的 gotoEnd)
+                                    List<Statement> thenStmts = new ArrayList<>();
+                                    for (int k = 0; k < body.statements.size() - 1; k++) {
+                                        thenStmts.add(body.statements.get(k));
+                                    }
+
+                                    // 提取 else block 语句 [i + 1, labelEndIndex - 1]
+                                    List<Statement> elseStmts = new ArrayList<>();
+                                    for (int m = i + 1; m < labelEndIndex; m++) {
+                                        elseStmts.add(stmts.get(m));
+                                    }
+
+                                    Block thenBlock = new Block(body.pos);
+                                    thenBlock.statements.addAll(thenStmts);
+                                    Block elseBlock = new Block(new SourcePos(i + 1, -1));
+                                    elseBlock.statements.addAll(elseStmts);
+
+                                    IfStatement newIf = new IfStatement(ifStmt.conditions.get(0), thenBlock, elseBlock, ifStmt.pos);
+                                    stmts.set(i, newIf);
+
+                                    // 从后往前移除已提取的语句和 LabelStatement
+                                    for (int m = labelEndIndex; m > i; m--) {
+                                        stmts.remove(m);
+                                    }
+
+                                    // 递归重组 then 和 else 块
+                                    restructure(thenBlock);
+                                    restructure(elseBlock);
+
+                                    changed = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void eliminateInvertedIfElse(Block block) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+        List<Statement> stmts = block.statements;
+        boolean changed = true;
+
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < stmts.size(); i++) {
+                Statement stmt = stmts.get(i);
+                if (stmt instanceof IfStatement) {
+                    IfStatement ifStmt = (IfStatement) stmt;
+                    if (ifStmt.conditions.size() == 1 && ifStmt.blocks.size() == 1 && ifStmt.elseBlock == null) {
+                        Block body = ifStmt.blocks.get(0);
+                        if (body.statements.isEmpty()) {
+                            continue;
+                        }
+                        // 确保 then 块的最后一条语句不是 GotoStatement (若是，则由 eliminateSingleGotoIfElse 处理)
+                        Statement thenLast = body.statements.get(body.statements.size() - 1);
+                        if (thenLast instanceof GotoStatement) {
+                            continue;
+                        }
+
+                        // 从 i + 1 往后寻找合适结尾的 GotoStatement (即下一个语句是相应的 LabelStatement)
+                        for (int j = i + 1; j < stmts.size() - 1; j++) {
+                            Statement targetStmt = stmts.get(j);
+                            if (targetStmt instanceof GotoStatement) {
+                                GotoStatement gotoEnd = (GotoStatement) targetStmt;
+                                String labelEnd = gotoEnd.label;
+
+                                Statement nextStmt = stmts.get(j + 1);
+                                if (nextStmt instanceof LabelStatement && ((LabelStatement) nextStmt).label.equals(labelEnd)) {
+                                    int labelEndIndex = j + 1;
+                                    boolean hasOther = hasOtherGotosToExcept(stmts, labelEnd, j);
+                                    if (!hasOther) {
+                                        // 提取 then block 语句 (原 ifStmt 的 body)
+                                        Block thenBlock = body;
+
+                                        // 提取 else block 语句 [i + 1, j - 1]
+                                        List<Statement> elseStmts = new ArrayList<>();
+                                        for (int m = i + 1; m < j; m++) {
+                                            elseStmts.add(stmts.get(m));
+                                        }
+                                        Block elseBlock = new Block(new SourcePos(i + 1, -1));
+                                        elseBlock.statements.addAll(elseStmts);
+
+                                        IfStatement newIf = new IfStatement(ifStmt.conditions.get(0), thenBlock, elseBlock, ifStmt.pos);
+                                        stmts.set(i, newIf);
+
+                                        // 从后往前移除已提取 of 语句和 LabelStatement
+                                        for (int m = labelEndIndex; m > i; m--) {
+                                            stmts.remove(m);
+                                        }
+
+                                        // 递归重组 then 和 else 块
+                                        restructure(thenBlock);
+                                        restructure(elseBlock);
+
+                                        changed = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if (changed) {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean hasOtherGotosToExcept(List<Statement> stmts, String labelName, int exceptIndex) {
+        for (int i = 0; i < stmts.size(); i++) {
+            if (i == exceptIndex) continue;
+            Statement stmt = stmts.get(i);
+            if (stmt instanceof GotoStatement && ((GotoStatement) stmt).label.equals(labelName)) {
+                return true;
+            }
+            if (stmt instanceof IfStatement) {
+                IfStatement ifStmt = (IfStatement) stmt;
+                for (Block b : ifStmt.blocks) {
+                    if (hasOtherGotosToExcept(b.statements, labelName, -1)) {
+                        return true;
+                    }
+                }
+                if (ifStmt.elseBlock != null) {
+                    if (hasOtherGotosToExcept(ifStmt.elseBlock.statements, labelName, -1)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private void mergeLoadBoolControlFlow(Block block) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+        List<Statement> stmts = block.statements;
+        boolean changed = true;
+
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < stmts.size(); i++) {
+                Statement stmt = stmts.get(i);
+                if (stmt instanceof IfStatement) {
+                    IfStatement ifStmt = (IfStatement) stmt;
+                    
+                    if (i + 2 < stmts.size()) {
+                        Statement next1 = stmts.get(i + 1);
+                        Statement next2 = stmts.get(i + 2);
+                        if (next1 instanceof LabelStatement && isAssignTrue(next2)) {
+                            LabelStatement labelStmt = (LabelStatement) next1;
+                            Assign assignTrue = (Assign) next2;
+                            Expression targetVar = assignTrue.left.get(0);
+                            
+                            if (hasAssignFalse(ifStmt.elseBlock, targetVar)) {
+                                if (hasGotoTarget(ifStmt.blocks.get(0), labelStmt.label)) {
+                                    replaceGotoWithAssignTrue(ifStmt.blocks.get(0), labelStmt.label, targetVar, assignTrue.pos);
+                                    
+                                    stmts.remove(i + 2);
+                                    stmts.remove(i + 1);
+                                    
+                                    changed = true;
+                                    break;
+                                } else {
+                                    int innerIfIdx = getTrailingIfStatementIndex(ifStmt.blocks.get(0));
+                                    if (innerIfIdx != -1) {
+                                        IfStatement innerIf = (IfStatement) ifStmt.blocks.get(0).statements.get(innerIfIdx);
+                                        if (innerIf.blocks.size() == 1 && innerIf.elseBlock == null 
+                                                && hasAssignFalse(innerIf.blocks.get(0), targetVar)) {
+                                            
+                                            Block innerElse = new Block(assignTrue.pos);
+                                            innerElse.statements.add(assignTrue);
+                                            
+                                            IfStatement newInnerIf = new IfStatement(innerIf.conditions, innerIf.blocks, innerElse, innerIf.pos);
+                                            ifStmt.blocks.get(0).statements.set(innerIfIdx, newInnerIf);
+                                            
+                                            stmts.remove(i + 2);
+                                            stmts.remove(i + 1);
+                                            
+                                            changed = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private int getTrailingIfStatementIndex(Block block) {
+        if (block == null || block.statements.isEmpty()) return -1;
+        for (int i = block.statements.size() - 1; i >= 0; i--) {
+            Statement s = block.statements.get(i);
+            if (!(s instanceof LabelStatement)) {
+                if (s instanceof IfStatement) {
+                    return i;
+                }
+                break;
+            }
+        }
+        return -1;
+    }
+
+    private boolean isAssignTrue(Statement stmt) {
+        if (!(stmt instanceof Assign)) return false;
+        Assign assign = (Assign) stmt;
+        if (assign.left.size() != 1 || assign.right.size() != 1) return false;
+        Expression val = assign.right.get(0);
+        return val instanceof BooleanConst && ((BooleanConst) val).value;
+    }
+
+    private boolean hasAssignFalse(Block block, Expression targetVar) {
+        if (block == null || block.statements == null) return false;
+        for (Statement stmt : block.statements) {
+            if (stmt instanceof Assign) {
+                Assign assign = (Assign) stmt;
+                if (assign.left.size() == 1 && assign.right.size() == 1) {
+                    Expression var = assign.left.get(0);
+                    Expression val = assign.right.get(0);
+                    if (isSameVariable(var, targetVar) && val instanceof BooleanConst && !((BooleanConst) val).value) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isSameVariable(Expression e1, Expression e2) {
+        if (e1 instanceof Name && e2 instanceof Name) {
+            return ((Name) e1).name.equals(((Name) e2).name);
+        }
+        return false;
+    }
+
+    private boolean hasGotoTarget(AstNode node, String labelName) {
+        if (node == null) return false;
+        if (node instanceof GotoStatement) {
+            return ((GotoStatement) node).label.equals(labelName);
+        } else if (node instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) node;
+            for (Block block : ifStmt.blocks) {
+                if (hasGotoTarget(block, labelName)) return true;
+            }
+            return hasGotoTarget(ifStmt.elseBlock, labelName);
+        } else if (node instanceof Block) {
+            for (Statement stmt : ((Block) node).statements) {
+                if (hasGotoTarget(stmt, labelName)) return true;
+            }
+        }
+        return false;
+    }
+
+    private void replaceGotoWithAssignTrue(AstNode node, String labelName, Expression targetVar, SourcePos pos) {
+        if (node == null) return;
+        if (node instanceof Block) {
+            Block block = (Block) node;
+            for (int i = 0; i < block.statements.size(); i++) {
+                Statement stmt = block.statements.get(i);
+                if (stmt instanceof GotoStatement && ((GotoStatement) stmt).label.equals(labelName)) {
+                    block.statements.set(i, new Assign(targetVar, new BooleanConst(true, pos), pos));
+                } else {
+                    replaceGotoWithAssignTrue(stmt, labelName, targetVar, pos);
+                }
+            }
+        } else if (node instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) node;
+            for (Block block : ifStmt.blocks) {
+                replaceGotoWithAssignTrue(block, labelName, targetVar, pos);
+            }
+            replaceGotoWithAssignTrue(ifStmt.elseBlock, labelName, targetVar, pos);
+        }
     }
 }

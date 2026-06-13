@@ -351,8 +351,16 @@ public class IRBuilder {
     }
 
     private void processTestInstruction(Chunk chunk, Instruction instruction, Register currentState) {
-        // 处理测试指令
-        // 不修改寄存器状态
+        if (instruction.getOpcode() == Opcode.TESTSET) {
+            int a = instruction.getA();
+            int b = instruction.getB();
+            RegisterEntity RB = currentState.getRegisterEntity(b);
+            if (RB != null) {
+                currentState.setRegisterEntity(a, RB.getValue(), RB.getType(), RB.getFromType());
+            } else {
+                currentState.setRegisterEntity(a, "R" + b, ValueType.UNKNOWN, FromType.REGISTER);
+            }
+        }
     }
 
     private void processCallInstruction(Chunk chunk, Instruction instruction, Register currentState) {

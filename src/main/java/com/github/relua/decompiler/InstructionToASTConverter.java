@@ -1157,6 +1157,18 @@ public class InstructionToASTConverter {
 
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         RegisterEntity RA = registerState.getRegisterEntity(a);
+        // 如果测试的目标寄存器当前保存的是非 false 且非 nil 的已知常量，则该测试不产生控制流分叉条件
+        boolean isConstantAlwaysTrue = false;
+        if (RA != null && RA.getFromType() == FromType.CONSTANT && RA.getValue() != null) {
+            Object val = RA.getValue();
+            if (!(val instanceof Boolean && !(Boolean) val) && !"nil".equals(val.toString())) {
+                isConstantAlwaysTrue = true;
+            }
+        }
+
+        if (isConstantAlwaysTrue) {
+            return null;
+        }
 
         // 操作数
         Name operand = new Name("R" + a, new SourcePos(instructionIndex, -1));
@@ -1198,6 +1210,10 @@ public class InstructionToASTConverter {
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         RegisterEntity RA = registerState.getRegisterEntity(a);
         RegisterEntity RB = registerState.getRegisterEntity(b);
+
+        if (chunk.getFunction() != null && (chunk.getFunction().contains("sane") || chunk.getFunction().contains("main_2") || chunk.getFunction().contains("main_26"))) {
+            System.out.println("[DEBUG-TESTSET] PC=" + instructionIndex + ", a=" + a + ", b=" + b + ", c=" + c + ", RA=" + RA + ", RB=" + RB);
+        }
 
         // 操作数 根据c的值构建条件表达式
         Expression condition = TransformUtils.transformToAstNode(RB, instructionIndex);
@@ -1269,7 +1285,7 @@ public class InstructionToASTConverter {
                 Instruction lastThen = chunk.getInstructions().get(thenEnd);
                 if (lastThen.getOpcode() == Opcode.JMP) {
                     int endTarget = (thenEnd + 1) + lastThen.getSBx();
-                    if (endTarget - 1 > jmpTarget) {
+                    if (endTarget - 1 >= jmpTarget) {
                         elseStart = jmpTarget;
                         elseEnd = endTarget - 1;
                     }
@@ -1356,24 +1372,54 @@ public class InstructionToASTConverter {
      * @return 生成的AST节点
      */
     private Object convertGetUpvalInstruction(Instruction instruction, int instructionIndex) {
-        // OP_GETUPVAL A Bx R(A) := UpValue[Bx]
+        // OP_GETUPVAL A B R(A) := UpValue[B]
         int a = instruction.getA();
-        int bx = instruction.getBx();
+        int b = instruction.getB();
         
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
         
         // 从上下文获取上值信息
-        // CodeGeneratorContext context = pipeline.getContext();
-        // Upvalue upvalue = context.getUpvalue(bx);
+        CodeGeneratorContext context = pipeline.getContext();
+        UpValue upvalue = context.getUpvalue(b);
         
-        // 生成赋值语句，将上值赋值给寄存器
-        // Name target = new Name("R" + a, new SourcePos(instructionIndex, -1));
-        // List<Expression> targets = new ArrayList<>();
-        // targets.add(target);
-        // List<Expression> values = new ArrayList<>();
-        // values.add(new Name(upvalue.getName(), new SourcePos(instructionIndex, -1)));
-        return null;
+        if (chunk.getFunction() != null && (chunk.getFunction().contains("sane") || chunk.getFunction().contains("main_2") || chunk.getFunction().contains("main_26"))) {
+            System.out.println("[DEBUG-GETUPVAL] PC=" + instructionIndex + ", a=" + a + ", b=" + b + ", uv=" + upvalue + (upvalue != null ? (", uv.name=" + upvalue.getName() + ", uv.val=" + upvalue.getValue()) : ""));
+        }
+        
+        SourcePos pos = new SourcePos(instructionIndex, -1);
+        Expression right;
+        if (upvalue != null && (upvalue.getFromType() == FromType.CONSTANT || upvalue.getFromType() == FromType.GLOBAL) && upvalue.getValue() != null) {
+            Object val = upvalue.getValue();
+            if (upvalue.getFromType() == FromType.GLOBAL) {
+                String globalName = val.toString();
+                if (globalName.contains(".")) {
+                    String[] parts = globalName.split("\\.");
+                    Expression current = new Name(parts[0], pos);
+                    for (int i = 1; i < parts.length; i++) {
+                        current = new MemberExpr(current, parts[i], pos);
+                    }
+                    right = current;
+                } else {
+                    right = new Name(globalName, pos);
+                }
+            } else { // CONSTANT
+                if (val instanceof Boolean) {
+                    right = new BooleanConst((Boolean) val, pos);
+                } else if (val instanceof Number) {
+                    right = new NumberConst(((Number) val).doubleValue(), pos);
+                } else if ("nil".equals(val.toString())) {
+                    right = new NilConst(pos);
+                } else {
+                    right = new StringConst(val.toString(), pos);
+                }
+            }
+        } else {
+            String upvalueName = (upvalue != null) ? upvalue.getName() : ("upvalue_" + b);
+            right = new Name(upvalueName, pos);
+        }
+        
+        return new Assign(new Name("R" + a, pos), right, pos);
     }
 
     /**

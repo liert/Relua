@@ -62,6 +62,9 @@ public class AstCleanupPass {
         // 2.5 再次清理空的if块（结构恢复可能产生新的空分支）
         removeEmptyIfBlocks(block);
 
+        // 2.5.5 再次执行数据流变量内联（消解 GOTO/Label 之后，许多原本因跳转阻碍而无法安全内联的变量现在可以安全内联了）
+        new DataFlowAnalyzer().optimize(block);
+
         // 2.6 移除 return 后的死代码
         removeDeadCodeAfterReturn(block);
 

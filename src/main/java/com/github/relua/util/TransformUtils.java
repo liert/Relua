@@ -56,7 +56,7 @@ public class TransformUtils {
         String regName = transformRegister(register);
         SourcePos pos = new SourcePos(instructionIndex, -1);
         
-        if (regName != null && regName.contains(".")) {
+        if (regName != null && regName.contains(".") && register.getFromType() != FromType.CONSTANT) {
             String[] parts = regName.split("\\.");
             Expression current = new Name(parts[0], pos);
             for (int i = 1; i < parts.length; i++) {

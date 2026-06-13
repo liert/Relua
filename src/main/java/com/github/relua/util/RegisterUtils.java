@@ -86,19 +86,8 @@ public class RegisterUtils {
             } else if (!isDefaultOrUnknown(entity1) && isDefaultOrUnknown(entity2)) {
                 // 保持 state1 的具体符号，无需修改
             } else if (!isDefaultOrUnknown(entity1) && !isDefaultOrUnknown(entity2)) {
-                // 两者都是具体符号，但值不同：
-                // 优先保留非 CONSTANT 来源（函数调用/变量引用）
-                boolean e1IsConst = (entity1.getFromType() == FromType.CONSTANT);
-                boolean e2IsConst = (entity2.getFromType() == FromType.CONSTANT);
-                if (e1IsConst && !e2IsConst) {
-                    // entity2 是非常量来源，优先保留
-                    merged.setRegisterEntity(index, entity2.getValue(), entity2.getType(), entity2.getFromType());
-                } else if (!e1IsConst && e2IsConst) {
-                    // entity1 是非常量来源，保持不变
-                } else {
-                    // 否则，标记为UNKNOWN类型，等待后续指令进一步确定
-                    merged.setRegisterEntity(index, "R" + index, ValueType.UNKNOWN, FromType.UNKNOWN);
-                }
+                // 两者都是具体符号，且值不同。因为是从不同分支合并而来，值在运行时是动态的，所以必须标记为UNKNOWN
+                merged.setRegisterEntity(index, "R" + index, ValueType.UNKNOWN, FromType.UNKNOWN);
             } else {
                 // 两者都是默认/未知，标记为UNKNOWN
                 merged.setRegisterEntity(index, "R" + index, ValueType.UNKNOWN, FromType.UNKNOWN);
