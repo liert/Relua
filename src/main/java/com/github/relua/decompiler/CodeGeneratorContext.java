@@ -494,4 +494,14 @@ public class CodeGeneratorContext {
             addEndStatement();
         }
     }
+
+    private Set<String> declaredVariables = new HashSet<>();
+
+    public Set<String> getDeclaredVariables() {
+        return declaredVariables;
+    }
+
+    public void setDeclaredVariables(Set<String> declaredVariables) {
+        this.declaredVariables = declaredVariables;
+    }
 }

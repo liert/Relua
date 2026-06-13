@@ -38,8 +38,16 @@ import com.github.relua.decompiler.analysis.StructureRestorer;
 
 public class AstCleanupPass {
     public void cleanup(Block block) {
+        cleanup(block, java.util.Collections.emptySet(), java.util.Collections.emptySet());
+    }
+
+    public Set<String> cleanup(Block block, Set<String> parentDeclared) {
+        return cleanup(block, parentDeclared, java.util.Collections.emptySet());
+    }
+
+    public Set<String> cleanup(Block block, Set<String> parentDeclared, Set<String> upvalueNames) {
         if (block == null) {
-            return;
+            return java.util.Collections.emptySet();
         }
 
         // 1. 数据流变量内联及点号/冒号语法糖还原
@@ -63,7 +71,7 @@ public class AstCleanupPass {
         removeJoinGotos(block);
 
         // 3. 把函数体顶层第一次出现的寄存器赋值恢复为 local，主块无参数
-        declareTopLevelLocals(block, java.util.Collections.emptyList());
+        return declareTopLevelLocals(block, java.util.Collections.emptyList(), parentDeclared, upvalueNames);
     }
 
     private void removeEmptyIfBlocks(Block block) {
@@ -571,12 +579,14 @@ public class AstCleanupPass {
         }
     }
 
-    private void declareTopLevelLocals(Block block, List<String> params) {
+    private Set<String> declareTopLevelLocals(Block block, List<String> params, Set<String> parentDeclared, Set<String> upvalueNames) {
         if (block == null || block.statements == null) {
-            return;
+            return java.util.Collections.emptySet();
         }
 
-        Set<String> declared = new HashSet<>();
+        System.out.println("[DEBUG] declareTopLevelLocals block, params: " + params + ", parentDeclared: " + parentDeclared);
+
+        Set<String> declared = new HashSet<>(parentDeclared);
         Set<String> hoistedRegisters = new HashSet<>();
         
         boolean isFunction = (params != null);
@@ -585,21 +595,27 @@ public class AstCleanupPass {
             
             // 收集当前函数块中使用的所有 R\d+ 寄存器
             collectAllUsedRegisters(block, hoistedRegisters);
-            // 参数不需要在头部重定义
+            System.out.println("[DEBUG] Collected hoistedRegisters before remove: " + hoistedRegisters);
+            // 参数和上层作用域中已声明的局部变量不需要在头部重新定义（避免 shadowing 导致 upvalue 访问失效）
             hoistedRegisters.removeAll(params);
+            
+            // 我们只在 hoistedRegisters 中排除那些：
+            // 1. 在 parentDeclared 中声明过
+            // 2. 并且确实在当前函数被注册为 upvalue 的寄存器名
+            // 从而避免非 upvalue 的同名临时寄存器（如 R4）被错误排除而导致未定义变量 Bug
+            Set<String> upvaluesToRemove = new HashSet<>();
+            for (String reg : hoistedRegisters) {
+                if (parentDeclared.contains(reg) && upvalueNames.contains(reg)) {
+                    upvaluesToRemove.add(reg);
+                }
+            }
+            hoistedRegisters.removeAll(upvaluesToRemove);
+            System.out.println("[DEBUG] Collected hoistedRegisters after remove: " + hoistedRegisters);
         }
 
-        List<Statement> rewritten = new ArrayList<>();
-        for (Statement statement : block.statements) {
-            declareStatementLocalIfNeeded(statement, declared, true, hoistedRegisters, rewritten);
-        }
-
-        block.statements.clear();
-        block.statements.addAll(rewritten);
-
-        // 如果是子函数体，我们将所有收集到且未被 declared（即没有以 require 等形式改名或声明）的 hoisted 寄存器统一在头部进行声明
+        // 提前计算并填充即将被提升的变量到 declared 集合中，这样内部嵌套函数处理时能准确感知防作用域中已提升的变量
+        List<String> missing = new ArrayList<>();
         if (isFunction && !hoistedRegisters.isEmpty()) {
-            List<String> missing = new ArrayList<>();
             for (String reg : hoistedRegisters) {
                 if (!declared.contains(reg)) {
                     missing.add(reg);
@@ -616,12 +632,24 @@ public class AstCleanupPass {
                         return a.compareTo(b);
                     }
                 });
-
-                // 在 Block 最头部插入 local 声明
-                block.statements.add(0, new LocalAssign(missing, new ArrayList<>(), block.pos));
                 declared.addAll(missing);
             }
         }
+        System.out.println("[DEBUG] computed declared (with missing): " + declared);
+
+        List<Statement> rewritten = new ArrayList<>();
+        for (Statement statement : block.statements) {
+            declareStatementLocalIfNeeded(statement, declared, true, hoistedRegisters, rewritten);
+        }
+
+        block.statements.clear();
+        block.statements.addAll(rewritten);
+
+        if (isFunction && !missing.isEmpty()) {
+            // 在 Block 最头部插入 local 声明
+            block.statements.add(0, new LocalAssign(missing, new ArrayList<>(), block.pos));
+        }
+        return declared;
     }
 
     private void collectAllUsedRegisters(AstNode node, Set<String> registers) {
@@ -884,8 +912,8 @@ public class AstCleanupPass {
         }
 
         if (statement instanceof FunctionDeclaration) {
-            // 函数声明本身有自己的作用域，不共享当前函数的 declared 集合
-            declareTopLevelLocals(((FunctionDeclaration) statement).func.body, ((FunctionDeclaration) statement).func.params);
+            // 函数声明本身有自己的作用域，不共享当前函数的 declared 集合，但上层作用域已声明的局部变量会作为 upvalues 传递
+            declareTopLevelLocals(((FunctionDeclaration) statement).func.body, ((FunctionDeclaration) statement).func.params, declared, java.util.Collections.emptySet());
             result.add(statement);
             return;
         }

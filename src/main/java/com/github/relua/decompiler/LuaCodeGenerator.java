@@ -73,6 +73,10 @@ public class LuaCodeGenerator {
      * @return 生成的Lua代码
      */
     public String generate(Chunk chunk, Register register) {
+        return generate(chunk, register, java.util.Collections.emptySet());
+    }
+
+    public String generate(Chunk chunk, Register register, Set<String> parentDeclared) {
         // 创建代码生成上下文
         Logger.debug("当前处理的Chunk函数名: " + chunk.getFunction());
         InstructionHandler handler = handlers.get(chunk.getFunction());
@@ -94,7 +98,7 @@ public class LuaCodeGenerator {
 
         // 生成指令代码（使用AST）
         // System.out.println("生成AST代码...");
-        astCodeEmitter.emitAst(chunk, context, handler);
+        astCodeEmitter.emitAst(chunk, context, handler, parentDeclared);
 
         // 关闭所有未结束的控制流结构
         // System.out.println("关闭所有未结束的控制流结构...");
@@ -107,7 +111,10 @@ public class LuaCodeGenerator {
             for (int i = 0; i < subChunk.getNumParams(); i++) {
                 temp.setRegisterEntity(i, "a" + i, ValueType.OBJECT, FromType.GLOBAL);
             }
-            generate(subChunk, temp);
+            // 嵌套子闭包，合并当前的 parentDeclared 和本层 context 中新声明的变量，传给子闭包
+            Set<String> mergedParentDeclared = new HashSet<>(parentDeclared);
+            mergedParentDeclared.addAll(context.getDeclaredVariables());
+            generate(subChunk, temp, mergedParentDeclared);
         }
 
         if (chunk.getFunction().equals("main")) {
@@ -136,6 +143,9 @@ public class LuaCodeGenerator {
                     continue;
                 } else {
                     // 为其他函数创建FunctionDeclaration节点
+                    
+                    // 对于被拉平输出的全局函数，因为它们已经不嵌套在父闭包内部，不需要防 shadowed，重新 cleanup
+                    new AstCleanupPass().cleanup(ctx.getAstBlock(), java.util.Collections.emptySet());
                     
                     FunctionLiteral funcLit = createFunctionLiteral(ctx);
                     

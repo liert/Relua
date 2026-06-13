@@ -67,7 +67,11 @@ public class DataFlowAnalyzer {
                     if (stmt instanceof Assign) {
                         defExpr = ((Assign) stmt).right.get(0);
                     } else {
-                        defExpr = ((LocalAssign) stmt).right.get(0);
+                        LocalAssign la = (LocalAssign) stmt;
+                        if (la.right == null || la.right.isEmpty()) {
+                            continue;
+                        }
+                        defExpr = la.right.get(0);
                     }
 
                     // 收集定义表达式中依赖的所有变量名
@@ -169,7 +173,11 @@ public class DataFlowAnalyzer {
                 if (stmt instanceof Assign) {
                     deadExpr = ((Assign) stmt).right.get(0);
                 } else {
-                    deadExpr = ((LocalAssign) stmt).right.get(0);
+                    LocalAssign la = (LocalAssign) stmt;
+                    if (la.right == null || la.right.isEmpty()) {
+                        continue;
+                    }
+                    deadExpr = la.right.get(0);
                 }
 
                 boolean foundUse = false;
