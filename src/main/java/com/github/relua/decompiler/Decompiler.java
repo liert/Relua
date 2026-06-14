@@ -131,6 +131,24 @@ public class Decompiler {
                 chunk.getIsVararg(), chunk.getMaxStackSize()));
         sb.append(indent).append("\n");
         
+        // 输出指令列表（Raw 32-bit格式）
+        sb.append(indent).append("-- Raw Instructions:\n");
+        int rawIndex = 0;
+        for (Instruction instruction : chunk.getInstructions()) {
+            int raw = instruction.getCode();
+            int op  = raw & 0x3F;
+            int a   = (raw >>> 6) & 0xFF;
+            int c   = (raw >>> 14) & 0x1FF;
+            int b   = (raw >>> 23) & 0x1FF;
+            int bx  = (raw >>> 14) & 0x3FFFF;
+            int sbx = bx - 131071;
+            sb.append(indent).append(String.format(
+                "-- pc=%02d raw=0x%08X opcodeNum=%d A=%d B=%d C=%d Bx=%d sBx=%d\n",
+                rawIndex++, raw, op, a, b, c, bx, sbx
+            ));
+        }
+        sb.append(indent).append("\n");
+
         // 输出指令列表（R0 = xx格式）
         sb.append(indent).append("-- Register Operations:\n");
         int index = 0;

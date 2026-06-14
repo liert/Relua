@@ -3,6 +3,199 @@
 
 -- Chunk: lineDefined=0, lastLineDefined=0, numParams=0, isVararg=2, maxStackSize=20
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000026 opcodeNum=38 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00004046 opcodeNum=6 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=02 raw=0x000080A6 opcodeNum=38 A=2 B=0 C=2 Bx=2 sBx=-131069
+-- pc=03 raw=0x0140C09B opcodeNum=27 A=2 B=2 C=259 Bx=1283 sBx=-129788
+-- pc=04 raw=0x01804010 opcodeNum=16 A=0 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=05 raw=0x00010026 opcodeNum=38 A=0 B=0 C=4 Bx=4 sBx=-131067
+-- pc=06 raw=0x00014046 opcodeNum=6 A=1 B=0 C=5 Bx=5 sBx=-131066
+-- pc=07 raw=0x01004010 opcodeNum=16 A=0 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=08 raw=0x00010026 opcodeNum=38 A=0 B=0 C=4 Bx=4 sBx=-131067
+-- pc=09 raw=0x00018046 opcodeNum=6 A=1 B=0 C=6 Bx=6 sBx=-131065
+-- pc=10 raw=0x01004010 opcodeNum=16 A=0 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=11 raw=0x00010026 opcodeNum=38 A=0 B=0 C=4 Bx=4 sBx=-131067
+-- pc=12 raw=0x0001C046 opcodeNum=6 A=1 B=0 C=7 Bx=7 sBx=-131064
+-- pc=13 raw=0x01008010 opcodeNum=16 A=0 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=14 raw=0x00010066 opcodeNum=38 A=1 B=0 C=4 Bx=4 sBx=-131067
+-- pc=15 raw=0x00020086 opcodeNum=6 A=2 B=0 C=8 Bx=8 sBx=-131063
+-- pc=16 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=17 raw=0x000100A6 opcodeNum=38 A=2 B=0 C=4 Bx=4 sBx=-131067
+-- pc=18 raw=0x000240C6 opcodeNum=6 A=3 B=0 C=9 Bx=9 sBx=-131062
+-- pc=19 raw=0x01004090 opcodeNum=16 A=2 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=20 raw=0x000100A6 opcodeNum=38 A=2 B=0 C=4 Bx=4 sBx=-131067
+-- pc=21 raw=0x000280C6 opcodeNum=6 A=3 B=0 C=10 Bx=10 sBx=-131061
+-- pc=22 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=23 raw=0x000100E6 opcodeNum=38 A=3 B=0 C=4 Bx=4 sBx=-131067
+-- pc=24 raw=0x0002C106 opcodeNum=6 A=4 B=0 C=11 Bx=11 sBx=-131060
+-- pc=25 raw=0x010080D0 opcodeNum=16 A=3 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=26 raw=0x00010126 opcodeNum=38 A=4 B=0 C=4 Bx=4 sBx=-131067
+-- pc=27 raw=0x00030146 opcodeNum=6 A=5 B=0 C=12 Bx=12 sBx=-131059
+-- pc=28 raw=0x01008110 opcodeNum=16 A=4 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=29 raw=0x0243411B opcodeNum=27 A=4 B=4 C=269 Bx=2317 sBx=-128754
+-- pc=30 raw=0x00808110 opcodeNum=16 A=4 B=1 C=2 Bx=514 sBx=-130557
+-- pc=31 raw=0x00010166 opcodeNum=38 A=5 B=0 C=4 Bx=4 sBx=-131067
+-- pc=32 raw=0x00038186 opcodeNum=6 A=6 B=0 C=14 Bx=14 sBx=-131057
+-- pc=33 raw=0x01008150 opcodeNum=16 A=5 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=34 raw=0x000101A6 opcodeNum=38 A=6 B=0 C=4 Bx=4 sBx=-131067
+-- pc=35 raw=0x0003C1C6 opcodeNum=6 A=7 B=0 C=15 Bx=15 sBx=-131056
+-- pc=36 raw=0x01008190 opcodeNum=16 A=6 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=37 raw=0x000101E6 opcodeNum=38 A=7 B=0 C=4 Bx=4 sBx=-131067
+-- pc=38 raw=0x00040206 opcodeNum=6 A=8 B=0 C=16 Bx=16 sBx=-131055
+-- pc=39 raw=0x010081D0 opcodeNum=16 A=7 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=40 raw=0x00044206 opcodeNum=6 A=8 B=0 C=17 Bx=17 sBx=-131054
+-- pc=41 raw=0x00048246 opcodeNum=6 A=9 B=0 C=18 Bx=18 sBx=-131053
+-- pc=42 raw=0x0004C286 opcodeNum=6 A=10 B=0 C=19 Bx=19 sBx=-131052
+-- pc=43 raw=0x000502C6 opcodeNum=6 A=11 B=0 C=20 Bx=20 sBx=-131051
+-- pc=44 raw=0x00054306 opcodeNum=6 A=12 B=0 C=21 Bx=21 sBx=-131050
+-- pc=45 raw=0x00000341 opcodeNum=1 A=13 B=0 C=0 Bx=0 sBx=-131071
+-- pc=46 raw=0x00058368 opcodeNum=40 A=13 B=0 C=22 Bx=22 sBx=-131049
+-- pc=47 raw=0x00004341 opcodeNum=1 A=13 B=0 C=1 Bx=1 sBx=-131070
+-- pc=48 raw=0x01000024 opcodeNum=36 A=0 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=49 raw=0x05800024 opcodeNum=36 A=0 B=11 C=0 Bx=5632 sBx=-125439
+-- pc=50 raw=0x06000024 opcodeNum=36 A=0 B=12 C=0 Bx=6144 sBx=-124927
+-- pc=51 raw=0x0005C368 opcodeNum=40 A=13 B=0 C=23 Bx=23 sBx=-131048
+-- pc=52 raw=0x00008341 opcodeNum=1 A=13 B=0 C=2 Bx=2 sBx=-131069
+-- pc=53 raw=0x01000024 opcodeNum=36 A=0 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=54 raw=0x06000024 opcodeNum=36 A=0 B=12 C=0 Bx=6144 sBx=-124927
+-- pc=55 raw=0x00060368 opcodeNum=40 A=13 B=0 C=24 Bx=24 sBx=-131047
+-- pc=56 raw=0x0000C341 opcodeNum=1 A=13 B=0 C=3 Bx=3 sBx=-131068
+-- pc=57 raw=0x06000024 opcodeNum=36 A=0 B=12 C=0 Bx=6144 sBx=-124927
+-- pc=58 raw=0x01000024 opcodeNum=36 A=0 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=59 raw=0x00064368 opcodeNum=40 A=13 B=0 C=25 Bx=25 sBx=-131046
+-- pc=60 raw=0x00010341 opcodeNum=1 A=13 B=0 C=4 Bx=4 sBx=-131067
+-- pc=61 raw=0x00800024 opcodeNum=36 A=0 B=1 C=0 Bx=512 sBx=-130559
+-- pc=62 raw=0x06000024 opcodeNum=36 A=0 B=12 C=0 Bx=6144 sBx=-124927
+-- pc=63 raw=0x00068368 opcodeNum=40 A=13 B=0 C=26 Bx=26 sBx=-131045
+-- pc=64 raw=0x00014341 opcodeNum=1 A=13 B=0 C=5 Bx=5 sBx=-131066
+-- pc=65 raw=0x02800024 opcodeNum=36 A=0 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=66 raw=0x02000024 opcodeNum=36 A=0 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=67 raw=0x0006C368 opcodeNum=40 A=13 B=0 C=27 Bx=27 sBx=-131044
+-- pc=68 raw=0x00018341 opcodeNum=1 A=13 B=0 C=6 Bx=6 sBx=-131065
+-- pc=69 raw=0x00070368 opcodeNum=40 A=13 B=0 C=28 Bx=28 sBx=-131043
+-- pc=70 raw=0x0001C341 opcodeNum=1 A=13 B=0 C=7 Bx=7 sBx=-131064
+-- pc=71 raw=0x02800024 opcodeNum=36 A=0 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=72 raw=0x00074368 opcodeNum=40 A=13 B=0 C=29 Bx=29 sBx=-131042
+-- pc=73 raw=0x00020341 opcodeNum=1 A=13 B=0 C=8 Bx=8 sBx=-131063
+-- pc=74 raw=0x02800024 opcodeNum=36 A=0 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=75 raw=0x00078368 opcodeNum=40 A=13 B=0 C=30 Bx=30 sBx=-131041
+-- pc=76 raw=0x00024341 opcodeNum=1 A=13 B=0 C=9 Bx=9 sBx=-131062
+-- pc=77 raw=0x02800024 opcodeNum=36 A=0 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=78 raw=0x03000024 opcodeNum=36 A=0 B=6 C=0 Bx=3072 sBx=-127999
+-- pc=79 raw=0x04800024 opcodeNum=36 A=0 B=9 C=0 Bx=4608 sBx=-126463
+-- pc=80 raw=0x05000024 opcodeNum=36 A=0 B=10 C=0 Bx=5120 sBx=-125951
+-- pc=81 raw=0x0007C368 opcodeNum=40 A=13 B=0 C=31 Bx=31 sBx=-131040
+-- pc=82 raw=0x00028341 opcodeNum=1 A=13 B=0 C=10 Bx=10 sBx=-131061
+-- pc=83 raw=0x02800024 opcodeNum=36 A=0 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=84 raw=0x01800024 opcodeNum=36 A=0 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=85 raw=0x03800024 opcodeNum=36 A=0 B=7 C=0 Bx=3584 sBx=-127487
+-- pc=86 raw=0x04000024 opcodeNum=36 A=0 B=8 C=0 Bx=4096 sBx=-126975
+-- pc=87 raw=0x03000024 opcodeNum=36 A=0 B=6 C=0 Bx=3072 sBx=-127999
+-- pc=88 raw=0x00080368 opcodeNum=40 A=13 B=0 C=32 Bx=32 sBx=-131039
+-- pc=89 raw=0x0002C341 opcodeNum=1 A=13 B=0 C=11 Bx=11 sBx=-131060
+-- pc=90 raw=0x02800024 opcodeNum=36 A=0 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=91 raw=0x03800024 opcodeNum=36 A=0 B=7 C=0 Bx=3584 sBx=-127487
+-- pc=92 raw=0x04000024 opcodeNum=36 A=0 B=8 C=0 Bx=4096 sBx=-126975
+-- pc=93 raw=0x00084368 opcodeNum=40 A=13 B=0 C=33 Bx=33 sBx=-131038
+-- pc=94 raw=0x00030341 opcodeNum=1 A=13 B=0 C=12 Bx=12 sBx=-131059
+-- pc=95 raw=0x02800024 opcodeNum=36 A=0 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=96 raw=0x03000024 opcodeNum=36 A=0 B=6 C=0 Bx=3072 sBx=-127999
+-- pc=97 raw=0x00088368 opcodeNum=40 A=13 B=0 C=34 Bx=34 sBx=-131037
+-- pc=98 raw=0x00034341 opcodeNum=1 A=13 B=0 C=13 Bx=13 sBx=-131058
+-- pc=99 raw=0x03000024 opcodeNum=36 A=0 B=6 C=0 Bx=3072 sBx=-127999
+-- pc=100 raw=0x0008C368 opcodeNum=40 A=13 B=0 C=35 Bx=35 sBx=-131036
+-- pc=101 raw=0x00038341 opcodeNum=1 A=13 B=0 C=14 Bx=14 sBx=-131057
+-- pc=102 raw=0x02800024 opcodeNum=36 A=0 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=103 raw=0x03000024 opcodeNum=36 A=0 B=6 C=0 Bx=3072 sBx=-127999
+-- pc=104 raw=0x03800024 opcodeNum=36 A=0 B=7 C=0 Bx=3584 sBx=-127487
+-- pc=105 raw=0x04000024 opcodeNum=36 A=0 B=8 C=0 Bx=4096 sBx=-126975
+-- pc=106 raw=0x00090368 opcodeNum=40 A=13 B=0 C=36 Bx=36 sBx=-131035
+-- pc=107 raw=0x0003C341 opcodeNum=1 A=13 B=0 C=15 Bx=15 sBx=-131056
+-- pc=108 raw=0x02800024 opcodeNum=36 A=0 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=109 raw=0x03000024 opcodeNum=36 A=0 B=6 C=0 Bx=3072 sBx=-127999
+-- pc=110 raw=0x03800024 opcodeNum=36 A=0 B=7 C=0 Bx=3584 sBx=-127487
+-- pc=111 raw=0x01800024 opcodeNum=36 A=0 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=112 raw=0x00094368 opcodeNum=40 A=13 B=0 C=37 Bx=37 sBx=-131034
+-- pc=113 raw=0x00040341 opcodeNum=1 A=13 B=0 C=16 Bx=16 sBx=-131055
+-- pc=114 raw=0x02800024 opcodeNum=36 A=0 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=115 raw=0x01800024 opcodeNum=36 A=0 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=116 raw=0x00098368 opcodeNum=40 A=13 B=0 C=38 Bx=38 sBx=-131033
+-- pc=117 raw=0x0009C346 opcodeNum=6 A=13 B=0 C=39 Bx=39 sBx=-131032
+-- pc=118 raw=0x00044381 opcodeNum=1 A=14 B=0 C=17 Bx=17 sBx=-131054
+-- pc=119 raw=0x06800024 opcodeNum=36 A=0 B=13 C=0 Bx=6656 sBx=-124415
+-- pc=120 raw=0x000A03A8 opcodeNum=40 A=14 B=0 C=40 Bx=40 sBx=-131031
+-- pc=121 raw=0x00048381 opcodeNum=1 A=14 B=0 C=18 Bx=18 sBx=-131053
+-- pc=122 raw=0x02800024 opcodeNum=36 A=0 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=123 raw=0x06800024 opcodeNum=36 A=0 B=13 C=0 Bx=6656 sBx=-124415
+-- pc=124 raw=0x000A43A8 opcodeNum=40 A=14 B=0 C=41 Bx=41 sBx=-131030
+-- pc=125 raw=0x0004C381 opcodeNum=1 A=14 B=0 C=19 Bx=19 sBx=-131052
+-- pc=126 raw=0x02800024 opcodeNum=36 A=0 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=127 raw=0x000A83A8 opcodeNum=40 A=14 B=0 C=42 Bx=42 sBx=-131029
+-- pc=128 raw=0x0280039C opcodeNum=28 A=14 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=129 raw=0x000B03C6 opcodeNum=6 A=15 B=0 C=44 Bx=44 sBx=-131027
+-- pc=130 raw=0x000B4406 opcodeNum=6 A=16 B=0 C=45 Bx=45 sBx=-131026
+-- pc=131 raw=0x000B8446 opcodeNum=6 A=17 B=0 C=46 Bx=46 sBx=-131025
+-- pc=132 raw=0x000BC486 opcodeNum=6 A=18 B=0 C=47 Bx=47 sBx=-131024
+-- pc=133 raw=0x000C04C6 opcodeNum=6 A=19 B=0 C=48 Bx=48 sBx=-131023
+-- pc=134 raw=0x02804387 opcodeNum=7 A=14 B=5 C=1 Bx=2561 sBx=-128510
+-- pc=135 raw=0x000AC3A8 opcodeNum=40 A=14 B=0 C=43 Bx=43 sBx=-131028
+-- pc=136 raw=0x00050381 opcodeNum=1 A=14 B=0 C=20 Bx=20 sBx=-131051
+-- pc=137 raw=0x02800024 opcodeNum=36 A=0 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=138 raw=0x000C43A8 opcodeNum=40 A=14 B=0 C=49 Bx=49 sBx=-131022
+-- pc=139 raw=0x00054381 opcodeNum=1 A=14 B=0 C=21 Bx=21 sBx=-131050
+-- pc=140 raw=0x000C83A8 opcodeNum=40 A=14 B=0 C=50 Bx=50 sBx=-131021
+-- pc=141 raw=0x000CC386 opcodeNum=6 A=14 B=0 C=51 Bx=51 sBx=-131020
+-- pc=142 raw=0x000643DC opcodeNum=28 A=15 B=0 C=25 Bx=25 sBx=-131046
+-- pc=143 raw=0x9A4D43D1 opcodeNum=17 A=15 B=308 C=309 Bx=158005 sBx=26934
+-- pc=144 raw=0x9B4D43D1 opcodeNum=17 A=15 B=310 C=309 Bx=159029 sBx=27958
+-- pc=145 raw=0x9BCD43D1 opcodeNum=17 A=15 B=311 C=309 Bx=159541 sBx=28470
+-- pc=146 raw=0x9C4D43D1 opcodeNum=17 A=15 B=312 C=309 Bx=160053 sBx=28982
+-- pc=147 raw=0x9CCD43D1 opcodeNum=17 A=15 B=313 C=309 Bx=160565 sBx=29494
+-- pc=148 raw=0x9D4D43D1 opcodeNum=17 A=15 B=314 C=309 Bx=161077 sBx=30006
+-- pc=149 raw=0x9DCD43D1 opcodeNum=17 A=15 B=315 C=309 Bx=161589 sBx=30518
+-- pc=150 raw=0x9E4D43D1 opcodeNum=17 A=15 B=316 C=309 Bx=162101 sBx=31030
+-- pc=151 raw=0x9ECD43D1 opcodeNum=17 A=15 B=317 C=309 Bx=162613 sBx=31542
+-- pc=152 raw=0x9F4D43D1 opcodeNum=17 A=15 B=318 C=309 Bx=163125 sBx=32054
+-- pc=153 raw=0x9FCD43D1 opcodeNum=17 A=15 B=319 C=309 Bx=163637 sBx=32566
+-- pc=154 raw=0xA04D43D1 opcodeNum=17 A=15 B=320 C=309 Bx=164149 sBx=33078
+-- pc=155 raw=0xA0CD43D1 opcodeNum=17 A=15 B=321 C=309 Bx=164661 sBx=33590
+-- pc=156 raw=0xA14D43D1 opcodeNum=17 A=15 B=322 C=309 Bx=165173 sBx=34102
+-- pc=157 raw=0xA1CD43D1 opcodeNum=17 A=15 B=323 C=309 Bx=165685 sBx=34614
+-- pc=158 raw=0xA24D43D1 opcodeNum=17 A=15 B=324 C=309 Bx=166197 sBx=35126
+-- pc=159 raw=0xA2CD43D1 opcodeNum=17 A=15 B=325 C=309 Bx=166709 sBx=35638
+-- pc=160 raw=0xA34D43D1 opcodeNum=17 A=15 B=326 C=309 Bx=167221 sBx=36150
+-- pc=161 raw=0xA3CD43D1 opcodeNum=17 A=15 B=327 C=309 Bx=167733 sBx=36662
+-- pc=162 raw=0xA44D43D1 opcodeNum=17 A=15 B=328 C=309 Bx=168245 sBx=37174
+-- pc=163 raw=0xA4CD43D1 opcodeNum=17 A=15 B=329 C=309 Bx=168757 sBx=37686
+-- pc=164 raw=0xA54D43D1 opcodeNum=17 A=15 B=330 C=309 Bx=169269 sBx=38198
+-- pc=165 raw=0xA5CD43D1 opcodeNum=17 A=15 B=331 C=309 Bx=169781 sBx=38710
+-- pc=166 raw=0xA64D43D1 opcodeNum=17 A=15 B=332 C=309 Bx=170293 sBx=39222
+-- pc=167 raw=0xA6CD43D1 opcodeNum=17 A=15 B=333 C=309 Bx=170805 sBx=39734
+-- pc=168 raw=0xA74D43D1 opcodeNum=17 A=15 B=334 C=309 Bx=171317 sBx=40246
+-- pc=169 raw=0xA7CD43D1 opcodeNum=17 A=15 B=335 C=309 Bx=171829 sBx=40758
+-- pc=170 raw=0xA84D43D1 opcodeNum=17 A=15 B=336 C=309 Bx=172341 sBx=41270
+-- pc=171 raw=0xA8CD43D1 opcodeNum=17 A=15 B=337 C=309 Bx=172853 sBx=41782
+-- pc=172 raw=0xA94D43D1 opcodeNum=17 A=15 B=338 C=309 Bx=173365 sBx=42294
+-- pc=173 raw=0xA9CD43D1 opcodeNum=17 A=15 B=339 C=309 Bx=173877 sBx=42806
+-- pc=174 raw=0xAA4D43D1 opcodeNum=17 A=15 B=340 C=309 Bx=174389 sBx=43318
+-- pc=175 raw=0xAACD43D1 opcodeNum=17 A=15 B=341 C=309 Bx=174901 sBx=43830
+-- pc=176 raw=0xAB4D43D1 opcodeNum=17 A=15 B=342 C=309 Bx=175413 sBx=44342
+-- pc=177 raw=0xABCD43D1 opcodeNum=17 A=15 B=343 C=309 Bx=175925 sBx=44854
+-- pc=178 raw=0xAC4D43D1 opcodeNum=17 A=15 B=344 C=309 Bx=176437 sBx=45366
+-- pc=179 raw=0x00058401 opcodeNum=1 A=16 B=0 C=22 Bx=22 sBx=-131049
+-- pc=180 raw=0x07800024 opcodeNum=36 A=0 B=15 C=0 Bx=7680 sBx=-123391
+-- pc=181 raw=0x07000024 opcodeNum=36 A=0 B=14 C=0 Bx=7168 sBx=-123903
+-- pc=182 raw=0x01800024 opcodeNum=36 A=0 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=183 raw=0x00164428 opcodeNum=40 A=16 B=0 C=89 Bx=89 sBx=-130982
+-- pc=184 raw=0x0005C401 opcodeNum=1 A=16 B=0 C=23 Bx=23 sBx=-131048
+-- pc=185 raw=0x07000024 opcodeNum=36 A=0 B=14 C=0 Bx=7168 sBx=-123903
+-- pc=186 raw=0x00168428 opcodeNum=40 A=16 B=0 C=90 Bx=90 sBx=-130981
+-- pc=187 raw=0x00060401 opcodeNum=1 A=16 B=0 C=24 Bx=24 sBx=-131047
+-- pc=188 raw=0x02800024 opcodeNum=36 A=0 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=189 raw=0x0016C428 opcodeNum=40 A=16 B=0 C=91 Bx=91 sBx=-130980
+-- pc=190 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
    0: GETGLOBAL	R0 K0              ; R0 := module
    1: LOADK	R1 K1                  ; R1 := "xiaoqiang.util.XQSecureUtil"
@@ -202,6 +395,23 @@
 -- SubChunk 1:
 -- SubChunk: lineDefined=21, lastLineDefined=23, numParams=1, isVararg=0, maxStackSize=4
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000009 opcodeNum=9 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x8002001F opcodeNum=31 A=0 B=256 C=8 Bx=131080 sBx=9
+-- pc=02 raw=0x00004042 opcodeNum=2 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=03 raw=0x80004017 opcodeNum=23 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=04 raw=0x8001401F opcodeNum=31 A=0 B=256 C=5 Bx=131077 sBx=6
+-- pc=05 raw=0x0040404F opcodeNum=15 A=1 B=0 C=257 Bx=257 sBx=-130814
+-- pc=06 raw=0x000080C6 opcodeNum=6 A=3 B=0 C=2 Bx=2 sBx=-131069
+-- pc=07 raw=0x01808050 opcodeNum=16 A=1 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=08 raw=0x0080C042 opcodeNum=2 A=1 B=1 C=3 Bx=515 sBx=-130556
+-- pc=09 raw=0x0080C042 opcodeNum=2 A=1 B=1 C=3 Bx=515 sBx=-130556
+-- pc=10 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=11 raw=0x00004058 opcodeNum=24 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=12 raw=0x00800058 opcodeNum=24 A=1 B=1 C=0 Bx=512 sBx=-130559
+-- pc=13 raw=0x01000048 opcodeNum=8 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=14 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
    0: TEST	R0 0                    ; if R0 then goto 11
    1: JMP	9                        ; goto 11
@@ -221,6 +431,26 @@
 
 -- SubChunk 2:
 -- SubChunk: lineDefined=25, lastLineDefined=31, numParams=0, isVararg=0, maxStackSize=3
+
+-- Raw Instructions:
+-- pc=00 raw=0x00000012 opcodeNum=18 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x0040001B opcodeNum=27 A=0 B=0 C=256 Bx=256 sBx=-130815
+-- pc=02 raw=0x00800052 opcodeNum=18 A=1 B=1 C=0 Bx=512 sBx=-130559
+-- pc=03 raw=0x00004086 opcodeNum=6 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=04 raw=0x01804010 opcodeNum=16 A=0 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=05 raw=0x00000012 opcodeNum=18 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=06 raw=0x0040001B opcodeNum=27 A=0 B=0 C=256 Bx=256 sBx=-130815
+-- pc=07 raw=0x01000052 opcodeNum=18 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=08 raw=0x00004086 opcodeNum=6 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=09 raw=0x01804010 opcodeNum=16 A=0 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=10 raw=0x00008026 opcodeNum=38 A=0 B=0 C=2 Bx=2 sBx=-131069
+-- pc=11 raw=0x00808010 opcodeNum=16 A=0 B=1 C=2 Bx=514 sBx=-130557
+-- pc=12 raw=0x00004009 opcodeNum=9 A=0 B=0 C=1 Bx=1 sBx=-131070
+-- pc=13 raw=0x8000801F opcodeNum=31 A=0 B=256 C=2 Bx=131074 sBx=3
+-- pc=14 raw=0x0000C026 opcodeNum=38 A=0 B=0 C=3 Bx=3 sBx=-131068
+-- pc=15 raw=0x00010046 opcodeNum=6 A=1 B=0 C=4 Bx=4 sBx=-131067
+-- pc=16 raw=0x01004010 opcodeNum=16 A=0 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=17 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
 
 -- Register Operations:
    0: GETUPVAL	R0 0                ; R0 := UpValue[0]
@@ -244,6 +474,42 @@
 
 -- SubChunk 3:
 -- SubChunk: lineDefined=33, lastLineDefined=38, numParams=1, isVararg=0, maxStackSize=5
+
+-- Raw Instructions:
+-- pc=00 raw=0x00000066 opcodeNum=38 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00C0405B opcodeNum=27 A=1 B=1 C=257 Bx=769 sBx=-130302
+-- pc=02 raw=0x00C0805B opcodeNum=27 A=1 B=1 C=258 Bx=770 sBx=-130301
+-- pc=03 raw=0x00C0C05B opcodeNum=27 A=1 B=1 C=259 Bx=771 sBx=-130300
+-- pc=04 raw=0x00010086 opcodeNum=6 A=2 B=0 C=4 Bx=4 sBx=-131067
+-- pc=05 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=06 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x0141409B opcodeNum=27 A=2 B=2 C=261 Bx=1285 sBx=-129786
+-- pc=08 raw=0x000040E3 opcodeNum=35 A=3 B=0 C=1 Bx=1 sBx=-131070
+-- pc=09 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=10 raw=0x008000D2 opcodeNum=18 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=11 raw=0x00010106 opcodeNum=6 A=4 B=0 C=4 Bx=4 sBx=-131067
+-- pc=12 raw=0x01808090 opcodeNum=16 A=2 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=13 raw=0x00808013 opcodeNum=19 A=0 B=1 C=2 Bx=514 sBx=-130557
+-- pc=14 raw=0x8003801F opcodeNum=31 A=0 B=256 C=14 Bx=131086 sBx=15
+-- pc=15 raw=0x00000052 opcodeNum=18 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=16 raw=0x00C1405B opcodeNum=27 A=1 B=1 C=261 Bx=773 sBx=-130298
+-- pc=17 raw=0x000040A3 opcodeNum=35 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=18 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=19 raw=0x00800092 opcodeNum=18 A=2 B=1 C=0 Bx=512 sBx=-130559
+-- pc=20 raw=0x000180C6 opcodeNum=6 A=3 B=0 C=6 Bx=6 sBx=-131065
+-- pc=21 raw=0x01808050 opcodeNum=16 A=1 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=22 raw=0x00000009 opcodeNum=9 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=23 raw=0x8000801F opcodeNum=31 A=0 B=256 C=2 Bx=131074 sBx=3
+-- pc=24 raw=0x0001C086 opcodeNum=6 A=2 B=0 C=7 Bx=7 sBx=-131064
+-- pc=25 raw=0x00004089 opcodeNum=9 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=26 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=27 raw=0x00020086 opcodeNum=6 A=2 B=0 C=8 Bx=8 sBx=-131063
+-- pc=28 raw=0x00808053 opcodeNum=19 A=1 B=1 C=2 Bx=514 sBx=-130557
+-- pc=29 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=30 raw=0x00004058 opcodeNum=24 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=31 raw=0x00800058 opcodeNum=24 A=1 B=1 C=0 Bx=512 sBx=-130559
+-- pc=32 raw=0x01000048 opcodeNum=8 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=33 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
 
 -- Register Operations:
    0: GETGLOBAL	R1 K0              ; R1 := luci
@@ -283,6 +549,52 @@
 
 -- SubChunk 4:
 -- SubChunk: lineDefined=40, lastLineDefined=56, numParams=1, isVararg=0, maxStackSize=6
+
+-- Raw Instructions:
+-- pc=00 raw=0x00000009 opcodeNum=9 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x8001001F opcodeNum=31 A=0 B=256 C=4 Bx=131076 sBx=5
+-- pc=02 raw=0x00000066 opcodeNum=38 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=03 raw=0x000000A4 opcodeNum=36 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=05 raw=0x00004049 opcodeNum=9 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=06 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=07 raw=0x00800069 opcodeNum=41 A=1 B=1 C=0 Bx=512 sBx=-130559
+-- pc=08 raw=0x01000048 opcodeNum=8 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=09 raw=0x00004066 opcodeNum=38 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=10 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=11 raw=0x000080C6 opcodeNum=6 A=3 B=0 C=2 Bx=2 sBx=-131069
+-- pc=12 raw=0x00000124 opcodeNum=36 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=13 raw=0x01010095 opcodeNum=21 A=2 B=2 C=4 Bx=1028 sBx=-130043
+-- pc=14 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=15 raw=0x00004049 opcodeNum=9 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=16 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=17 raw=0x00800069 opcodeNum=41 A=1 B=1 C=0 Bx=512 sBx=-130559
+-- pc=18 raw=0x01000048 opcodeNum=8 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=19 raw=0x00800052 opcodeNum=18 A=1 B=1 C=0 Bx=512 sBx=-130559
+-- pc=20 raw=0x00C0C05B opcodeNum=27 A=1 B=1 C=259 Bx=771 sBx=-130300
+-- pc=21 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=22 raw=0x000080C6 opcodeNum=6 A=3 B=0 C=2 Bx=2 sBx=-131069
+-- pc=23 raw=0x00000124 opcodeNum=36 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=24 raw=0x01010095 opcodeNum=21 A=2 B=2 C=4 Bx=1028 sBx=-130043
+-- pc=25 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=26 raw=0x000100A6 opcodeNum=38 A=2 B=0 C=4 Bx=4 sBx=-131067
+-- pc=27 raw=0x008000E4 opcodeNum=36 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=28 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=29 raw=0x000140E6 opcodeNum=38 A=3 B=0 C=5 Bx=5 sBx=-131066
+-- pc=30 raw=0x01000124 opcodeNum=36 A=4 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=31 raw=0x0000015C opcodeNum=28 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=32 raw=0x018040D0 opcodeNum=16 A=3 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=33 raw=0x010000E4 opcodeNum=36 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=34 raw=0x008080D0 opcodeNum=16 A=3 B=1 C=2 Bx=514 sBx=-130557
+-- pc=35 raw=0x00018126 opcodeNum=38 A=4 B=0 C=6 Bx=6 sBx=-131065
+-- pc=36 raw=0x01800164 opcodeNum=36 A=5 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=37 raw=0x01008110 opcodeNum=16 A=4 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=38 raw=0x0241C054 opcodeNum=20 A=1 B=4 C=263 Bx=2311 sBx=-128760
+-- pc=39 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=40 raw=0x02000129 opcodeNum=41 A=4 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=41 raw=0x01000108 opcodeNum=8 A=4 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=42 raw=0x010000C8 opcodeNum=8 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=43 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
 
 -- Register Operations:
    0: TEST	R0 0                    ; if R0 then goto 7
@@ -333,6 +645,46 @@
 -- SubChunk 5:
 -- SubChunk: lineDefined=58, lastLineDefined=69, numParams=2, isVararg=0, maxStackSize=6
 
+-- Raw Instructions:
+-- pc=00 raw=0x000000A6 opcodeNum=38 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00808090 opcodeNum=16 A=2 B=1 C=2 Bx=514 sBx=-130557
+-- pc=02 raw=0x00004089 opcodeNum=9 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=03 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=04 raw=0x000040A6 opcodeNum=38 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=05 raw=0x00804090 opcodeNum=16 A=2 B=1 C=1 Bx=513 sBx=-130558
+-- pc=06 raw=0x000080A6 opcodeNum=38 A=2 B=0 C=2 Bx=2 sBx=-131069
+-- pc=07 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=08 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=09 raw=0x00000089 opcodeNum=9 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=10 raw=0x8001001F opcodeNum=31 A=0 B=256 C=4 Bx=131076 sBx=5
+-- pc=11 raw=0x0000C0A6 opcodeNum=38 A=2 B=0 C=3 Bx=3 sBx=-131068
+-- pc=12 raw=0x008000E4 opcodeNum=36 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=13 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=14 raw=0x01410054 opcodeNum=20 A=1 B=2 C=260 Bx=1284 sBx=-129787
+-- pc=15 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=16 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+-- pc=17 raw=0x000140A6 opcodeNum=38 A=2 B=0 C=5 Bx=5 sBx=-131066
+-- pc=18 raw=0x0141809B opcodeNum=27 A=2 B=2 C=262 Bx=1286 sBx=-129785
+-- pc=19 raw=0x0141C09B opcodeNum=27 A=2 B=2 C=263 Bx=1287 sBx=-129784
+-- pc=20 raw=0x008000E4 opcodeNum=36 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=21 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=22 raw=0x01000064 opcodeNum=36 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=23 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=24 raw=0x0142009B opcodeNum=27 A=2 B=2 C=264 Bx=1288 sBx=-129783
+-- pc=25 raw=0x008000D2 opcodeNum=18 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=26 raw=0x00024106 opcodeNum=6 A=4 B=0 C=9 Bx=9 sBx=-131062
+-- pc=27 raw=0x00000164 opcodeNum=36 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=28 raw=0x018140D5 opcodeNum=21 A=3 B=3 C=5 Bx=1541 sBx=-129530
+-- pc=29 raw=0x00028106 opcodeNum=6 A=4 B=0 C=10 Bx=10 sBx=-131061
+-- pc=30 raw=0x0002C146 opcodeNum=6 A=5 B=0 C=11 Bx=11 sBx=-131060
+-- pc=31 raw=0x02008090 opcodeNum=16 A=2 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=32 raw=0x014300CF opcodeNum=15 A=3 B=2 C=268 Bx=1292 sBx=-129779
+-- pc=33 raw=0x00800164 opcodeNum=36 A=5 B=1 C=0 Bx=512 sBx=-130559
+-- pc=34 raw=0x018040D0 opcodeNum=16 A=3 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=35 raw=0x014340CF opcodeNum=15 A=3 B=2 C=269 Bx=1293 sBx=-129778
+-- pc=36 raw=0x010040D0 opcodeNum=16 A=3 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=37 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
    0: GETGLOBAL	R2 K0              ; R2 := sane
    1: CALL	R2 1 2                  ; R2 := R2()
@@ -376,6 +728,42 @@
 -- SubChunk 6:
 -- SubChunk: lineDefined=71, lastLineDefined=87, numParams=1, isVararg=0, maxStackSize=8
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000052 opcodeNum=18 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00C0005B opcodeNum=27 A=1 B=1 C=256 Bx=768 sBx=-130303
+-- pc=02 raw=0x000000A4 opcodeNum=36 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=03 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=04 raw=0x00000049 opcodeNum=9 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=05 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=06 raw=0x01000008 opcodeNum=8 A=0 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=07 raw=0x00004066 opcodeNum=38 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=08 raw=0x000000A4 opcodeNum=36 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=09 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=10 raw=0x00C08013 opcodeNum=19 A=0 B=1 C=258 Bx=770 sBx=-130301
+-- pc=11 raw=0x8004C01F opcodeNum=31 A=0 B=256 C=19 Bx=131091 sBx=20
+-- pc=12 raw=0x00800052 opcodeNum=18 A=1 B=1 C=0 Bx=512 sBx=-130559
+-- pc=13 raw=0x00C0C04F opcodeNum=15 A=1 B=1 C=259 Bx=771 sBx=-130300
+-- pc=14 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=15 raw=0x0180C050 opcodeNum=16 A=1 B=3 C=3 Bx=1539 sBx=-129532
+-- pc=16 raw=0x00000049 opcodeNum=9 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=17 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=18 raw=0x01000048 opcodeNum=8 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=19 raw=0x8003001F opcodeNum=31 A=0 B=256 C=12 Bx=131084 sBx=13
+-- pc=20 raw=0x000100E6 opcodeNum=38 A=3 B=0 C=4 Bx=4 sBx=-131067
+-- pc=21 raw=0x00014106 opcodeNum=6 A=4 B=0 C=5 Bx=5 sBx=-131066
+-- pc=22 raw=0x010080D0 opcodeNum=16 A=3 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=23 raw=0x01C1811B opcodeNum=27 A=4 B=3 C=262 Bx=1798 sBx=-129273
+-- pc=24 raw=0x0001C146 opcodeNum=6 A=5 B=0 C=7 Bx=7 sBx=-131064
+-- pc=25 raw=0x00020186 opcodeNum=6 A=6 B=0 C=8 Bx=8 sBx=-131063
+-- pc=26 raw=0x000001E4 opcodeNum=36 A=7 B=0 C=0 Bx=0 sBx=-131071
+-- pc=27 raw=0x0301C195 opcodeNum=21 A=6 B=6 C=7 Bx=3079 sBx=-127992
+-- pc=28 raw=0x01804110 opcodeNum=16 A=4 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=29 raw=0x02000129 opcodeNum=41 A=4 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=30 raw=0x01000108 opcodeNum=8 A=4 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=31 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=32 raw=0x01000008 opcodeNum=8 A=0 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=33 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
    0: GETUPVAL	R1 0                ; R1 := UpValue[0]
    1: GETTABLE	R1 R1 K0            ; R1 := R1["isStrNil"]
@@ -415,6 +803,28 @@
 -- SubChunk 7:
 -- SubChunk: lineDefined=89, lastLineDefined=97, numParams=1, isVararg=0, maxStackSize=8
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000066 opcodeNum=38 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00004086 opcodeNum=6 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=02 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=03 raw=0x000000A6 opcodeNum=38 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x000080C6 opcodeNum=6 A=3 B=0 C=2 Bx=2 sBx=-131069
+-- pc=05 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=06 raw=0x000000DC opcodeNum=28 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x00C0C11B opcodeNum=27 A=4 B=1 C=259 Bx=771 sBx=-130300
+-- pc=08 raw=0x00010146 opcodeNum=6 A=5 B=0 C=4 Bx=4 sBx=-131067
+-- pc=09 raw=0x01008110 opcodeNum=16 A=4 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=10 raw=0x00018166 opcodeNum=38 A=5 B=0 C=6 Bx=6 sBx=-131065
+-- pc=11 raw=0x000001A4 opcodeNum=36 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=12 raw=0x01008150 opcodeNum=16 A=5 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=13 raw=0x828140D1 opcodeNum=17 A=3 B=261 C=5 Bx=133637 sBx=2566
+-- pc=14 raw=0x0141C15B opcodeNum=27 A=5 B=2 C=263 Bx=1287 sBx=-129784
+-- pc=15 raw=0x020001A4 opcodeNum=36 A=6 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=16 raw=0x018001E4 opcodeNum=36 A=7 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=17 raw=0x01804150 opcodeNum=16 A=5 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=18 raw=0x01000108 opcodeNum=8 A=4 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=19 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
    0: GETGLOBAL	R1 K0              ; R1 := require
    1: LOADK	R2 K1                  ; R2 := "luci.sys"
@@ -439,6 +849,51 @@
 
 -- SubChunk 8:
 -- SubChunk: lineDefined=99, lastLineDefined=116, numParams=1, isVararg=0, maxStackSize=7
+
+-- Raw Instructions:
+-- pc=00 raw=0x00000052 opcodeNum=18 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00C0005B opcodeNum=27 A=1 B=1 C=256 Bx=768 sBx=-130303
+-- pc=02 raw=0x000000A4 opcodeNum=36 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=03 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=04 raw=0x00000049 opcodeNum=9 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=05 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=06 raw=0x00000058 opcodeNum=24 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x01000048 opcodeNum=8 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=08 raw=0x00004066 opcodeNum=38 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=09 raw=0x00008086 opcodeNum=6 A=2 B=0 C=2 Bx=2 sBx=-131069
+-- pc=10 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=11 raw=0x000040A6 opcodeNum=38 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=12 raw=0x0000C0C6 opcodeNum=6 A=3 B=0 C=3 Bx=3 sBx=-131068
+-- pc=13 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=14 raw=0x014100DB opcodeNum=27 A=3 B=2 C=260 Bx=1284 sBx=-129787
+-- pc=15 raw=0x00000124 opcodeNum=36 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=16 raw=0x010080D0 opcodeNum=16 A=3 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=17 raw=0x000000C9 opcodeNum=9 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=18 raw=0x8005001F opcodeNum=31 A=0 B=256 C=20 Bx=131092 sBx=21
+-- pc=19 raw=0x00014126 opcodeNum=38 A=4 B=0 C=5 Bx=5 sBx=-131066
+-- pc=20 raw=0x01800164 opcodeNum=36 A=5 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=21 raw=0x01008110 opcodeNum=16 A=4 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=22 raw=0x02418013 opcodeNum=19 A=0 B=4 C=262 Bx=2310 sBx=-128761
+-- pc=23 raw=0x8003C01F opcodeNum=31 A=0 B=256 C=15 Bx=131087 sBx=16
+-- pc=24 raw=0x0141C11B opcodeNum=27 A=4 B=2 C=263 Bx=1287 sBx=-129784
+-- pc=25 raw=0x00000164 opcodeNum=36 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=26 raw=0x01004110 opcodeNum=16 A=4 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=27 raw=0x00C2011B opcodeNum=27 A=4 B=1 C=264 Bx=776 sBx=-130295
+-- pc=28 raw=0x00808110 opcodeNum=16 A=4 B=1 C=2 Bx=514 sBx=-130557
+-- pc=29 raw=0x01C2415B opcodeNum=27 A=5 B=3 C=265 Bx=1801 sBx=-129270
+-- pc=30 raw=0x0201414C opcodeNum=12 A=5 B=4 C=5 Bx=2053 sBx=-129018
+-- pc=31 raw=0x85014005 opcodeNum=5 A=0 B=266 C=5 Bx=136197 sBx=5126
+-- pc=32 raw=0x8000801F opcodeNum=31 A=0 B=256 C=2 Bx=131074 sBx=3
+-- pc=33 raw=0x00000158 opcodeNum=24 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=34 raw=0x01000148 opcodeNum=8 A=5 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=35 raw=0x8000C01F opcodeNum=31 A=0 B=256 C=3 Bx=131075 sBx=4
+-- pc=36 raw=0x0002C166 opcodeNum=38 A=5 B=0 C=11 Bx=11 sBx=-131060
+-- pc=37 raw=0x01C1419B opcodeNum=27 A=6 B=3 C=261 Bx=1797 sBx=-129274
+-- pc=38 raw=0x0100014D opcodeNum=13 A=5 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=39 raw=0x00000148 opcodeNum=8 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=40 raw=0x00000118 opcodeNum=24 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=41 raw=0x01000108 opcodeNum=8 A=4 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=42 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
 
 -- Register Operations:
    0: GETUPVAL	R1 0                ; R1 := UpValue[0]
@@ -487,6 +942,61 @@
 
 -- SubChunk 9:
 -- SubChunk: lineDefined=118, lastLineDefined=132, numParams=1, isVararg=0, maxStackSize=13
+
+-- Raw Instructions:
+-- pc=00 raw=0x00000052 opcodeNum=18 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00C0005B opcodeNum=27 A=1 B=1 C=256 Bx=768 sBx=-130303
+-- pc=02 raw=0x000000A4 opcodeNum=36 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=03 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=04 raw=0x00000049 opcodeNum=9 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=05 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=06 raw=0x00004046 opcodeNum=6 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=07 raw=0x01000048 opcodeNum=8 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=08 raw=0x00008066 opcodeNum=38 A=1 B=0 C=2 Bx=2 sBx=-131069
+-- pc=09 raw=0x00C0C05B opcodeNum=27 A=1 B=1 C=259 Bx=771 sBx=-130300
+-- pc=10 raw=0x00004082 opcodeNum=2 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=11 raw=0x0141008E opcodeNum=14 A=2 B=2 C=260 Bx=1284 sBx=-129787
+-- pc=12 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=13 raw=0x0000009C opcodeNum=28 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=14 raw=0x000140C6 opcodeNum=6 A=3 B=0 C=5 Bx=5 sBx=-131066
+-- pc=15 raw=0x00800124 opcodeNum=36 A=4 B=1 C=0 Bx=512 sBx=-130559
+-- pc=16 raw=0x00014146 opcodeNum=6 A=5 B=0 C=5 Bx=5 sBx=-131066
+-- pc=17 raw=0x800680CB opcodeNum=11 A=3 B=256 C=26 Bx=131098 sBx=27
+-- pc=18 raw=0x03004054 opcodeNum=20 A=1 B=6 C=1 Bx=3073 sBx=-127998
+-- pc=19 raw=0x8003001F opcodeNum=31 A=0 B=256 C=12 Bx=131084 sBx=13
+-- pc=20 raw=0x000181E6 opcodeNum=38 A=7 B=0 C=6 Bx=6 sBx=-131065
+-- pc=21 raw=0x03C1C1DB opcodeNum=27 A=7 B=7 C=263 Bx=3847 sBx=-127224
+-- pc=22 raw=0x01000224 opcodeNum=36 A=8 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=23 raw=0x00020266 opcodeNum=38 A=9 B=0 C=8 Bx=8 sBx=-131063
+-- pc=24 raw=0x04C2425B opcodeNum=27 A=9 B=9 C=265 Bx=4873 sBx=-126198
+-- pc=25 raw=0x000002A4 opcodeNum=36 A=10 B=0 C=0 Bx=0 sBx=-131071
+-- pc=26 raw=0x034142CC opcodeNum=12 A=11 B=6 C=261 Bx=3333 sBx=-127738
+-- pc=27 raw=0x05C102E2 opcodeNum=34 A=11 B=11 C=260 Bx=5892 sBx=-125179
+-- pc=28 raw=0x8282C2E5 opcodeNum=37 A=11 B=261 C=11 Bx=133643 sBx=2572
+-- pc=29 raw=0x82018322 opcodeNum=34 A=12 B=260 C=6 Bx=133126 sBx=2055
+-- pc=30 raw=0x02000250 opcodeNum=16 A=9 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=31 raw=0x000041D0 opcodeNum=16 A=7 B=0 C=1 Bx=1 sBx=-131070
+-- pc=32 raw=0x8002C01F opcodeNum=31 A=0 B=256 C=11 Bx=131083 sBx=12
+-- pc=33 raw=0x000181E6 opcodeNum=38 A=7 B=0 C=6 Bx=6 sBx=-131065
+-- pc=34 raw=0x03C1C1DB opcodeNum=27 A=7 B=7 C=263 Bx=3847 sBx=-127224
+-- pc=35 raw=0x01000224 opcodeNum=36 A=8 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=36 raw=0x00020266 opcodeNum=38 A=9 B=0 C=8 Bx=8 sBx=-131063
+-- pc=37 raw=0x04C2425B opcodeNum=27 A=9 B=9 C=265 Bx=4873 sBx=-126198
+-- pc=38 raw=0x000002A4 opcodeNum=36 A=10 B=0 C=0 Bx=0 sBx=-131071
+-- pc=39 raw=0x034142CC opcodeNum=12 A=11 B=6 C=261 Bx=3333 sBx=-127738
+-- pc=40 raw=0x05C102E2 opcodeNum=34 A=11 B=11 C=260 Bx=5892 sBx=-125179
+-- pc=41 raw=0x8282C2E5 opcodeNum=37 A=11 B=261 C=11 Bx=133643 sBx=2572
+-- pc=42 raw=0x00028306 opcodeNum=6 A=12 B=0 C=10 Bx=10 sBx=-131061
+-- pc=43 raw=0x02000250 opcodeNum=16 A=9 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=44 raw=0x000041D0 opcodeNum=16 A=7 B=0 C=1 Bx=1 sBx=-131070
+-- pc=45 raw=0x7FF8C0DA opcodeNum=26 A=3 B=255 C=483 Bx=131043 sBx=-28
+-- pc=46 raw=0x000180E6 opcodeNum=38 A=3 B=0 C=6 Bx=6 sBx=-131065
+-- pc=47 raw=0x01C2C0DB opcodeNum=27 A=3 B=3 C=267 Bx=1803 sBx=-129268
+-- pc=48 raw=0x01000124 opcodeNum=36 A=4 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=49 raw=0x00030146 opcodeNum=6 A=5 B=0 C=12 Bx=12 sBx=-131059
+-- pc=50 raw=0x018000CD opcodeNum=13 A=3 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=51 raw=0x000000C8 opcodeNum=8 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=52 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
 
 -- Register Operations:
    0: GETUPVAL	R1 0                ; R1 := UpValue[0]
@@ -545,6 +1055,92 @@
 
 -- SubChunk 10:
 -- SubChunk: lineDefined=134, lastLineDefined=151, numParams=3, isVararg=0, maxStackSize=9
+
+-- Raw Instructions:
+-- pc=00 raw=0x000000D2 opcodeNum=18 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x01C000DB opcodeNum=27 A=3 B=3 C=256 Bx=1792 sBx=-129279
+-- pc=02 raw=0x00800124 opcodeNum=36 A=4 B=1 C=0 Bx=512 sBx=-130559
+-- pc=03 raw=0x010080D0 opcodeNum=16 A=3 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=04 raw=0x000040C9 opcodeNum=9 A=3 B=0 C=1 Bx=1 sBx=-131070
+-- pc=05 raw=0x8003801F opcodeNum=31 A=0 B=256 C=14 Bx=131086 sBx=15
+-- pc=06 raw=0x00C040CF opcodeNum=15 A=3 B=1 C=257 Bx=769 sBx=-130302
+-- pc=07 raw=0x00008146 opcodeNum=6 A=5 B=0 C=2 Bx=2 sBx=-131069
+-- pc=08 raw=0x018080D0 opcodeNum=16 A=3 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=09 raw=0x000040C9 opcodeNum=9 A=3 B=0 C=1 Bx=1 sBx=-131070
+-- pc=10 raw=0x8002401F opcodeNum=31 A=0 B=256 C=9 Bx=131081 sBx=10
+-- pc=11 raw=0x00C040CF opcodeNum=15 A=3 B=1 C=257 Bx=769 sBx=-130302
+-- pc=12 raw=0x0000C146 opcodeNum=6 A=5 B=0 C=3 Bx=3 sBx=-131068
+-- pc=13 raw=0x018080D0 opcodeNum=16 A=3 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=14 raw=0x000040C9 opcodeNum=9 A=3 B=0 C=1 Bx=1 sBx=-131070
+-- pc=15 raw=0x8001001F opcodeNum=31 A=0 B=256 C=4 Bx=131076 sBx=5
+-- pc=16 raw=0x00C040CF opcodeNum=15 A=3 B=1 C=257 Bx=769 sBx=-130302
+-- pc=17 raw=0x00010146 opcodeNum=6 A=5 B=0 C=4 Bx=4 sBx=-131067
+-- pc=18 raw=0x018080D0 opcodeNum=16 A=3 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=19 raw=0x000000C9 opcodeNum=9 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=20 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=21 raw=0x018000E9 opcodeNum=41 A=3 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=22 raw=0x010000C8 opcodeNum=8 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=23 raw=0x008000D2 opcodeNum=18 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=24 raw=0x01C140DB opcodeNum=27 A=3 B=3 C=261 Bx=1797 sBx=-129274
+-- pc=25 raw=0x00000124 opcodeNum=36 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=26 raw=0x00018146 opcodeNum=6 A=5 B=0 C=6 Bx=6 sBx=-131065
+-- pc=27 raw=0x0001C186 opcodeNum=6 A=6 B=0 C=7 Bx=7 sBx=-131064
+-- pc=28 raw=0x010001E4 opcodeNum=36 A=7 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=29 raw=0x028080D0 opcodeNum=16 A=3 B=5 C=2 Bx=2562 sBx=-128509
+-- pc=30 raw=0x00020126 opcodeNum=38 A=4 B=0 C=8 Bx=8 sBx=-131063
+-- pc=31 raw=0x0242411B opcodeNum=27 A=4 B=4 C=265 Bx=2313 sBx=-128758
+-- pc=32 raw=0x01000152 opcodeNum=18 A=5 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=33 raw=0x000281A6 opcodeNum=38 A=6 B=0 C=10 Bx=10 sBx=-131061
+-- pc=34 raw=0x008001E4 opcodeNum=36 A=7 B=1 C=0 Bx=512 sBx=-130559
+-- pc=35 raw=0x01008190 opcodeNum=16 A=6 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=36 raw=0x018001E4 opcodeNum=36 A=7 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=37 raw=0x02008110 opcodeNum=16 A=4 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=38 raw=0x00020166 opcodeNum=38 A=5 B=0 C=8 Bx=8 sBx=-131063
+-- pc=39 raw=0x02C2415B opcodeNum=27 A=5 B=5 C=265 Bx=2825 sBx=-128246
+-- pc=40 raw=0x01800192 opcodeNum=18 A=6 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=41 raw=0x008001E4 opcodeNum=36 A=7 B=1 C=0 Bx=512 sBx=-130559
+-- pc=42 raw=0x01800224 opcodeNum=36 A=8 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=43 raw=0x02008150 opcodeNum=16 A=5 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=44 raw=0x0002C1A6 opcodeNum=38 A=6 B=0 C=11 Bx=11 sBx=-131060
+-- pc=45 raw=0x0343019B opcodeNum=27 A=6 B=6 C=268 Bx=3340 sBx=-127731
+-- pc=46 raw=0x020001E4 opcodeNum=36 A=7 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=47 raw=0x00034206 opcodeNum=6 A=8 B=0 C=13 Bx=13 sBx=-131058
+-- pc=48 raw=0x038201D5 opcodeNum=21 A=7 B=7 C=8 Bx=3592 sBx=-127479
+-- pc=49 raw=0x01008190 opcodeNum=16 A=6 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=50 raw=0x03438013 opcodeNum=19 A=0 B=6 C=270 Bx=3342 sBx=-127729
+-- pc=51 raw=0x8002801F opcodeNum=31 A=0 B=256 C=10 Bx=131082 sBx=11
+-- pc=52 raw=0x0003C1A6 opcodeNum=38 A=6 B=0 C=15 Bx=15 sBx=-131056
+-- pc=53 raw=0x0344019B opcodeNum=27 A=6 B=6 C=272 Bx=3344 sBx=-127727
+-- pc=54 raw=0x0344419B opcodeNum=27 A=6 B=6 C=273 Bx=3345 sBx=-127726
+-- pc=55 raw=0x0003C1E6 opcodeNum=38 A=7 B=0 C=15 Bx=15 sBx=-131056
+-- pc=56 raw=0x03C401DB opcodeNum=27 A=7 B=7 C=272 Bx=3856 sBx=-127215
+-- pc=57 raw=0x03C481DB opcodeNum=27 A=7 B=7 C=274 Bx=3858 sBx=-127213
+-- pc=58 raw=0x02000224 opcodeNum=36 A=8 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=59 raw=0x010001D0 opcodeNum=16 A=7 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=60 raw=0x0000018D opcodeNum=13 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=61 raw=0x00000188 opcodeNum=8 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=62 raw=0x8004401F opcodeNum=31 A=0 B=256 C=17 Bx=131089 sBx=18
+-- pc=63 raw=0x0002C1A6 opcodeNum=38 A=6 B=0 C=11 Bx=11 sBx=-131060
+-- pc=64 raw=0x0343019B opcodeNum=27 A=6 B=6 C=268 Bx=3340 sBx=-127731
+-- pc=65 raw=0x028001E4 opcodeNum=36 A=7 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=66 raw=0x00034206 opcodeNum=6 A=8 B=0 C=13 Bx=13 sBx=-131058
+-- pc=67 raw=0x038201D5 opcodeNum=21 A=7 B=7 C=8 Bx=3592 sBx=-127479
+-- pc=68 raw=0x01008190 opcodeNum=16 A=6 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=69 raw=0x03438013 opcodeNum=19 A=0 B=6 C=270 Bx=3342 sBx=-127729
+-- pc=70 raw=0x8002401F opcodeNum=31 A=0 B=256 C=9 Bx=131081 sBx=10
+-- pc=71 raw=0x0003C1A6 opcodeNum=38 A=6 B=0 C=15 Bx=15 sBx=-131056
+-- pc=72 raw=0x0344019B opcodeNum=27 A=6 B=6 C=272 Bx=3344 sBx=-127727
+-- pc=73 raw=0x0344419B opcodeNum=27 A=6 B=6 C=273 Bx=3345 sBx=-127726
+-- pc=74 raw=0x0003C1E6 opcodeNum=38 A=7 B=0 C=15 Bx=15 sBx=-131056
+-- pc=75 raw=0x03C401DB opcodeNum=27 A=7 B=7 C=272 Bx=3856 sBx=-127215
+-- pc=76 raw=0x03C481DB opcodeNum=27 A=7 B=7 C=274 Bx=3858 sBx=-127213
+-- pc=77 raw=0x02800224 opcodeNum=36 A=8 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=78 raw=0x010001D0 opcodeNum=16 A=7 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=79 raw=0x0000018D opcodeNum=13 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=80 raw=0x00000188 opcodeNum=8 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=81 raw=0x030001A9 opcodeNum=41 A=6 B=6 C=0 Bx=3072 sBx=-127999
+-- pc=82 raw=0x01000188 opcodeNum=8 A=6 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=83 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
 
 -- Register Operations:
    0: GETUPVAL	R3 0                ; R3 := UpValue[0]
@@ -635,6 +1231,81 @@
 -- SubChunk 11:
 -- SubChunk: lineDefined=153, lastLineDefined=173, numParams=2, isVararg=0, maxStackSize=10
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x0140009B opcodeNum=27 A=2 B=2 C=256 Bx=1280 sBx=-129791
+-- pc=02 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=03 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=04 raw=0x00004089 opcodeNum=9 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=05 raw=0x8001401F opcodeNum=31 A=0 B=256 C=5 Bx=131077 sBx=6
+-- pc=06 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x0140009B opcodeNum=27 A=2 B=2 C=256 Bx=1280 sBx=-129791
+-- pc=08 raw=0x008000E4 opcodeNum=36 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=09 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=10 raw=0x00000089 opcodeNum=9 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=11 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=12 raw=0x00000098 opcodeNum=24 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=13 raw=0x01000088 opcodeNum=8 A=2 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=14 raw=0x000040A6 opcodeNum=38 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=15 raw=0x000080C6 opcodeNum=6 A=3 B=0 C=2 Bx=2 sBx=-131069
+-- pc=16 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=17 raw=0x0140C0DB opcodeNum=27 A=3 B=2 C=259 Bx=1283 sBx=-129788
+-- pc=18 raw=0x008080D0 opcodeNum=16 A=3 B=1 C=2 Bx=514 sBx=-130557
+-- pc=19 raw=0x02000129 opcodeNum=41 A=4 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=20 raw=0x00800152 opcodeNum=18 A=5 B=1 C=0 Bx=512 sBx=-130559
+-- pc=21 raw=0x02C1015B opcodeNum=27 A=5 B=5 C=260 Bx=2820 sBx=-128251
+-- pc=22 raw=0x00014186 opcodeNum=6 A=6 B=0 C=5 Bx=5 sBx=-131066
+-- pc=23 raw=0x000181C6 opcodeNum=6 A=7 B=0 C=6 Bx=6 sBx=-131065
+-- pc=24 raw=0x0001C226 opcodeNum=38 A=8 B=0 C=7 Bx=7 sBx=-131064
+-- pc=25 raw=0x00800264 opcodeNum=36 A=9 B=1 C=0 Bx=512 sBx=-130559
+-- pc=26 raw=0x01008210 opcodeNum=16 A=8 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=27 raw=0x038201D5 opcodeNum=21 A=7 B=7 C=8 Bx=3592 sBx=-127479
+-- pc=28 raw=0x01804150 opcodeNum=16 A=5 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=29 raw=0x01C20013 opcodeNum=19 A=0 B=3 C=264 Bx=1800 sBx=-129271
+-- pc=30 raw=0x8005401F opcodeNum=31 A=0 B=256 C=21 Bx=131093 sBx=22
+-- pc=31 raw=0x01000152 opcodeNum=18 A=5 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=32 raw=0x02C2415B opcodeNum=27 A=5 B=5 C=265 Bx=2825 sBx=-128246
+-- pc=33 raw=0x008001A4 opcodeNum=36 A=6 B=1 C=0 Bx=512 sBx=-130559
+-- pc=34 raw=0x018001D2 opcodeNum=18 A=7 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=35 raw=0x0301C195 opcodeNum=21 A=6 B=6 C=7 Bx=3079 sBx=-127992
+-- pc=36 raw=0x01008150 opcodeNum=16 A=5 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=37 raw=0x02800124 opcodeNum=36 A=4 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=38 raw=0x02000152 opcodeNum=18 A=5 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=39 raw=0x02C2815B opcodeNum=27 A=5 B=5 C=266 Bx=2826 sBx=-128245
+-- pc=40 raw=0x000001A4 opcodeNum=36 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=41 raw=0x020001E4 opcodeNum=36 A=7 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=42 raw=0x0002C206 opcodeNum=6 A=8 B=0 C=11 Bx=11 sBx=-131060
+-- pc=43 raw=0x00030246 opcodeNum=6 A=9 B=0 C=12 Bx=12 sBx=-131059
+-- pc=44 raw=0x02804150 opcodeNum=16 A=5 B=5 C=1 Bx=2561 sBx=-128510
+-- pc=45 raw=0x01000152 opcodeNum=18 A=5 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=46 raw=0x02C3415B opcodeNum=27 A=5 B=5 C=269 Bx=2829 sBx=-128242
+-- pc=47 raw=0x008001A4 opcodeNum=36 A=6 B=1 C=0 Bx=512 sBx=-130559
+-- pc=48 raw=0x018001D2 opcodeNum=18 A=7 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=49 raw=0x0301C195 opcodeNum=21 A=6 B=6 C=7 Bx=3079 sBx=-127992
+-- pc=50 raw=0x01008150 opcodeNum=16 A=5 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=51 raw=0x02800124 opcodeNum=36 A=4 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=52 raw=0x8001801F opcodeNum=31 A=0 B=256 C=6 Bx=131078 sBx=7
+-- pc=53 raw=0x01000152 opcodeNum=18 A=5 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=54 raw=0x02C2415B opcodeNum=27 A=5 B=5 C=265 Bx=2825 sBx=-128246
+-- pc=55 raw=0x008001A4 opcodeNum=36 A=6 B=1 C=0 Bx=512 sBx=-130559
+-- pc=56 raw=0x018001D2 opcodeNum=18 A=7 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=57 raw=0x0301C195 opcodeNum=21 A=6 B=6 C=7 Bx=3079 sBx=-127992
+-- pc=58 raw=0x01008150 opcodeNum=16 A=5 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=59 raw=0x02800124 opcodeNum=36 A=4 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=60 raw=0x02000152 opcodeNum=18 A=5 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=61 raw=0x02C3815B opcodeNum=27 A=5 B=5 C=270 Bx=2830 sBx=-128241
+-- pc=62 raw=0x000001A4 opcodeNum=36 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=63 raw=0x020001E4 opcodeNum=36 A=7 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=64 raw=0x0002C206 opcodeNum=6 A=8 B=0 C=11 Bx=11 sBx=-131060
+-- pc=65 raw=0x02004150 opcodeNum=16 A=5 B=4 C=1 Bx=2049 sBx=-129022
+-- pc=66 raw=0x00000152 opcodeNum=18 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=67 raw=0x02C3C15B opcodeNum=27 A=5 B=5 C=271 Bx=2831 sBx=-128240
+-- pc=68 raw=0x00040186 opcodeNum=6 A=6 B=0 C=16 Bx=16 sBx=-131055
+-- pc=69 raw=0x01004150 opcodeNum=16 A=5 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=70 raw=0x00800158 opcodeNum=24 A=5 B=1 C=0 Bx=512 sBx=-130559
+-- pc=71 raw=0x01000148 opcodeNum=8 A=5 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=72 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
    0: GETUPVAL	R2 0                ; R2 := UpValue[0]
    1: GETTABLE	R2 R2 K0            ; R2 := R2["isStrNil"]
@@ -713,6 +1384,71 @@
 -- SubChunk 12:
 -- SubChunk: lineDefined=175, lastLineDefined=195, numParams=2, isVararg=0, maxStackSize=13
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x0140009B opcodeNum=27 A=2 B=2 C=256 Bx=1280 sBx=-129791
+-- pc=02 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=03 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=04 raw=0x00004089 opcodeNum=9 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=05 raw=0x8001401F opcodeNum=31 A=0 B=256 C=5 Bx=131077 sBx=6
+-- pc=06 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x0140009B opcodeNum=27 A=2 B=2 C=256 Bx=1280 sBx=-129791
+-- pc=08 raw=0x008000E4 opcodeNum=36 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=09 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=10 raw=0x00000089 opcodeNum=9 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=11 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=12 raw=0x00000098 opcodeNum=24 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=13 raw=0x01000088 opcodeNum=8 A=2 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=14 raw=0x000040A6 opcodeNum=38 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=15 raw=0x000080C6 opcodeNum=6 A=3 B=0 C=2 Bx=2 sBx=-131069
+-- pc=16 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=17 raw=0x0140C09B opcodeNum=27 A=2 B=2 C=259 Bx=1283 sBx=-129788
+-- pc=18 raw=0x00808090 opcodeNum=16 A=2 B=1 C=2 Bx=514 sBx=-130557
+-- pc=19 raw=0x000040E6 opcodeNum=38 A=3 B=0 C=1 Bx=1 sBx=-131070
+-- pc=20 raw=0x00010106 opcodeNum=6 A=4 B=0 C=4 Bx=4 sBx=-131067
+-- pc=21 raw=0x010080D0 opcodeNum=16 A=3 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=22 raw=0x01C1411B opcodeNum=27 A=4 B=3 C=261 Bx=1797 sBx=-129274
+-- pc=23 raw=0x00808110 opcodeNum=16 A=4 B=1 C=2 Bx=514 sBx=-130557
+-- pc=24 raw=0x00800152 opcodeNum=18 A=5 B=1 C=0 Bx=512 sBx=-130559
+-- pc=25 raw=0x02C1815B opcodeNum=27 A=5 B=5 C=262 Bx=2822 sBx=-128249
+-- pc=26 raw=0x008001A4 opcodeNum=36 A=6 B=1 C=0 Bx=512 sBx=-130559
+-- pc=27 raw=0x010001D2 opcodeNum=18 A=7 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=28 raw=0x0301C195 opcodeNum=21 A=6 B=6 C=7 Bx=3079 sBx=-127992
+-- pc=29 raw=0x01008150 opcodeNum=16 A=5 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=30 raw=0x0241C013 opcodeNum=19 A=0 B=4 C=263 Bx=2311 sBx=-128760
+-- pc=31 raw=0x8004801F opcodeNum=31 A=0 B=256 C=18 Bx=131090 sBx=19
+-- pc=32 raw=0x00800192 opcodeNum=18 A=6 B=1 C=0 Bx=512 sBx=-130559
+-- pc=33 raw=0x0342019B opcodeNum=27 A=6 B=6 C=264 Bx=3336 sBx=-127735
+-- pc=34 raw=0x008001E4 opcodeNum=36 A=7 B=1 C=0 Bx=512 sBx=-130559
+-- pc=35 raw=0x01000212 opcodeNum=18 A=8 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=36 raw=0x038201D5 opcodeNum=21 A=7 B=7 C=8 Bx=3592 sBx=-127479
+-- pc=37 raw=0x01008190 opcodeNum=16 A=6 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=38 raw=0x014241CF opcodeNum=15 A=7 B=2 C=265 Bx=1289 sBx=-129782
+-- pc=39 raw=0x00028246 opcodeNum=6 A=9 B=0 C=10 Bx=10 sBx=-131061
+-- pc=40 raw=0x0002C286 opcodeNum=6 A=10 B=0 C=11 Bx=11 sBx=-131060
+-- pc=41 raw=0x000002E4 opcodeNum=36 A=11 B=0 C=0 Bx=0 sBx=-131071
+-- pc=42 raw=0x03000324 opcodeNum=36 A=12 B=6 C=0 Bx=3072 sBx=-127999
+-- pc=43 raw=0x030041D0 opcodeNum=16 A=7 B=6 C=1 Bx=3073 sBx=-127998
+-- pc=44 raw=0x014241CF opcodeNum=15 A=7 B=2 C=265 Bx=1289 sBx=-129782
+-- pc=45 raw=0x00028246 opcodeNum=6 A=9 B=0 C=10 Bx=10 sBx=-131061
+-- pc=46 raw=0x00030286 opcodeNum=6 A=10 B=0 C=12 Bx=12 sBx=-131059
+-- pc=47 raw=0x000002E4 opcodeNum=36 A=11 B=0 C=0 Bx=0 sBx=-131071
+-- pc=48 raw=0x02800324 opcodeNum=36 A=12 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=49 raw=0x030041D0 opcodeNum=16 A=7 B=6 C=1 Bx=3073 sBx=-127998
+-- pc=50 raw=0x8001401F opcodeNum=31 A=0 B=256 C=5 Bx=131077 sBx=6
+-- pc=51 raw=0x0142418F opcodeNum=15 A=6 B=2 C=265 Bx=1289 sBx=-129782
+-- pc=52 raw=0x00028206 opcodeNum=6 A=8 B=0 C=10 Bx=10 sBx=-131061
+-- pc=53 raw=0x0002C246 opcodeNum=6 A=9 B=0 C=11 Bx=11 sBx=-131060
+-- pc=54 raw=0x000002A4 opcodeNum=36 A=10 B=0 C=0 Bx=0 sBx=-131071
+-- pc=55 raw=0x028002E4 opcodeNum=36 A=11 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=56 raw=0x03004190 opcodeNum=16 A=6 B=6 C=1 Bx=3073 sBx=-127998
+-- pc=57 raw=0x0143418F opcodeNum=15 A=6 B=2 C=269 Bx=1293 sBx=-129778
+-- pc=58 raw=0x00028206 opcodeNum=6 A=8 B=0 C=10 Bx=10 sBx=-131061
+-- pc=59 raw=0x01804190 opcodeNum=16 A=6 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=60 raw=0x00800198 opcodeNum=24 A=6 B=1 C=0 Bx=512 sBx=-130559
+-- pc=61 raw=0x01000188 opcodeNum=8 A=6 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=62 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
    0: GETUPVAL	R2 0                ; R2 := UpValue[0]
    1: GETTABLE	R2 R2 K0            ; R2 := R2["isStrNil"]
@@ -781,6 +1517,39 @@
 -- SubChunk 13:
 -- SubChunk: lineDefined=197, lastLineDefined=207, numParams=2, isVararg=0, maxStackSize=7
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x0140009B opcodeNum=27 A=2 B=2 C=256 Bx=1280 sBx=-129791
+-- pc=02 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=03 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=04 raw=0x00004089 opcodeNum=9 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=05 raw=0x8001401F opcodeNum=31 A=0 B=256 C=5 Bx=131077 sBx=6
+-- pc=06 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x0140009B opcodeNum=27 A=2 B=2 C=256 Bx=1280 sBx=-129791
+-- pc=08 raw=0x008000E4 opcodeNum=36 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=09 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=10 raw=0x00000089 opcodeNum=9 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=11 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=12 raw=0x00000098 opcodeNum=24 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=13 raw=0x01000088 opcodeNum=8 A=2 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=14 raw=0x000040A6 opcodeNum=38 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=15 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=16 raw=0x00800124 opcodeNum=36 A=4 B=1 C=0 Bx=512 sBx=-130559
+-- pc=17 raw=0x01808090 opcodeNum=16 A=2 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=18 raw=0x00000089 opcodeNum=9 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=19 raw=0x8001C01F opcodeNum=31 A=0 B=256 C=7 Bx=131079 sBx=8
+-- pc=20 raw=0x008000D2 opcodeNum=18 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=21 raw=0x01C080DB opcodeNum=27 A=3 B=3 C=258 Bx=1794 sBx=-129277
+-- pc=22 raw=0x00000124 opcodeNum=36 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=23 raw=0x01000164 opcodeNum=36 A=5 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=24 raw=0x0000C186 opcodeNum=6 A=6 B=0 C=3 Bx=3 sBx=-131068
+-- pc=25 raw=0x020040D0 opcodeNum=16 A=3 B=4 C=1 Bx=2049 sBx=-129022
+-- pc=26 raw=0x008000D8 opcodeNum=24 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=27 raw=0x010000C8 opcodeNum=8 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=28 raw=0x000000D8 opcodeNum=24 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=29 raw=0x010000C8 opcodeNum=8 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=30 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
    0: GETUPVAL	R2 0                ; R2 := UpValue[0]
    1: GETTABLE	R2 R2 K0            ; R2 := R2["isStrNil"]
@@ -817,6 +1586,37 @@
 -- SubChunk 14:
 -- SubChunk: lineDefined=209, lastLineDefined=220, numParams=2, isVararg=0, maxStackSize=9
 
+-- Raw Instructions:
+-- pc=00 raw=0x000000A6 opcodeNum=38 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x000040C6 opcodeNum=6 A=3 B=0 C=1 Bx=1 sBx=-131070
+-- pc=02 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=03 raw=0x014080DB opcodeNum=27 A=3 B=2 C=258 Bx=1282 sBx=-129789
+-- pc=04 raw=0x00800124 opcodeNum=36 A=4 B=1 C=0 Bx=512 sBx=-130559
+-- pc=05 raw=0x010080D0 opcodeNum=16 A=3 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=06 raw=0x000000C9 opcodeNum=9 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=08 raw=0x008000D8 opcodeNum=24 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=09 raw=0x010000C8 opcodeNum=8 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=10 raw=0x0000C0E6 opcodeNum=38 A=3 B=0 C=3 Bx=3 sBx=-131068
+-- pc=11 raw=0x00000124 opcodeNum=36 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=12 raw=0x00800164 opcodeNum=36 A=5 B=1 C=0 Bx=512 sBx=-130559
+-- pc=13 raw=0x00010186 opcodeNum=6 A=6 B=0 C=4 Bx=4 sBx=-131067
+-- pc=14 raw=0x020080D0 opcodeNum=16 A=3 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=15 raw=0x000000C9 opcodeNum=9 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=16 raw=0x8002001F opcodeNum=31 A=0 B=256 C=8 Bx=131080 sBx=9
+-- pc=17 raw=0x00000112 opcodeNum=18 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=18 raw=0x0241411B opcodeNum=27 A=4 B=4 C=261 Bx=2309 sBx=-128762
+-- pc=19 raw=0x00000164 opcodeNum=36 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=20 raw=0x018001A4 opcodeNum=36 A=6 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=21 raw=0x000181C6 opcodeNum=6 A=7 B=0 C=6 Bx=6 sBx=-131065
+-- pc=22 raw=0x00010206 opcodeNum=6 A=8 B=0 C=4 Bx=4 sBx=-131067
+-- pc=23 raw=0x02804110 opcodeNum=16 A=4 B=5 C=1 Bx=2561 sBx=-128510
+-- pc=24 raw=0x00800118 opcodeNum=24 A=4 B=1 C=0 Bx=512 sBx=-130559
+-- pc=25 raw=0x01000108 opcodeNum=8 A=4 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=26 raw=0x00000118 opcodeNum=24 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=27 raw=0x01000108 opcodeNum=8 A=4 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=28 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
    0: GETGLOBAL	R2 K0              ; R2 := require
    1: LOADK	R3 K1                  ; R3 := "xiaoqiang.common.XQFunction"
@@ -850,6 +1650,59 @@
 
 -- SubChunk 15:
 -- SubChunk: lineDefined=223, lastLineDefined=243, numParams=2, isVararg=0, maxStackSize=9
+
+-- Raw Instructions:
+-- pc=00 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x0140009B opcodeNum=27 A=2 B=2 C=256 Bx=1280 sBx=-129791
+-- pc=02 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=03 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=04 raw=0x00004089 opcodeNum=9 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=05 raw=0x8001401F opcodeNum=31 A=0 B=256 C=5 Bx=131077 sBx=6
+-- pc=06 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x0140009B opcodeNum=27 A=2 B=2 C=256 Bx=1280 sBx=-129791
+-- pc=08 raw=0x008000E4 opcodeNum=36 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=09 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=10 raw=0x00000089 opcodeNum=9 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=11 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=12 raw=0x00000098 opcodeNum=24 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=13 raw=0x01000088 opcodeNum=8 A=2 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=14 raw=0x000040A6 opcodeNum=38 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=15 raw=0x000080C6 opcodeNum=6 A=3 B=0 C=2 Bx=2 sBx=-131069
+-- pc=16 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=17 raw=0x0140C0DB opcodeNum=27 A=3 B=2 C=259 Bx=1283 sBx=-129788
+-- pc=18 raw=0x008080D0 opcodeNum=16 A=3 B=1 C=2 Bx=514 sBx=-130557
+-- pc=19 raw=0x00800112 opcodeNum=18 A=4 B=1 C=0 Bx=512 sBx=-130559
+-- pc=20 raw=0x0241011B opcodeNum=27 A=4 B=4 C=260 Bx=2308 sBx=-128763
+-- pc=21 raw=0x00000164 opcodeNum=36 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=22 raw=0x00014186 opcodeNum=6 A=6 B=0 C=5 Bx=5 sBx=-131066
+-- pc=23 raw=0x000181C6 opcodeNum=6 A=7 B=0 C=6 Bx=6 sBx=-131065
+-- pc=24 raw=0x02008110 opcodeNum=16 A=4 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=25 raw=0x02800169 opcodeNum=41 A=5 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=26 raw=0x01C1C013 opcodeNum=19 A=0 B=3 C=263 Bx=1799 sBx=-129272
+-- pc=27 raw=0x8001C01F opcodeNum=31 A=0 B=256 C=7 Bx=131079 sBx=8
+-- pc=28 raw=0x01000192 opcodeNum=18 A=6 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=29 raw=0x0342019B opcodeNum=27 A=6 B=6 C=264 Bx=3336 sBx=-127735
+-- pc=30 raw=0x008001E4 opcodeNum=36 A=7 B=1 C=0 Bx=512 sBx=-130559
+-- pc=31 raw=0x01800212 opcodeNum=18 A=8 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=32 raw=0x038201D5 opcodeNum=21 A=7 B=7 C=8 Bx=3592 sBx=-127479
+-- pc=33 raw=0x01008190 opcodeNum=16 A=6 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=34 raw=0x03000164 opcodeNum=36 A=5 B=6 C=0 Bx=3072 sBx=-127999
+-- pc=35 raw=0x8001801F opcodeNum=31 A=0 B=256 C=6 Bx=131078 sBx=7
+-- pc=36 raw=0x01000192 opcodeNum=18 A=6 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=37 raw=0x0342419B opcodeNum=27 A=6 B=6 C=265 Bx=3337 sBx=-127734
+-- pc=38 raw=0x008001E4 opcodeNum=36 A=7 B=1 C=0 Bx=512 sBx=-130559
+-- pc=39 raw=0x01800212 opcodeNum=18 A=8 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=40 raw=0x038201D5 opcodeNum=21 A=7 B=7 C=8 Bx=3592 sBx=-127479
+-- pc=41 raw=0x01008190 opcodeNum=16 A=6 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=42 raw=0x03000164 opcodeNum=36 A=5 B=6 C=0 Bx=3072 sBx=-127999
+-- pc=43 raw=0x02014013 opcodeNum=19 A=0 B=4 C=5 Bx=2053 sBx=-129018
+-- pc=44 raw=0x8000801F opcodeNum=31 A=0 B=256 C=2 Bx=131074 sBx=3
+-- pc=45 raw=0x00800198 opcodeNum=24 A=6 B=1 C=0 Bx=512 sBx=-130559
+-- pc=46 raw=0x01000188 opcodeNum=8 A=6 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=47 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=48 raw=0x00000198 opcodeNum=24 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=49 raw=0x01000188 opcodeNum=8 A=6 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=50 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
 
 -- Register Operations:
    0: GETUPVAL	R2 0                ; R2 := UpValue[0]
@@ -906,6 +1759,84 @@
 
 -- SubChunk 16:
 -- SubChunk: lineDefined=245, lastLineDefined=266, numParams=3, isVararg=0, maxStackSize=12
+
+-- Raw Instructions:
+-- pc=00 raw=0x000000E6 opcodeNum=38 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00004106 opcodeNum=6 A=4 B=0 C=1 Bx=1 sBx=-131070
+-- pc=02 raw=0x010080D0 opcodeNum=16 A=3 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=03 raw=0x01C0811B opcodeNum=27 A=4 B=3 C=258 Bx=1794 sBx=-129277
+-- pc=04 raw=0x00808110 opcodeNum=16 A=4 B=1 C=2 Bx=514 sBx=-130557
+-- pc=05 raw=0x00000152 opcodeNum=18 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=06 raw=0x02C0C15B opcodeNum=27 A=5 B=5 C=259 Bx=2819 sBx=-128252
+-- pc=07 raw=0x000001A4 opcodeNum=36 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=08 raw=0x01008150 opcodeNum=16 A=5 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=09 raw=0x00000149 opcodeNum=9 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=10 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=11 raw=0x00000158 opcodeNum=24 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=12 raw=0x01000148 opcodeNum=8 A=5 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=13 raw=0x00800152 opcodeNum=18 A=5 B=1 C=0 Bx=512 sBx=-130559
+-- pc=14 raw=0x02C1015B opcodeNum=27 A=5 B=5 C=260 Bx=2820 sBx=-128251
+-- pc=15 raw=0x000001A4 opcodeNum=36 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=16 raw=0x038001E9 opcodeNum=41 A=7 B=7 C=0 Bx=3584 sBx=-127487
+-- pc=17 raw=0x00014206 opcodeNum=6 A=8 B=0 C=5 Bx=5 sBx=-131066
+-- pc=18 raw=0x02008150 opcodeNum=16 A=5 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=19 raw=0x00000149 opcodeNum=9 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=20 raw=0x8008801F opcodeNum=31 A=0 B=256 C=34 Bx=131106 sBx=35
+-- pc=21 raw=0x00000192 opcodeNum=18 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=22 raw=0x0340C19B opcodeNum=27 A=6 B=6 C=259 Bx=3331 sBx=-127740
+-- pc=23 raw=0x010001E4 opcodeNum=36 A=7 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=24 raw=0x01008190 opcodeNum=16 A=6 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=25 raw=0x00004189 opcodeNum=9 A=6 B=0 C=1 Bx=1 sBx=-131070
+-- pc=26 raw=0x8007001F opcodeNum=31 A=0 B=256 C=28 Bx=131100 sBx=29
+-- pc=27 raw=0x00000192 opcodeNum=18 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=28 raw=0x0340C19B opcodeNum=27 A=6 B=6 C=259 Bx=3331 sBx=-127740
+-- pc=29 raw=0x008001E4 opcodeNum=36 A=7 B=1 C=0 Bx=512 sBx=-130559
+-- pc=30 raw=0x01008190 opcodeNum=16 A=6 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=31 raw=0x00004189 opcodeNum=9 A=6 B=0 C=1 Bx=1 sBx=-131070
+-- pc=32 raw=0x8005801F opcodeNum=31 A=0 B=256 C=22 Bx=131094 sBx=23
+-- pc=33 raw=0x02418013 opcodeNum=19 A=0 B=4 C=262 Bx=2310 sBx=-128761
+-- pc=34 raw=0x8002801F opcodeNum=31 A=0 B=256 C=10 Bx=131082 sBx=11
+-- pc=35 raw=0x01000192 opcodeNum=18 A=6 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=36 raw=0x0341C19B opcodeNum=27 A=6 B=6 C=263 Bx=3335 sBx=-127736
+-- pc=37 raw=0x008001E4 opcodeNum=36 A=7 B=1 C=0 Bx=512 sBx=-130559
+-- pc=38 raw=0x02800224 opcodeNum=36 A=8 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=39 raw=0x038201D5 opcodeNum=21 A=7 B=7 C=8 Bx=3592 sBx=-127479
+-- pc=40 raw=0x01008190 opcodeNum=16 A=6 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=41 raw=0x03008013 opcodeNum=19 A=0 B=6 C=2 Bx=3074 sBx=-127997
+-- pc=42 raw=0x8003001F opcodeNum=31 A=0 B=256 C=12 Bx=131084 sBx=13
+-- pc=43 raw=0x00800198 opcodeNum=24 A=6 B=1 C=0 Bx=512 sBx=-130559
+-- pc=44 raw=0x01000188 opcodeNum=8 A=6 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=45 raw=0x8002401F opcodeNum=31 A=0 B=256 C=9 Bx=131081 sBx=10
+-- pc=46 raw=0x01000192 opcodeNum=18 A=6 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=47 raw=0x0342019B opcodeNum=27 A=6 B=6 C=264 Bx=3336 sBx=-127735
+-- pc=48 raw=0x008001E4 opcodeNum=36 A=7 B=1 C=0 Bx=512 sBx=-130559
+-- pc=49 raw=0x02800224 opcodeNum=36 A=8 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=50 raw=0x038201D5 opcodeNum=21 A=7 B=7 C=8 Bx=3592 sBx=-127479
+-- pc=51 raw=0x01008190 opcodeNum=16 A=6 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=52 raw=0x03008013 opcodeNum=19 A=0 B=6 C=2 Bx=3074 sBx=-127997
+-- pc=53 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=54 raw=0x00800198 opcodeNum=24 A=6 B=1 C=0 Bx=512 sBx=-130559
+-- pc=55 raw=0x01000188 opcodeNum=8 A=6 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=56 raw=0x01800192 opcodeNum=18 A=6 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=57 raw=0x0342419B opcodeNum=27 A=6 B=6 C=265 Bx=3337 sBx=-127734
+-- pc=58 raw=0x000281C6 opcodeNum=6 A=7 B=0 C=10 Bx=10 sBx=-131061
+-- pc=59 raw=0x0002C226 opcodeNum=38 A=8 B=0 C=11 Bx=11 sBx=-131060
+-- pc=60 raw=0x0443021B opcodeNum=27 A=8 B=8 C=268 Bx=4364 sBx=-126707
+-- pc=61 raw=0x0443421B opcodeNum=27 A=8 B=8 C=269 Bx=4365 sBx=-126706
+-- pc=62 raw=0x00038246 opcodeNum=6 A=9 B=0 C=14 Bx=14 sBx=-131057
+-- pc=63 raw=0x01008210 opcodeNum=16 A=8 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=64 raw=0x00004209 opcodeNum=9 A=8 B=0 C=1 Bx=1 sBx=-131070
+-- pc=65 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=66 raw=0x0003C206 opcodeNum=6 A=8 B=0 C=15 Bx=15 sBx=-131056
+-- pc=67 raw=0x00040246 opcodeNum=6 A=9 B=0 C=16 Bx=16 sBx=-131055
+-- pc=68 raw=0x04024215 opcodeNum=21 A=8 B=8 C=9 Bx=4105 sBx=-126966
+-- pc=69 raw=0x00800264 opcodeNum=36 A=9 B=1 C=0 Bx=512 sBx=-130559
+-- pc=70 raw=0x028002A4 opcodeNum=36 A=10 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=71 raw=0x010002E4 opcodeNum=36 A=11 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=72 raw=0x03004190 opcodeNum=16 A=6 B=6 C=1 Bx=3073 sBx=-127998
+-- pc=73 raw=0x00000198 opcodeNum=24 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=74 raw=0x01000188 opcodeNum=8 A=6 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=75 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
 
 -- Register Operations:
    0: GETGLOBAL	R3 K0              ; R3 := require
@@ -987,6 +1918,158 @@
 
 -- SubChunk 17:
 -- SubChunk: lineDefined=272, lastLineDefined=323, numParams=2, isVararg=0, maxStackSize=19
+
+-- Raw Instructions:
+-- pc=00 raw=0x000000A6 opcodeNum=38 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x000040C6 opcodeNum=6 A=3 B=0 C=1 Bx=1 sBx=-131070
+-- pc=02 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=03 raw=0x000000E6 opcodeNum=38 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x00008106 opcodeNum=6 A=4 B=0 C=2 Bx=2 sBx=-131069
+-- pc=05 raw=0x010080D0 opcodeNum=16 A=3 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=06 raw=0x00000126 opcodeNum=38 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x0000C146 opcodeNum=6 A=5 B=0 C=3 Bx=3 sBx=-131068
+-- pc=08 raw=0x01008110 opcodeNum=16 A=4 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=09 raw=0x00000009 opcodeNum=9 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=10 raw=0x8021C01F opcodeNum=31 A=0 B=256 C=135 Bx=131207 sBx=136
+-- pc=11 raw=0x00000049 opcodeNum=9 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=12 raw=0x8021401F opcodeNum=31 A=0 B=256 C=133 Bx=131205 sBx=134
+-- pc=13 raw=0x00000152 opcodeNum=18 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=14 raw=0x02C1015B opcodeNum=27 A=5 B=5 C=260 Bx=2820 sBx=-128251
+-- pc=15 raw=0x008001A4 opcodeNum=36 A=6 B=1 C=0 Bx=512 sBx=-130559
+-- pc=16 raw=0x01008150 opcodeNum=16 A=5 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=17 raw=0x02800064 opcodeNum=36 A=1 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=18 raw=0x0141415B opcodeNum=27 A=5 B=2 C=261 Bx=1285 sBx=-129786
+-- pc=19 raw=0x000001A4 opcodeNum=36 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=20 raw=0x000181C6 opcodeNum=6 A=7 B=0 C=6 Bx=6 sBx=-131065
+-- pc=21 raw=0x01808150 opcodeNum=16 A=5 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=22 raw=0x02804182 opcodeNum=2 A=6 B=5 C=1 Bx=2561 sBx=-128510
+-- pc=23 raw=0x0341C054 opcodeNum=20 A=1 B=6 C=263 Bx=3335 sBx=-127736
+-- pc=24 raw=0x8002801F opcodeNum=31 A=0 B=256 C=10 Bx=131082 sBx=11
+-- pc=25 raw=0x00800192 opcodeNum=18 A=6 B=1 C=0 Bx=512 sBx=-130559
+-- pc=26 raw=0x0342019B opcodeNum=27 A=6 B=6 C=264 Bx=3336 sBx=-127735
+-- pc=27 raw=0x000241C6 opcodeNum=6 A=7 B=0 C=9 Bx=9 sBx=-131062
+-- pc=28 raw=0x00028206 opcodeNum=6 A=8 B=0 C=10 Bx=10 sBx=-131061
+-- pc=29 raw=0x00000264 opcodeNum=36 A=9 B=0 C=0 Bx=0 sBx=-131071
+-- pc=30 raw=0x0002C286 opcodeNum=6 A=10 B=0 C=11 Bx=11 sBx=-131060
+-- pc=31 raw=0x008002E4 opcodeNum=36 A=11 B=1 C=0 Bx=512 sBx=-130559
+-- pc=32 raw=0x0402C215 opcodeNum=21 A=8 B=8 C=11 Bx=4107 sBx=-126964
+-- pc=33 raw=0x01804190 opcodeNum=16 A=6 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=34 raw=0x00000198 opcodeNum=24 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=35 raw=0x01000188 opcodeNum=8 A=6 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=36 raw=0x000301A6 opcodeNum=38 A=6 B=0 C=12 Bx=12 sBx=-131059
+-- pc=37 raw=0x02C341DB opcodeNum=27 A=7 B=5 C=269 Bx=2829 sBx=-128242
+-- pc=38 raw=0x01008190 opcodeNum=16 A=6 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=39 raw=0x000381E6 opcodeNum=38 A=7 B=0 C=14 Bx=14 sBx=-131057
+-- pc=40 raw=0x02C3C21B opcodeNum=27 A=8 B=5 C=271 Bx=2831 sBx=-128240
+-- pc=41 raw=0x010081D0 opcodeNum=16 A=7 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=42 raw=0x00030226 opcodeNum=38 A=8 B=0 C=12 Bx=12 sBx=-131059
+-- pc=43 raw=0x02C4025B opcodeNum=27 A=9 B=5 C=272 Bx=2832 sBx=-128239
+-- pc=44 raw=0x01008210 opcodeNum=16 A=8 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=45 raw=0x00000189 opcodeNum=9 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=46 raw=0x8018C01F opcodeNum=31 A=0 B=256 C=99 Bx=131171 sBx=100
+-- pc=47 raw=0x000001C9 opcodeNum=9 A=7 B=0 C=0 Bx=0 sBx=-131071
+-- pc=48 raw=0x8018401F opcodeNum=31 A=0 B=256 C=97 Bx=131169 sBx=98
+-- pc=49 raw=0x00000266 opcodeNum=38 A=9 B=0 C=0 Bx=0 sBx=-131071
+-- pc=50 raw=0x00044286 opcodeNum=6 A=10 B=0 C=17 Bx=17 sBx=-131054
+-- pc=51 raw=0x01008250 opcodeNum=16 A=9 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=52 raw=0x04C4829B opcodeNum=27 A=10 B=9 C=274 Bx=4882 sBx=-126189
+-- pc=53 raw=0x00808290 opcodeNum=16 A=10 B=1 C=2 Bx=514 sBx=-130557
+-- pc=54 raw=0x058002E9 opcodeNum=41 A=11 B=11 C=0 Bx=5632 sBx=-125439
+-- pc=55 raw=0x05434013 opcodeNum=19 A=0 B=10 C=269 Bx=5389 sBx=-125682
+-- pc=56 raw=0x8001801F opcodeNum=31 A=0 B=256 C=6 Bx=131078 sBx=7
+-- pc=57 raw=0x0244C31B opcodeNum=27 A=12 B=4 C=275 Bx=2323 sBx=-128748
+-- pc=58 raw=0x03000364 opcodeNum=36 A=13 B=6 C=0 Bx=3072 sBx=-127999
+-- pc=59 raw=0x038003A4 opcodeNum=36 A=14 B=7 C=0 Bx=3584 sBx=-127487
+-- pc=60 raw=0x06838355 opcodeNum=21 A=13 B=13 C=14 Bx=6670 sBx=-124401
+-- pc=61 raw=0x01008310 opcodeNum=16 A=12 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=62 raw=0x060002E4 opcodeNum=36 A=11 B=12 C=0 Bx=6144 sBx=-124927
+-- pc=63 raw=0x8001401F opcodeNum=31 A=0 B=256 C=5 Bx=131077 sBx=6
+-- pc=64 raw=0x0245031B opcodeNum=27 A=12 B=4 C=276 Bx=2324 sBx=-128747
+-- pc=65 raw=0x03000364 opcodeNum=36 A=13 B=6 C=0 Bx=3072 sBx=-127999
+-- pc=66 raw=0x038003A4 opcodeNum=36 A=14 B=7 C=0 Bx=3584 sBx=-127487
+-- pc=67 raw=0x06838355 opcodeNum=21 A=13 B=13 C=14 Bx=6670 sBx=-124401
+-- pc=68 raw=0x01008310 opcodeNum=16 A=12 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=69 raw=0x060002E4 opcodeNum=36 A=11 B=12 C=0 Bx=6144 sBx=-124927
+-- pc=70 raw=0x83818005 opcodeNum=5 A=0 B=263 C=6 Bx=134662 sBx=3591
+-- pc=71 raw=0x8002801F opcodeNum=31 A=0 B=256 C=10 Bx=131082 sBx=11
+-- pc=72 raw=0x00800312 opcodeNum=18 A=12 B=1 C=0 Bx=512 sBx=-130559
+-- pc=73 raw=0x0642031B opcodeNum=27 A=12 B=12 C=264 Bx=6408 sBx=-124663
+-- pc=74 raw=0x00024346 opcodeNum=6 A=13 B=0 C=9 Bx=9 sBx=-131062
+-- pc=75 raw=0x00054386 opcodeNum=6 A=14 B=0 C=21 Bx=21 sBx=-131050
+-- pc=76 raw=0x000003E4 opcodeNum=36 A=15 B=0 C=0 Bx=0 sBx=-131071
+-- pc=77 raw=0x0002C406 opcodeNum=6 A=16 B=0 C=11 Bx=11 sBx=-131060
+-- pc=78 raw=0x00800464 opcodeNum=36 A=17 B=1 C=0 Bx=512 sBx=-130559
+-- pc=79 raw=0x07044395 opcodeNum=21 A=14 B=14 C=17 Bx=7185 sBx=-123886
+-- pc=80 raw=0x01804310 opcodeNum=16 A=12 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=81 raw=0x00000318 opcodeNum=24 A=12 B=0 C=0 Bx=0 sBx=-131071
+-- pc=82 raw=0x01000308 opcodeNum=8 A=12 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=83 raw=0x00058326 opcodeNum=38 A=12 B=0 C=22 Bx=22 sBx=-131049
+-- pc=84 raw=0x05800364 opcodeNum=36 A=13 B=11 C=0 Bx=5632 sBx=-125439
+-- pc=85 raw=0x01008310 opcodeNum=16 A=12 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=86 raw=0x00000309 opcodeNum=9 A=12 B=0 C=0 Bx=0 sBx=-131071
+-- pc=87 raw=0x800B401F opcodeNum=31 A=0 B=256 C=45 Bx=131117 sBx=46
+-- pc=88 raw=0x0005C366 opcodeNum=38 A=13 B=0 C=23 Bx=23 sBx=-131048
+-- pc=89 raw=0x060003A4 opcodeNum=36 A=14 B=12 C=0 Bx=6144 sBx=-124927
+-- pc=90 raw=0x01008350 opcodeNum=16 A=13 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=91 raw=0x06C60013 opcodeNum=19 A=0 B=13 C=280 Bx=6936 sBx=-124135
+-- pc=92 raw=0x800A001F opcodeNum=31 A=0 B=256 C=40 Bx=131112 sBx=41
+-- pc=93 raw=0x00030366 opcodeNum=38 A=13 B=0 C=12 Bx=12 sBx=-131059
+-- pc=94 raw=0x0646439B opcodeNum=27 A=14 B=12 C=281 Bx=6425 sBx=-124646
+-- pc=95 raw=0x01008350 opcodeNum=16 A=13 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=96 raw=0x06820005 opcodeNum=5 A=0 B=13 C=8 Bx=6664 sBx=-124407
+-- pc=97 raw=0x8006001F opcodeNum=31 A=0 B=256 C=24 Bx=131096 sBx=25
+-- pc=98 raw=0x0646835B opcodeNum=27 A=13 B=12 C=282 Bx=6426 sBx=-124645
+-- pc=99 raw=0x00834054 opcodeNum=20 A=1 B=1 C=13 Bx=525 sBx=-130546
+-- pc=100 raw=0x8002801F opcodeNum=31 A=0 B=256 C=10 Bx=131082 sBx=11
+-- pc=101 raw=0x00800352 opcodeNum=18 A=13 B=1 C=0 Bx=512 sBx=-130559
+-- pc=102 raw=0x06C2035B opcodeNum=27 A=13 B=13 C=264 Bx=6920 sBx=-124151
+-- pc=103 raw=0x00024386 opcodeNum=6 A=14 B=0 C=9 Bx=9 sBx=-131062
+-- pc=104 raw=0x0006C3C6 opcodeNum=6 A=15 B=0 C=27 Bx=27 sBx=-131044
+-- pc=105 raw=0x0646841B opcodeNum=27 A=16 B=12 C=282 Bx=6426 sBx=-124645
+-- pc=106 raw=0x00070446 opcodeNum=6 A=17 B=0 C=28 Bx=28 sBx=-131043
+-- pc=107 raw=0x008004A4 opcodeNum=36 A=18 B=1 C=0 Bx=512 sBx=-130559
+-- pc=108 raw=0x078483D5 opcodeNum=21 A=15 B=15 C=18 Bx=7698 sBx=-123373
+-- pc=109 raw=0x06000424 opcodeNum=36 A=16 B=12 C=0 Bx=6144 sBx=-124927
+-- pc=110 raw=0x00000464 opcodeNum=36 A=17 B=0 C=0 Bx=0 sBx=-131071
+-- pc=111 raw=0x02804350 opcodeNum=16 A=13 B=5 C=1 Bx=2561 sBx=-128510
+-- pc=112 raw=0x00038366 opcodeNum=38 A=13 B=0 C=14 Bx=14 sBx=-131057
+-- pc=113 raw=0x040003A4 opcodeNum=36 A=14 B=8 C=0 Bx=4096 sBx=-126975
+-- pc=114 raw=0x01008350 opcodeNum=16 A=13 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=115 raw=0x8C834311 opcodeNum=17 A=12 B=281 C=13 Bx=143885 sBx=12814
+-- pc=116 raw=0x00074366 opcodeNum=38 A=13 B=0 C=29 Bx=29 sBx=-131042
+-- pc=117 raw=0x058003A4 opcodeNum=36 A=14 B=11 C=0 Bx=5632 sBx=-125439
+-- pc=118 raw=0x060003E4 opcodeNum=36 A=15 B=12 C=0 Bx=6144 sBx=-124927
+-- pc=119 raw=0x01804350 opcodeNum=16 A=13 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=120 raw=0x00800358 opcodeNum=24 A=13 B=1 C=0 Bx=512 sBx=-130559
+-- pc=121 raw=0x01000348 opcodeNum=8 A=13 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=122 raw=0x8005C01F opcodeNum=31 A=0 B=256 C=23 Bx=131095 sBx=24
+-- pc=123 raw=0x00800352 opcodeNum=18 A=13 B=1 C=0 Bx=512 sBx=-130559
+-- pc=124 raw=0x06C2035B opcodeNum=27 A=13 B=13 C=264 Bx=6920 sBx=-124151
+-- pc=125 raw=0x00024386 opcodeNum=6 A=14 B=0 C=9 Bx=9 sBx=-131062
+-- pc=126 raw=0x000783C6 opcodeNum=6 A=15 B=0 C=30 Bx=30 sBx=-131041
+-- pc=127 raw=0x00000424 opcodeNum=36 A=16 B=0 C=0 Bx=0 sBx=-131071
+-- pc=128 raw=0x0002C446 opcodeNum=6 A=17 B=0 C=11 Bx=11 sBx=-131060
+-- pc=129 raw=0x008004A4 opcodeNum=36 A=18 B=1 C=0 Bx=512 sBx=-130559
+-- pc=130 raw=0x078483D5 opcodeNum=21 A=15 B=15 C=18 Bx=7698 sBx=-123373
+-- pc=131 raw=0x06000424 opcodeNum=36 A=16 B=12 C=0 Bx=6144 sBx=-124927
+-- pc=132 raw=0x02004350 opcodeNum=16 A=13 B=4 C=1 Bx=2049 sBx=-129022
+-- pc=133 raw=0x8003001F opcodeNum=31 A=0 B=256 C=12 Bx=131084 sBx=13
+-- pc=134 raw=0x0000035C opcodeNum=28 A=13 B=0 C=0 Bx=0 sBx=-131071
+-- pc=135 raw=0x06800324 opcodeNum=36 A=12 B=13 C=0 Bx=6656 sBx=-124415
+-- pc=136 raw=0x00038366 opcodeNum=38 A=13 B=0 C=14 Bx=14 sBx=-131057
+-- pc=137 raw=0x040003A4 opcodeNum=36 A=14 B=8 C=0 Bx=4096 sBx=-126975
+-- pc=138 raw=0x01008350 opcodeNum=16 A=13 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=139 raw=0x8C834311 opcodeNum=17 A=12 B=281 C=13 Bx=143885 sBx=12814
+-- pc=140 raw=0x8D004311 opcodeNum=17 A=12 B=282 C=1 Bx=144385 sBx=13314
+-- pc=141 raw=0x00074366 opcodeNum=38 A=13 B=0 C=29 Bx=29 sBx=-131042
+-- pc=142 raw=0x058003A4 opcodeNum=36 A=14 B=11 C=0 Bx=5632 sBx=-125439
+-- pc=143 raw=0x060003E4 opcodeNum=36 A=15 B=12 C=0 Bx=6144 sBx=-124927
+-- pc=144 raw=0x01804350 opcodeNum=16 A=13 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=145 raw=0x00800358 opcodeNum=24 A=13 B=1 C=0 Bx=512 sBx=-130559
+-- pc=146 raw=0x01000348 opcodeNum=8 A=13 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=147 raw=0x00000158 opcodeNum=24 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=148 raw=0x01000148 opcodeNum=8 A=5 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=149 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
 
 -- Register Operations:
    0: GETGLOBAL	R2 K0              ; R2 := require
@@ -1143,6 +2226,78 @@
 -- SubChunk 18:
 -- SubChunk: lineDefined=327, lastLineDefined=354, numParams=0, isVararg=0, maxStackSize=17
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000026 opcodeNum=38 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00004046 opcodeNum=6 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=02 raw=0x01008010 opcodeNum=16 A=0 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=03 raw=0x00000066 opcodeNum=38 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x00008086 opcodeNum=6 A=2 B=0 C=2 Bx=2 sBx=-131069
+-- pc=05 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=06 raw=0x000000A6 opcodeNum=38 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x0000C0C6 opcodeNum=6 A=3 B=0 C=3 Bx=3 sBx=-131068
+-- pc=08 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=09 raw=0x018000E9 opcodeNum=41 A=3 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=10 raw=0x00010106 opcodeNum=6 A=4 B=0 C=4 Bx=4 sBx=-131067
+-- pc=11 raw=0x00014146 opcodeNum=6 A=5 B=0 C=5 Bx=5 sBx=-131066
+-- pc=12 raw=0x020001A4 opcodeNum=36 A=6 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=13 raw=0x02818155 opcodeNum=21 A=5 B=5 C=6 Bx=2566 sBx=-128505
+-- pc=14 raw=0x000001A6 opcodeNum=38 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=15 raw=0x000181C6 opcodeNum=6 A=7 B=0 C=6 Bx=6 sBx=-131065
+-- pc=16 raw=0x01008190 opcodeNum=16 A=6 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=17 raw=0x0341C1DB opcodeNum=27 A=7 B=6 C=263 Bx=3335 sBx=-127736
+-- pc=18 raw=0x008081D0 opcodeNum=16 A=7 B=1 C=2 Bx=514 sBx=-130557
+-- pc=19 raw=0x04000229 opcodeNum=41 A=8 B=8 C=0 Bx=4096 sBx=-126975
+-- pc=20 raw=0x03C20013 opcodeNum=19 A=0 B=7 C=264 Bx=3848 sBx=-127223
+-- pc=21 raw=0x8001801F opcodeNum=31 A=0 B=256 C=6 Bx=131078 sBx=7
+-- pc=22 raw=0x0142425B opcodeNum=27 A=9 B=2 C=265 Bx=1289 sBx=-129782
+-- pc=23 raw=0x0142829B opcodeNum=27 A=10 B=2 C=266 Bx=1290 sBx=-129781
+-- pc=24 raw=0x028002E4 opcodeNum=36 A=11 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=25 raw=0x01000290 opcodeNum=16 A=10 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=26 raw=0x00008250 opcodeNum=16 A=9 B=0 C=2 Bx=2 sBx=-131069
+-- pc=27 raw=0x04800224 opcodeNum=36 A=8 B=9 C=0 Bx=4608 sBx=-126463
+-- pc=28 raw=0x8001401F opcodeNum=31 A=0 B=256 C=5 Bx=131077 sBx=6
+-- pc=29 raw=0x0142425B opcodeNum=27 A=9 B=2 C=265 Bx=1289 sBx=-129782
+-- pc=30 raw=0x0142C29B opcodeNum=27 A=10 B=2 C=267 Bx=1291 sBx=-129780
+-- pc=31 raw=0x028002E4 opcodeNum=36 A=11 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=32 raw=0x01000290 opcodeNum=16 A=10 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=33 raw=0x00008250 opcodeNum=16 A=9 B=0 C=2 Bx=2 sBx=-131069
+-- pc=34 raw=0x04800224 opcodeNum=36 A=8 B=9 C=0 Bx=4608 sBx=-126463
+-- pc=35 raw=0x00C3025B opcodeNum=27 A=9 B=1 C=268 Bx=780 sBx=-130291
+-- pc=36 raw=0x04C34013 opcodeNum=19 A=0 B=9 C=269 Bx=4877 sBx=-126194
+-- pc=37 raw=0x8003401F opcodeNum=31 A=0 B=256 C=13 Bx=131085 sBx=14
+-- pc=38 raw=0x00C3825B opcodeNum=27 A=9 B=1 C=270 Bx=782 sBx=-130289
+-- pc=39 raw=0x0003C286 opcodeNum=6 A=10 B=0 C=15 Bx=15 sBx=-131056
+-- pc=40 raw=0x004402DB opcodeNum=27 A=11 B=0 C=272 Bx=272 sBx=-130799
+-- pc=41 raw=0x00C4431B opcodeNum=27 A=12 B=1 C=273 Bx=785 sBx=-130286
+-- pc=42 raw=0x00048346 opcodeNum=6 A=13 B=0 C=18 Bx=18 sBx=-131053
+-- pc=43 raw=0x040003A4 opcodeNum=36 A=14 B=8 C=0 Bx=4096 sBx=-126975
+-- pc=44 raw=0x0004C3C6 opcodeNum=6 A=15 B=0 C=19 Bx=19 sBx=-131052
+-- pc=45 raw=0x02000424 opcodeNum=36 A=16 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=46 raw=0x06040315 opcodeNum=21 A=12 B=12 C=16 Bx=6160 sBx=-124911
+-- pc=47 raw=0x010082D0 opcodeNum=16 A=11 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=48 raw=0x00050306 opcodeNum=6 A=12 B=0 C=20 Bx=20 sBx=-131051
+-- pc=49 raw=0x00000352 opcodeNum=18 A=13 B=0 C=0 Bx=0 sBx=-131071
+-- pc=50 raw=0x048340D5 opcodeNum=21 A=3 B=9 C=13 Bx=4621 sBx=-126450
+-- pc=51 raw=0x8003C01F opcodeNum=31 A=0 B=256 C=15 Bx=131087 sBx=16
+-- pc=52 raw=0x00C3025B opcodeNum=27 A=9 B=1 C=268 Bx=780 sBx=-130291
+-- pc=53 raw=0x04C20013 opcodeNum=19 A=0 B=9 C=264 Bx=4872 sBx=-126199
+-- pc=54 raw=0x8003001F opcodeNum=31 A=0 B=256 C=12 Bx=131084 sBx=13
+-- pc=55 raw=0x00C5425B opcodeNum=27 A=9 B=1 C=277 Bx=789 sBx=-130282
+-- pc=56 raw=0x0003C286 opcodeNum=6 A=10 B=0 C=15 Bx=15 sBx=-131056
+-- pc=57 raw=0x004402DB opcodeNum=27 A=11 B=0 C=272 Bx=272 sBx=-130799
+-- pc=58 raw=0x00C5831B opcodeNum=27 A=12 B=1 C=278 Bx=790 sBx=-130281
+-- pc=59 raw=0x00048346 opcodeNum=6 A=13 B=0 C=18 Bx=18 sBx=-131053
+-- pc=60 raw=0x040003A4 opcodeNum=36 A=14 B=8 C=0 Bx=4096 sBx=-126975
+-- pc=61 raw=0x0004C3C6 opcodeNum=6 A=15 B=0 C=19 Bx=19 sBx=-131052
+-- pc=62 raw=0x02000424 opcodeNum=36 A=16 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=63 raw=0x06040315 opcodeNum=21 A=12 B=12 C=16 Bx=6160 sBx=-124911
+-- pc=64 raw=0x010082D0 opcodeNum=16 A=11 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=65 raw=0x00050306 opcodeNum=6 A=12 B=0 C=20 Bx=20 sBx=-131051
+-- pc=66 raw=0x00000352 opcodeNum=18 A=13 B=0 C=0 Bx=0 sBx=-131071
+-- pc=67 raw=0x048340D5 opcodeNum=21 A=3 B=9 C=13 Bx=4621 sBx=-126450
+-- pc=68 raw=0x010000C8 opcodeNum=8 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=69 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
    0: GETGLOBAL	R0 K0              ; R0 := require
    1: LOADK	R1 K1                  ; R1 := "luci.http.protocol"
@@ -1218,6 +2373,58 @@
 -- SubChunk 19:
 -- SubChunk: lineDefined=356, lastLineDefined=376, numParams=0, isVararg=0, maxStackSize=13
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000026 opcodeNum=38 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00004046 opcodeNum=6 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=02 raw=0x01008010 opcodeNum=16 A=0 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=03 raw=0x00000066 opcodeNum=38 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x00008086 opcodeNum=6 A=2 B=0 C=2 Bx=2 sBx=-131069
+-- pc=05 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=06 raw=0x000000A6 opcodeNum=38 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x0000C0C6 opcodeNum=6 A=3 B=0 C=3 Bx=3 sBx=-131068
+-- pc=08 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=09 raw=0x018000E9 opcodeNum=41 A=3 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=10 raw=0x0041011B opcodeNum=27 A=4 B=0 C=260 Bx=260 sBx=-130811
+-- pc=11 raw=0x00808110 opcodeNum=16 A=4 B=1 C=2 Bx=514 sBx=-130557
+-- pc=12 raw=0x00000152 opcodeNum=18 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=13 raw=0x02C1415B opcodeNum=27 A=5 B=5 C=261 Bx=2821 sBx=-128250
+-- pc=14 raw=0x020001A4 opcodeNum=36 A=6 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=15 raw=0x01008150 opcodeNum=16 A=5 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=16 raw=0x00000149 opcodeNum=9 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=17 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=18 raw=0x00018146 opcodeNum=6 A=5 B=0 C=6 Bx=6 sBx=-131065
+-- pc=19 raw=0x01000148 opcodeNum=8 A=5 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=20 raw=0x0001C146 opcodeNum=6 A=5 B=0 C=7 Bx=7 sBx=-131064
+-- pc=21 raw=0x0142019B opcodeNum=27 A=6 B=2 C=264 Bx=1288 sBx=-129783
+-- pc=22 raw=0x03424013 opcodeNum=19 A=0 B=6 C=265 Bx=3337 sBx=-127734
+-- pc=23 raw=0x8002801F opcodeNum=31 A=0 B=256 C=10 Bx=131082 sBx=11
+-- pc=24 raw=0x0142819B opcodeNum=27 A=6 B=2 C=266 Bx=1290 sBx=-129781
+-- pc=25 raw=0x0002C1C6 opcodeNum=6 A=7 B=0 C=11 Bx=11 sBx=-131060
+-- pc=26 raw=0x00C3021B opcodeNum=27 A=8 B=1 C=268 Bx=780 sBx=-130291
+-- pc=27 raw=0x02800264 opcodeNum=36 A=9 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=28 raw=0x01008210 opcodeNum=16 A=8 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=29 raw=0x00034246 opcodeNum=6 A=9 B=0 C=13 Bx=13 sBx=-131058
+-- pc=30 raw=0x00800292 opcodeNum=18 A=10 B=1 C=0 Bx=512 sBx=-130559
+-- pc=31 raw=0x000382C6 opcodeNum=6 A=11 B=0 C=14 Bx=14 sBx=-131057
+-- pc=32 raw=0x02000324 opcodeNum=36 A=12 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=33 raw=0x030300D5 opcodeNum=21 A=3 B=6 C=12 Bx=3084 sBx=-127987
+-- pc=34 raw=0x8003001F opcodeNum=31 A=0 B=256 C=12 Bx=131084 sBx=13
+-- pc=35 raw=0x0142019B opcodeNum=27 A=6 B=2 C=264 Bx=1288 sBx=-129783
+-- pc=36 raw=0x0343C013 opcodeNum=19 A=0 B=6 C=271 Bx=3343 sBx=-127728
+-- pc=37 raw=0x8002401F opcodeNum=31 A=0 B=256 C=9 Bx=131081 sBx=10
+-- pc=38 raw=0x0144019B opcodeNum=27 A=6 B=2 C=272 Bx=1296 sBx=-129775
+-- pc=39 raw=0x0002C1C6 opcodeNum=6 A=7 B=0 C=11 Bx=11 sBx=-131060
+-- pc=40 raw=0x00C3021B opcodeNum=27 A=8 B=1 C=268 Bx=780 sBx=-130291
+-- pc=41 raw=0x02800264 opcodeNum=36 A=9 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=42 raw=0x01008210 opcodeNum=16 A=8 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=43 raw=0x00034246 opcodeNum=6 A=9 B=0 C=13 Bx=13 sBx=-131058
+-- pc=44 raw=0x00800292 opcodeNum=18 A=10 B=1 C=0 Bx=512 sBx=-130559
+-- pc=45 raw=0x000382C6 opcodeNum=6 A=11 B=0 C=14 Bx=14 sBx=-131057
+-- pc=46 raw=0x02000324 opcodeNum=36 A=12 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=47 raw=0x030300D5 opcodeNum=21 A=3 B=6 C=12 Bx=3084 sBx=-127987
+-- pc=48 raw=0x010000C8 opcodeNum=8 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=49 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
    0: GETGLOBAL	R0 K0              ; R0 := require
    1: LOADK	R1 K1                  ; R1 := "xiaoqiang.util.XQSysUtil"
@@ -1272,6 +2479,74 @@
 
 -- SubChunk 20:
 -- SubChunk: lineDefined=424, lastLineDefined=460, numParams=1, isVararg=0, maxStackSize=6
+
+-- Raw Instructions:
+-- pc=00 raw=0x00000046 opcodeNum=6 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x0000409C opcodeNum=28 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=02 raw=0x80C08091 opcodeNum=17 A=2 B=257 C=258 Bx=131842 sBx=771
+-- pc=03 raw=0x000000D2 opcodeNum=18 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x01C0C0DB opcodeNum=27 A=3 B=3 C=259 Bx=1795 sBx=-129276
+-- pc=05 raw=0x00000124 opcodeNum=36 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=06 raw=0x010080D0 opcodeNum=16 A=3 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=07 raw=0x000000C9 opcodeNum=9 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=08 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=09 raw=0x000100C6 opcodeNum=6 A=3 B=0 C=4 Bx=4 sBx=-131067
+-- pc=10 raw=0x010000C8 opcodeNum=8 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=11 raw=0x000040C2 opcodeNum=2 A=3 B=0 C=1 Bx=1 sBx=-131070
+-- pc=12 raw=0x01C14003 opcodeNum=3 A=0 B=3 C=261 Bx=1797 sBx=-129274
+-- pc=13 raw=0x8000801F opcodeNum=31 A=0 B=256 C=2 Bx=131074 sBx=3
+-- pc=14 raw=0x000100C6 opcodeNum=6 A=3 B=0 C=4 Bx=4 sBx=-131067
+-- pc=15 raw=0x010000C8 opcodeNum=8 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=16 raw=0x8002C01F opcodeNum=31 A=0 B=256 C=11 Bx=131083 sBx=12
+-- pc=17 raw=0x014040DB opcodeNum=27 A=3 B=2 C=257 Bx=1281 sBx=-129790
+-- pc=18 raw=0x00018126 opcodeNum=38 A=4 B=0 C=6 Bx=6 sBx=-131065
+-- pc=19 raw=0x0241C11B opcodeNum=27 A=4 B=4 C=263 Bx=2311 sBx=-128760
+-- pc=20 raw=0x00004142 opcodeNum=2 A=5 B=0 C=1 Bx=1 sBx=-131070
+-- pc=21 raw=0x02C1414C opcodeNum=12 A=5 B=5 C=261 Bx=2821 sBx=-128250
+-- pc=22 raw=0x02C2014E opcodeNum=14 A=5 B=5 C=264 Bx=2824 sBx=-128247
+-- pc=23 raw=0x01008110 opcodeNum=16 A=4 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=24 raw=0x018100E2 opcodeNum=34 A=3 B=3 C=4 Bx=1540 sBx=-129531
+-- pc=25 raw=0x8400C005 opcodeNum=5 A=0 B=264 C=3 Bx=135171 sBx=4100
+-- pc=26 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=27 raw=0x000100C6 opcodeNum=6 A=3 B=0 C=4 Bx=4 sBx=-131067
+-- pc=28 raw=0x0080C065 opcodeNum=37 A=1 B=1 C=3 Bx=515 sBx=-130556
+-- pc=29 raw=0x004240CF opcodeNum=15 A=3 B=0 C=265 Bx=265 sBx=-130806
+-- pc=30 raw=0x00028146 opcodeNum=6 A=5 B=0 C=10 Bx=10 sBx=-131061
+-- pc=31 raw=0x018080D0 opcodeNum=16 A=3 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=32 raw=0x000000C9 opcodeNum=9 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=33 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=34 raw=0x00C10065 opcodeNum=37 A=1 B=1 C=260 Bx=772 sBx=-130299
+-- pc=35 raw=0x004240CF opcodeNum=15 A=3 B=0 C=265 Bx=265 sBx=-130806
+-- pc=36 raw=0x0002C146 opcodeNum=6 A=5 B=0 C=11 Bx=11 sBx=-131060
+-- pc=37 raw=0x018080D0 opcodeNum=16 A=3 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=38 raw=0x000000C9 opcodeNum=9 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=39 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=40 raw=0x00C10065 opcodeNum=37 A=1 B=1 C=260 Bx=772 sBx=-130299
+-- pc=41 raw=0x004240CF opcodeNum=15 A=3 B=0 C=265 Bx=265 sBx=-130806
+-- pc=42 raw=0x00030146 opcodeNum=6 A=5 B=0 C=12 Bx=12 sBx=-131059
+-- pc=43 raw=0x018080D0 opcodeNum=16 A=3 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=44 raw=0x000000C9 opcodeNum=9 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=45 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=46 raw=0x00C10065 opcodeNum=37 A=1 B=1 C=260 Bx=772 sBx=-130299
+-- pc=47 raw=0x004240CF opcodeNum=15 A=3 B=0 C=265 Bx=265 sBx=-130806
+-- pc=48 raw=0x00034146 opcodeNum=6 A=5 B=0 C=13 Bx=13 sBx=-131058
+-- pc=49 raw=0x018080D0 opcodeNum=16 A=3 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=50 raw=0x000000C9 opcodeNum=9 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=51 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=52 raw=0x00C10065 opcodeNum=37 A=1 B=1 C=260 Bx=772 sBx=-130299
+-- pc=53 raw=0x00C20003 opcodeNum=3 A=0 B=1 C=264 Bx=776 sBx=-130295
+-- pc=54 raw=0x8000801F opcodeNum=31 A=0 B=256 C=2 Bx=131074 sBx=3
+-- pc=55 raw=0x000100C6 opcodeNum=6 A=3 B=0 C=4 Bx=4 sBx=-131067
+-- pc=56 raw=0x010000C8 opcodeNum=8 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=57 raw=0x8001801F opcodeNum=31 A=0 B=256 C=6 Bx=131078 sBx=7
+-- pc=58 raw=0x00C38003 opcodeNum=3 A=0 B=1 C=270 Bx=782 sBx=-130289
+-- pc=59 raw=0x8000801F opcodeNum=31 A=0 B=256 C=2 Bx=131074 sBx=3
+-- pc=60 raw=0x000200C6 opcodeNum=6 A=3 B=0 C=8 Bx=8 sBx=-131063
+-- pc=61 raw=0x010000C8 opcodeNum=8 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=62 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=63 raw=0x000380C6 opcodeNum=6 A=3 B=0 C=14 Bx=14 sBx=-131057
+-- pc=64 raw=0x010000C8 opcodeNum=8 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=65 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
 
 -- Register Operations:
    0: LOADK	R1 K0                  ; R1 := 0
@@ -1344,6 +2619,47 @@
 -- SubChunk 21:
 -- SubChunk: lineDefined=471, lastLineDefined=485, numParams=1, isVararg=0, maxStackSize=11
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000052 opcodeNum=18 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00C0005B opcodeNum=27 A=1 B=1 C=256 Bx=768 sBx=-130303
+-- pc=02 raw=0x000000A4 opcodeNum=36 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=03 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=04 raw=0x00000049 opcodeNum=9 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=05 raw=0x8000801F opcodeNum=31 A=0 B=256 C=2 Bx=131074 sBx=3
+-- pc=06 raw=0x00800058 opcodeNum=24 A=1 B=1 C=0 Bx=512 sBx=-130559
+-- pc=07 raw=0x01000048 opcodeNum=8 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=08 raw=0x8001001F opcodeNum=31 A=0 B=256 C=4 Bx=131076 sBx=5
+-- pc=09 raw=0x00004066 opcodeNum=38 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=10 raw=0x00C0805B opcodeNum=27 A=1 B=1 C=258 Bx=770 sBx=-130301
+-- pc=11 raw=0x000000A4 opcodeNum=36 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=12 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=13 raw=0x00800024 opcodeNum=36 A=0 B=1 C=0 Bx=512 sBx=-130559
+-- pc=14 raw=0x0000C066 opcodeNum=38 A=1 B=0 C=3 Bx=3 sBx=-131068
+-- pc=15 raw=0x000100A6 opcodeNum=38 A=2 B=0 C=4 Bx=4 sBx=-131067
+-- pc=16 raw=0x01010050 opcodeNum=16 A=1 B=2 C=4 Bx=1028 sBx=-130043
+-- pc=17 raw=0x8003C01F opcodeNum=31 A=0 B=256 C=15 Bx=131087 sBx=16
+-- pc=18 raw=0x0041418F opcodeNum=15 A=6 B=0 C=261 Bx=261 sBx=-130810
+-- pc=19 raw=0x02800224 opcodeNum=36 A=8 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=20 raw=0x01808190 opcodeNum=16 A=6 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=21 raw=0x00000189 opcodeNum=9 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=22 raw=0x8002801F opcodeNum=31 A=0 B=256 C=10 Bx=131082 sBx=11
+-- pc=23 raw=0x000181A6 opcodeNum=38 A=6 B=0 C=6 Bx=6 sBx=-131065
+-- pc=24 raw=0x0001C1C6 opcodeNum=6 A=7 B=0 C=7 Bx=7 sBx=-131064
+-- pc=25 raw=0x01008190 opcodeNum=16 A=6 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=26 raw=0x034201DB opcodeNum=27 A=7 B=6 C=264 Bx=3336 sBx=-127735
+-- pc=27 raw=0x00024206 opcodeNum=6 A=8 B=0 C=9 Bx=9 sBx=-131062
+-- pc=28 raw=0x00028246 opcodeNum=6 A=9 B=0 C=10 Bx=10 sBx=-131061
+-- pc=29 raw=0x000002A4 opcodeNum=36 A=10 B=0 C=0 Bx=0 sBx=-131071
+-- pc=30 raw=0x04828255 opcodeNum=21 A=9 B=9 C=10 Bx=4618 sBx=-126453
+-- pc=31 raw=0x018041D0 opcodeNum=16 A=7 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=32 raw=0x000001D8 opcodeNum=24 A=7 B=0 C=0 Bx=0 sBx=-131071
+-- pc=33 raw=0x010001C8 opcodeNum=8 A=7 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=34 raw=0x0000804A opcodeNum=10 A=1 B=0 C=2 Bx=2 sBx=-131069
+-- pc=35 raw=0x7FFB401F opcodeNum=31 A=0 B=255 C=493 Bx=131053 sBx=-18
+-- pc=36 raw=0x00800058 opcodeNum=24 A=1 B=1 C=0 Bx=512 sBx=-130559
+-- pc=37 raw=0x01000048 opcodeNum=8 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=38 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
    0: GETUPVAL	R1 0                ; R1 := UpValue[0]
    1: GETTABLE	R1 R1 K0            ; R1 := R1["isStrNil"]
@@ -1388,6 +2704,13 @@
 -- SubChunk 22:
 -- SubChunk: lineDefined=487, lastLineDefined=489, numParams=1, isVararg=0, maxStackSize=3
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000066 opcodeNum=38 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x000000A4 opcodeNum=36 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=02 raw=0x0100004D opcodeNum=13 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=03 raw=0x00000048 opcodeNum=8 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
    0: GETGLOBAL	R1 K0              ; R1 := _keyWordsFilter
    1: MOVE	R2 R0                   ; R2 := R0
@@ -1397,6 +2720,38 @@
 
 -- SubChunk 23:
 -- SubChunk: lineDefined=533, lastLineDefined=549, numParams=2, isVararg=0, maxStackSize=8
+
+-- Raw Instructions:
+-- pc=00 raw=0x00000009 opcodeNum=9 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=02 raw=0x00004049 opcodeNum=9 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=03 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=04 raw=0x01000048 opcodeNum=8 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=05 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=06 raw=0x0100009B opcodeNum=27 A=2 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=07 raw=0x00000089 opcodeNum=9 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=08 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=09 raw=0x01000048 opcodeNum=8 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=10 raw=0x000000A6 opcodeNum=38 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=11 raw=0x0140409B opcodeNum=27 A=2 B=2 C=257 Bx=1281 sBx=-129790
+-- pc=12 raw=0x008000E4 opcodeNum=36 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=13 raw=0x00800112 opcodeNum=18 A=4 B=1 C=0 Bx=512 sBx=-130559
+-- pc=14 raw=0x01808090 opcodeNum=16 A=2 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=15 raw=0x00000089 opcodeNum=9 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=16 raw=0x8002801F opcodeNum=31 A=0 B=256 C=10 Bx=131082 sBx=11
+-- pc=17 raw=0x01000092 opcodeNum=18 A=2 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=18 raw=0x0140809B opcodeNum=27 A=2 B=2 C=258 Bx=1282 sBx=-129789
+-- pc=19 raw=0x0000C0C6 opcodeNum=6 A=3 B=0 C=3 Bx=3 sBx=-131068
+-- pc=20 raw=0x00010106 opcodeNum=6 A=4 B=0 C=4 Bx=4 sBx=-131067
+-- pc=21 raw=0x00000164 opcodeNum=36 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=22 raw=0x00014186 opcodeNum=6 A=6 B=0 C=5 Bx=5 sBx=-131066
+-- pc=23 raw=0x008001E4 opcodeNum=36 A=7 B=1 C=0 Bx=512 sBx=-130559
+-- pc=24 raw=0x0201C115 opcodeNum=21 A=4 B=4 C=7 Bx=2055 sBx=-129016
+-- pc=25 raw=0x01804090 opcodeNum=16 A=2 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=26 raw=0x010000A9 opcodeNum=41 A=2 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=27 raw=0x01000088 opcodeNum=8 A=2 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=28 raw=0x01000048 opcodeNum=8 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=29 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
 
 -- Register Operations:
    0: TEST	R0 0                    ; if R0 then goto 4
@@ -1433,6 +2788,19 @@
 -- SubChunk 24:
 -- SubChunk: lineDefined=551, lastLineDefined=558, numParams=1, isVararg=0, maxStackSize=4
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000066 opcodeNum=38 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00C0405B opcodeNum=27 A=1 B=1 C=257 Bx=769 sBx=-130302
+-- pc=02 raw=0x000000A4 opcodeNum=36 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=03 raw=0x000000D2 opcodeNum=18 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x01808050 opcodeNum=16 A=1 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=05 raw=0x00000049 opcodeNum=9 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=06 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=07 raw=0x00008046 opcodeNum=6 A=1 B=0 C=2 Bx=2 sBx=-131069
+-- pc=08 raw=0x01000048 opcodeNum=8 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=09 raw=0x01000008 opcodeNum=8 A=0 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=10 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
    0: GETGLOBAL	R1 K0              ; R1 := string
    1: GETTABLE	R1 R1 K1            ; R1 := R1["find"]
@@ -1448,6 +2816,47 @@
 
 -- SubChunk 25:
 -- SubChunk: lineDefined=560, lastLineDefined=566, numParams=1, isVararg=0, maxStackSize=5
+
+-- Raw Instructions:
+-- pc=00 raw=0x00000052 opcodeNum=18 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00C0005B opcodeNum=27 A=1 B=1 C=256 Bx=768 sBx=-130303
+-- pc=02 raw=0x000000A4 opcodeNum=36 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=03 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=04 raw=0x00000049 opcodeNum=9 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=05 raw=0x8000801F opcodeNum=31 A=0 B=256 C=2 Bx=131074 sBx=3
+-- pc=06 raw=0x00004046 opcodeNum=6 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=07 raw=0x01000048 opcodeNum=8 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=08 raw=0x8007001F opcodeNum=31 A=0 B=256 C=28 Bx=131100 sBx=29
+-- pc=09 raw=0x0040804F opcodeNum=15 A=1 B=0 C=258 Bx=258 sBx=-130813
+-- pc=10 raw=0x0000C0C6 opcodeNum=6 A=3 B=0 C=3 Bx=3 sBx=-131068
+-- pc=11 raw=0x00010106 opcodeNum=6 A=4 B=0 C=4 Bx=4 sBx=-131067
+-- pc=12 raw=0x02008050 opcodeNum=16 A=1 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=13 raw=0x00C0804F opcodeNum=15 A=1 B=1 C=258 Bx=770 sBx=-130301
+-- pc=14 raw=0x000140C6 opcodeNum=6 A=3 B=0 C=5 Bx=5 sBx=-131066
+-- pc=15 raw=0x00018106 opcodeNum=6 A=4 B=0 C=6 Bx=6 sBx=-131065
+-- pc=16 raw=0x02008050 opcodeNum=16 A=1 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=17 raw=0x00C0804F opcodeNum=15 A=1 B=1 C=258 Bx=770 sBx=-130301
+-- pc=18 raw=0x0001C0C6 opcodeNum=6 A=3 B=0 C=7 Bx=7 sBx=-131064
+-- pc=19 raw=0x00020106 opcodeNum=6 A=4 B=0 C=8 Bx=8 sBx=-131063
+-- pc=20 raw=0x02008050 opcodeNum=16 A=1 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=21 raw=0x00C0804F opcodeNum=15 A=1 B=1 C=258 Bx=770 sBx=-130301
+-- pc=22 raw=0x000240C6 opcodeNum=6 A=3 B=0 C=9 Bx=9 sBx=-131062
+-- pc=23 raw=0x00028106 opcodeNum=6 A=4 B=0 C=10 Bx=10 sBx=-131061
+-- pc=24 raw=0x02008050 opcodeNum=16 A=1 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=25 raw=0x00C0804F opcodeNum=15 A=1 B=1 C=258 Bx=770 sBx=-130301
+-- pc=26 raw=0x0002C0C6 opcodeNum=6 A=3 B=0 C=11 Bx=11 sBx=-131060
+-- pc=27 raw=0x00030106 opcodeNum=6 A=4 B=0 C=12 Bx=12 sBx=-131059
+-- pc=28 raw=0x02008050 opcodeNum=16 A=1 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=29 raw=0x00C0804F opcodeNum=15 A=1 B=1 C=258 Bx=770 sBx=-130301
+-- pc=30 raw=0x000340C6 opcodeNum=6 A=3 B=0 C=13 Bx=13 sBx=-131058
+-- pc=31 raw=0x00038106 opcodeNum=6 A=4 B=0 C=14 Bx=14 sBx=-131057
+-- pc=32 raw=0x02008050 opcodeNum=16 A=1 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=33 raw=0x00C0804F opcodeNum=15 A=1 B=1 C=258 Bx=770 sBx=-130301
+-- pc=34 raw=0x0003C0C6 opcodeNum=6 A=3 B=0 C=15 Bx=15 sBx=-131056
+-- pc=35 raw=0x00040106 opcodeNum=6 A=4 B=0 C=16 Bx=16 sBx=-131055
+-- pc=36 raw=0x0200004D opcodeNum=13 A=1 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=37 raw=0x00000048 opcodeNum=8 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=38 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
 
 -- Register Operations:
    0: GETUPVAL	R1 0                ; R1 := UpValue[0]
