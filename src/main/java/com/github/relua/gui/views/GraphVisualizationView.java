@@ -103,9 +103,6 @@ public class GraphVisualizationView {
         OPCODE_INFO.put("VARARG", new String[]{"R(A), ... := vararg()", "接收变长参数。将当前函数的变长参数（...）载入到寄存器 A 开始 of B-1 个寄存器中。"});
     }
     
-    // 画布尺寸
-    private static final int CANVAS_WIDTH = 2000;
-    private static final int CANVAS_HEIGHT = 1500;
     
     // 节点尺寸
     private static final int DEFAULT_NODE_WIDTH = 150;
@@ -199,12 +196,20 @@ public class GraphVisualizationView {
     }
     
     public GraphVisualizationView() {
-        // 初始化画布
-        canvas = new Canvas(CANVAS_WIDTH, CANVAS_HEIGHT);
+        // 初始化自适应画布
+        canvas = new Canvas();
         gc = canvas.getGraphicsContext2D();
         
         // 初始化容器
         container = new StackPane(canvas);
+        
+        // 绑定画布尺寸到容器，使画布随窗口缩放，并消除外部 ScrollPane 滚动条
+        canvas.widthProperty().bind(container.widthProperty());
+        canvas.heightProperty().bind(container.heightProperty());
+        
+        // 监听画布尺寸改变以触发重新绘制
+        canvas.widthProperty().addListener((obs, oldVal, newVal) -> drawGraph());
+        canvas.heightProperty().addListener((obs, oldVal, newVal) -> drawGraph());
         
         // 初始化节点和边列表
         nodes = new ArrayList<>();
@@ -534,7 +539,7 @@ public class GraphVisualizationView {
             totalWidth -= NODE_SPACING; // 减去最后一个节点的间距
             
             // 计算起始X坐标，使该层居中
-            double startX = (CANVAS_WIDTH / currentScale - totalWidth) / 2;
+            double startX = (canvas.getWidth() / currentScale - totalWidth) / 2;
             
             // 布局该层的节点
             double currentX = startX;
