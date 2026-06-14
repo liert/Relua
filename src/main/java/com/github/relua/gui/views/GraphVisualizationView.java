@@ -8,6 +8,11 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextBoundsType;
+import javafx.scene.layout.VBox;
+import javafx.scene.control.Label;
+import javafx.geometry.Pos;
+import javafx.geometry.Insets;
+import javafx.scene.text.FontWeight;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,6 +52,56 @@ public class GraphVisualizationView {
     private int draggedNodeIndex = -1; // 当前正在拖动的节点索引，-1表示没有节点被拖动
     private double dragOffsetX = 0; // 鼠标按下时相对于节点左上角的X偏移
     private double dragOffsetY = 0; // 鼠标按下时相对于节点左上角的Y偏移
+    
+    // 悬浮释义面板组件
+    private VBox descriptionPanel;
+    private Label descTitleLabel;
+    private Label descSyntaxLabel;
+    private Label descTextLabel;
+
+    // 指令中文释义映射
+    private static final Map<String, String[]> OPCODE_INFO = new HashMap<>();
+    
+    static {
+        OPCODE_INFO.put("MOVE", new String[]{"R(A) := R(B)", "寄存器赋值。将寄存器 B 的值复制给寄存器 A。"});
+        OPCODE_INFO.put("LOADK", new String[]{"R(A) := Kstr(Bx)", "加载常量。将常量池中的常量 Bx 载入寄存器 A。"});
+        OPCODE_INFO.put("LOADBOOL", new String[]{"R(A) := (Bool)B; if (C) pc++", "加载布尔值。将布尔值 B（0为false，1为true）载入寄存器 A。如果 C 非 0，则跳过下一条指令。"});
+        OPCODE_INFO.put("LOADNIL", new String[]{"R(A) := ... := R(B) := nil", "批量加载 nil。将寄存器 A 到 B 范围内的所有寄存器设为 nil。"});
+        OPCODE_INFO.put("GETUPVAL", new String[]{"R(A) := UpValue[B]", "获取 Upvalue。将 Upvalue B 的值载入寄存器 A。"});
+        OPCODE_INFO.put("GETGLOBAL", new String[]{"R(A) := Gtab[Kstr(Bx)]", "获取全局变量。将全局变量 Bx 的值载入寄存器 A。"});
+        OPCODE_INFO.put("GETTABLE", new String[]{"R(A) := R(B)[RK(C)]", "读取表元素。以寄存器或常量 C 为键，读取表 B 中的值并存入寄存器 A。"});
+        OPCODE_INFO.put("SETGLOBAL", new String[]{"Gtab[Kstr(Bx)] := R(A)", "设置全局变量。将寄存器 A 的值赋给全局变量 Bx。"});
+        OPCODE_INFO.put("SETUPVAL", new String[]{"UpValue[B] := R(A)", "设置 Upvalue。将寄存器 A 的值赋给 Upvalue B。"});
+        OPCODE_INFO.put("SETTABLE", new String[]{"R(A)[RK(B)] := RK(C)", "写入表元素。以寄存器或常量 B 为键，将寄存器或常量 C 的值存入表 A 中。"});
+        OPCODE_INFO.put("NEWTABLE", new String[]{"R(A) := {} (size = B,C)", "创建新表。在寄存器 A 中创建一个新表，预分配数组大小为 B，哈希表大小为 C。"});
+        OPCODE_INFO.put("SELF", new String[]{"R(A+1) := R(B); R(A) := R(B)[RK(C)]", "对象方法准备。用于面向对象调用。将对象 B 复制到 R(A+1)，并将方法 B[RK(C)] 读入寄存器 A。"});
+        OPCODE_INFO.put("ADD", new String[]{"R(A) := RK(B) + RK(C)", "加法运算。将寄存器或常量 B 与 C 相加，结果存入寄存器 A。"});
+        OPCODE_INFO.put("SUB", new String[]{"R(A) := RK(B) - RK(C)", "减法运算。将寄存器或常量 B 与 C 相减，结果存入寄存器 A。"});
+        OPCODE_INFO.put("MUL", new String[]{"R(A) := RK(B) * RK(C)", "乘法运算。将寄存器或常量 B 与 C 相乘，结果存入寄存器 A。"});
+        OPCODE_INFO.put("DIV", new String[]{"R(A) := RK(B) / RK(C)", "除法运算。将寄存器或常量 B 与 C 相除，结果存入寄存器 A。"});
+        OPCODE_INFO.put("MOD", new String[]{"R(A) := RK(B) % RK(C)", "取模运算。将寄存器或常量 B 对 C 求余，结果存入寄存器 A。"});
+        OPCODE_INFO.put("POW", new String[]{"R(A) := RK(B) ^ RK(C)", "幂运算。将寄存器或常量 B 进行 C 次方幂运算，结果存入寄存器 A。"});
+        OPCODE_INFO.put("UNM", new String[]{"R(A) := -R(B)", "取负运算。将寄存器 B 的数值取负，结果存入寄存器 A。"});
+        OPCODE_INFO.put("NOT", new String[]{"R(A) := not R(B)", "逻辑非运算。将寄存器 B 进行逻辑非（not）运算，结果存入寄存器 A。"});
+        OPCODE_INFO.put("LEN", new String[]{"R(A) := length of R(B)", "长度运算。获取寄存器 B（表或字符串）的长度，结果存入寄存器 A。"});
+        OPCODE_INFO.put("CONCAT", new String[]{"R(A) := R(B) .. ... .. R(C)", "字符串拼接。将寄存器 B 到 C 范围内的值拼接为字符串，存入寄存器 A。"});
+        OPCODE_INFO.put("JMP", new String[]{"pc += sBx", "无条件跳转。将程序计数器 PC 加上偏移量 sBx，实现跳转。"});
+        OPCODE_INFO.put("EQ", new String[]{"if ((RK(B) == RK(C)) ~= A) then pc++", "等于测试。比较寄存器或常量 B 与 C。若结果与 A（0或1）不一致，则跳过下一条 JMP 指令。"});
+        OPCODE_INFO.put("LT", new String[]{"if ((RK(B) < RK(C)) ~= A) then pc++", "小于测试。比较寄存器或常量 B 是否小于 C。若结果与 A 不一致，则跳过下一条 JMP 指令。"});
+        OPCODE_INFO.put("LE", new String[]{"if ((RK(B) <= RK(C)) ~= A) then pc++", "小于等于测试。比较寄存器或常量 B 是否小于等于 C。若结果与 A 不一致，则跳过下一条 JMP 指令。"});
+        OPCODE_INFO.put("TEST", new String[]{"if not (R(A) <=> C) then pc++", "条件测试。检查寄存器 A 的真假值是否与 C（0为false，1为true）一致。若不一致，则跳过下一条 JMP 指令。"});
+        OPCODE_INFO.put("TESTSET", new String[]{"if (R(B) <=> C) then R(A) := R(B) else pc++", "测试并赋值。如果寄存器 B 的真假值与 C 一致，则将其赋值给寄存器 A，否则跳过下一条 JMP 指令。"});
+        OPCODE_INFO.put("CALL", new String[]{"R(A), ... := R(A)(R(A+1), ... , R(A+B-1))", "函数调用。调用寄存器 A 中的函数，传入 B-1 个参数，并将 C-1 个返回值存回 R(A) 起始的寄存器。"});
+        OPCODE_INFO.put("TAILCALL", new String[]{"return R(A)(R(A+1), ... , R(A+B-1))", "尾调用。以尾递归或尾调用的形式调用寄存器 A 中的函数，不占用当前栈帧。"});
+        OPCODE_INFO.put("RETURN", new String[]{"return R(A), ... , R(A+B-2)", "函数返回。返回寄存器 A 开始的 B-1 个返回值。若 B 为 0，表示返回当前栈顶的所有值。"});
+        OPCODE_INFO.put("FORLOOP", new String[]{"R(A)+=R(A+2); if R(A) <?= R(A+1) then { pc+=sBx; R(A+3)=R(A) }", "数值型循环迭代。将计数器 R(A) 加上步长 R(A+2)。若未达到终点 R(A+1)，则跳转回循环体并将 R(A+3) 设为计数器值。"});
+        OPCODE_INFO.put("FORPREP", new String[]{"R(A)-=R(A+2); pc+=sBx", "数值型循环准备。将计数器减去步长，初始化循环参数，并无条件跳转至 FORLOOP 指令进行首次判断。"});
+        OPCODE_INFO.put("TFORLOOP", new String[]{"R(A+3), ... := R(A)(R(A+1), R(A+2)); if R(A+3) ~= nil then { R(A+2)=R(A+3); pc+=sBx }", "泛型循环迭代。调用迭代器函数 R(A)，传入状态 R(A+1) 和控制变量 R(A+2)。如果返回的首个值不为 nil，则更新控制变量并跳转回循环体。"});
+        OPCODE_INFO.put("SETLIST", new String[]{"R(A)[(c-1)*FPF+i] := R(A+i), 1 <= i <= b", "批量设置表元素。用于快速初始化数组。将寄存器 R(A+1) 起的 B 个值批量填入表 A 的指定索引区间。"});
+        OPCODE_INFO.put("CLOSE", new String[]{"close all upvalues >= R(A)", "关闭 Upvalue。关闭所有在栈中等于或高于寄存器 A 地址的活动 Upvalue。"});
+        OPCODE_INFO.put("CLOSURE", new String[]{"R(A) := closure(KPROTO[Bx])", "创建闭包。根据子函数原型 Bx 创建一个新的闭包，并存入寄存器 A。"});
+        OPCODE_INFO.put("VARARG", new String[]{"R(A), ... := vararg()", "接收变长参数。将当前函数的变长参数（...）载入到寄存器 A 开始 of B-1 个寄存器中。"});
+    }
     
     // 画布尺寸
     private static final int CANVAS_WIDTH = 2000;
@@ -143,9 +198,6 @@ public class GraphVisualizationView {
         }
     }
     
-    /**
-     * 构造函数
-     */
     public GraphVisualizationView() {
         // 初始化画布
         canvas = new Canvas(CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -157,6 +209,9 @@ public class GraphVisualizationView {
         // 初始化节点和边列表
         nodes = new ArrayList<>();
         edges = new ArrayList<>();
+        
+        // 初始化悬浮释义面板
+        initDescriptionPanel();
         
         // 添加鼠标事件处理程序，实现拖拽功能
         setupMouseEventHandlers();
@@ -175,19 +230,38 @@ public class GraphVisualizationView {
             double mouseX = event.getX() / currentScale;
             double mouseY = event.getY() / currentScale;
             
+            boolean nodeClicked = false;
+            
             // 检查是否点击了某个节点
             for (int i = 0; i < nodes.size(); i++) {
                 NodeData node = nodes.get(i);
                 // 检查鼠标是否在节点范围内
                 if (mouseX >= node.x && mouseX <= node.x + node.width &&
                     mouseY >= node.y && mouseY <= node.y + node.height) {
+                    nodeClicked = true;
                     // 记录被拖动的节点索引
                     draggedNodeIndex = i;
                     // 计算鼠标相对于节点左上角的偏移
                     dragOffsetX = mouseX - node.x;
                     dragOffsetY = mouseY - node.y;
+                    
+                    // 计算相对垂直坐标，检测具体点击了第几行
+                    double localY = mouseY - node.y;
+                    int lineIdx = (int) ((localY - NODE_PADDING) / LINE_HEIGHT);
+                    
+                    String[] lines = node.label.split("\\n");
+                    if (lineIdx >= 3 && lineIdx < lines.length) {
+                        String line = lines[lineIdx];
+                        updateInstructionDescription(line);
+                    } else {
+                        resetInstructionDescription();
+                    }
                     break;
                 }
+            }
+            
+            if (!nodeClicked) {
+                resetInstructionDescription();
             }
         });
         
@@ -216,12 +290,10 @@ public class GraphVisualizationView {
         });
     }
     
-    /**
-     * 清空现有图形
-     */
     public void clearGraph() {
         nodes.clear();
         edges.clear();
+        resetInstructionDescription();
         drawGraph();
     }
     
@@ -268,6 +340,9 @@ public class GraphVisualizationView {
      * 绘制图形，根据当前视图模式绘制图形或文本
      */
     private void drawGraph() {
+        // 更新释义面板的可见性
+        updateDescriptionPanelVisibility();
+        
         // 清空画布
         gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
         
@@ -692,5 +767,109 @@ public class GraphVisualizationView {
      */
     public Node getView() {
         return container;
+    }
+
+    /**
+     * 初始化右下角悬浮释义面板
+     */
+    private void initDescriptionPanel() {
+        descriptionPanel = new VBox(8); // 间距 8
+        descriptionPanel.setPadding(new Insets(12));
+        descriptionPanel.setMinWidth(280);
+        descriptionPanel.setMaxWidth(300);
+        descriptionPanel.setStyle(
+            "-fx-background-color: rgba(30, 30, 30, 0.85);" +
+            "-fx-background-radius: 8;" +
+            "-fx-border-radius: 8;" +
+            "-fx-border-color: #555555;" +
+            "-fx-border-width: 1;"
+        );
+
+        Label headerLabel = new Label("指令语义释义");
+        headerLabel.setFont(Font.font("System", FontWeight.BOLD, 12));
+        headerLabel.setTextFill(Color.web("#00a2ff"));
+
+        descTitleLabel = new Label("未选择指令");
+        descTitleLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 14));
+        descTitleLabel.setTextFill(Color.WHITE);
+
+        descSyntaxLabel = new Label("语法: -");
+        descSyntaxLabel.setFont(Font.font("Consolas", 11));
+        descSyntaxLabel.setTextFill(Color.LIGHTGRAY);
+        descSyntaxLabel.setWrapText(true);
+
+        descTextLabel = new Label("点击 CFG 块中的汇编指令查看详细释义");
+        descTextLabel.setFont(Font.font("System", 11));
+        descTextLabel.setTextFill(Color.web("#cccccc"));
+        descTextLabel.setWrapText(true);
+
+        descriptionPanel.getChildren().addAll(headerLabel, descTitleLabel, descSyntaxLabel, descTextLabel);
+
+        // 设置在 StackPane 的右下角
+        StackPane.setAlignment(descriptionPanel, Pos.BOTTOM_RIGHT);
+        StackPane.setMargin(descriptionPanel, new Insets(15));
+
+        // 添加到容器中
+        container.getChildren().add(descriptionPanel);
+    }
+
+    /**
+     * 更新指令中文释义面板内容
+     */
+    private void updateInstructionDescription(String line) {
+        if (line == null || line.trim().isEmpty()) {
+            resetInstructionDescription();
+            return;
+        }
+
+        // 解析指令名称
+        String trimLine = line.trim();
+        int colonIdx = trimLine.indexOf(':');
+        if (colonIdx == -1) {
+            resetInstructionDescription();
+            return;
+        }
+
+        String rest = trimLine.substring(colonIdx + 1).trim();
+        String[] parts = rest.split("\\s+");
+        if (parts.length == 0) {
+            resetInstructionDescription();
+            return;
+        }
+
+        String opcode = parts[0];
+        String[] info = OPCODE_INFO.get(opcode);
+
+        if (info != null) {
+            descTitleLabel.setText(opcode);
+            descSyntaxLabel.setText("语法: " + info[0]);
+            descTextLabel.setText(info[1]);
+        } else {
+            descTitleLabel.setText(opcode);
+            descSyntaxLabel.setText("语法: 未知");
+            descTextLabel.setText("未找到该指令的中文详细释义。");
+        }
+    }
+
+    /**
+     * 重置释义面板到默认状态
+     */
+    private void resetInstructionDescription() {
+        if (descTitleLabel != null) {
+            descTitleLabel.setText("未选择指令");
+            descSyntaxLabel.setText("语法: -");
+            descTextLabel.setText("点击 CFG 块中的汇编指令查看详细释义");
+        }
+    }
+
+    /**
+     * 动态更新释义面板的可见性，仅在 CFG 视图模式下显示
+     */
+    private void updateDescriptionPanelVisibility() {
+        if (descriptionPanel != null) {
+            boolean isCFG = currentViewMode == ViewMode.GRAPH && 
+                            nodes.stream().anyMatch(node -> node.label.startsWith("BB"));
+            descriptionPanel.setVisible(isCFG);
+        }
     }
 }
