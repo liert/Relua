@@ -49,10 +49,15 @@ public class GraphVisualizationView {
     // 文本内容
     private String textContent = "";
     
-    // 拖拽相关变量
+    // 拖拽与平移相关变量
     private int draggedNodeIndex = -1; // 当前正在拖动的节点索引，-1表示没有节点被拖动
     private double dragOffsetX = 0; // 鼠标按下时相对于节点左上角的X偏移
     private double dragOffsetY = 0; // 鼠标按下时相对于节点左上角的Y偏移
+    private boolean isPanning = false; // 是否正在平移画布
+    private double lastMouseX = 0; // 上一次鼠标按下的X屏幕坐标
+    private double lastMouseY = 0; // 上一次鼠标按下的Y屏幕坐标
+    private double translationX = 0; // 画布的X轴平移量
+    private double translationY = 0; // 画布的Y轴平移量
     
     // 悬浮释义面板组件
     private VBox descriptionPanel;
@@ -199,6 +204,7 @@ public class GraphVisualizationView {
     public GraphVisualizationView() {
         // 初始化自适应画布
         canvas = new Canvas();
+        canvas.setPickOnBounds(true);
         gc = canvas.getGraphicsContext2D();
         
         // 初始化容器
@@ -232,9 +238,12 @@ public class GraphVisualizationView {
     private void setupMouseEventHandlers() {
         // 鼠标按下事件处理
         canvas.setOnMousePressed(event -> {
-            // 计算鼠标在画布上的坐标（考虑缩放）
+            // 计算鼠标在画布上的逻辑坐标（考虑缩放与平移）
             double mouseX = event.getX() / currentScale;
             double mouseY = event.getY() / currentScale;
+            
+            double logicalX = mouseX - translationX;
+            double logicalY = mouseY - translationY;
             
             boolean nodeClicked = false;
             
@@ -242,17 +251,17 @@ public class GraphVisualizationView {
             for (int i = 0; i < nodes.size(); i++) {
                 NodeData node = nodes.get(i);
                 // 检查鼠标是否在节点范围内
-                if (mouseX >= node.x && mouseX <= node.x + node.width &&
-                    mouseY >= node.y && mouseY <= node.y + node.height) {
+                if (logicalX >= node.x && logicalX <= node.x + node.width &&
+                    logicalY >= node.y && logicalY <= node.y + node.height) {
                     nodeClicked = true;
                     // 记录被拖动的节点索引
                     draggedNodeIndex = i;
                     // 计算鼠标相对于节点左上角的偏移
-                    dragOffsetX = mouseX - node.x;
-                    dragOffsetY = mouseY - node.y;
+                    dragOffsetX = logicalX - node.x;
+                    dragOffsetY = logicalY - node.y;
                     
                     // 计算相对垂直坐标，检测具体点击了第几行
-                    double localY = mouseY - node.y;
+                    double localY = logicalY - node.y;
                     int lineIdx = (int) ((localY - NODE_PADDING) / LINE_HEIGHT);
                     
                     String[] lines = node.label.split("\\n");
@@ -268,6 +277,10 @@ public class GraphVisualizationView {
             
             if (!nodeClicked) {
                 resetInstructionDescription();
+                // 开启平移模式
+                isPanning = true;
+                lastMouseX = event.getX();
+                lastMouseY = event.getY();
             }
         });
         
@@ -275,14 +288,29 @@ public class GraphVisualizationView {
         canvas.setOnMouseDragged(event -> {
             // 如果有节点被拖动
             if (draggedNodeIndex != -1) {
-                // 计算鼠标在画布上的坐标（考虑缩放）
+                // 计算鼠标在画布上的逻辑坐标
                 double mouseX = event.getX() / currentScale;
                 double mouseY = event.getY() / currentScale;
                 
                 // 更新节点位置
                 NodeData node = nodes.get(draggedNodeIndex);
-                node.x = mouseX - dragOffsetX;
-                node.y = mouseY - dragOffsetY;
+                node.x = mouseX - translationX - dragOffsetX;
+                node.y = mouseY - translationY - dragOffsetY;
+                
+                // 重新绘制图形
+                drawGraph();
+            } 
+            // 如果是在空白区域拖拽，则平移整个画布
+            else if (isPanning) {
+                double deltaX = event.getX() - lastMouseX;
+                double deltaY = event.getY() - lastMouseY;
+                
+                // 将屏幕位移转化为逻辑位移（除以缩放比）
+                translationX += deltaX / currentScale;
+                translationY += deltaY / currentScale;
+                
+                lastMouseX = event.getX();
+                lastMouseY = event.getY();
                 
                 // 重新绘制图形
                 drawGraph();
@@ -291,8 +319,9 @@ public class GraphVisualizationView {
         
         // 鼠标释放事件处理
         canvas.setOnMouseReleased(event -> {
-            // 重置拖动状态
+            // 重置拖动与平移状态
             draggedNodeIndex = -1;
+            isPanning = false;
         });
         
         // Ctrl+滚轮缩放事件处理
@@ -312,6 +341,8 @@ public class GraphVisualizationView {
         nodes.clear();
         edges.clear();
         resetInstructionDescription();
+        translationX = 0;
+        translationY = 0;
         drawGraph();
     }
     
@@ -369,6 +400,8 @@ public class GraphVisualizationView {
         gc.scale(currentScale, currentScale);
         
         if (currentViewMode == ViewMode.GRAPH) {
+            // 应用平移量
+            gc.translate(translationX, translationY);
             // 绘制图形
             drawGraphContent();
         } else {
@@ -516,6 +549,10 @@ public class GraphVisualizationView {
      */
     public void applyLayout() {
         if (nodes.isEmpty()) return;
+        
+        // 重置平移偏置
+        translationX = 0;
+        translationY = 0;
         
         // 对于CFG，使用层次布局
         applyHierarchicalLayout();
@@ -686,6 +723,10 @@ public class GraphVisualizationView {
      */
     public void applyTreeLayout() {
         if (nodes.isEmpty()) return;
+        
+        // 重置平移偏置
+        translationX = 0;
+        translationY = 0;
         
         // 简单的树状布局
         layoutTree(0, 50, 50, 150, 100);
