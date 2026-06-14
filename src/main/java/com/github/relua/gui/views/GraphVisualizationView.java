@@ -9,7 +9,9 @@ import javafx.scene.text.Font;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextBoundsType;
 import javafx.scene.layout.VBox;
+import javafx.scene.layout.HBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.Button;
 import javafx.geometry.Pos;
 import javafx.geometry.Insets;
 import javafx.scene.text.FontWeight;
@@ -59,11 +61,16 @@ public class GraphVisualizationView {
     private double translationX = 0; // 画布的X轴平移量
     private double translationY = 0; // 画布的Y轴平移量
     
-    // 悬浮释义面板组件
+    // 悬浮释义面板组件与状态
     private VBox descriptionPanel;
     private Label descTitleLabel;
     private Label descSyntaxLabel;
     private Label descTextLabel;
+    private boolean isDescriptionPanelCollapsed = false;
+    private Button toggleDescButton;
+    private VBox descContentBox;
+    private HBox descHeaderBar;
+    private Label descHeaderLabel;
 
     // 指令中文释义映射
     private static final Map<String, String[]> OPCODE_INFO = new HashMap<>();
@@ -831,22 +838,59 @@ public class GraphVisualizationView {
     /**
      * 初始化右下角悬浮释义面板
      */
+    /**
+     * 初始化右下角悬浮释义面板
+     */
     private void initDescriptionPanel() {
         descriptionPanel = new VBox(8); // 间距 8
         descriptionPanel.setPadding(new Insets(12));
         descriptionPanel.setMinWidth(280);
         descriptionPanel.setMaxWidth(300);
-        descriptionPanel.setStyle(
-            "-fx-background-color: rgba(30, 30, 30, 0.85);" +
-            "-fx-background-radius: 8;" +
-            "-fx-border-radius: 8;" +
-            "-fx-border-color: #555555;" +
-            "-fx-border-width: 1;"
-        );
 
-        Label headerLabel = new Label("指令语义释义");
-        headerLabel.setFont(Font.font("System", FontWeight.BOLD, 12));
-        headerLabel.setTextFill(Color.web("#00a2ff"));
+        // 顶部栏
+        descHeaderBar = new HBox();
+        descHeaderBar.setAlignment(Pos.CENTER_LEFT);
+
+        descHeaderLabel = new Label("指令语义释义");
+        descHeaderLabel.setFont(Font.font("System", FontWeight.BOLD, 12));
+        descHeaderLabel.setTextFill(Color.web("#00a2ff"));
+
+        // 弹性占位
+        javafx.scene.layout.Region spacer = new javafx.scene.layout.Region();
+        HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
+
+        // 切换折叠按钮
+        toggleDescButton = new Button("✕");
+        toggleDescButton.setStyle(
+            "-fx-background-color: transparent;" +
+            "-fx-text-fill: #aaaaaa;" +
+            "-fx-padding: 2 6 2 6;" +
+            "-fx-cursor: hand;" +
+            "-fx-font-size: 12;" +
+            "-fx-font-weight: bold;"
+        );
+        toggleDescButton.setOnMouseEntered(e -> toggleDescButton.setStyle(
+            "-fx-background-color: rgba(255, 255, 255, 0.15);" +
+            "-fx-text-fill: #ffffff;" +
+            "-fx-padding: 2 6 2 6;" +
+            "-fx-cursor: hand;" +
+            "-fx-font-size: 12;" +
+            "-fx-font-weight: bold;"
+        ));
+        toggleDescButton.setOnMouseExited(e -> toggleDescButton.setStyle(
+            "-fx-background-color: transparent;" +
+            "-fx-text-fill: #aaaaaa;" +
+            "-fx-padding: 2 6 2 6;" +
+            "-fx-cursor: hand;" +
+            "-fx-font-size: 12;" +
+            "-fx-font-weight: bold;"
+        ));
+        toggleDescButton.setOnAction(event -> toggleDescriptionPanel());
+
+        descHeaderBar.getChildren().addAll(descHeaderLabel, spacer, toggleDescButton);
+
+        // 内容盒子
+        descContentBox = new VBox(8);
 
         descTitleLabel = new Label("未选择指令");
         descTitleLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 14));
@@ -862,14 +906,130 @@ public class GraphVisualizationView {
         descTextLabel.setTextFill(Color.web("#cccccc"));
         descTextLabel.setWrapText(true);
 
-        descriptionPanel.getChildren().addAll(headerLabel, descTitleLabel, descSyntaxLabel, descTextLabel);
+        descContentBox.getChildren().addAll(descTitleLabel, descSyntaxLabel, descTextLabel);
+
+        descriptionPanel.getChildren().addAll(descHeaderBar, descContentBox);
 
         // 设置在 StackPane 的右下角
         StackPane.setAlignment(descriptionPanel, Pos.BOTTOM_RIGHT);
         StackPane.setMargin(descriptionPanel, new Insets(15));
 
+        // 根据默认状态应用显示样式
+        updateDescriptionPanelState();
+
         // 添加到容器中
         container.getChildren().add(descriptionPanel);
+    }
+
+    /**
+     * 切换释义面板的折叠状态
+     */
+    private void toggleDescriptionPanel() {
+        isDescriptionPanelCollapsed = !isDescriptionPanelCollapsed;
+        updateDescriptionPanelState();
+    }
+
+    /**
+     * 更新释义面板的显示状态
+     */
+    private void updateDescriptionPanelState() {
+        if (isDescriptionPanelCollapsed) {
+            // 折叠状态
+            descHeaderLabel.setVisible(false);
+            descHeaderLabel.setManaged(false);
+            descContentBox.setVisible(false);
+            descContentBox.setManaged(false);
+            
+            toggleDescButton.setText("📖");
+            
+            descriptionPanel.setMinWidth(32);
+            descriptionPanel.setMaxWidth(32);
+            descriptionPanel.setMinHeight(32);
+            descriptionPanel.setMaxHeight(32);
+            descriptionPanel.setPadding(new Insets(0));
+            descriptionPanel.setAlignment(Pos.CENTER);
+            
+            descriptionPanel.setStyle(
+                "-fx-background-color: rgba(0, 162, 255, 0.85);" +
+                "-fx-background-radius: 16;" +
+                "-fx-border-radius: 16;" +
+                "-fx-border-color: #0088cc;" +
+                "-fx-border-width: 1;"
+            );
+            
+            toggleDescButton.setStyle(
+                "-fx-background-color: transparent;" +
+                "-fx-text-fill: white;" +
+                "-fx-padding: 0;" +
+                "-fx-cursor: hand;" +
+                "-fx-font-size: 14;" +
+                "-fx-alignment: center;"
+            );
+            toggleDescButton.setOnMouseEntered(e -> toggleDescButton.setStyle(
+                "-fx-background-color: rgba(255, 255, 255, 0.2);" +
+                "-fx-text-fill: white;" +
+                "-fx-padding: 0;" +
+                "-fx-cursor: hand;" +
+                "-fx-font-size: 14;" +
+                "-fx-alignment: center;"
+            ));
+            toggleDescButton.setOnMouseExited(e -> toggleDescButton.setStyle(
+                "-fx-background-color: transparent;" +
+                "-fx-text-fill: white;" +
+                "-fx-padding: 0;" +
+                "-fx-cursor: hand;" +
+                "-fx-font-size: 14;" +
+                "-fx-alignment: center;"
+            ));
+        } else {
+            // 展开状态
+            descHeaderLabel.setVisible(true);
+            descHeaderLabel.setManaged(true);
+            descContentBox.setVisible(true);
+            descContentBox.setManaged(true);
+            
+            toggleDescButton.setText("✕");
+            
+            descriptionPanel.setMinWidth(280);
+            descriptionPanel.setMaxWidth(300);
+            descriptionPanel.setMinHeight(VBox.USE_COMPUTED_SIZE);
+            descriptionPanel.setMaxHeight(VBox.USE_COMPUTED_SIZE);
+            descriptionPanel.setPadding(new Insets(12));
+            descriptionPanel.setAlignment(Pos.TOP_LEFT);
+            
+            descriptionPanel.setStyle(
+                "-fx-background-color: rgba(30, 30, 30, 0.85);" +
+                "-fx-background-radius: 8;" +
+                "-fx-border-radius: 8;" +
+                "-fx-border-color: #555555;" +
+                "-fx-border-width: 1;"
+            );
+            
+            toggleDescButton.setStyle(
+                "-fx-background-color: transparent;" +
+                "-fx-text-fill: #aaaaaa;" +
+                "-fx-padding: 2 6 2 6;" +
+                "-fx-cursor: hand;" +
+                "-fx-font-size: 12;" +
+                "-fx-font-weight: bold;"
+            );
+            toggleDescButton.setOnMouseEntered(e -> toggleDescButton.setStyle(
+                "-fx-background-color: rgba(255, 255, 255, 0.15);" +
+                "-fx-text-fill: #ffffff;" +
+                "-fx-padding: 2 6 2 6;" +
+                "-fx-cursor: hand;" +
+                "-fx-font-size: 12;" +
+                "-fx-font-weight: bold;"
+            ));
+            toggleDescButton.setOnMouseExited(e -> toggleDescButton.setStyle(
+                "-fx-background-color: transparent;" +
+                "-fx-text-fill: #aaaaaa;" +
+                "-fx-padding: 2 6 2 6;" +
+                "-fx-cursor: hand;" +
+                "-fx-font-size: 12;" +
+                "-fx-font-weight: bold;"
+            ));
+        }
     }
 
     /**
@@ -903,6 +1063,12 @@ public class GraphVisualizationView {
             descTitleLabel.setText(opcode);
             descSyntaxLabel.setText("语法: " + info[0]);
             descTextLabel.setText(info[1]);
+            
+            // 点击有效指令时自动展开面板
+            if (isDescriptionPanelCollapsed) {
+                isDescriptionPanelCollapsed = false;
+                updateDescriptionPanelState();
+            }
         } else {
             descTitleLabel.setText(opcode);
             descSyntaxLabel.setText("语法: 未知");
