@@ -13,6 +13,7 @@ import javafx.scene.control.Label;
 import javafx.geometry.Pos;
 import javafx.geometry.Insets;
 import javafx.scene.text.FontWeight;
+import javafx.scene.input.ScrollEvent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -292,6 +293,18 @@ public class GraphVisualizationView {
         canvas.setOnMouseReleased(event -> {
             // 重置拖动状态
             draggedNodeIndex = -1;
+        });
+        
+        // Ctrl+滚轮缩放事件处理
+        canvas.setOnScroll(event -> {
+            if (event.isControlDown()) {
+                if (event.getDeltaY() > 0) {
+                    zoom(1.1);
+                } else if (event.getDeltaY() < 0) {
+                    zoom(0.9);
+                }
+                event.consume();
+            }
         });
     }
     
