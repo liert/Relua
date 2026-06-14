@@ -27,7 +27,7 @@ public class BytecodeFormatter {
         appendOperands(instruction, sb);
         
         // 对齐格式
-        while (sb.length() < 30) {
+        while (sb.length() < 35) {
             sb.append(' ');
         }
         

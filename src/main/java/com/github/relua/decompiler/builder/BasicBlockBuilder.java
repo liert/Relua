@@ -46,13 +46,6 @@ public class BasicBlockBuilder {
                     isJumpTarget[jumpTarget] = true;
                 }
                 pipeline.getContext().addLabelPC(jumpTarget);
-            } else if (opcode == Opcode.EQ || opcode == Opcode.LT || opcode == Opcode.LE) {
-                if (inst.getC() != 0) {
-                    int jumpTarget = i + 1 + inst.getC();
-                    if (jumpTarget >= 0 && jumpTarget < instructions.size()) {
-                        isJumpTarget[jumpTarget] = true;
-                    }
-                }
             } else if (opcode == Opcode.FORLOOP) {
                 // FORLOOP指令：pc += sBx
                 int jumpTarget = inst.getSBx() == 0 ? inst.getNumericForPrepTarget(instructions, i) : i + 1 + inst.getSBx();

@@ -73,13 +73,6 @@ public class CFGGenerator {
                     isJumpTarget[jumpTarget] = true;
                 }
                 codeGenContext.addLabelPC(jumpTarget);
-            } else if (opcode == Opcode.EQ || opcode == Opcode.LT || opcode == Opcode.LE) {
-                if (inst.getC() != 0) {
-                    int jumpTarget = i + 1 + inst.getC();
-                    if (jumpTarget >= 0 && jumpTarget < instructions.size()) {
-                        isJumpTarget[jumpTarget] = true;
-                    }
-                }
             } else if (opcode == Opcode.FORLOOP) {
                 // FORLOOP指令：pc += sBx
                 int jumpTarget = inst.getSBx() == 0 ? inst.getNumericForPrepTarget(instructions, i) : i + 1 + inst.getSBx();
@@ -201,14 +194,13 @@ public class CFGGenerator {
                 // fallback：普通顺序
                 addEdge(currentBlock, i + 1);
             } else if (opcode == Opcode.EQ || opcode == Opcode.LT || opcode == Opcode.LE) {
-                Instruction jmp = instructions.get(i + 1);
-                int target = i + 1 + jmp.getSBx(); // 跳转目标
-
-                // true → 跳
-                addEdge(currentBlock, target);
-
-                // false → 顺序执行
+                // 比较指令后面总是紧跟 JMP
+                // true分支：跳过JMP → 落入 i+2
                 addEdge(currentBlock, i + 2);
+
+                // false分支：执行JMP → 连接到JMP所在的块（i+1），
+                // 由JMP块自身的边将控制流传递到跳转目标。
+                addEdge(currentBlock, i + 1);
 
                 continue;
             } else if (opcode == Opcode.FORLOOP) {
@@ -278,7 +270,7 @@ public class CFGGenerator {
             BasicBlock currentBlock) {
         Instruction jmp = instructions.get(i + 1); // guaranteed JMP in TEST+JMP pattern
 
-        int jmpTarget = i + 1 + jmp.getSBx();
+        int jmpTarget = i + 2 + jmp.getSBx(); // (i + 1) + 1 + jmp.getSBx()
 
         // TEST true → PC + 2 (进入 then)
         int thenTarget = i + 2;

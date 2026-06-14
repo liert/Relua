@@ -149,13 +149,9 @@ public class CFGGraphConverter {
         for (int i = block.getStartIndex(); i <= block.getEndIndex(); i++) {
             if (i < instructions.size()) {
                 Instruction inst = instructions.get(i);
-                // 格式化指令：索引: 操作码 A=值 B=值 C=值
-                String instStr = String.format("%3d: %-10s A=%-3d B=%-3d C=%-3d",
-                        i, 
-                        inst.getOpcode().name(),
-                        inst.getA(),
-                        inst.getB(),
-                        inst.getC());
+                // 使用 BytecodeFormatter 格式化指令，获取包含语义注释的汇编代码，并将制表符替换为空格以保证对齐
+                String instStr = com.github.relua.util.BytecodeFormatter.formatInstruction(chunk, inst, i)
+                        .replace("\t", "    ");
                 label.append(instStr).append("\n");
             }
         }

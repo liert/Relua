@@ -282,7 +282,9 @@ public class LuaCodeGenerator {
         for (int i = 0; i < functionChunk.getNumParams(); i++) {
             params.add(com.github.relua.util.TransformUtils.transformRegister(context.getRegister().getRegisterEntity(i)));
         }
-        return new FunctionLiteral(params, false, context.getAstBlock(), null);
+        FunctionLiteral literal = new FunctionLiteral(params, false, context.getAstBlock(), null);
+        literal.setChunk(functionChunk);
+        return literal;
     }
 
     /**

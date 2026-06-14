@@ -38,6 +38,9 @@ public class ASTGraphConverter {
             if (astNode instanceof LuacFile) {
                 // 处理LuacFile对象，生成AST节点
                 processLuacFile((LuacFile) astNode);
+            } else if (astNode instanceof Chunk) {
+                // 处理单独的Chunk对象，生成AST节点
+                processChunk((Chunk) astNode);
             } else if (astNode instanceof AstNode) {
                 // 直接处理AST节点
                 processAstNode((AstNode) astNode);
@@ -54,6 +57,26 @@ public class ASTGraphConverter {
                 
                 graphView.applyLayout();
             }
+        }
+    }
+
+    /**
+     * 处理单独的代码块，将其AST转换为图形
+     * @param chunk 代码块
+     */
+    private void processChunk(Chunk chunk) {
+        try {
+            LuaCodeGenerator generator = new LuaCodeGenerator(chunk);
+            InstructionHandler handler = generator.getInstructionHandler(chunk.getFunction());
+            if (handler != null) {
+                handler.process(chunk);
+                AstNode astRoot = handler.generateASTFromChunk(chunk);
+                processAstNode(astRoot);
+            }
+        } catch (Exception e) {
+            int errorIndex = graphView.addNode("Error generating AST: " + e.getMessage());
+            graphView.applyLayout();
+            e.printStackTrace();
         }
     }
     

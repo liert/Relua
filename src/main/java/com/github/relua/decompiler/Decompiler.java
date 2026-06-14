@@ -22,6 +22,12 @@ public class Decompiler {
         // this.codeGenerator = new LuaCodeGenerator();
     }
 
+    private java.util.Map<String, com.github.relua.model.LineRange> chunkLineRanges = new java.util.HashMap<>();
+
+    public java.util.Map<String, com.github.relua.model.LineRange> getChunkLineRanges() {
+        return chunkLineRanges;
+    }
+
     /**
      * 反编译Luac文件
      * @param luacFile 解析后的Luac文件对象
@@ -45,14 +51,51 @@ public class Decompiler {
         Chunk mainChunk = luacFile.getMainChunk();
         Logger.debug(mainChunk.toString());
         
-        
         // 生成Lua代码
         if (showBytecode) {
             return generateBytecode(mainChunk);
         } else {
             this.codeGenerator = new LuaCodeGenerator(mainChunk);
-            return codeGenerator.generate(mainChunk, null);
+            String rawCode = codeGenerator.generate(mainChunk, null);
+            return processChunkMarkers(rawCode);
         }
+    }
+
+    private String processChunkMarkers(String rawCode) {
+        chunkLineRanges.clear();
+        StringBuilder cleanCode = new StringBuilder();
+        String[] lines = rawCode.split("\\r?\\n", -1);
+        
+        java.util.Map<String, Integer> startLines = new java.util.HashMap<>();
+        int cleanLineCount = 0;
+        
+        for (String line : lines) {
+            if (line.contains("--[=[RELUA_CHUNK_START:")) {
+                int startIdx = line.indexOf("--[=[RELUA_CHUNK_START:") + "--[=[RELUA_CHUNK_START:".length();
+                int endIdx = line.indexOf("]=]", startIdx);
+                if (startIdx != -1 && endIdx != -1) {
+                    String chunkName = line.substring(startIdx, endIdx);
+                    startLines.put(chunkName, Math.max(1, cleanLineCount));
+                }
+            } else if (line.contains("--[=[RELUA_CHUNK_END:")) {
+                int startIdx = line.indexOf("--[=[RELUA_CHUNK_END:") + "--[=[RELUA_CHUNK_END:".length();
+                int endIdx = line.indexOf("]=]", startIdx);
+                if (startIdx != -1 && endIdx != -1) {
+                    String chunkName = line.substring(startIdx, endIdx);
+                    int startLine = startLines.getOrDefault(chunkName, 1);
+                    chunkLineRanges.put(chunkName, new com.github.relua.model.LineRange(startLine, cleanLineCount + 1));
+                }
+            } else {
+                cleanCode.append(line).append("\n");
+                cleanLineCount++;
+            }
+        }
+        
+        if (cleanCode.length() > 0) {
+            cleanCode.setLength(cleanCode.length() - 1);
+        }
+        
+        return cleanCode.toString();
     }
     
     /**

@@ -118,7 +118,7 @@ public class ControlFlowGraphBuilder {
             BasicBlock currentBlock) {
         Instruction jmp = instructions.get(i + 1); // guaranteed JMP in TEST+JMP pattern
 
-        int jmpTarget = i + 1 + jmp.getSBx();
+        int jmpTarget = i + 2 + jmp.getSBx(); // (i + 1) + 1 + jmp.getSBx()
 
         // TEST true → PC + 2 (进入 then)
         int thenTarget = i + 2;

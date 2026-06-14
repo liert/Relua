@@ -171,6 +171,10 @@ public class MainController {
     private ViewMenuHandler viewMenuHandler;
     private HelpMenuHandler helpMenuHandler;
     
+    // 自动同步视图相关的状态缓存
+    private Chunk currentDisplayedChunk = null;
+    private LuacFile lastLoadedLuacFile = null;
+    
     /**
      * 初始化方法，在FXML加载完成后调用
      */
@@ -245,6 +249,11 @@ public class MainController {
         // 设置文件树的文件打开回调
         fileTreeView.setOnFileOpenCallback(fileNode -> {
             fileMenuHandler.openFile(fileNode.getFile());
+        });
+        
+        // 注册编辑器光标位置监听器，实现CFG/AST视图的自动同步
+        textEditorView.getCodeArea().caretPositionProperty().addListener((obs, oldVal, newVal) -> {
+            handleCaretPositionChanged();
         });
     }
     
@@ -402,11 +411,8 @@ public class MainController {
             graphContainer.setVisible(true);
         }
         
-        // 根据子视图类型更新标题
-        updateSubViewTitle(subViewType);
-        
-        // 执行视图转换（在后台线程中）
-        executeSubViewConversion(subViewType);
+        // 强制根据当前光标位置渲染对应的 Chunk
+        handleCaretPositionChanged(true);
     }
     
     /**
@@ -424,30 +430,34 @@ public class MainController {
      * @param subViewType 子视图类型
      */
     private void updateSubViewTitle(SubViewType subViewType) {
+        String funcName = (currentDisplayedChunk != null) ? currentDisplayedChunk.getFunction() : "";
+        String titleSuffix = funcName.isEmpty() ? "" : " - [" + funcName + "]";
         switch (subViewType) {
             case BYTECODE:
-                astGraphLabel.setText("字节码视图");
+                astGraphLabel.setText("字节码视图" + titleSuffix);
                 break;
             case AST:
-                astGraphLabel.setText("AST视图");
+                astGraphLabel.setText("AST视图" + titleSuffix);
                 break;
             case CFG:
-                astGraphLabel.setText("CFG视图");
+                astGraphLabel.setText("CFG视图" + titleSuffix);
                 break;
             default:
-                astGraphLabel.setText("子视图");
+                astGraphLabel.setText("子视图" + titleSuffix);
         }
     }
     
     /**
-     * 执行子视图转换（在后台线程中）
+     * 执行子视图转换（针对特定代码块，在后台线程中）
      * @param subViewType 子视图类型
+     * @param chunk 目标代码块
      */
-    private void executeSubViewConversion(SubViewType subViewType) {
-        // 获取当前打开的LuacFile
+    private void executeSubViewConversionForChunk(SubViewType subViewType, Chunk chunk) {
+        if (chunk == null) {
+            return;
+        }
         LuacFile luacFile = fileMenuHandler.getCurrentLuacFile();
         if (luacFile == null) {
-            updateStatus("请先打开一个文件");
             return;
         }
         
@@ -455,25 +465,26 @@ public class MainController {
         javafx.concurrent.Task<Void> task = new javafx.concurrent.Task<Void>() {
             @Override
             protected Void call() throws Exception {
-                // 更新状态信息
                 updateMessage("正在生成" + getSubViewName(subViewType) + "...");
                 
-                // 根据子视图类型执行转换
                 switch (subViewType) {
                     case BYTECODE:
-                        // 字节码视图处理逻辑
                         updateMessage("正在生成字节码视图...");
-                        generateBytecodeView(luacFile);
+                        javafx.application.Platform.runLater(() -> {
+                            generateBytecodeView(luacFile);
+                        });
                         break;
                     case AST:
-                        // AST视图处理逻辑
                         updateMessage("正在生成AST视图...");
-                        astGraphConverter.convertToGraph(luacFile);
+                        javafx.application.Platform.runLater(() -> {
+                            astGraphConverter.convertToGraph(chunk);
+                        });
                         break;
                     case CFG:
-                        // CFG视图处理逻辑
                         updateMessage("正在生成CFG视图...");
-                        cfgGraphConverter.convertToGraph(luacFile);
+                        javafx.application.Platform.runLater(() -> {
+                            cfgGraphConverter.convertToGraph(chunk);
+                        });
                         break;
                 }
                 
@@ -491,10 +502,8 @@ public class MainController {
             }
         };
         
-        // 绑定状态信息
         task.messageProperty().addListener((obs, oldMsg, newMsg) -> updateStatus(newMsg));
         
-        // 启动任务线程
         Thread thread = new Thread(task);
         thread.setDaemon(true);
         thread.start();
@@ -640,5 +649,80 @@ public class MainController {
     @FXML
     private void handleAbout(ActionEvent event) {
         helpMenuHandler.handleAbout(event);
+    }
+
+    private void handleCaretPositionChanged() {
+        handleCaretPositionChanged(false);
+    }
+
+    private void handleCaretPositionChanged(boolean force) {
+        LuacFile luacFile = fileMenuHandler.getCurrentLuacFile();
+        if (luacFile == null) {
+            currentDisplayedChunk = null;
+            lastLoadedLuacFile = null;
+            return;
+        }
+
+        if (luacFile != lastLoadedLuacFile) {
+            lastLoadedLuacFile = luacFile;
+            currentDisplayedChunk = null;
+            force = true;
+        }
+
+        // 获取当前光标所在的行号（1-based）
+        int currentLine = textEditorView.getCodeArea().getCurrentParagraph() + 1;
+
+        // 根据行号寻找匹配的最深层 Chunk
+        Chunk targetChunk = findTargetChunkForLine(luacFile.getMainChunk(), currentLine);
+
+        if (targetChunk != null && (targetChunk != currentDisplayedChunk || force)) {
+            currentDisplayedChunk = targetChunk;
+
+            // 如果图形可视化视图处于显示状态，则执行更新
+            if (graphContainer.isVisible()) {
+                updateSubViewTitle(currentSubViewType);
+                executeSubViewConversionForChunk(currentSubViewType, targetChunk);
+            }
+        }
+    }
+
+    private Chunk findTargetChunkForLine(Chunk mainChunk, int line) {
+        java.util.Map<String, com.github.relua.model.LineRange> ranges = fileMenuHandler.getChunkLineRanges();
+        if (ranges == null || ranges.isEmpty()) {
+            return mainChunk;
+        }
+
+        String bestChunkName = "main";
+        int minLength = Integer.MAX_VALUE;
+
+        for (java.util.Map.Entry<String, com.github.relua.model.LineRange> entry : ranges.entrySet()) {
+            com.github.relua.model.LineRange range = entry.getValue();
+            if (line >= range.startLine && line <= range.endLine) {
+                int length = range.endLine - range.startLine;
+                if (length < minLength) {
+                    minLength = length;
+                    bestChunkName = entry.getKey();
+                }
+            }
+        }
+
+        Chunk targetChunk = findChunkByName(mainChunk, bestChunkName);
+        return targetChunk != null ? targetChunk : mainChunk;
+    }
+
+    private Chunk findChunkByName(Chunk current, String targetName) {
+        if (current == null) {
+            return null;
+        }
+        if (targetName.equals(current.getFunction())) {
+            return current;
+        }
+        for (Chunk sub : current.getSubChunks()) {
+            Chunk found = findChunkByName(sub, targetName);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
     }
 }

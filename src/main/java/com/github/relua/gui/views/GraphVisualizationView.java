@@ -60,8 +60,8 @@ public class GraphVisualizationView {
     private static final int VERTICAL_SPACING = 120;
     
     // 字体设置
-    private static final Font NODE_FONT = Font.font(10);
-    private static final double LINE_HEIGHT = 12;
+    private static final Font NODE_FONT = Font.font("Consolas", 11);
+    private static final double LINE_HEIGHT = 15;
     
     // 节点类型枚举
     public enum NodeType {
@@ -291,39 +291,53 @@ public class GraphVisualizationView {
      */
     private void drawGraphContent() {
         // 绘制边
-        gc.setStroke(Color.BLACK);
-        gc.setLineWidth(1.0);
         for (EdgeData edge : edges) {
             NodeData sourceNode = nodes.get(edge.sourceIndex);
             NodeData targetNode = nodes.get(edge.targetIndex);
             
-            // 计算边的起点和终点（节点中心）
-            double startX = sourceNode.x + sourceNode.width / 2;
-            double startY = sourceNode.y + sourceNode.height / 2;
-            double endX = targetNode.x + targetNode.width / 2;
-            double endY = targetNode.y + targetNode.height / 2;
+            // 计算正交连线的起点（底端中点）和终点（顶端中点）
+            double startX = sourceNode.x + sourceNode.width / 2.0;
+            double startY = sourceNode.y + sourceNode.height;
+            double endX = targetNode.x + targetNode.width / 2.0;
+            double endY = targetNode.y;
             
-            // 绘制边
-            gc.strokeLine(startX, startY, endX, endY);
+            gc.setStroke(Color.BLACK);
+            gc.setLineWidth(1.5);
             
-            // 绘制箭头 - 直接在当前绘图状态下执行，不使用额外的save/restore
-            double arrowSize = 8 / currentScale;
-            double angle = Math.atan2(endY - startY, endX - startX);
+            if (startY < endY) {
+                // 正向边：使用折线在两层正中间进行水平折线
+                double midY = startY + (endY - startY) / 2.0;
+                
+                gc.beginPath();
+                gc.moveTo(startX, startY);
+                gc.lineTo(startX, midY);
+                gc.lineTo(endX, midY);
+                gc.lineTo(endX, endY);
+                gc.stroke();
+            } else {
+                // 反向边/回边：偏向外侧进行正交绕行，避免穿过节点
+                double leftEdge = Math.min(sourceNode.x, targetNode.x);
+                double rightEdge = Math.max(sourceNode.x + sourceNode.width, targetNode.x + targetNode.width);
+                
+                double detourX;
+                if (endX < startX) {
+                    detourX = leftEdge - 30.0; // 偏左绕行
+                } else {
+                    detourX = rightEdge + 30.0; // 偏右绕行
+                }
+                
+                gc.beginPath();
+                gc.moveTo(startX, startY);
+                gc.lineTo(startX, startY + 15.0);
+                gc.lineTo(detourX, startY + 15.0);
+                gc.lineTo(detourX, endY - 15.0);
+                gc.lineTo(endX, endY - 15.0);
+                gc.lineTo(endX, endY);
+                gc.stroke();
+            }
             
-            // 计算箭头的三个点
-            double arrowX2 = endX - arrowSize * Math.cos(angle - Math.PI / 6);
-            double arrowY2 = endY - arrowSize * Math.sin(angle - Math.PI / 6);
-            
-            double arrowX3 = endX - arrowSize * Math.cos(angle + Math.PI / 6);
-            double arrowY3 = endY - arrowSize * Math.sin(angle + Math.PI / 6);
-            
-            // 绘制箭头三角形
-            gc.setFill(Color.BLACK);
-            gc.fillPolygon(
-                new double[]{endX, arrowX2, arrowX3},
-                new double[]{endY, arrowY2, arrowY3},
-                3
-            );
+            // 绘制正交箭头的指向（始终向下垂直进入）
+            drawDownwardArrow(endX, endY);
         }
         
         // 绘制节点
@@ -362,12 +376,19 @@ public class GraphVisualizationView {
             double startY = node.y + NODE_PADDING + LINE_HEIGHT;
             
             // 绘制每行文本
-            for (String line : lines) {
-                // 计算每行文本的水平居中位置
-                Text text = new Text(line);
-                text.setFont(NODE_FONT);
-                double textWidth = text.getBoundsInLocal().getWidth();
-                double textX = node.x + (node.width - textWidth) / 2;
+            for (int lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+                String line = lines[lineIdx];
+                double textX;
+                if (lineIdx < 2 || line.trim().isEmpty()) {
+                    // 居中绘制前两行（如 BB0 和 [0-1]）以及空行
+                    Text text = new Text(line);
+                    text.setFont(NODE_FONT);
+                    double textWidth = text.getBoundsInLocal().getWidth();
+                    textX = node.x + (node.width - textWidth) / 2.0;
+                } else {
+                    // 左对齐绘制指令和语义注释
+                    textX = node.x + NODE_PADDING;
+                }
                 
                 gc.fillText(line, textX, startY);
                 startY += LINE_HEIGHT;
@@ -508,6 +529,10 @@ public class GraphVisualizationView {
             // 查找所有后继节点
             List<Integer> successors = getSuccessors(currentNode);
             for (int successor : successors) {
+                // 忽略回边以符合顺序流，并防止有向循环图导致无限入队
+                if (successor <= currentNode) {
+                    continue;
+                }
                 int successorLevel = nodeLevels.get(successor);
                 // 如果后继节点未访问，或者可以通过当前路径获得更高的层级
                 if (successorLevel == -1 || successorLevel < currentLevel + 1) {
@@ -549,37 +574,18 @@ public class GraphVisualizationView {
     }
     
     /**
-     * 绘制箭头
-     * @param startX 边的起点X坐标
-     * @param startY 边的起点Y坐标
-     * @param endX 边的终点X坐标
-     * @param endY 边的终点Y坐标
+     * 绘制向下箭头（正交连线专用）
+     * @param x 箭头的顶点X坐标
+     * @param y 箭头的顶点Y坐标
      */
-    private void drawArrow(double startX, double startY, double endX, double endY) {
-        // 箭头大小
-        double arrowSize = 8;
-        
-        // 计算边的角度
-        double angle = Math.atan2(endY - startY, endX - startX);
-        
-        // 计算箭头的三个点
-        double arrowX1 = endX - arrowSize * Math.cos(angle);
-        double arrowY1 = endY - arrowSize * Math.sin(angle);
-        
-        double arrowX2 = endX - arrowSize * Math.cos(angle - Math.PI / 6);
-        double arrowY2 = endY - arrowSize * Math.sin(angle - Math.PI / 6);
-        
-        double arrowX3 = endX - arrowSize * Math.cos(angle + Math.PI / 6);
-        double arrowY3 = endY - arrowSize * Math.sin(angle + Math.PI / 6);
-        
-        // 绘制箭头三角形
+    private void drawDownwardArrow(double x, double y) {
+        double arrowSize = 6.0;
         gc.setFill(Color.BLACK);
         gc.fillPolygon(
-            new double[]{endX, arrowX2, arrowX3},
-            new double[]{endY, arrowY2, arrowY3},
+            new double[]{x, x - arrowSize, x + arrowSize},
+            new double[]{y, y - arrowSize, y - arrowSize},
             3
         );
-        gc.setFill(Color.WHITE); // 重置填充颜色，避免影响后续绘制
     }
     
     /**

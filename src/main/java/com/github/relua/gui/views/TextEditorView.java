@@ -104,6 +104,14 @@ public class TextEditorView {
     }
     
     /**
+     * 获取RichTextFX的CodeArea组件
+     * @return CodeArea组件
+     */
+    public org.fxmisc.richtext.CodeArea getCodeArea() {
+        return codeArea;
+    }
+    
+    /**
      * 设置文本内容
      * @param text 文本内容
      */

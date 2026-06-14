@@ -30,6 +30,7 @@ public class FileMenuHandler {
     private FileTreeView fileTreeView;
     private File currentFile;
     private LuacFile currentLuacFile;
+    private java.util.Map<String, com.github.relua.model.LineRange> chunkLineRanges = new java.util.HashMap<>();
 
     /**
      * 构造函数
@@ -106,6 +107,7 @@ public class FileMenuHandler {
                 // 反编译
                 updateStatus("Decompiling...");
                 String luaCode = decompiler.decompile(luacFile, false);
+                this.chunkLineRanges = decompiler.getChunkLineRanges();
 
                 // 显示反编译结果
                 textEditorView.setText(luaCode);
@@ -217,5 +219,13 @@ public class FileMenuHandler {
      */
     public LuacFile getCurrentLuacFile() {
         return currentLuacFile;
+    }
+
+    /**
+     * 获取各个Chunk对应的代码行区间映射
+     * @return 代码行区间映射
+     */
+    public java.util.Map<String, com.github.relua.model.LineRange> getChunkLineRanges() {
+        return chunkLineRanges;
     }
 }

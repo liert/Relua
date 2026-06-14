@@ -343,7 +343,13 @@ public class AstPrinter implements AstVisitor<String> {
         }
         sb.append(")\n");
         indent();
+        if (node.getChunk() != null) {
+            sb.append(getIndent()).append("--[=[RELUA_CHUNK_START:").append(node.getChunk().getFunction()).append("]=]\n");
+        }
         sb.append(node.body.accept(this));
+        if (node.getChunk() != null) {
+            sb.append(getIndent()).append("--[=[RELUA_CHUNK_END:").append(node.getChunk().getFunction()).append("]=]\n");
+        }
         dedent();
         sb.append("end\n");
         return sb.toString();
