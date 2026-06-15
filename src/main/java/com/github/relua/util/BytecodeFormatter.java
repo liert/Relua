@@ -287,16 +287,16 @@ public class BytecodeFormatter {
                 sb.append(String.format("goto %d", index + 1 + sbx));
                 break;
             case EQ:
-                sb.append(String.format("if %s == %s then goto %d", rkToString(chunk, b), rkToString(chunk, c), getJumpTargetForRelation(chunk, index)));
+                sb.append(String.format("if %s %s %s then goto %d", rkToString(chunk, b), (a == 0 ? "~=" : "=="), rkToString(chunk, c), getJumpTargetForRelation(chunk, index)));
                 break;
             case LT:
-                sb.append(String.format("if %s < %s then goto %d", rkToString(chunk, b), rkToString(chunk, c), getJumpTargetForRelation(chunk, index)));
+                sb.append(String.format("if %s %s %s then goto %d", rkToString(chunk, b), (a == 0 ? ">=" : "<"), rkToString(chunk, c), getJumpTargetForRelation(chunk, index)));
                 break;
             case LE:
-                sb.append(String.format("if %s <= %s then goto %d", rkToString(chunk, b), rkToString(chunk, c), getJumpTargetForRelation(chunk, index)));
+                sb.append(String.format("if %s %s %s then goto %d", rkToString(chunk, b), (a == 0 ? ">" : "<="), rkToString(chunk, c), getJumpTargetForRelation(chunk, index)));
                 break;
             case TEST:
-                sb.append(String.format("if %sR%d then goto %d", (c == 0 ? "" : "not "), a, getJumpTargetForRelation(chunk, index)));
+                sb.append(String.format("if %sR%d then goto %d", (c == 0 ? "not " : ""), a, getJumpTargetForRelation(chunk, index)));
                 break;
             case TESTSET:
                 sb.append(String.format("if %sR%d then R%d := R%d; goto %d", (c == 0 ? "not " : ""), b, a, b, getJumpTargetForRelation(chunk, index)));

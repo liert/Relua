@@ -413,10 +413,10 @@
 -- pc=14 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
 
 -- Register Operations:
-   0: TEST	R0 0                    ; if R0 then goto 11
+   0: TEST	R0 0                    ; if not R0 then goto 11
    1: JMP	9                        ; goto 11
    2: LEN	R1 R0                    ; R1 := #R0
-   3: LE	0 K0 R1                   ; if 40 <= R1 then goto 11
+   3: LE	0 K0 R1                   ; if 40 > R1 then goto 11
    4: JMP	6                        ; goto 11
    5: SELF	R1 R0 K1                ; R2 := R0; R1 := R0["match"]
    6: LOADK	R3 K2                  ; R3 := "^[a-fA-F0-9]+$"
@@ -465,7 +465,7 @@
    9: CALL	R0 3 1                  ; R0(R1, R2)
   10: GETGLOBAL	R0 K2              ; R0 := sane
   11: CALL	R0 1 2                  ; R0 := R0()
-  12: TEST	R0 1                    ; if not R0 then goto 17
+  12: TEST	R0 1                    ; if R0 then goto 17
   13: JMP	3                        ; goto 17
   14: GETGLOBAL	R0 K3              ; R0 := error
   15: LOADK	R1 K4                  ; R1 := "Security Exception: Nonce path is not sane!"
@@ -525,7 +525,7 @@
   10: GETUPVAL	R3 1                ; R3 := UpValue[1]
   11: LOADK	R4 K4                  ; R4 := "uid"
   12: CALL	R2 3 2                  ; R2 := R2(R3, R4)
-  13: EQ	0 R1 R2                   ; if R1 == R2 then goto 30
+  13: EQ	0 R1 R2                   ; if R1 ~= R2 then goto 30
   14: JMP	15                       ; goto 30
   15: GETUPVAL	R1 0                ; R1 := UpValue[0]
   16: GETTABLE	R1 R1 K5            ; R1 := R1["stat"]
@@ -534,10 +534,10 @@
   19: GETUPVAL	R2 1                ; R2 := UpValue[1]
   20: LOADK	R3 K6                  ; R3 := "modestr"
   21: CALL	R1 3 2                  ; R1 := R1(R2, R3)
-  22: TEST	R0 0                    ; if R0 then goto 27
+  22: TEST	R0 0                    ; if not R0 then goto 27
   23: JMP	3                        ; goto 27
   24: LOADK	R2 K7                  ; R2 := "rw-------"
-  25: TEST	R2 1                    ; if not R2 then goto 28
+  25: TEST	R2 1                    ; if R2 then goto 28
   26: JMP	1                        ; goto 28
   27: LOADK	R2 K8                  ; R2 := "rwx------"
   28: EQ	1 R1 R2                   ; if R1 == R2 then goto 31
@@ -597,12 +597,12 @@
 -- pc=43 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
 
 -- Register Operations:
-   0: TEST	R0 0                    ; if R0 then goto 7
+   0: TEST	R0 0                    ; if not R0 then goto 7
    1: JMP	5                        ; goto 7
    2: GETGLOBAL	R1 K0              ; R1 := checkid
    3: MOVE	R2 R0                   ; R2 := R0
    4: CALL	R1 2 2                  ; R1 := R1(R2)
-   5: TEST	R1 1                    ; if not R1 then goto 9
+   5: TEST	R1 1                    ; if R1 then goto 9
    6: JMP	2                        ; goto 9
    7: LOADNIL	R1 R1                ; R1 := nil
    8: RETURN	R1 2                  ; return R1
@@ -612,7 +612,7 @@
   12: MOVE	R4 R0                   ; R4 := R0
   13: CONCAT	R2 R2 R4              ; R2 := R2 .. R4
   14: CALL	R1 2 2                  ; R1 := R1(R2)
-  15: TEST	R1 1                    ; if not R1 then goto 19
+  15: TEST	R1 1                    ; if R1 then goto 19
   16: JMP	2                        ; goto 19
   17: LOADNIL	R1 R1                ; R1 := nil
   18: RETURN	R1 2                  ; return R1
@@ -688,14 +688,14 @@
 -- Register Operations:
    0: GETGLOBAL	R2 K0              ; R2 := sane
    1: CALL	R2 1 2                  ; R2 := R2()
-   2: TEST	R2 1                    ; if not R2 then goto 6
+   2: TEST	R2 1                    ; if R2 then goto 6
    3: JMP	2                        ; goto 6
    4: GETGLOBAL	R2 K1              ; R2 := prepare
    5: CALL	R2 1 1                  ; R2()
    6: GETGLOBAL	R2 K2              ; R2 := checkid
    7: MOVE	R3 R0                   ; R3 := R0
    8: CALL	R2 2 2                  ; R2 := R2(R3)
-   9: TEST	R2 0                    ; if R2 then goto 16
+   9: TEST	R2 0                    ; if not R2 then goto 16
   10: JMP	5                        ; goto 16
   11: GETGLOBAL	R2 K3              ; R2 := type
   12: MOVE	R3 R1                   ; R3 := R1
@@ -769,19 +769,19 @@
    1: GETTABLE	R1 R1 K0            ; R1 := R1["isStrNil"]
    2: MOVE	R2 R0                   ; R2 := R0
    3: CALL	R1 2 2                  ; R1 := R1(R2)
-   4: TEST	R1 0                    ; if R1 then goto 7
+   4: TEST	R1 0                    ; if not R1 then goto 7
    5: JMP	1                        ; goto 7
    6: RETURN	R0 2                  ; return R0
    7: GETGLOBAL	R1 K1              ; R1 := type
    8: MOVE	R2 R0                   ; R2 := R0
    9: CALL	R1 2 2                  ; R1 := R1(R2)
-  10: EQ	0 R1 K2                   ; if R1 == "string" then goto 32
+  10: EQ	0 R1 K2                   ; if R1 ~= "string" then goto 32
   11: JMP	20                       ; goto 32
   12: GETUPVAL	R1 1                ; R1 := UpValue[1]
   13: SELF	R1 R1 K3                ; R2 := R1; R1 := R1["filter"]
   14: MOVE	R3 R0                   ; R3 := R0
   15: CALL	R1 3 3                  ; R1, R2 := R1(R2, R3)
-  16: TEST	R1 0                    ; if R1 then goto 20
+  16: TEST	R1 0                    ; if not R1 then goto 20
   17: JMP	2                        ; goto 20
   18: RETURN	R1 2                  ; return R1
   19: JMP	13                       ; goto 33
@@ -900,7 +900,7 @@
    1: GETTABLE	R1 R1 K0            ; R1 := R1["isStrNil"]
    2: MOVE	R2 R0                   ; R2 := R0
    3: CALL	R1 2 2                  ; R1 := R1(R2)
-   4: TEST	R1 0                    ; if R1 then goto 8
+   4: TEST	R1 0                    ; if not R1 then goto 8
    5: JMP	2                        ; goto 8
    6: LOADBOOL	R1 0 0              ; R1 := false
    7: RETURN	R1 2                  ; return R1
@@ -913,12 +913,12 @@
   14: GETTABLE	R3 R2 K4            ; R3 := R2["read"]
   15: MOVE	R4 R0                   ; R4 := R0
   16: CALL	R3 2 2                  ; R3 := R3(R4)
-  17: TEST	R3 0                    ; if R3 then goto 40
+  17: TEST	R3 0                    ; if not R3 then goto 40
   18: JMP	21                       ; goto 40
   19: GETGLOBAL	R4 K5              ; R4 := type
   20: MOVE	R5 R3                   ; R5 := R3
   21: CALL	R4 2 2                  ; R4 := R4(R5)
-  22: EQ	0 R4 K6                   ; if R4 == "table" then goto 40
+  22: EQ	0 R4 K6                   ; if R4 ~= "table" then goto 40
   23: JMP	16                       ; goto 40
   24: GETTABLE	R4 R2 K7            ; R4 := R2["kill"]
   25: MOVE	R5 R0                   ; R5 := R0
@@ -927,7 +927,7 @@
   28: CALL	R4 1 2                  ; R4 := R4()
   29: GETTABLE	R5 R3 K9            ; R5 := R3["atime"]
   30: SUB	R5 R4 R5                 ; R5 := R4 - R5
-  31: LT	0 K10 R5                  ; if 10 < R5 then goto 36
+  31: LT	0 K10 R5                  ; if 10 >= R5 then goto 36
   32: JMP	3                        ; goto 36
   33: LOADBOOL	R5 0 0              ; R5 := false
   34: RETURN	R5 2                  ; return R5
@@ -1003,7 +1003,7 @@
    1: GETTABLE	R1 R1 K0            ; R1 := R1["isStrNil"]
    2: MOVE	R2 R0                   ; R2 := R0
    3: CALL	R1 2 2                  ; R1 := R1(R2)
-   4: TEST	R1 0                    ; if R1 then goto 8
+   4: TEST	R1 0                    ; if not R1 then goto 8
    5: JMP	2                        ; goto 8
    6: LOADK	R1 K1                  ; R1 := ""
    7: RETURN	R1 2                  ; return R1
@@ -1147,22 +1147,22 @@
    1: GETTABLE	R3 R3 K0            ; R3 := R3["isStrNil"]
    2: MOVE	R4 R1                   ; R4 := R1
    3: CALL	R3 2 2                  ; R3 := R3(R4)
-   4: TEST	R3 1                    ; if not R3 then goto 21
+   4: TEST	R3 1                    ; if R3 then goto 21
    5: JMP	15                       ; goto 21
    6: SELF	R3 R1 K1                ; R4 := R1; R3 := R1["match"]
    7: LOADK	R5 K2                  ; R5 := """
    8: CALL	R3 3 2                  ; R3 := R3(R4, R5)
-   9: TEST	R3 1                    ; if not R3 then goto 21
+   9: TEST	R3 1                    ; if R3 then goto 21
   10: JMP	10                       ; goto 21
   11: SELF	R3 R1 K1                ; R4 := R1; R3 := R1["match"]
   12: LOADK	R5 K3                  ; R5 := " "
   13: CALL	R3 3 2                  ; R3 := R3(R4, R5)
-  14: TEST	R3 1                    ; if not R3 then goto 21
+  14: TEST	R3 1                    ; if R3 then goto 21
   15: JMP	5                        ; goto 21
   16: SELF	R3 R1 K1                ; R4 := R1; R3 := R1["match"]
   17: LOADK	R5 K4                  ; R5 := "'"
   18: CALL	R3 3 2                  ; R3 := R3(R4, R5)
-  19: TEST	R3 0                    ; if R3 then goto 23
+  19: TEST	R3 0                    ; if not R3 then goto 23
   20: JMP	2                        ; goto 23
   21: LOADNIL	R3 R3                ; R3 := nil
   22: RETURN	R3 2                  ; return R3
@@ -1193,7 +1193,7 @@
   47: LOADK	R8 K13                 ; R8 := "> /dev/null"
   48: CONCAT	R7 R7 R8              ; R7 := R7 .. R8
   49: CALL	R6 2 2                  ; R6 := R6(R7)
-  50: EQ	0 R6 K14                  ; if R6 == 0 then goto 63
+  50: EQ	0 R6 K14                  ; if R6 ~= 0 then goto 63
   51: JMP	11                       ; goto 63
   52: GETGLOBAL	R6 K15             ; R6 := luci
   53: GETTABLE	R6 R6 K16           ; R6 := R6["util"]
@@ -1212,7 +1212,7 @@
   66: LOADK	R8 K13                 ; R8 := "> /dev/null"
   67: CONCAT	R7 R7 R8              ; R7 := R7 .. R8
   68: CALL	R6 2 2                  ; R6 := R6(R7)
-  69: EQ	0 R6 K14                  ; if R6 == 0 then goto 81
+  69: EQ	0 R6 K14                  ; if R6 ~= 0 then goto 81
   70: JMP	10                       ; goto 81
   71: GETGLOBAL	R6 K15             ; R6 := luci
   72: GETTABLE	R6 R6 K16           ; R6 := R6["util"]
@@ -1311,13 +1311,13 @@
    1: GETTABLE	R2 R2 K0            ; R2 := R2["isStrNil"]
    2: MOVE	R3 R0                   ; R3 := R0
    3: CALL	R2 2 2                  ; R2 := R2(R3)
-   4: TEST	R2 1                    ; if not R2 then goto 12
+   4: TEST	R2 1                    ; if R2 then goto 12
    5: JMP	6                        ; goto 12
    6: GETUPVAL	R2 0                ; R2 := UpValue[0]
    7: GETTABLE	R2 R2 K0            ; R2 := R2["isStrNil"]
    8: MOVE	R3 R1                   ; R3 := R1
    9: CALL	R2 2 2                  ; R2 := R2(R3)
-  10: TEST	R2 0                    ; if R2 then goto 14
+  10: TEST	R2 0                    ; if not R2 then goto 14
   11: JMP	2                        ; goto 14
   12: LOADBOOL	R2 0 0              ; R2 := false
   13: RETURN	R2 2                  ; return R2
@@ -1336,7 +1336,7 @@
   26: CALL	R8 2 2                  ; R8 := R8(R9)
   27: CONCAT	R7 R7 R8              ; R7 := R7 .. R8
   28: CALL	R5 3 1                  ; R5(R6, R7)
-  29: EQ	0 R3 K8                   ; if R3 == 1 then goto 53
+  29: EQ	0 R3 K8                   ; if R3 ~= 1 then goto 53
   30: JMP	22                       ; goto 53
   31: GETUPVAL	R5 2                ; R5 := UpValue[2]
   32: GETTABLE	R5 R5 K9            ; R5 := R5["sha1"]
@@ -1454,13 +1454,13 @@
    1: GETTABLE	R2 R2 K0            ; R2 := R2["isStrNil"]
    2: MOVE	R3 R0                   ; R3 := R0
    3: CALL	R2 2 2                  ; R2 := R2(R3)
-   4: TEST	R2 1                    ; if not R2 then goto 12
+   4: TEST	R2 1                    ; if R2 then goto 12
    5: JMP	6                        ; goto 12
    6: GETUPVAL	R2 0                ; R2 := UpValue[0]
    7: GETTABLE	R2 R2 K0            ; R2 := R2["isStrNil"]
    8: MOVE	R3 R1                   ; R3 := R1
    9: CALL	R2 2 2                  ; R2 := R2(R3)
-  10: TEST	R2 0                    ; if R2 then goto 14
+  10: TEST	R2 0                    ; if not R2 then goto 14
   11: JMP	2                        ; goto 14
   12: LOADBOOL	R2 0 0              ; R2 := false
   13: RETURN	R2 2                  ; return R2
@@ -1480,7 +1480,7 @@
   27: GETUPVAL	R7 2                ; R7 := UpValue[2]
   28: CONCAT	R6 R6 R7              ; R6 := R6 .. R7
   29: CALL	R5 2 2                  ; R5 := R5(R6)
-  30: EQ	0 R4 K7                   ; if R4 == 1 then goto 51
+  30: EQ	0 R4 K7                   ; if R4 ~= 1 then goto 51
   31: JMP	19                       ; goto 51
   32: GETUPVAL	R6 1                ; R6 := UpValue[1]
   33: GETTABLE	R6 R6 K8            ; R6 := R6["sha256"]
@@ -1555,13 +1555,13 @@
    1: GETTABLE	R2 R2 K0            ; R2 := R2["isStrNil"]
    2: MOVE	R3 R0                   ; R3 := R0
    3: CALL	R2 2 2                  ; R2 := R2(R3)
-   4: TEST	R2 1                    ; if not R2 then goto 12
+   4: TEST	R2 1                    ; if R2 then goto 12
    5: JMP	6                        ; goto 12
    6: GETUPVAL	R2 0                ; R2 := UpValue[0]
    7: GETTABLE	R2 R2 K0            ; R2 := R2["isStrNil"]
    8: MOVE	R3 R1                   ; R3 := R1
    9: CALL	R2 2 2                  ; R2 := R2(R3)
-  10: TEST	R2 0                    ; if R2 then goto 14
+  10: TEST	R2 0                    ; if not R2 then goto 14
   11: JMP	2                        ; goto 14
   12: LOADBOOL	R2 0 0              ; R2 := false
   13: RETURN	R2 2                  ; return R2
@@ -1569,7 +1569,7 @@
   15: MOVE	R3 R0                   ; R3 := R0
   16: MOVE	R4 R1                   ; R4 := R1
   17: CALL	R2 3 2                  ; R2 := R2(R3, R4)
-  18: TEST	R2 0                    ; if R2 then goto 28
+  18: TEST	R2 0                    ; if not R2 then goto 28
   19: JMP	8                        ; goto 28
   20: GETUPVAL	R3 1                ; R3 := UpValue[1]
   21: GETTABLE	R3 R3 K2            ; R3 := R3["set"]
@@ -1624,7 +1624,7 @@
    3: GETTABLE	R3 R2 K2            ; R3 := R2["isStrNil"]
    4: MOVE	R4 R1                   ; R4 := R1
    5: CALL	R3 2 2                  ; R3 := R3(R4)
-   6: TEST	R3 0                    ; if R3 then goto 10
+   6: TEST	R3 0                    ; if not R3 then goto 10
    7: JMP	2                        ; goto 10
    8: LOADBOOL	R3 1 0              ; R3 := true
    9: RETURN	R3 2                  ; return R3
@@ -1633,7 +1633,7 @@
   12: MOVE	R5 R1                   ; R5 := R1
   13: LOADK	R6 K4                  ; R6 := "legacy"
   14: CALL	R3 4 2                  ; R3 := R3(R4, R5, R6)
-  15: TEST	R3 0                    ; if R3 then goto 26
+  15: TEST	R3 0                    ; if not R3 then goto 26
   16: JMP	9                        ; goto 26
   17: GETUPVAL	R4 0                ; R4 := UpValue[0]
   18: GETTABLE	R4 R4 K5            ; R4 := R4["set_ext"]
@@ -1709,13 +1709,13 @@
    1: GETTABLE	R2 R2 K0            ; R2 := R2["isStrNil"]
    2: MOVE	R3 R0                   ; R3 := R0
    3: CALL	R2 2 2                  ; R2 := R2(R3)
-   4: TEST	R2 1                    ; if not R2 then goto 12
+   4: TEST	R2 1                    ; if R2 then goto 12
    5: JMP	6                        ; goto 12
    6: GETUPVAL	R2 0                ; R2 := UpValue[0]
    7: GETTABLE	R2 R2 K0            ; R2 := R2["isStrNil"]
    8: MOVE	R3 R1                   ; R3 := R1
    9: CALL	R2 2 2                  ; R2 := R2(R3)
-  10: TEST	R2 0                    ; if R2 then goto 14
+  10: TEST	R2 0                    ; if not R2 then goto 14
   11: JMP	2                        ; goto 14
   12: LOADBOOL	R2 0 0              ; R2 := false
   13: RETURN	R2 2                  ; return R2
@@ -1731,7 +1731,7 @@
   23: LOADK	R7 K6                  ; R7 := "account"
   24: CALL	R4 4 2                  ; R4 := R4(R5, R6, R7)
   25: LOADNIL	R5 R5                ; R5 := nil
-  26: EQ	0 R3 K7                   ; if R3 == 1 then goto 36
+  26: EQ	0 R3 K7                   ; if R3 ~= 1 then goto 36
   27: JMP	8                        ; goto 36
   28: GETUPVAL	R6 2                ; R6 := UpValue[2]
   29: GETTABLE	R6 R6 K8            ; R6 := R6["sha256"]
@@ -1748,7 +1748,7 @@
   40: CONCAT	R7 R7 R8              ; R7 := R7 .. R8
   41: CALL	R6 2 2                  ; R6 := R6(R7)
   42: MOVE	R5 R6                   ; R5 := R6
-  43: EQ	0 R4 R5                   ; if R4 == R5 then goto 48
+  43: EQ	0 R4 R5                   ; if R4 ~= R5 then goto 48
   44: JMP	3                        ; goto 48
   45: LOADBOOL	R6 1 0              ; R6 := true
   46: RETURN	R6 2                  ; return R6
@@ -1848,7 +1848,7 @@
    6: GETTABLE	R5 R5 K3            ; R5 := R5["isStrNil"]
    7: MOVE	R6 R0                   ; R6 := R0
    8: CALL	R5 2 2                  ; R5 := R5(R6)
-   9: TEST	R5 0                    ; if R5 then goto 13
+   9: TEST	R5 0                    ; if not R5 then goto 13
   10: JMP	2                        ; goto 13
   11: LOADBOOL	R5 0 0              ; R5 := false
   12: RETURN	R5 2                  ; return R5
@@ -1858,21 +1858,21 @@
   16: LOADNIL	R7 R7                ; R7 := nil
   17: LOADK	R8 K5                  ; R8 := "account"
   18: CALL	R5 4 2                  ; R5 := R5(R6, R7, R8)
-  19: TEST	R5 0                    ; if R5 then goto 56
+  19: TEST	R5 0                    ; if not R5 then goto 56
   20: JMP	35                       ; goto 56
   21: GETUPVAL	R6 0                ; R6 := UpValue[0]
   22: GETTABLE	R6 R6 K3            ; R6 := R6["isStrNil"]
   23: MOVE	R7 R2                   ; R7 := R2
   24: CALL	R6 2 2                  ; R6 := R6(R7)
-  25: TEST	R6 1                    ; if not R6 then goto 56
+  25: TEST	R6 1                    ; if R6 then goto 56
   26: JMP	29                       ; goto 56
   27: GETUPVAL	R6 0                ; R6 := UpValue[0]
   28: GETTABLE	R6 R6 K3            ; R6 := R6["isStrNil"]
   29: MOVE	R7 R1                   ; R7 := R1
   30: CALL	R6 2 2                  ; R6 := R6(R7)
-  31: TEST	R6 1                    ; if not R6 then goto 56
+  31: TEST	R6 1                    ; if R6 then goto 56
   32: JMP	23                       ; goto 56
-  33: EQ	0 R4 K6                   ; if R4 == 1 then goto 46
+  33: EQ	0 R4 K6                   ; if R4 ~= 1 then goto 46
   34: JMP	11                       ; goto 46
   35: GETUPVAL	R6 2                ; R6 := UpValue[2]
   36: GETTABLE	R6 R6 K7            ; R6 := R6["sha256"]
@@ -1880,7 +1880,7 @@
   38: MOVE	R8 R5                   ; R8 := R5
   39: CONCAT	R7 R7 R8              ; R7 := R7 .. R8
   40: CALL	R6 2 2                  ; R6 := R6(R7)
-  41: EQ	0 R6 R2                   ; if R6 == R2 then goto 56
+  41: EQ	0 R6 R2                   ; if R6 ~= R2 then goto 56
   42: JMP	13                       ; goto 56
   43: LOADBOOL	R6 1 0              ; R6 := true
   44: RETURN	R6 2                  ; return R6
@@ -1891,7 +1891,7 @@
   49: MOVE	R8 R5                   ; R8 := R5
   50: CONCAT	R7 R7 R8              ; R7 := R7 .. R8
   51: CALL	R6 2 2                  ; R6 := R6(R7)
-  52: EQ	0 R6 R2                   ; if R6 == R2 then goto 56
+  52: EQ	0 R6 R2                   ; if R6 ~= R2 then goto 56
   53: JMP	2                        ; goto 56
   54: LOADBOOL	R6 1 0              ; R6 := true
   55: RETURN	R6 2                  ; return R6
@@ -1903,7 +1903,7 @@
   61: GETTABLE	R8 R8 K13           ; R8 := R8["getenv"]
   62: LOADK	R9 K14                 ; R9 := "REMOTE_ADDR"
   63: CALL	R8 2 2                  ; R8 := R8(R9)
-  64: TEST	R8 1                    ; if not R8 then goto 67
+  64: TEST	R8 1                    ; if R8 then goto 67
   65: JMP	1                        ; goto 67
   66: LOADK	R8 K15                 ; R8 := ""
   67: LOADK	R9 K16                 ; R9 := " Authentication failed"
@@ -2081,9 +2081,9 @@
    6: GETGLOBAL	R4 K0              ; R4 := require
    7: LOADK	R5 K3                  ; R5 := "xiaoqiang.util.XQCryptoUtil"
    8: CALL	R4 2 2                  ; R4 := R4(R5)
-   9: TEST	R0 0                    ; if R0 then goto 147
+   9: TEST	R0 0                    ; if not R0 then goto 147
   10: JMP	136                      ; goto 147
-  11: TEST	R1 0                    ; if R1 then goto 147
+  11: TEST	R1 0                    ; if not R1 then goto 147
   12: JMP	134                      ; goto 147
   13: GETUPVAL	R5 0                ; R5 := UpValue[0]
   14: GETTABLE	R5 R5 K4            ; R5 := R5["macFormat"]
@@ -2117,9 +2117,9 @@
   42: GETGLOBAL	R8 K12             ; R8 := tonumber
   43: GETTABLE	R9 R5 K16           ; R9 := R5[3]
   44: CALL	R8 2 2                  ; R8 := R8(R9)
-  45: TEST	R6 0                    ; if R6 then goto 147
+  45: TEST	R6 0                    ; if not R6 then goto 147
   46: JMP	100                      ; goto 147
-  47: TEST	R7 0                    ; if R7 then goto 147
+  47: TEST	R7 0                    ; if not R7 then goto 147
   48: JMP	98                       ; goto 147
   49: GETGLOBAL	R9 K0              ; R9 := require
   50: LOADK	R10 K17                ; R10 := "xiaoqiang.util.XQSysUtil"
@@ -2127,7 +2127,7 @@
   52: GETTABLE	R10 R9 K18          ; R10 := R9["getEncryptMode"]
   53: CALL	R10 1 2                 ; R10 := R10()
   54: LOADNIL	R11 R11              ; R11 := nil
-  55: EQ	0 R10 K13                 ; if R10 == 1 then goto 64
+  55: EQ	0 R10 K13                 ; if R10 ~= 1 then goto 64
   56: JMP	7                        ; goto 64
   57: GETTABLE	R12 R4 K19          ; R12 := R4["sha256"]
   58: MOVE	R13 R6                  ; R13 := R6
@@ -2142,7 +2142,7 @@
   67: CONCAT	R13 R13 R14           ; R13 := R13 .. R14
   68: CALL	R12 2 2                 ; R12 := R12(R13)
   69: MOVE	R11 R12                 ; R11 := R12
-  70: LT	0 K7 R6                   ; if 4 < R6 then goto 83
+  70: LT	0 K7 R6                   ; if 4 >= R6 then goto 83
   71: JMP	11                       ; goto 83
   72: GETUPVAL	R12 1               ; R12 := UpValue[1]
   73: GETTABLE	R12 R12 K8          ; R12 := R12["log"]
@@ -2158,17 +2158,17 @@
   83: GETGLOBAL	R12 K22            ; R12 := readNonce
   84: MOVE	R13 R11                 ; R13 := R11
   85: CALL	R12 2 2                 ; R12 := R12(R13)
-  86: TEST	R12 0                   ; if R12 then goto 134
+  86: TEST	R12 0                   ; if not R12 then goto 134
   87: JMP	46                       ; goto 134
   88: GETGLOBAL	R13 K23            ; R13 := type
   89: MOVE	R14 R12                 ; R14 := R12
   90: CALL	R13 2 2                 ; R13 := R13(R14)
-  91: EQ	0 R13 K24                 ; if R13 == "table" then goto 134
+  91: EQ	0 R13 K24                 ; if R13 ~= "table" then goto 134
   92: JMP	41                       ; goto 134
   93: GETGLOBAL	R13 K12            ; R13 := tonumber
   94: GETTABLE	R14 R12 K25         ; R14 := R12["mark"]
   95: CALL	R13 2 2                 ; R13 := R13(R14)
-  96: LT	0 R13 R8                  ; if R13 < R8 then goto 123
+  96: LT	0 R13 R8                  ; if R13 >= R8 then goto 123
   97: JMP	25                       ; goto 123
   98: GETTABLE	R13 R12 K26         ; R13 := R12["mac"]
   99: EQ	1 R1 R13                  ; if R1 == R13 then goto 112
@@ -2319,7 +2319,7 @@
   17: GETTABLE	R7 R6 K7            ; R7 := R6["getEncryptMode"]
   18: CALL	R7 1 2                  ; R7 := R7()
   19: LOADNIL	R8 R8                ; R8 := nil
-  20: EQ	0 R7 K8                   ; if R7 == 1 then goto 29
+  20: EQ	0 R7 K8                   ; if R7 ~= 1 then goto 29
   21: JMP	7                        ; goto 29
   22: GETTABLE	R9 R2 K9            ; R9 := R2["binaryBase64Enc"]
   23: GETTABLE	R10 R2 K10          ; R10 := R2["sha256Binary"]
@@ -2335,7 +2335,7 @@
   33: CALL	R9 0 2                  ; R9 := R9(R10...)
   34: MOVE	R8 R9                   ; R8 := R9
   35: GETTABLE	R9 R1 K12           ; R9 := R1["SERVER_CONFIG"]
-  36: EQ	0 R9 K13                  ; if R9 == 0 then goto 52
+  36: EQ	0 R9 K13                  ; if R9 ~= 0 then goto 52
   37: JMP	14                       ; goto 52
   38: GETTABLE	R9 R1 K14           ; R9 := R1["PASSPORT_CONFIG_ONLINE_URL"]
   39: LOADK	R10 K15                ; R10 := "?callback="
@@ -2352,7 +2352,7 @@
   50: CONCAT	R3 R9 R13             ; R3 := R9 .. R13
   51: JMP	16                       ; goto 68
   52: GETTABLE	R9 R1 K12           ; R9 := R1["SERVER_CONFIG"]
-  53: EQ	0 R9 K8                   ; if R9 == 1 then goto 68
+  53: EQ	0 R9 K8                   ; if R9 ~= 1 then goto 68
   54: JMP	13                       ; goto 68
   55: GETTABLE	R9 R1 K21           ; R9 := R1["PASSPORT_CONFIG_PREVIEW_URL"]
   56: LOADK	R10 K15                ; R10 := "?callback="
@@ -2442,13 +2442,13 @@
   13: GETTABLE	R5 R5 K5            ; R5 := R5["isStrNil"]
   14: MOVE	R6 R4                   ; R6 := R4
   15: CALL	R5 2 2                  ; R5 := R5(R6)
-  16: TEST	R5 0                    ; if R5 then goto 20
+  16: TEST	R5 0                    ; if not R5 then goto 20
   17: JMP	2                        ; goto 20
   18: LOADK	R5 K6                  ; R5 := ""
   19: RETURN	R5 2                  ; return R5
   20: LOADK	R5 K7                  ; R5 := "http://miwifi.com/cgi-bin/luci/web/home"
   21: GETTABLE	R6 R2 K8            ; R6 := R2["SERVER_CONFIG"]
-  22: EQ	0 R6 K9                   ; if R6 == 0 then goto 35
+  22: EQ	0 R6 K9                   ; if R6 ~= 0 then goto 35
   23: JMP	11                       ; goto 35
   24: GETTABLE	R6 R2 K10           ; R6 := R2["PASSPORT_LOGOUT_ONLINE_URL"]
   25: LOADK	R7 K11                 ; R7 := "?callback="
@@ -2462,7 +2462,7 @@
   33: CONCAT	R3 R6 R12             ; R3 := R6 .. R12
   34: JMP	13                       ; goto 48
   35: GETTABLE	R6 R2 K8            ; R6 := R2["SERVER_CONFIG"]
-  36: EQ	0 R6 K15                  ; if R6 == 1 then goto 48
+  36: EQ	0 R6 K15                  ; if R6 ~= 1 then goto 48
   37: JMP	10                       ; goto 48
   38: GETTABLE	R6 R2 K16           ; R6 := R2["PASSPORT_LOGOUT_PREVIEW_URL"]
   39: LOADK	R7 K11                 ; R7 := "?callback="
@@ -2556,12 +2556,12 @@
    4: GETTABLE	R3 R3 K3            ; R3 := R3["isStrNil"]
    5: MOVE	R4 R0                   ; R4 := R0
    6: CALL	R3 2 2                  ; R3 := R3(R4)
-   7: TEST	R3 0                    ; if R3 then goto 11
+   7: TEST	R3 0                    ; if not R3 then goto 11
    8: JMP	2                        ; goto 11
    9: LOADK	R3 K4                  ; R3 := 1
   10: RETURN	R3 2                  ; return R3
   11: LEN	R3 R0                    ; R3 := #R0
-  12: LT	0 R3 K5                   ; if R3 < 6 then goto 17
+  12: LT	0 R3 K5                   ; if R3 >= 6 then goto 17
   13: JMP	3                        ; goto 17
   14: LOADK	R3 K4                  ; R3 := 1
   15: RETURN	R3 2                  ; return R3
@@ -2574,40 +2574,40 @@
   22: DIV	R5 R5 K8                 ; R5 := R5 / 2
   23: CALL	R4 2 2                  ; R4 := R4(R5)
   24: MUL	R3 R3 R4                 ; R3 := R3 * R4
-  25: LT	0 K8 R3                   ; if 2 < R3 then goto 28
+  25: LT	0 K8 R3                   ; if 2 >= R3 then goto 28
   26: JMP	1                        ; goto 28
   27: LOADK	R3 K4                  ; R3 := 1
   28: ADD	R1 R1 R3                 ; R1 := R1 + R3
   29: SELF	R3 R0 K9                ; R4 := R0; R3 := R0["match"]
   30: LOADK	R5 K10                 ; R5 := "%d"
   31: CALL	R3 3 2                  ; R3 := R3(R4, R5)
-  32: TEST	R3 0                    ; if R3 then goto 35
+  32: TEST	R3 0                    ; if not R3 then goto 35
   33: JMP	1                        ; goto 35
   34: ADD	R1 R1 K4                 ; R1 := R1 + 1
   35: SELF	R3 R0 K9                ; R4 := R0; R3 := R0["match"]
   36: LOADK	R5 K11                 ; R5 := "%l"
   37: CALL	R3 3 2                  ; R3 := R3(R4, R5)
-  38: TEST	R3 0                    ; if R3 then goto 41
+  38: TEST	R3 0                    ; if not R3 then goto 41
   39: JMP	1                        ; goto 41
   40: ADD	R1 R1 K4                 ; R1 := R1 + 1
   41: SELF	R3 R0 K9                ; R4 := R0; R3 := R0["match"]
   42: LOADK	R5 K12                 ; R5 := "%u"
   43: CALL	R3 3 2                  ; R3 := R3(R4, R5)
-  44: TEST	R3 0                    ; if R3 then goto 47
+  44: TEST	R3 0                    ; if not R3 then goto 47
   45: JMP	1                        ; goto 47
   46: ADD	R1 R1 K4                 ; R1 := R1 + 1
   47: SELF	R3 R0 K9                ; R4 := R0; R3 := R0["match"]
   48: LOADK	R5 K13                 ; R5 := "%W"
   49: CALL	R3 3 2                  ; R3 := R3(R4, R5)
-  50: TEST	R3 0                    ; if R3 then goto 53
+  50: TEST	R3 0                    ; if not R3 then goto 53
   51: JMP	1                        ; goto 53
   52: ADD	R1 R1 K4                 ; R1 := R1 + 1
-  53: LT	0 R1 K8                   ; if R1 < 2 then goto 58
+  53: LT	0 R1 K8                   ; if R1 >= 2 then goto 58
   54: JMP	3                        ; goto 58
   55: LOADK	R3 K4                  ; R3 := 1
   56: RETURN	R3 2                  ; return R3
   57: JMP	7                        ; goto 65
-  58: LT	0 R1 K14                  ; if R1 < 3 then goto 63
+  58: LT	0 R1 K14                  ; if R1 >= 3 then goto 63
   59: JMP	3                        ; goto 63
   60: LOADK	R3 K8                  ; R3 := 2
   61: RETURN	R3 2                  ; return R3
@@ -2665,7 +2665,7 @@
    1: GETTABLE	R1 R1 K0            ; R1 := R1["isStrNil"]
    2: MOVE	R2 R0                   ; R2 := R0
    3: CALL	R1 2 2                  ; R1 := R1(R2)
-   4: TEST	R1 0                    ; if R1 then goto 9
+   4: TEST	R1 0                    ; if not R1 then goto 9
    5: JMP	3                        ; goto 9
    6: LOADBOOL	R1 1 0              ; R1 := true
    7: RETURN	R1 2                  ; return R1
@@ -2682,7 +2682,7 @@
   18: SELF	R6 R0 K5                ; R7 := R0; R6 := R0["match"]
   19: MOVE	R8 R5                   ; R8 := R5
   20: CALL	R6 3 2                  ; R6 := R6(R7, R8)
-  21: TEST	R6 0                    ; if R6 then goto 34
+  21: TEST	R6 0                    ; if not R6 then goto 34
   22: JMP	11                       ; goto 34
   23: GETGLOBAL	R6 K6              ; R6 := require
   24: LOADK	R7 K7                  ; R7 := "xiaoqiang.XQLog"
@@ -2754,14 +2754,14 @@
 -- pc=29 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
 
 -- Register Operations:
-   0: TEST	R0 0                    ; if R0 then goto 4
+   0: TEST	R0 0                    ; if not R0 then goto 4
    1: JMP	2                        ; goto 4
-   2: TEST	R1 1                    ; if not R1 then goto 5
+   2: TEST	R1 1                    ; if R1 then goto 5
    3: JMP	1                        ; goto 5
    4: RETURN	R1 2                  ; return R1
    5: GETUPVAL	R2 0                ; R2 := UpValue[0]
    6: GETTABLE	R2 R2 R0            ; R2 := R2[R0]
-   7: TEST	R2 0                    ; if R2 then goto 10
+   7: TEST	R2 0                    ; if not R2 then goto 10
    8: JMP	1                        ; goto 10
    9: RETURN	R1 2                  ; return R1
   10: GETGLOBAL	R2 K0              ; R2 := string
@@ -2769,7 +2769,7 @@
   12: MOVE	R3 R1                   ; R3 := R1
   13: GETUPVAL	R4 1                ; R4 := UpValue[1]
   14: CALL	R2 3 2                  ; R2 := R2(R3, R4)
-  15: TEST	R2 0                    ; if R2 then goto 28
+  15: TEST	R2 0                    ; if not R2 then goto 28
   16: JMP	11                       ; goto 28
   17: GETUPVAL	R2 2                ; R2 := UpValue[2]
   18: GETTABLE	R2 R2 K2            ; R2 := R2["log"]
@@ -2807,7 +2807,7 @@
    2: MOVE	R2 R0                   ; R2 := R0
    3: GETUPVAL	R3 0                ; R3 := UpValue[0]
    4: CALL	R1 3 2                  ; R1 := R1(R2, R3)
-   5: TEST	R1 0                    ; if R1 then goto 9
+   5: TEST	R1 0                    ; if not R1 then goto 9
    6: JMP	2                        ; goto 9
    7: LOADK	R1 K2                  ; R1 := ""
    8: RETURN	R1 2                  ; return R1
@@ -2863,7 +2863,7 @@
    1: GETTABLE	R1 R1 K0            ; R1 := R1["isStrNil"]
    2: MOVE	R2 R0                   ; R2 := R0
    3: CALL	R1 2 2                  ; R1 := R1(R2)
-   4: TEST	R1 0                    ; if R1 then goto 9
+   4: TEST	R1 0                    ; if not R1 then goto 9
    5: JMP	3                        ; goto 9
    6: LOADK	R1 K1                  ; R1 := ""
    7: RETURN	R1 2                  ; return R1
