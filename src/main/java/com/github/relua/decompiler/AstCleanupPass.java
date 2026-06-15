@@ -667,13 +667,20 @@ public class AstCleanupPass {
         return declared;
     }
 
+    private boolean isRegisterOrObj(String name) {
+        if (name == null) {
+            return false;
+        }
+        return name.matches("R\\d+") || name.endsWith("Obj");
+    }
+
     private void collectAllUsedRegisters(AstNode node, Set<String> registers) {
         if (node == null) {
             return;
         }
         if (node instanceof Name) {
             String name = ((Name) node).name;
-            if (name.matches("R\\d+")) {
+            if (isRegisterOrObj(name)) {
                 registers.add(name);
             }
             return;
@@ -696,7 +703,7 @@ public class AstCleanupPass {
         } else if (node instanceof LocalAssign) {
             LocalAssign local = (LocalAssign) node;
             for (String name : local.names) {
-                if (name.matches("R\\d+")) {
+                if (isRegisterOrObj(name)) {
                     registers.add(name);
                 }
             }
@@ -708,7 +715,7 @@ public class AstCleanupPass {
         } else if (node instanceof GlobalAssign) {
             GlobalAssign glob = (GlobalAssign) node;
             for (String name : glob.names) {
-                if (name.matches("R\\d+")) {
+                if (isRegisterOrObj(name)) {
                     registers.add(name);
                 }
             }
@@ -740,7 +747,7 @@ public class AstCleanupPass {
             collectAllUsedRegisters(rs.body, registers);
         } else if (node instanceof ForNumeric) {
             ForNumeric fn = (ForNumeric) node;
-            if (fn.name.matches("R\\d+")) registers.add(fn.name);
+            if (isRegisterOrObj(fn.name)) registers.add(fn.name);
             collectAllUsedRegisters(fn.start, registers);
             collectAllUsedRegisters(fn.end, registers);
             collectAllUsedRegisters(fn.step, registers);
@@ -748,7 +755,7 @@ public class AstCleanupPass {
         } else if (node instanceof ForIn) {
             ForIn fi = (ForIn) node;
             for (String n : fi.names) {
-                if (n.matches("R\\d+")) registers.add(n);
+                if (isRegisterOrObj(n)) registers.add(n);
             }
             if (fi.iterators != null) {
                 for (Expression expr : fi.iterators) {
@@ -758,7 +765,7 @@ public class AstCleanupPass {
             collectAllUsedRegisters(fi.body, registers);
         } else if (node instanceof FunctionDeclaration) {
             FunctionDeclaration fd = (FunctionDeclaration) node;
-            if (fd.name.matches("R\\d+")) {
+            if (isRegisterOrObj(fd.name)) {
                 registers.add(fd.name);
             }
         } else if (node instanceof FunctionLiteral) {
@@ -810,7 +817,7 @@ public class AstCleanupPass {
             List<String> hoistedInLocal = new ArrayList<>();
             List<String> remainInLocal = new ArrayList<>();
             for (String name : local.names) {
-                if (name.matches("R\\d+") && hoistedRegisters != null && hoistedRegisters.contains(name)) {
+                if (isRegisterOrObj(name) && hoistedRegisters != null && hoistedRegisters.contains(name)) {
                     hoistedInLocal.add(name);
                 } else {
                     remainInLocal.add(name);
@@ -949,7 +956,7 @@ public class AstCleanupPass {
     }
 
     private boolean shouldDeclareLocal(String name, Expression right) {
-        if (name.matches("R\\d+")) {
+        if (isRegisterOrObj(name)) {
             return true;
         }
         return isRequireCall(right);

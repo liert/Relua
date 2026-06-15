@@ -213,6 +213,9 @@ public class IRBuilder {
             if (varName.length() >= 2 && varName.startsWith("\"") && varName.endsWith("\"")) {
                 varName = varName.substring(1, varName.length() - 1);
             }
+            if (varName.matches("^R\\d+$")) {
+                varName = "global_" + varName;
+            }
             currentState.setRegisterEntity(a, varName, ValueType.GLOBAL, FromType.GLOBAL);
         }
     }
@@ -226,6 +229,9 @@ public class IRBuilder {
             String varName = chunk.getConstants().get(bx).getValue().toString();
             if (varName.length() >= 2 && varName.startsWith("\"") && varName.endsWith("\"")) {
                 varName = varName.substring(1, varName.length() - 1);
+            }
+            if (varName.matches("^R\\d+$")) {
+                varName = "global_" + varName;
             }
             // 设置全局变量时，将寄存器标记为全局变量
             currentState.setRegisterEntity(a, varName, ValueType.GLOBAL);
@@ -403,6 +409,16 @@ public class IRBuilder {
                     // Logger.debug(String.format("require 调用，返回值 %s 写入寄存器 R%d", RAValue,
                     // registerIndex));
                     continue;
+                } else if (RAValue.endsWith(".new") || RAValue.endsWith(":new")) {
+                    String partBeforeNew = RAValue.substring(0, RAValue.length() - 4);
+                    String objName = partBeforeNew.replace(".", "_").replace(":", "_");
+                    if (!objName.isEmpty()) {
+                        RAValue = objName + "Obj";
+                        currentState.setRegisterEntity(registerIndex, RAValue, ValueType.OBJECT, FromType.GLOBAL);
+                        continue;
+                    } else {
+                        RAValue = "R" + registerIndex;
+                    }
                 } else {
                     RAValue = "R" + registerIndex;
                 }
@@ -414,6 +430,16 @@ public class IRBuilder {
         if (c == 0) {
             // 多返回值，只更新第一个返回值寄存器
             // 实际的多返回值处理会在指令转换为AST时处理
+            String RAValue = (RA != null && RA.getValue() != null) ? RA.getValue().toString() : "";
+            if (RAValue.endsWith(".new") || RAValue.endsWith(":new")) {
+                String partBeforeNew = RAValue.substring(0, RAValue.length() - 4);
+                String objName = partBeforeNew.replace(".", "_").replace(":", "_");
+                if (!objName.isEmpty()) {
+                    String val = objName + "Obj";
+                    currentState.setRegisterEntity(a, val, ValueType.OBJECT, FromType.GLOBAL);
+                    return;
+                }
+            }
             currentState.setRegisterEntity(a, "R" + a, ValueType.UNKNOWN, FromType.REGISTER);
         }
     }

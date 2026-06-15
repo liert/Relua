@@ -350,7 +350,7 @@ public class InstructionToASTConverter {
             //   R6(R7, nil, false, true)
             // 而不是额外输出：
             //   R8 = nil
-            if (isRegisterConsumedByFollowingCallArgument(i, instructionIndex)) {
+            if (InstructionFlowAnalyzer.isRegisterConsumedByFollowingCallArgument(chunk.getInstructions(), i, instructionIndex)) {
                 continue;
             }
             // 目标变量
@@ -393,6 +393,9 @@ public class InstructionToASTConverter {
         if (name.length() >= 2 && name.startsWith("\"") && name.endsWith("\"")) {
             name = name.substring(1, name.length() - 1);
         }
+        if (name.matches("^R\\d+$")) {
+            name = "global_" + name;
+        }
 
         // System.out.println("AST GETGLOBAL: " + name);
 
@@ -432,6 +435,9 @@ public class InstructionToASTConverter {
         if (bx < chunk.getConstants().size()) {
             Object cv = chunk.getConstants().get(bx).getValue();
             name = cv != null ? cv.toString() : "RK" + bx;
+        }
+        if (name.matches("^R\\d+$")) {
+            name = "global_" + name;
         }
 
         if (source != null) {
@@ -814,6 +820,18 @@ public class InstructionToASTConverter {
         return new Assign(leftList, rightList, new SourcePos(instructionIndex, -1));
     }
 
+    private String getExpressionName(Expression expr) {
+        if (expr instanceof Name) {
+            return ((Name) expr).name;
+        } else if (expr instanceof MemberExpr) {
+            String tbl = getExpressionName(((MemberExpr) expr).table);
+            if (tbl != null) {
+                return tbl + "_" + ((MemberExpr) expr).member;
+            }
+        }
+        return null;
+    }
+
     /**
      * 转换CALL指令
      * 
@@ -870,6 +888,28 @@ public class InstructionToASTConverter {
             return new UnaryOp("return", call, pos);
         }
 
+        // 判断是否是 xxx.new() / xxx:new() 调用
+        boolean isNewCall = false;
+        String objName = "";
+        if (func instanceof MemberExpr) {
+            MemberExpr memberExpr = (MemberExpr) func;
+            if ("new".equals(memberExpr.member)) {
+                isNewCall = true;
+                String tblName = getExpressionName(memberExpr.table);
+                if (tblName != null) {
+                    objName = tblName + "Obj";
+                }
+            }
+        } else if (func instanceof Name) {
+            Name nameExpr = (Name) func;
+            String name = nameExpr.name;
+            if (name.endsWith(".new") || name.endsWith(":new")) {
+                isNewCall = true;
+                String tblName = name.substring(0, name.length() - 4);
+                objName = tblName.replace(".", "_").replace(":", "_") + "Obj";
+            }
+        }
+
         // 情况 1：C == 1 → 没有返回值（语句形式）
         if (c == 1) {
             return new ExpressionStatement(call, pos);
@@ -882,13 +922,16 @@ public class InstructionToASTConverter {
             // 返回值写入 R(A) 到 R(A+C-2)
             for (int i = 0; i < c - 1; i++) {
                 Name returnName = new Name("R" + (a + i), pos);
-
-                RegisterEntity RA = registerState.getRegisterEntity(a);
-                String RAValue = (RA != null && RA.getValue() != null) ? RA.getValue().toString() : "";
-                if ("require".equals(RAValue)) {
-                    RegisterEntity argsEntity = registerState.getRegisterEntity(a + 1);
-                    if (argsEntity != null && argsEntity.getValue() != null) {
-                        returnName.name = argsEntity.getValue().toString().replace(".", "_");
+                if (i == 0 && isNewCall && !objName.isEmpty()) {
+                    returnName.name = objName;
+                } else {
+                    RegisterEntity RA = registerState.getRegisterEntity(a);
+                    String RAValue = (RA != null && RA.getValue() != null) ? RA.getValue().toString() : "";
+                    if ("require".equals(RAValue)) {
+                        RegisterEntity argsEntity = registerState.getRegisterEntity(a + 1);
+                        if (argsEntity != null && argsEntity.getValue() != null) {
+                            returnName.name = argsEntity.getValue().toString().replace(".", "_");
+                        }
                     }
                 }
 
@@ -906,7 +949,11 @@ public class InstructionToASTConverter {
             List<Expression> targets = new ArrayList<>();
 
             // 对于多返回值，我们只处理第一个返回值
-            Name returnName = new Name("R" + a, pos);
+            String targetNameVal = "R" + a;
+            if (isNewCall && !objName.isEmpty()) {
+                targetNameVal = objName;
+            }
+            Name returnName = new Name(targetNameVal, pos);
             targets.add(returnName);
             returns.add(returnName);
             registerState.setRegisterEntity(a, call, ValueType.OBJECT, FromType.REGISTER);
@@ -1448,106 +1495,6 @@ public class InstructionToASTConverter {
         return new Assign(left, right, pos);
     }
 
-    private boolean isRegisterConsumedByFollowingCallArgument(int registerIndex, int instructionIndex) {
-        List<Instruction> instructions = chunk.getInstructions();
-
-        for (int pc = instructionIndex + 1; pc < instructions.size(); pc++) {
-            Instruction next = instructions.get(pc);
-            Opcode opcode = next.getOpcode();
-
-            if (opcode == Opcode.CALL || opcode == Opcode.TAILCALL) {
-                int callA = next.getA();
-                int callB = next.getB();
-
-                // B == 1 表示无参数。
-                if (callB == 1) {
-                    return false;
-                }
-
-                // B > 1 表示参数是 R(A+1) ... R(A+B-1)。
-                if (callB > 1) {
-                    return registerIndex >= callA + 1 && registerIndex <= callA + callB - 1;
-                }
-
-                // B == 0 是开放参数列表，这里保守处理。
-                return registerIndex > callA;
-            }
-
-            // 如果在 CALL 前这个寄存器被重写了，当前 LOADNIL 就不是 CALL 参数来源。
-            if (writesRegister(next, registerIndex)) {
-                return false;
-            }
-
-            // 跨控制流边界不向前吞 LOADNIL，避免误删普通 nil 赋值。
-            if (isForwardScanBarrier(opcode)) {
-                return false;
-            }
-        }
-
-        return false;
-    }
-
-    private boolean writesRegister(Instruction instruction, int registerIndex) {
-        Opcode opcode = instruction.getOpcode();
-        int a = instruction.getA();
-
-        switch (opcode) {
-            case MOVE:
-            case LOADK:
-            case LOADBOOL:
-            case GETGLOBAL:
-            case GETTABLE:
-            case NEWTABLE:
-            case ADD:
-            case SUB:
-            case MUL:
-            case DIV:
-            case MOD:
-            case POW:
-            case UNM:
-            case NOT:
-            case LEN:
-            case CONCAT:
-            case GETUPVAL:
-            case CLOSURE:
-            case VARARG:
-                return a == registerIndex;
-
-            case LOADNIL:
-                return registerIndex >= instruction.getA() && registerIndex <= instruction.getB();
-
-            case SELF:
-                return registerIndex == a || registerIndex == a + 1;
-
-            case CALL:
-            case TAILCALL:
-                int c = instruction.getC();
-                if (c == 1) {
-                    return false;
-                }
-                if (c == 0) {
-                    return registerIndex == a;
-                }
-                return registerIndex >= a && registerIndex <= a + c - 2;
-
-            default:
-                return false;
-        }
-    }
-
-    private boolean isForwardScanBarrier(Opcode opcode) {
-        switch (opcode) {
-            case JMP:
-            case RETURN:
-            case FORPREP:
-            case FORLOOP:
-            case TFORLOOP:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     /**
      * 精化else块的结束位置，排除来自外层作用域的跳转目标之间的代码。
      * 当内层if的then块以JMP结尾时，该JMP的目标(endTarget)可能远大于
@@ -1603,136 +1550,6 @@ public class InstructionToASTConverter {
      * @return 是否成功进行了优化
      */
     public boolean tryOptimizeAssignReturn(Block block, ReturnStatement ret, int returnPC) {
-        if (block == null || block.statements == null || block.statements.isEmpty()) {
-            return false;
-        }
-
-        Statement lastStmt = block.statements.get(block.statements.size() - 1);
-        if (!(lastStmt instanceof Assign)) {
-            return false;
-        }
-
-        Assign assign = (Assign) lastStmt;
-        if (assign.left.size() != 1 || assign.right.size() != 1 || ret.values.size() != 1) {
-            return false;
-        }
-
-        Expression leftExpr = assign.left.get(0);
-        Expression rightExpr = assign.right.get(0);
-        Expression retExpr = ret.values.get(0);
-
-        if (!(leftExpr instanceof Name)) {
-            return false;
-        }
-        Name leftName = (Name) leftExpr;
-        java.util.regex.Pattern regPattern = java.util.regex.Pattern.compile("^R(\\d+)$");
-        java.util.regex.Matcher matcher = regPattern.matcher(leftName.name);
-        if (!matcher.matches()) {
-            return false;
-        }
-        int reg = Integer.parseInt(matcher.group(1));
-
-        CodeGeneratorContext context = pipeline.getContext();
-
-        // 基础安全校验：PC 有效性、LabelPC 校验、Upvalue 校验
-        if (assign.pos == null || ret.pos == null ||
-            assign.pos.pc < 0 || returnPC < 0 ||
-            context.isLabelPC(assign.pos.pc) ||
-            context.isLabelPC(returnPC)) {
-            return false;
-        }
-
-        // Upvalue 校验
-        java.util.Set<String> upvalueNames = new java.util.HashSet<>();
-        for (UpValue uv : context.getUpvalues()) {
-            if (uv != null && uv.getName() != null) {
-                upvalueNames.add(uv.getName());
-            }
-        }
-        if (upvalueNames.contains(leftName.name)) {
-            return false;
-        }
-
-        // 获取指令并验证一致性
-        List<Instruction> instructions = chunk.getInstructions();
-        if (assign.pos.pc >= instructions.size() || returnPC >= instructions.size()) {
-            return false;
-        }
-        Instruction assignInst = instructions.get(assign.pos.pc);
-        Instruction returnInst = instructions.get(returnPC);
-
-        if (returnInst.getOpcode() != Opcode.RETURN || 
-            returnInst.getB() != 2 || 
-            returnInst.getA() != reg ||
-            assignInst.getA() != reg) {
-            return false;
-        }
-
-        // 验证常量与指令的一致性
-        Opcode assignOp = assignInst.getOpcode();
-        boolean verified = false;
-
-        if (assignOp == Opcode.LOADNIL) {
-            if (assignInst.getA() == assignInst.getB() && rightExpr instanceof NilConst) {
-                verified = true;
-            }
-        } else if (assignOp == Opcode.LOADBOOL) {
-            if (rightExpr instanceof BooleanConst) {
-                boolean astValue = ((BooleanConst) rightExpr).value;
-                boolean instValue = assignInst.getB() != 0;
-                if (astValue == instValue) {
-                    verified = true;
-                }
-            }
-        } else if (assignOp == Opcode.LOADK) {
-            Constant k = chunk.getConstant(assignInst.getBx());
-            if (k != null) {
-                Object kVal = k.getValue();
-                if (rightExpr instanceof StringConst) {
-                    String astStr = ((StringConst) rightExpr).value;
-                    if (astStr.equals(kVal)) {
-                        verified = true;
-                    }
-                } else if (rightExpr instanceof NumberConst) {
-                    if (kVal instanceof Number) {
-                        double astNum = ((NumberConst) rightExpr).value;
-                        double kNum = ((Number) kVal).doubleValue();
-                        if (Double.compare(astNum, kNum) == 0) {
-                            verified = true;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (!verified) {
-            return false;
-        }
-
-        // 验证返回表达式是否为常量，且与 assign 的右侧常量在语义上完全一致
-        boolean isConst = retExpr instanceof NilConst || retExpr instanceof BooleanConst || retExpr instanceof NumberConst || retExpr instanceof StringConst;
-        if (!isConst) {
-            return false;
-        }
-
-        boolean equal = false;
-        if (rightExpr instanceof NilConst && retExpr instanceof NilConst) {
-            equal = true;
-        } else if (rightExpr instanceof BooleanConst && retExpr instanceof BooleanConst) {
-            equal = ((BooleanConst) rightExpr).value == ((BooleanConst) retExpr).value;
-        } else if (rightExpr instanceof StringConst && retExpr instanceof StringConst) {
-            equal = ((StringConst) rightExpr).value.equals(((StringConst) retExpr).value);
-        } else if (rightExpr instanceof NumberConst && retExpr instanceof NumberConst) {
-            equal = Double.compare(((NumberConst) rightExpr).value, ((NumberConst) retExpr).value) == 0;
-        }
-
-        if (equal) {
-            // 所有条件满足，移除最后一条 Assign，将 ret 插入并替换它
-            block.statements.remove(block.statements.size() - 1);
-            block.statements.add(ret);
-            return true;
-        }
-
-        return false;
+        return GenerationPeepholeOptimizer.tryOptimizeAssignReturn(block, ret, returnPC, chunk, pipeline.getContext());
     }
 }
