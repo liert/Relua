@@ -222,8 +222,18 @@ public class GraphVisualizationView {
         canvas.heightProperty().bind(container.heightProperty());
         
         // 监听画布尺寸改变以触发重新绘制
-        canvas.widthProperty().addListener((obs, oldVal, newVal) -> drawGraph());
-        canvas.heightProperty().addListener((obs, oldVal, newVal) -> drawGraph());
+        canvas.widthProperty().addListener((obs, oldVal, newVal) -> {
+            if (oldVal.doubleValue() <= 0 && newVal.doubleValue() > 0) {
+                fitToViewer();
+            }
+            drawGraph();
+        });
+        canvas.heightProperty().addListener((obs, oldVal, newVal) -> {
+            if (oldVal.doubleValue() <= 0 && newVal.doubleValue() > 0) {
+                fitToViewer();
+            }
+            drawGraph();
+        });
         
         // 初始化节点和边列表
         nodes = new ArrayList<>();
@@ -554,16 +564,75 @@ public class GraphVisualizationView {
     /**
      * 应用布局
      */
+    /**
+     * 应用布局
+     */
     public void applyLayout() {
         if (nodes.isEmpty()) return;
         
-        // 重置平移偏置
-        translationX = 0;
-        translationY = 0;
-        
-        // 对于CFG，使用层次布局
+        // 应用层次布局计算逻辑节点坐标
         applyHierarchicalLayout();
+        
+        // 缩放并居中自适应以填满视图
+        fitToViewer();
+        
+        // 重新绘制图形
         drawGraph();
+    }
+    
+    /**
+     * 自适应缩放和居中图形
+     */
+    public void fitToViewer() {
+        if (nodes.isEmpty()) return;
+        
+        // 计算图形边界框
+        double minX = Double.MAX_VALUE;
+        double maxX = -Double.MAX_VALUE;
+        double minY = Double.MAX_VALUE;
+        double maxY = -Double.MAX_VALUE;
+        
+        for (NodeData node : nodes) {
+            minX = Math.min(minX, node.x);
+            maxX = Math.max(maxX, node.x + node.width);
+            minY = Math.min(minY, node.y);
+            maxY = Math.max(maxY, node.y + node.height);
+        }
+        
+        double graphWidth = maxX - minX;
+        double graphHeight = maxY - minY;
+        
+        if (graphWidth <= 0) graphWidth = DEFAULT_NODE_WIDTH;
+        if (graphHeight <= 0) graphHeight = DEFAULT_NODE_HEIGHT;
+        
+        // 获取画布尺寸
+        double canvasWidth = canvas.getWidth();
+        double canvasHeight = canvas.getHeight();
+        
+        // 画布尺寸未初始化时的默认回退
+        if (canvasWidth <= 0) canvasWidth = 800;
+        if (canvasHeight <= 0) canvasHeight = 600;
+        
+        // 留出一定的边界填充空间（上下左右各留40px）
+        double padding = 40;
+        double scaleX = canvasWidth / (graphWidth + 2 * padding);
+        double scaleY = canvasHeight / (graphHeight + 2 * padding);
+        
+        double fitScale = Math.min(scaleX, scaleY);
+        
+        // 限制缩放级别范围（0.1 - 1.2倍），小图不要放得太大，大图可以极小化
+        currentScale = Math.max(0.1, Math.min(1.2, fitScale));
+        
+        // 居中偏移量计算
+        double graphCenterX = minX + graphWidth / 2.0;
+        double graphCenterY = minY + graphHeight / 2.0;
+        
+        double canvasCenterX = canvasWidth / 2.0 / currentScale;
+        double canvasCenterY = canvasHeight / 2.0 / currentScale;
+        
+        translationX = canvasCenterX - graphCenterX;
+        // 稍微往上偏移一部分，以便避开右下角的悬浮释义面板
+        translationY = canvasCenterY - graphCenterY - (20 / currentScale);
     }
     
     /**
@@ -580,31 +649,51 @@ public class GraphVisualizationView {
             levelToNodes.computeIfAbsent(level, k -> new ArrayList<>()).add(i);
         }
         
-        // 计算每层的宽度
         int maxLevel = levelToNodes.keySet().stream().max(Integer::compare).orElse(0);
         
-        // 布局每个节点
+        // 动态计算每一层中节点的最大高度，以确定下一层的起始Y坐标，从而彻底避免纵向覆盖
+        double[] levelY = new double[maxLevel + 1];
+        double[] levelMaxHeight = new double[maxLevel + 1];
+        
+        for (int level = 0; level <= maxLevel; level++) {
+            List<Integer> levelNodes = levelToNodes.getOrDefault(level, new ArrayList<>());
+            double maxHeight = 0;
+            for (int nodeIdx : levelNodes) {
+                maxHeight = Math.max(maxHeight, nodes.get(nodeIdx).height);
+            }
+            levelMaxHeight[level] = maxHeight > 0 ? maxHeight : DEFAULT_NODE_HEIGHT;
+        }
+        
+        // 节点垂直层级间的净空隙
+        double verticalGap = 80;
+        levelY[0] = 50; // 起始层Y为50
+        for (int level = 1; level <= maxLevel; level++) {
+            levelY[level] = levelY[level - 1] + levelMaxHeight[level - 1] + verticalGap;
+        }
+        
+        // 布局每个层级的节点
         for (int level = 0; level <= maxLevel; level++) {
             List<Integer> levelNodes = levelToNodes.getOrDefault(level, new ArrayList<>());
             if (levelNodes.isEmpty()) continue;
             
-            // 计算该层的总宽度
+            // 节点间的水平间距，防止左右重叠
+            double horizontalGap = 60;
+            
+            // 计算该层级所有节点的总宽度
             double totalWidth = 0;
-            for (int nodeIndex : levelNodes) {
-                totalWidth += nodes.get(nodeIndex).width + NODE_SPACING;
+            for (int nodeIdx : levelNodes) {
+                totalWidth += nodes.get(nodeIdx).width + horizontalGap;
             }
-            totalWidth -= NODE_SPACING; // 减去最后一个节点的间距
+            totalWidth -= horizontalGap; // 减去最后一个节点后多余的间距
             
-            // 计算起始X坐标，使该层居中
-            double startX = (canvas.getWidth() / currentScale - totalWidth) / 2;
-            
-            // 布局该层的节点
+            // 将当前层级的节点居中放置在 X = 0 附近，后续通过 fitToViewer 的平移让其居中
+            double startX = -totalWidth / 2.0;
             double currentX = startX;
-            for (int nodeIndex : levelNodes) {
-                NodeData node = nodes.get(nodeIndex);
+            for (int nodeIdx : levelNodes) {
+                NodeData node = nodes.get(nodeIdx);
                 node.x = currentX;
-                node.y = 50 + level * VERTICAL_SPACING;
-                currentX += node.width + NODE_SPACING;
+                node.y = levelY[level];
+                currentX += node.width + horizontalGap;
             }
         }
     }
@@ -796,8 +885,7 @@ public class GraphVisualizationView {
      * 重置缩放
      */
     public void resetZoom() {
-        currentScale = 1.0;
-        drawGraph();
+        applyLayout();
     }
     
     /**
