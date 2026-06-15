@@ -603,6 +603,40 @@ public class AstCleanupPass {
         }
     }
 
+    private boolean containsRegister(AstNode node, String reg) {
+        if (node == null) {
+            return false;
+        }
+        Set<String> regs = new HashSet<>();
+        collectAllUsedRegisters(node, regs);
+        return regs.contains(reg);
+    }
+
+    private boolean containsRegister(Statement stmt, String reg) {
+        return containsRegister((AstNode) stmt, reg);
+    }
+
+    private boolean isValidInlineLocalizableAssignment(Statement stmt, String reg) {
+        if (stmt instanceof Assign) {
+            Assign assign = (Assign) stmt;
+            if (assign.left.size() == 1 && assign.right.size() == 1 && assign.left.get(0) instanceof Name) {
+                String name = ((Name) assign.left.get(0)).name;
+                if (name.equals(reg)) {
+                    Expression right = assign.right.get(0);
+                    Set<String> rightVars = new HashSet<>();
+                    collectAllUsedRegisters(right, rightVars);
+                    if (!rightVars.contains(reg)) {
+                        return shouldDeclareLocal(reg, right);
+                    }
+                }
+            }
+        } else if (stmt instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) stmt;
+            return local.names.contains(reg);
+        }
+        return false;
+    }
+
     private Set<String> declareTopLevelLocals(Block block, List<String> params, Set<String> parentDeclared, Set<String> upvalueNames) {
         if (block == null || block.statements == null) {
             return java.util.Collections.emptySet();
@@ -635,7 +669,16 @@ public class AstCleanupPass {
         if (isFunction && !hoistedRegisters.isEmpty()) {
             for (String reg : hoistedRegisters) {
                 if (!declared.contains(reg)) {
-                    missing.add(reg);
+                    Statement firstOccurrence = null;
+                    for (Statement stmt : block.statements) {
+                        if (containsRegister(stmt, reg)) {
+                            firstOccurrence = stmt;
+                            break;
+                        }
+                    }
+                    if (firstOccurrence == null || !isValidInlineLocalizableAssignment(firstOccurrence, reg)) {
+                        missing.add(reg);
+                    }
                 }
             }
             if (!missing.isEmpty()) {
@@ -653,9 +696,11 @@ public class AstCleanupPass {
         }
         Logger.debug("[DEBUG] computed declared (with missing): " + declared);
 
+        Set<String> actuallyHoisted = new HashSet<>(missing);
+
         List<Statement> rewritten = new ArrayList<>();
         for (Statement statement : block.statements) {
-            declareStatementLocalIfNeeded(statement, declared, true, hoistedRegisters, rewritten);
+            declareStatementLocalIfNeeded(statement, declared, true, actuallyHoisted, rewritten);
         }
 
         block.statements.clear();
