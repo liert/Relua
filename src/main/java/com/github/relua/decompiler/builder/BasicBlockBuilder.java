@@ -132,7 +132,6 @@ public class BasicBlockBuilder {
         return opcode == Opcode.JMP || 
                 opcode == Opcode.FORLOOP || opcode == Opcode.FORPREP ||
                 opcode == Opcode.TFORLOOP || 
-                opcode == Opcode.EQ || opcode == Opcode.LT || opcode == Opcode.LE ||
                 opcode == Opcode.RETURN || opcode == Opcode.TAILCALL;
     }
 

@@ -163,8 +163,7 @@ public class CFGGenerator {
     private boolean isBlockEndInstruction(Opcode opcode) {
         return opcode == Opcode.JMP || opcode == Opcode.RETURN ||
                 opcode == Opcode.FORLOOP || opcode == Opcode.FORPREP ||
-                opcode == Opcode.TFORLOOP ||
-                opcode == Opcode.EQ || opcode == Opcode.LT || opcode == Opcode.LE;
+                opcode == Opcode.TFORLOOP;
     }
 
     /**
@@ -195,14 +194,13 @@ public class CFGGenerator {
                 addEdge(currentBlock, i + 1);
             } else if (opcode == Opcode.EQ || opcode == Opcode.LT || opcode == Opcode.LE) {
                 // 比较指令后面总是紧跟 JMP
-                // true分支：跳过JMP → 落入 i+2
-                addEdge(currentBlock, i + 2);
+                if (i + 1 < instructions.size() && instructions.get(i + 1).getOpcode() == Opcode.JMP) {
+                    handleComparisonInstruction(i, inst, instructions, currentBlock);
+                    continue;
+                }
 
-                // false分支：执行JMP → 连接到JMP所在的块（i+1），
-                // 由JMP块自身的边将控制流传递到跳转目标。
+                // fallback：普通顺序
                 addEdge(currentBlock, i + 1);
-
-                continue;
             } else if (opcode == Opcode.FORLOOP) {
                 // 处理FORLOOP指令
                 int jumpTarget = inst.getSBx() == 0 ? inst.getNumericForPrepTarget(instructions, i) : i + 1 + inst.getSBx();
@@ -276,6 +274,23 @@ public class CFGGenerator {
         int thenTarget = i + 2;
 
         // TEST false → JMP target (进入 else)
+        int elseTarget = jmpTarget;
+
+        addEdge(currentBlock, thenTarget);
+        addEdge(currentBlock, elseTarget);
+    }
+
+    private void handleComparisonInstruction(int i, Instruction inst, List<Instruction> instructions,
+            BasicBlock currentBlock) {
+        Instruction jmp = instructions.get(i + 1); // guaranteed JMP in EQ/LT/LE+JMP pattern
+
+        int jmpTarget = i + 2 + jmp.getSBx(); // (i + 1) + 1 + jmp.getSBx()
+
+        // 比较满足/不满足条件时：
+        // 一条分支是不满足/跳过 JMP，落入 i + 2
+        int thenTarget = i + 2;
+
+        // 另一条分支是满足/执行 JMP，跳转到 jmpTarget
         int elseTarget = jmpTarget;
 
         addEdge(currentBlock, thenTarget);
