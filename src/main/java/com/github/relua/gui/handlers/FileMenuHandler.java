@@ -68,7 +68,6 @@ public class FileMenuHandler {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Open Luac File");
         fileChooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("Luac Files", "*.luac"),
                 new FileChooser.ExtensionFilter("All Files", "*.*")
         );
 

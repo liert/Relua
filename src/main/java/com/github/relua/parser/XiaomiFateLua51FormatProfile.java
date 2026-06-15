@@ -88,25 +88,29 @@ public class XiaomiFateLua51FormatProfile extends AbstractLua51FormatProfile {
     private Opcode mapOpcode(int raw) {
         int opcodeValue = raw & 0x3F;
         switch (opcodeValue) {
+            case 0:
+                return Opcode.LEN;
             case 1:
                 return Opcode.CLOSURE;
             case 2:
                 int unaryMode = (raw >> 14) & 0x1FF;
-                if (unaryMode == 0) {
-                    return Opcode.CLOSE;
+                switch (unaryMode) {
+                    case 0: return Opcode.CLOSE;
+                    case 1: return Opcode.LEN;
+                    case 2: return Opcode.UNM;
+                    case 3: return Opcode.NOT;
+                    default: return Opcode.UNKNOWN;
                 }
-                if (unaryMode == 1) {
-                    return Opcode.LEN;
-                }
-                return unaryMode == 3 ? Opcode.NOT : Opcode.UNM;
             case 3:
                 return Opcode.LT;
+            case 4:
+                return Opcode.NOT;
             case 5:
                 return Opcode.LT;
-            case 7:
-                return Opcode.SETLIST;
             case 6:
                 return Opcode.LOADK;
+            case 7:
+                return Opcode.SETLIST;
             case 8:
                 return Opcode.RETURN;
             case 9:
@@ -149,10 +153,14 @@ public class XiaomiFateLua51FormatProfile extends AbstractLua51FormatProfile {
                 return Opcode.GETTABLE;
             case 28:
                 return Opcode.NEWTABLE;
+            case 29:
+                return Opcode.CLOSE;
             case 30:
                 return Opcode.VARARG;
             case 31:
                 return Opcode.JMP;
+            case 32:
+                return Opcode.UNM;
             case 33:
                 return Opcode.POW;
             case 34:
