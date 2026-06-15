@@ -82,15 +82,29 @@ public class FileMenuHandler {
      * @param file 文件对象
      */
     public void openFile(File file) {
-        if (file != null) {
-            currentFile = file;
-            updateFileLabel(file.getName());
-            updateStatus("Opening file...");
+        if (file == null) {
+            return;
+        }
 
-            // 添加单个文件到文件树中
+        // 如果当前已经打开了该文件，直接忽略，避免重复反编译和高亮失效
+        if (currentFile != null && currentFile.getAbsolutePath().equals(file.getAbsolutePath()) 
+                && textEditorView.getText() != null && !textEditorView.getText().isEmpty()) {
+            updateStatus("File already open: " + file.getName());
             if (fileTreeView != null) {
-                fileTreeView.addFile(file);
+                fileTreeView.selectFile(file);
             }
+            return;
+        }
+
+        currentFile = file;
+        updateFileLabel(file.getName());
+        updateStatus("Opening file...");
+
+        // 添加单个文件或在文件树中高亮当前选中的节点
+        if (fileTreeView != null) {
+            fileTreeView.addFile(file);
+            fileTreeView.selectFile(file);
+        }
 
             // 调用反编译功能并显示结果
             try {
@@ -114,11 +128,24 @@ public class FileMenuHandler {
                 // 仅加载代码视图，跳过AST和CFG转换（按需加载）
                 updateStatus("File opened successfully");
             } catch (Exception e) {
-                updateStatus("Error opening file: " + e.getMessage());
-                showError(i18nService.getErrorDialogTitle(), i18nService.getFileOpenFailedMessage(e.getMessage()));
-                e.printStackTrace();
+                // 如果解析失败，判断是否为文本文件。是则正常打开，否则提示不支持的文件
+                if (isTextFile(file)) {
+                    try {
+                        updateStatus("Reading text file...");
+                        String textContent = readTextFileContent(file);
+                        this.currentLuacFile = null;
+                        this.chunkLineRanges = new java.util.HashMap<>();
+                        textEditorView.setText(textContent);
+                        updateStatus("Opened text file: " + file.getName());
+                    } catch (Exception textEx) {
+                        updateStatus("Error reading text file: " + textEx.getMessage());
+                        showError(i18nService.getErrorDialogTitle(), "无法读取文本文件: " + textEx.getMessage());
+                    }
+                } else {
+                    updateStatus("Unsupported file format: " + file.getName());
+                    showError(i18nService.getErrorDialogTitle(), "不支持的文件格式: 该文件既不是文本文件，也无法识别为有效的 Lua 字节码");
+                }
             }
-        }
     }
 
     /**
@@ -226,5 +253,34 @@ public class FileMenuHandler {
      */
     public java.util.Map<String, com.github.relua.model.LineRange> getChunkLineRanges() {
         return chunkLineRanges;
+    }
+
+    private boolean isTextFile(File file) {
+        if (!file.exists() || file.isDirectory()) {
+            return false;
+        }
+        if (file.length() > 10 * 1024 * 1024) { // 限制最大为 10MB
+            return false;
+        }
+        try (java.io.BufferedInputStream in = new java.io.BufferedInputStream(new java.io.FileInputStream(file))) {
+            byte[] buffer = new byte[1024];
+            int read = in.read(buffer, 0, buffer.length);
+            if (read == -1) {
+                return true;
+            }
+            for (int i = 0; i < read; i++) {
+                if (buffer[i] == 0) { // 如果前 1KB 含有 0 字节，判定为二进制
+                    return false;
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private String readTextFileContent(File file) throws IOException {
+        byte[] bytes = java.nio.file.Files.readAllBytes(file.toPath());
+        return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
     }
 }

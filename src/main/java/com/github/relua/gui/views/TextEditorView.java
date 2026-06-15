@@ -2,6 +2,7 @@ package com.github.relua.gui.views;
 
 import com.github.relua.gui.utils.I18nUtil;
 import javafx.scene.Node;
+import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.LineNumberFactory;
 import org.fxmisc.richtext.model.StyleSpans;
@@ -21,28 +22,57 @@ import java.util.regex.Pattern;
 public class TextEditorView {
     // RichTextFX的CodeArea组件
     private final CodeArea codeArea;
+    private final VirtualizedScrollPane<CodeArea> virtualizedScrollPane;
     
     // Lua语法高亮的正则表达式
     private static final String KEYWORDS = "\\b(and|break|do|else|elseif|end|false|for|function|goto|if|in|local|nil|not|or|repeat|return|then|true|until|while)\\b";
-    private static final String STRINGS = "\\\"([^\\\\\"\\r\\n]|\\\\.)*\\\"";
+    private static final String STRINGS = "\\\"([^\\\\\"\\r\\n]|\\\\.)*\\\"|\\'([^\\\\\\'\\r\\n]|\\\\.)*\\'";
     private static final String COMMENTS = "--.*$";
     private static final String NUMBERS = "\\b\\d+\\.?\\d*\\b";
+    private static final String GLOBALVAR = "\\bglobal_[A-Za-z0-9_]+\\b";
+    private static final String METHODCALL = "(?<=:)[A-Za-z_][A-Za-z0-9_]*";
+    private static final String TABLEFIELD = "(?<=\\.)[A-Za-z_][A-Za-z0-9_]*";
+    private static final String FUNCTION = "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()";
+    private static final String LOCALVAR = "\\b[A-Za-z_][A-Za-z0-9_]*\\b";
+    private static final String OPERATORS = "==|~=|<=|>=|\\.\\.|[\\+\\-\\*\\/\\%\\^\\#\\=\\<\\>\\:]";
     
     // 组合正则表达式
-    private static final String PATTERN = "(?<KEYWORDS>" + KEYWORDS + ")|(?<STRINGS>" + STRINGS + ")|(?<COMMENTS>" + COMMENTS + ")|(?<NUMBERS>" + NUMBERS + ")";
+    private static final String PATTERN = 
+          "(?<COMMENTS>" + COMMENTS + ")"
+        + "|(?<STRINGS>" + STRINGS + ")"
+        + "|(?<KEYWORDS>" + KEYWORDS + ")"
+        + "|(?<GLOBALVAR>" + GLOBALVAR + ")"
+        + "|(?<METHODCALL>" + METHODCALL + ")"
+        + "|(?<TABLEFIELD>" + TABLEFIELD + ")"
+        + "|(?<FUNCTION>" + FUNCTION + ")"
+        + "|(?<LOCALVAR>" + LOCALVAR + ")"
+        + "|(?<NUMBERS>" + NUMBERS + ")"
+        + "|(?<OPERATORS>" + OPERATORS + ")";
     private static final Pattern SYNTAX_PATTERN = Pattern.compile(PATTERN);
     
+    private com.github.relua.gui.controllers.LuaCodeIntelligenceController codeIntelligenceController;
+
     /**
      * 构造函数
      */
     public TextEditorView() {
         // 初始化CodeArea
         codeArea = new CodeArea();
+        codeArea.setWrapText(false); // 禁用自动换行，长行出现水平滚动条
+        virtualizedScrollPane = new VirtualizedScrollPane<>(codeArea);
         
         // 设置行号
         codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
         
-        // 启用撤销/重做功能（使用默认的UndoManager）
+        // 加载 Lua 语法高亮样式表
+        try {
+            String cssPath = getClass().getResource("/css/lua-highlight.css").toExternalForm();
+            codeArea.getStylesheets().add(cssPath);
+        } catch (Exception e) {
+            java.util.logging.Logger.getLogger("TextEditorView").warning("无法加载 Lua 语法高亮样式表: " + e.getMessage());
+        }
+        
+        // 启用撤销/重做功能（使用默认 of UndoManager）
         
         // 启用语法高亮
         codeArea.textProperty().addListener((obs, oldText, newText) -> {
@@ -59,9 +89,28 @@ public class TextEditorView {
         codeArea.setMaxHeight(Double.MAX_VALUE);
         // 设置最小高度，确保至少能显示10行文本内容（假设每行高度为20px）
         codeArea.setMinHeight(200);
+
+        // 设置 virtualizedScrollPane 的尺寸约束，确保能填充 ScrollPane Content 区域
+        virtualizedScrollPane.setPrefWidth(Double.MAX_VALUE);
+        virtualizedScrollPane.setPrefHeight(Double.MAX_VALUE);
+        virtualizedScrollPane.setMaxWidth(Double.MAX_VALUE);
+        virtualizedScrollPane.setMaxHeight(Double.MAX_VALUE);
         
         // 设置初始文本
         codeArea.replaceText(I18nUtil.getString("editor.welcome"));
+    }
+    
+    /**
+     * 初始化代码智能提示与跳转功能
+     * @param statusLabel 状态栏标签
+     */
+    public void initCodeIntelligence(javafx.scene.control.Label statusLabel) {
+        this.codeIntelligenceController = new com.github.relua.gui.controllers.LuaCodeIntelligenceController(codeArea, statusLabel);
+        this.codeIntelligenceController.rebuildIndex();
+    }
+    
+    public com.github.relua.gui.controllers.LuaCodeIntelligenceController getCodeIntelligenceController() {
+        return codeIntelligenceController;
     }
     
     /**
@@ -70,6 +119,11 @@ public class TextEditorView {
      * @return 样式跨度
      */
     private StyleSpans<Collection<String>> computeHighlighting(String text) {
+        if (text == null || text.isEmpty()) {
+            StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
+            spansBuilder.add(Collections.emptyList(), 0);
+            return spansBuilder.create();
+        }
         Matcher matcher = SYNTAX_PATTERN.matcher(text);
         int lastKwEnd = 0;
         StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
@@ -84,6 +138,18 @@ public class TextEditorView {
                 styleClass = "comment";
             } else if (matcher.group("NUMBERS") != null) {
                 styleClass = "number";
+            } else if (matcher.group("GLOBALVAR") != null) {
+                styleClass = "global-var";
+            } else if (matcher.group("METHODCALL") != null) {
+                styleClass = "method-call";
+            } else if (matcher.group("TABLEFIELD") != null) {
+                styleClass = "table-field";
+            } else if (matcher.group("FUNCTION") != null) {
+                styleClass = "function";
+            } else if (matcher.group("LOCALVAR") != null) {
+                styleClass = "local-var";
+            } else if (matcher.group("OPERATORS") != null) {
+                styleClass = "operator";
             }
             
             spansBuilder.add(Collections.emptyList(), matcher.start() - lastKwEnd);
@@ -100,7 +166,7 @@ public class TextEditorView {
      * @return 视图节点
      */
     public Node getView() {
-        return codeArea;
+        return virtualizedScrollPane;
     }
     
     /**
@@ -117,6 +183,9 @@ public class TextEditorView {
      */
     public void setText(String text) {
         codeArea.replaceText(text);
+        if (codeIntelligenceController != null) {
+            codeIntelligenceController.rebuildIndex();
+        }
     }
     
     /**

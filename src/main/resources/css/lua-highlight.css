@@ -1,0 +1,57 @@
+/* 浅色主题样式 */
+.code-area {
+    -fx-background-color: #ffffff;
+    -fx-text-fill: #000000;
+    -fx-caret-fill: #000000;
+}
+
+.lineno {
+    -fx-text-fill: #a0a0a0;
+    -fx-background-color: #f5f5f5;
+    -fx-padding: 0 10 0 10;
+    -fx-alignment: center-right;
+}
+
+/* 语法高亮样式 */
+.keyword {
+    -fx-fill: #0451a5;
+    -fx-font-weight: bold;
+}
+
+.string {
+    -fx-fill: #a31515;
+}
+
+.comment {
+    -fx-fill: #008000;
+    -fx-font-style: italic;
+}
+
+.number {
+    -fx-fill: #098658;
+}
+
+.global-var {
+    -fx-fill: #af00db;
+    -fx-font-weight: bold;
+}
+
+.method-call {
+    -fx-fill: #795e26;
+}
+
+.table-field {
+    -fx-fill: #001080;
+}
+
+.function {
+    -fx-fill: #795e26;
+}
+
+.local-var {
+    -fx-fill: #001080;
+}
+
+.operator {
+    -fx-fill: #303030;
+}

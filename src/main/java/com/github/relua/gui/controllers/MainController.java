@@ -18,8 +18,10 @@ import com.github.relua.model.Constant;
 import com.github.relua.model.LocalVar;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
@@ -188,7 +190,13 @@ public class MainController {
         
         // 初始化文本编辑器视图
         textEditorView = new TextEditorView();
+        textEditorView.initCodeIntelligence(statusLabel);
+        
         textEditorScrollPane.setContent(textEditorView.getView());
+        
+        // 禁用外层 ScrollPane 的滚动条以避免与内层 VirtualizedScrollPane 发生冲突，实现完美流畅滚动
+        textEditorScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        textEditorScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         
         // 初始化图形可视化视图
         graphVisualizationView = new GraphVisualizationView();
@@ -229,6 +237,8 @@ public class MainController {
         // 默认隐藏右侧图形视图，仅保留文件树和代码视图
         mainSplitPane.getItems().remove(graphContainer);
         graphContainer.setVisible(false);
+        // 重新分配主分割线位置，防止移除 graph 节点后左侧树被挤扁成 0 宽度
+        mainSplitPane.setDividerPosition(0, 0.25);
         
         // 设置初始状态
         updateStatus(i18nService.getInitialStatusText());

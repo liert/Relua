@@ -281,8 +281,20 @@ public class FileTreeView {
      * @param file 文件对象
      */
     public void addFile(File file) {
-        if (file.isDirectory()) {
+        if (file == null || file.isDirectory()) {
             return;
+        }
+        
+        // 如果当前处于文件夹模式，则不追加任何独立文件节点，保持原文件夹结构不变
+        if (isFolderMode()) {
+            return;
+        }
+        
+        // 检查是否已存在相同绝对路径的文件节点，防止重复添加
+        for (TreeItem<FileNode> child : rootItem.getChildren()) {
+            if (child.getValue() != null && child.getValue().getFile().getAbsolutePath().equals(file.getAbsolutePath())) {
+                return;
+            }
         }
         
         // 创建文件节点
@@ -291,6 +303,77 @@ public class FileTreeView {
         
         // 添加文件到根节点
         rootItem.getChildren().add(fileItem);
+    }
+
+    /**
+     * 判断当前是否处于文件夹打开模式
+     * @return 如果根节点下有文件夹节点则返回true
+     */
+    public boolean isFolderMode() {
+        if (rootItem.getChildren().isEmpty()) {
+            return false;
+        }
+        TreeItem<FileNode> firstChild = rootItem.getChildren().get(0);
+        return firstChild != null && firstChild.getValue() != null && firstChild.getValue().isDirectory();
+    }
+
+    /**
+     * 在文件树中选中并高亮对应的文件节点
+     * @param file 要选中的文件
+     */
+    public void selectFile(File file) {
+        if (file == null || rootItem == null || rootItem.getChildren().isEmpty()) {
+            return;
+        }
+        selectFileRecursively(rootItem, file);
+    }
+
+    private boolean selectFileRecursively(TreeItem<FileNode> parentItem, File targetFile) {
+        FileNode parentNode = parentItem.getValue();
+        if (parentNode != null && parentNode.getFile().getAbsolutePath().equals(targetFile.getAbsolutePath())) {
+            // 找到目标文件，选中并滚动
+            javafx.application.Platform.runLater(() -> {
+                treeView.getSelectionModel().select(parentItem);
+                int row = treeView.getRow(parentItem);
+                if (row >= 0) {
+                    treeView.scrollTo(row);
+                }
+            });
+            return true;
+        }
+
+        if (parentNode == null || !parentNode.isDirectory()) {
+            return false;
+        }
+
+        // 如果是文件夹，确认是否已经加载了真实的子节点
+        if (parentItem.getChildren().size() == 1 && parentItem.getChildren().get(0).getValue() == null) {
+            // 强制同步加载子节点以允许搜索
+            loadChildren(parentItem);
+        }
+
+        // 检查 targetFile 是否在这个文件夹下面
+        String parentPath = parentNode.getFile().getAbsolutePath();
+        String targetPath = targetFile.getAbsolutePath();
+        
+        // 跨平台路径比较
+        if (!targetPath.startsWith(parentPath)) {
+            return false;
+        }
+
+        for (TreeItem<FileNode> child : parentItem.getChildren()) {
+            if (child.getValue() != null) {
+                String childPath = child.getValue().getFile().getAbsolutePath();
+                if (targetPath.equals(childPath) || targetPath.startsWith(childPath + File.separator) || targetPath.startsWith(childPath + "/")) {
+                    parentItem.setExpanded(true); // 展开父节点
+                    boolean found = selectFileRecursively(child, targetFile);
+                    if (found) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
     
     /**
