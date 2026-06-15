@@ -2,6 +2,7 @@ package com.github.relua.ast;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import com.github.relua.util.LuaStringEscapeUtils;
 
 public class AstPrinter implements AstVisitor<String> {
     private int indentLevel = 0;
@@ -242,42 +243,7 @@ public class AstPrinter implements AstVisitor<String> {
     
     @Override
     public String visit(StringConst node) {
-        return "\"" + escapeLuaString(node.value) + "\"";
-    }
-
-    private String escapeLuaString(String value) {
-        if (value == null) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            switch (c) {
-                case '\\':
-                    sb.append("\\\\");
-                    break;
-                case '"':
-                    sb.append("\\\"");
-                    break;
-                case '\n':
-                    sb.append("\\n");
-                    break;
-                case '\r':
-                    sb.append("\\r");
-                    break;
-                case '\t':
-                    sb.append("\\t");
-                    break;
-                default:
-                    if (c < 32) {
-                        sb.append(String.format("\\%03d", (int) c));
-                    } else {
-                        sb.append(c);
-                    }
-                    break;
-            }
-        }
-        return sb.toString();
+        return "\"" + LuaStringEscapeUtils.escape(node.value) + "\"";
     }
     
     @Override

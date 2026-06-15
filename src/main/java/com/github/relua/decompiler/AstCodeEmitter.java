@@ -3,6 +3,7 @@ package com.github.relua.decompiler;
 import com.github.relua.ast.AstNode;
 import com.github.relua.ast.AstPrinter;
 import com.github.relua.model.Chunk;
+import com.github.relua.log.Logger;
 
 /**
  * AST代码生成器，负责将AST转换为Lua代码
@@ -37,7 +38,7 @@ public class AstCodeEmitter {
                 upvalueNames.add(uv.getName());
             }
         }
-        System.out.println("[DEBUG] Chunk " + chunk.getFunction() + " usedUpvalueIndices: " + usedUpvalueIndices + " -> upvalueNames: " + upvalueNames);
+        Logger.debug("[DEBUG] Chunk " + chunk.getFunction() + " usedUpvalueIndices: " + usedUpvalueIndices + " -> upvalueNames: " + upvalueNames);
         emitAst(chunk, context, handler, parentDeclared, upvalueNames);
     }
 
@@ -48,7 +49,7 @@ public class AstCodeEmitter {
         // 如果生成的是Block，直接设置为上下文的astBlock
         if (ast instanceof com.github.relua.ast.Block) {
             com.github.relua.ast.Block block = (com.github.relua.ast.Block) ast;
-            java.util.Set<String> declared = new AstCleanupPass().cleanup(block, parentDeclared, upvalueNames);
+            java.util.Set<String> declared = new AstCleanupPass().cleanup(block, context, parentDeclared, upvalueNames);
             context.setDeclaredVariables(declared);
             context.setAstBlock(block);
         } else {
@@ -60,7 +61,7 @@ public class AstCodeEmitter {
                 com.github.relua.ast.Expression expr = (com.github.relua.ast.Expression) ast;
                 block.statements.add(new com.github.relua.ast.ExpressionStatement(expr, expr.pos));
             }
-            java.util.Set<String> declared = new AstCleanupPass().cleanup(block, parentDeclared, upvalueNames);
+            java.util.Set<String> declared = new AstCleanupPass().cleanup(block, context, parentDeclared, upvalueNames);
             context.setDeclaredVariables(declared);
             context.setAstBlock(block);
         }

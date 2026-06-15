@@ -1,5 +1,7 @@
 package com.github.relua.model;
 
+import com.github.relua.util.LuaStringEscapeUtils;
+
 /**
  * Lua常量模型
  */
@@ -82,7 +84,7 @@ public class Constant {
                 }
                 return Double.toString(num);
             case STRING:
-                return "\"" + value + "\"";
+                return "\"" + LuaStringEscapeUtils.escape((String) value) + "\"";
             default:
                 return "unknown";
         }

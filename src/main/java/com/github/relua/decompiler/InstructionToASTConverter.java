@@ -1212,7 +1212,7 @@ public class InstructionToASTConverter {
         RegisterEntity RB = registerState.getRegisterEntity(b);
 
         if (chunk.getFunction() != null && (chunk.getFunction().contains("sane") || chunk.getFunction().contains("main_2") || chunk.getFunction().contains("main_26"))) {
-            System.out.println("[DEBUG-TESTSET] PC=" + instructionIndex + ", a=" + a + ", b=" + b + ", c=" + c + ", RA=" + RA + ", RB=" + RB);
+            Logger.debug("[DEBUG-TESTSET] PC=" + instructionIndex + ", a=" + a + ", b=" + b + ", c=" + c + ", RA=" + RA + ", RB=" + RB);
         }
 
         // 操作数 根据c的值构建条件表达式
@@ -1384,7 +1384,7 @@ public class InstructionToASTConverter {
         UpValue upvalue = context.getUpvalue(b);
         
         if (chunk.getFunction() != null && (chunk.getFunction().contains("sane") || chunk.getFunction().contains("main_2") || chunk.getFunction().contains("main_26"))) {
-            System.out.println("[DEBUG-GETUPVAL] PC=" + instructionIndex + ", a=" + a + ", b=" + b + ", uv=" + upvalue + (upvalue != null ? (", uv.name=" + upvalue.getName() + ", uv.val=" + upvalue.getValue()) : ""));
+            Logger.debug("[DEBUG-GETUPVAL] PC=" + instructionIndex + ", a=" + a + ", b=" + b + ", uv=" + upvalue + (upvalue != null ? (", uv.name=" + upvalue.getName() + ", uv.val=" + upvalue.getValue()) : ""));
         }
         
         SourcePos pos = new SourcePos(instructionIndex, -1);
@@ -1587,5 +1587,152 @@ public class InstructionToASTConverter {
             return minTarget - 1;
         }
         return candidateEnd;
+    }
+
+    /**
+     * 尝试在生成 ReturnStatement 时进行 peephole 优化，折叠前置寄存器赋值与常量返回。
+     * 例如将:
+     *   R4 = nil
+     *   return nil
+     * 折叠为:
+     *   return nil
+     *
+     * @param block 当前 AST 块
+     * @param ret 当前生成的返回语句
+     * @param returnPC return 指令的 PC
+     * @return 是否成功进行了优化
+     */
+    public boolean tryOptimizeAssignReturn(Block block, ReturnStatement ret, int returnPC) {
+        if (block == null || block.statements == null || block.statements.isEmpty()) {
+            return false;
+        }
+
+        Statement lastStmt = block.statements.get(block.statements.size() - 1);
+        if (!(lastStmt instanceof Assign)) {
+            return false;
+        }
+
+        Assign assign = (Assign) lastStmt;
+        if (assign.left.size() != 1 || assign.right.size() != 1 || ret.values.size() != 1) {
+            return false;
+        }
+
+        Expression leftExpr = assign.left.get(0);
+        Expression rightExpr = assign.right.get(0);
+        Expression retExpr = ret.values.get(0);
+
+        if (!(leftExpr instanceof Name)) {
+            return false;
+        }
+        Name leftName = (Name) leftExpr;
+        java.util.regex.Pattern regPattern = java.util.regex.Pattern.compile("^R(\\d+)$");
+        java.util.regex.Matcher matcher = regPattern.matcher(leftName.name);
+        if (!matcher.matches()) {
+            return false;
+        }
+        int reg = Integer.parseInt(matcher.group(1));
+
+        CodeGeneratorContext context = pipeline.getContext();
+
+        // 基础安全校验：PC 有效性、LabelPC 校验、Upvalue 校验
+        if (assign.pos == null || ret.pos == null ||
+            assign.pos.pc < 0 || returnPC < 0 ||
+            context.isLabelPC(assign.pos.pc) ||
+            context.isLabelPC(returnPC)) {
+            return false;
+        }
+
+        // Upvalue 校验
+        java.util.Set<String> upvalueNames = new java.util.HashSet<>();
+        for (UpValue uv : context.getUpvalues()) {
+            if (uv != null && uv.getName() != null) {
+                upvalueNames.add(uv.getName());
+            }
+        }
+        if (upvalueNames.contains(leftName.name)) {
+            return false;
+        }
+
+        // 获取指令并验证一致性
+        List<Instruction> instructions = chunk.getInstructions();
+        if (assign.pos.pc >= instructions.size() || returnPC >= instructions.size()) {
+            return false;
+        }
+        Instruction assignInst = instructions.get(assign.pos.pc);
+        Instruction returnInst = instructions.get(returnPC);
+
+        if (returnInst.getOpcode() != Opcode.RETURN || 
+            returnInst.getB() != 2 || 
+            returnInst.getA() != reg ||
+            assignInst.getA() != reg) {
+            return false;
+        }
+
+        // 验证常量与指令的一致性
+        Opcode assignOp = assignInst.getOpcode();
+        boolean verified = false;
+
+        if (assignOp == Opcode.LOADNIL) {
+            if (assignInst.getA() == assignInst.getB() && rightExpr instanceof NilConst) {
+                verified = true;
+            }
+        } else if (assignOp == Opcode.LOADBOOL) {
+            if (rightExpr instanceof BooleanConst) {
+                boolean astValue = ((BooleanConst) rightExpr).value;
+                boolean instValue = assignInst.getB() != 0;
+                if (astValue == instValue) {
+                    verified = true;
+                }
+            }
+        } else if (assignOp == Opcode.LOADK) {
+            Constant k = chunk.getConstant(assignInst.getBx());
+            if (k != null) {
+                Object kVal = k.getValue();
+                if (rightExpr instanceof StringConst) {
+                    String astStr = ((StringConst) rightExpr).value;
+                    if (astStr.equals(kVal)) {
+                        verified = true;
+                    }
+                } else if (rightExpr instanceof NumberConst) {
+                    if (kVal instanceof Number) {
+                        double astNum = ((NumberConst) rightExpr).value;
+                        double kNum = ((Number) kVal).doubleValue();
+                        if (Double.compare(astNum, kNum) == 0) {
+                            verified = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!verified) {
+            return false;
+        }
+
+        // 验证返回表达式是否为常量，且与 assign 的右侧常量在语义上完全一致
+        boolean isConst = retExpr instanceof NilConst || retExpr instanceof BooleanConst || retExpr instanceof NumberConst || retExpr instanceof StringConst;
+        if (!isConst) {
+            return false;
+        }
+
+        boolean equal = false;
+        if (rightExpr instanceof NilConst && retExpr instanceof NilConst) {
+            equal = true;
+        } else if (rightExpr instanceof BooleanConst && retExpr instanceof BooleanConst) {
+            equal = ((BooleanConst) rightExpr).value == ((BooleanConst) retExpr).value;
+        } else if (rightExpr instanceof StringConst && retExpr instanceof StringConst) {
+            equal = ((StringConst) rightExpr).value.equals(((StringConst) retExpr).value);
+        } else if (rightExpr instanceof NumberConst && retExpr instanceof NumberConst) {
+            equal = Double.compare(((NumberConst) rightExpr).value, ((NumberConst) retExpr).value) == 0;
+        }
+
+        if (equal) {
+            // 所有条件满足，移除最后一条 Assign，将 ret 插入并替换它
+            block.statements.remove(block.statements.size() - 1);
+            block.statements.add(ret);
+            return true;
+        }
+
+        return false;
     }
 }

@@ -8,6 +8,7 @@ import com.github.relua.model.Opcode;
 import com.github.relua.model.Register;
 import com.github.relua.model.Register.RegisterEntity;
 import com.github.relua.model.ValueType;
+import com.github.relua.util.LuaStringEscapeUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -114,8 +115,8 @@ public class InstructionHandler {
             Object value = entity.getValue();
             if (value != null) {
                 if (entity.getType() == ValueType.STRING) {
-                    // 字符串需要添加引号
-                    return String.format("\"%s\"", value.toString());
+                    // 字符串需要添加引号并转义
+                    return String.format("\"%s\"", LuaStringEscapeUtils.escape(value.toString()));
                 }
                 return value.toString();
             }
@@ -932,7 +933,15 @@ public class InstructionHandler {
                     if (result instanceof Block) {
                         blockNode.statements.addAll(((Block) result).statements);
                     } else {
-                        blockNode.statements.add((Statement) result);
+                        if (result instanceof ReturnStatement) {
+                            if (converter.tryOptimizeAssignReturn(blockNode, (ReturnStatement) result, i)) {
+                                // Optimized
+                            } else {
+                                blockNode.statements.add((Statement) result);
+                            }
+                        } else {
+                            blockNode.statements.add((Statement) result);
+                        }
                     }
 
                 } else if (result instanceof Expression) {
@@ -1271,7 +1280,15 @@ public class InstructionHandler {
                     if (node instanceof Block) {
                         block.statements.addAll(((Block) node).statements);
                     } else {
-                        block.statements.add((Statement) node);
+                        if (node instanceof ReturnStatement) {
+                            if (converter.tryOptimizeAssignReturn(block, (ReturnStatement) node, pc)) {
+                                // Optimized
+                            } else {
+                                block.statements.add((Statement) node);
+                            }
+                        } else {
+                            block.statements.add((Statement) node);
+                        }
                     }
                 } else if (node instanceof Expression) {
                     block.statements.add(new ExpressionStatement((Expression) node, ((Expression) node).pos));

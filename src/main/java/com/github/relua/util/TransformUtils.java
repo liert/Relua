@@ -37,7 +37,7 @@ public class TransformUtils {
             return transformRegister(register.getRegisterEntity(index));
         } else {
             Object val = chunk.getConstant(index - 256).getValue();
-            return  "\"" + (val != null ? val.toString() : "") + "\"";
+            return "\"" + (val != null ? LuaStringEscapeUtils.escape(val.toString()) : "") + "\"";
         }
     }
 

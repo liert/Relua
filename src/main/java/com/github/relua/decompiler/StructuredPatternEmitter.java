@@ -16,6 +16,7 @@ import com.github.relua.ast.Name;
 import com.github.relua.ast.NilConst;
 import com.github.relua.ast.NumberConst;
 import com.github.relua.ast.SourcePos;
+import com.github.relua.ast.ReturnStatement;
 import com.github.relua.ast.Statement;
 import com.github.relua.ast.StringConst;
 import com.github.relua.model.Chunk;
@@ -47,7 +48,16 @@ public class StructuredPatternEmitter {
                 continue;
             }
 
-            appendConverted(block, converter.convertInstructionToAST(instructions.get(pc), pc));
+            Object node = converter.convertInstructionToAST(instructions.get(pc), pc);
+            if (node instanceof ReturnStatement) {
+                if (converter.tryOptimizeAssignReturn(block, (ReturnStatement) node, pc)) {
+                    // Optimized
+                } else {
+                    block.statements.add((ReturnStatement) node);
+                }
+            } else {
+                appendConverted(block, node);
+            }
         }
 
         return matched ? block : null;
@@ -186,7 +196,16 @@ public class StructuredPatternEmitter {
                     pc++;
                     continue;
                 }
-                appendConverted(body, converter.convertInstructionToAST(chunk.getInstructions().get(pc), pc));
+                Object node = converter.convertInstructionToAST(chunk.getInstructions().get(pc), pc);
+                if (node instanceof ReturnStatement) {
+                    if (converter.tryOptimizeAssignReturn(body, (ReturnStatement) node, pc)) {
+                        // Optimized
+                    } else {
+                        body.statements.add((ReturnStatement) node);
+                    }
+                } else {
+                    appendConverted(body, node);
+                }
             }
 
             return new IfStatement(condition, body, null, pos);

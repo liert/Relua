@@ -24,8 +24,8 @@ public class Relua {
      * @param args 命令行参数
      */
     public static void main(String[] args) {
-        // 初始化日志系统
-        initLogger();
+        // 初始化日志系统（默认WARNING级别，不输出到控制台或文件）
+        initLogger(LogLevel.WARNING, Boolean.getBoolean("relua.logToConsole"), false, "logs/relua.log");
         
         if (args.length == 0) {
             showHelp();
@@ -37,6 +37,11 @@ public class Relua {
         boolean showVersion = false;
         boolean showHelp = false;
         boolean showBytecode = false;
+        LogLevel logLevel = LogLevel.WARNING;
+        boolean logToConsole = Boolean.getBoolean("relua.logToConsole");
+        boolean fileOutput = false;
+        String logFilePath = "logs/relua.log";
+        boolean debugOutput = Boolean.getBoolean("relua.debugOutput");
         
         // 解析命令行参数
         for (int i = 0; i < args.length; i++) {
@@ -62,6 +67,31 @@ public class Relua {
                 case "-b":
                 case "--bytecode":
                     showBytecode = true;
+                    break;
+                case "-l":
+                case "--log":
+                    if (i + 1 < args.length) {
+                        String levelStr = args[++i];
+                        logLevel = LogLevel.fromString(levelStr);
+                        logToConsole = true; // 指定了日志级别，默认开启控制台输出
+                        if (logLevel == LogLevel.DEBUG || logLevel == LogLevel.INFO) {
+                            debugOutput = true; // DEBUG/INFO 级别自动开启 debugOutput
+                        }
+                    } else {
+                        Logger.error("Missing log level");
+                        System.exit(1);
+                    }
+                    break;
+                case "-f":
+                case "--log-file":
+                    if (i + 1 < args.length) {
+                        logFilePath = args[++i];
+                        fileOutput = true;
+                        logToConsole = false; // 指定了日志文件，默认关闭控制台日志输出
+                    } else {
+                        Logger.error("Missing log file path");
+                        System.exit(1);
+                    }
                     break;
                 default:
                     if (arg.startsWith("-")) {
@@ -95,6 +125,10 @@ public class Relua {
             showHelp();
             System.exit(1);
         }
+
+        // 应用解析后的日志配置与调试输出配置
+        System.setProperty("relua.debugOutput", String.valueOf(debugOutput));
+        initLogger(logLevel, logToConsole, fileOutput, logFilePath);
         
         try {
             final String finalInputFile = inputFile;
@@ -118,28 +152,79 @@ public class Relua {
     /**
      * 初始化日志系统
      */
-    private static void initLogger() {
+    private static void initLogger(LogLevel level, boolean logToConsole, boolean fileOutput, String logFilePath) {
         LogConfig config = new LogConfig();
-        config.setLogLevel(LogLevel.WARNING);
-        config.setConsoleOutput(Boolean.getBoolean("relua.logToConsole"));
-        config.setFileOutput(false);
-        config.setLogFilePath("logs/relua.log");
+        config.setLogLevel(level);
+        config.setConsoleOutput(logToConsole);
+        config.setFileOutput(fileOutput);
+        config.setLogFilePath(logFilePath);
         config.setMaxFileSize(10 * 1024 * 1024); // 10MB
         config.setMaxBackupFiles(5);
         Logger.init(config);
     }
 
     private static String runWithCapturedStdout(DecompileAction action) throws Exception {
+        PrintStream originalOut = System.out;
         if (Boolean.getBoolean("relua.debugOutput")) {
-            return action.run();
+            try {
+                System.setOut(new PrintStream(new LoggerPrintStream(originalOut)));
+                return action.run();
+            } finally {
+                System.setOut(originalOut);
+            }
         }
 
-        PrintStream originalOut = System.out;
         try {
             System.setOut(new PrintStream(new ByteArrayOutputStream()));
             return action.run();
         } finally {
             System.setOut(originalOut);
+        }
+    }
+
+    private static class LoggerPrintStream extends java.io.OutputStream {
+        private final StringBuilder buffer = new StringBuilder();
+        private final PrintStream originalOut;
+
+        public LoggerPrintStream(PrintStream originalOut) {
+            this.originalOut = originalOut;
+        }
+
+        @Override
+        public void write(int b) {
+            if (b == '\n') {
+                flushLine();
+            } else if (b != '\r') {
+                buffer.append((char) b);
+            }
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) {
+            for (int i = 0; i < len; i++) {
+                write(b[off + i]);
+            }
+        }
+
+        private void flushLine() {
+            if (buffer.length() > 0) {
+                String line = buffer.toString();
+                buffer.setLength(0);
+                if (isCalledFromLogger()) {
+                    originalOut.println(line);
+                } else {
+                    Logger.debug(line);
+                }
+            }
+        }
+
+        private boolean isCalledFromLogger() {
+            for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
+                if (element.getClassName().startsWith("com.github.relua.log.")) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
@@ -199,6 +284,8 @@ public class Relua {
         System.out.println("Options:");
         System.out.println("  -o, --output FILE    Write output to FILE instead of stdout");
         System.out.println("  -b, --bytecode       Show bytecode instructions in output");
+        System.out.println("  -l, --log LEVEL      Set log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)");
+        System.out.println("  -f, --log-file FILE  Write logs to FILE");
         System.out.println("  -v, --version        Show version information");
         System.out.println("  -h, --help           Show this help message");
         System.out.println();
@@ -206,5 +293,7 @@ public class Relua {
         System.out.println("  relua file.luac              Decompile file.luac to stdout");
         System.out.println("  relua -o file.lua file.luac  Decompile file.luac to file.lua");
         System.out.println("  relua -b file.luac           Show bytecode instructions");
+        System.out.println("  relua -l DEBUG file.luac     Decompile file.luac with DEBUG logs");
+        System.out.println("  relua -l DEBUG -f my.log file.luac   Decompile with DEBUG logs redirected to my.log");
     }
 }

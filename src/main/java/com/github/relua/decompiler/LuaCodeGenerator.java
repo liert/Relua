@@ -145,7 +145,7 @@ public class LuaCodeGenerator {
                     // 为其他函数创建FunctionDeclaration节点
                     
                     // 对于被拉平输出的全局函数，因为它们已经不嵌套在父闭包内部，不需要防 shadowed，重新 cleanup
-                    new AstCleanupPass().cleanup(ctx.getAstBlock(), java.util.Collections.emptySet());
+                    new AstCleanupPass().cleanup(ctx.getAstBlock(), ctx, java.util.Collections.emptySet());
                     
                     FunctionLiteral funcLit = createFunctionLiteral(ctx);
                     

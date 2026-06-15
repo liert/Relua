@@ -35,17 +35,39 @@ import com.github.relua.ast.UnaryOp;
 import com.github.relua.ast.WhileStatement;
 import com.github.relua.decompiler.analysis.DataFlowAnalyzer;
 import com.github.relua.decompiler.analysis.StructureRestorer;
+import com.github.relua.ast.NilConst;
+import com.github.relua.ast.BooleanConst;
+import com.github.relua.ast.NumberConst;
+import com.github.relua.ast.StringConst;
+import com.github.relua.model.Instruction;
+import com.github.relua.model.Opcode;
+import com.github.relua.model.Constant;
+import com.github.relua.log.Logger;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 public class AstCleanupPass {
     public void cleanup(Block block) {
-        cleanup(block, java.util.Collections.emptySet(), java.util.Collections.emptySet());
+        cleanup(block, null, java.util.Collections.emptySet(), java.util.Collections.emptySet());
     }
 
     public Set<String> cleanup(Block block, Set<String> parentDeclared) {
-        return cleanup(block, parentDeclared, java.util.Collections.emptySet());
+        return cleanup(block, null, parentDeclared, java.util.Collections.emptySet());
     }
 
     public Set<String> cleanup(Block block, Set<String> parentDeclared, Set<String> upvalueNames) {
+        return cleanup(block, null, parentDeclared, upvalueNames);
+    }
+
+    public Set<String> cleanup(Block block, CodeGeneratorContext context) {
+        return cleanup(block, context, java.util.Collections.emptySet(), java.util.Collections.emptySet());
+    }
+
+    public Set<String> cleanup(Block block, CodeGeneratorContext context, Set<String> parentDeclared) {
+        return cleanup(block, context, parentDeclared, java.util.Collections.emptySet());
+    }
+
+    public Set<String> cleanup(Block block, CodeGeneratorContext context, Set<String> parentDeclared, Set<String> upvalueNames) {
         if (block == null) {
             return java.util.Collections.emptySet();
         }
@@ -66,6 +88,12 @@ public class AstCleanupPass {
         new DataFlowAnalyzer().optimize(block, parentDeclared, upvalueNames);
 
         // 2.6 移除 return 后的死代码
+        removeDeadCodeAfterReturn(block);
+
+        // 优化返回模式（Peephole 优化）：合并临时寄存器赋值与其后紧随的返回
+        optimizeReturnPatterns(block, context, upvalueNames);
+
+        // 再次移除合并可能产生的新一轮死代码
         removeDeadCodeAfterReturn(block);
 
         Set<TableConstructor> consumedTables = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -192,9 +220,6 @@ public class AstCleanupPass {
         block.statements.addAll(rewritten);
     }
 
-    /**
-     * 判断块是否为空或仅包含 GotoStatement/LabelStatement（join-point 残留）
-     */
     private boolean isEffectivelyEmpty(Block block) {
         if (block == null || block.statements.isEmpty()) {
             return true;
@@ -207,9 +232,6 @@ public class AstCleanupPass {
         return true;
     }
 
-    /**
-     * 判断语句是否为终结语句（return, tailcall, 或所有分支都返回的 if-else）。
-     */
     private boolean isTerminatingStatement(Statement stmt) {
         if (stmt instanceof ReturnStatement) {
             return true;
@@ -220,27 +242,21 @@ public class AstCleanupPass {
                 return true;
             }
         }
-        // if-else 所有分支都以终结语句结尾 → 整个 if 是终结的
         if (stmt instanceof IfStatement) {
             IfStatement ifStmt = (IfStatement) stmt;
             if (ifStmt.elseBlock == null || isEffectivelyEmpty(ifStmt.elseBlock)) {
-                return false; // 没有 else，不保证终结
+                return false;
             }
-            // 检查所有 then/elseif 块
             for (Block b : ifStmt.blocks) {
                 if (!blockEndsWithTerminator(b)) {
                     return false;
                 }
             }
-            // 检查 else 块
             return blockEndsWithTerminator(ifStmt.elseBlock);
         }
         return false;
     }
 
-    /**
-     * 判断块是否以终结语句结尾（递归检查最后一条语句）。
-     */
     private boolean blockEndsWithTerminator(Block block) {
         if (block == null || block.statements.isEmpty()) {
             return false;
@@ -249,16 +265,11 @@ public class AstCleanupPass {
         return isTerminatingStatement(last);
     }
 
-    /**
-     * 移除 return 语句之后的死代码（不可达语句）。
-     * 同时递归处理嵌套块（if/while/for 等内部的 block）。
-     */
     private void removeDeadCodeAfterReturn(Block block) {
         if (block == null || block.statements == null) {
             return;
         }
 
-        // 递归处理嵌套块
         for (Statement statement : block.statements) {
             if (statement instanceof IfStatement) {
                 IfStatement ifStmt = (IfStatement) statement;
@@ -277,7 +288,6 @@ public class AstCleanupPass {
             }
         }
 
-        // 在当前块中，寻找无条件转移语句并移除其后的不可达代码
         List<Statement> stmts = block.statements;
         for (int i = 0; i < stmts.size(); i++) {
             Statement s = stmts.get(i);
@@ -288,7 +298,6 @@ public class AstCleanupPass {
                 }
                 break;
             } else if (s instanceof GotoStatement) {
-                // 找到下一个 LabelStatement，移出它们之间的所有不可达语句
                 int nextLabelIdx = -1;
                 for (int k = i + 1; k < stmts.size(); k++) {
                     if (stmts.get(k) instanceof LabelStatement) {
@@ -302,7 +311,6 @@ public class AstCleanupPass {
                         stmts.removeAll(toRemove);
                     }
                 } else {
-                    // 后面没有 Label 了，直接移除后面的全部语句
                     if (i + 1 < stmts.size()) {
                         List<Statement> toRemove = new ArrayList<>(stmts.subList(i + 1, stmts.size()));
                         stmts.removeAll(toRemove);
@@ -313,9 +321,6 @@ public class AstCleanupPass {
         }
     }
 
-    /**
-     * 清除 IfStatement 的 then/else 块末尾的 join-point GotoStatement
-     */
     private void stripTrailingJoinGotos(IfStatement ifStmt) {
         for (Block b : ifStmt.blocks) {
             if (b != null) {
@@ -331,13 +336,11 @@ public class AstCleanupPass {
         if (block == null || block.statements.isEmpty()) {
             return;
         }
-        // 递归处理嵌套的 if 块
         for (Statement stmt : block.statements) {
             if (stmt instanceof IfStatement) {
                 stripTrailingJoinGotos((IfStatement) stmt);
             }
         }
-        // 移除块末尾的 GotoStatement 和 LabelStatement
         while (!block.statements.isEmpty()) {
             Statement last = block.statements.get(block.statements.size() - 1);
             if (last instanceof GotoStatement || last instanceof LabelStatement) {
@@ -348,9 +351,6 @@ public class AstCleanupPass {
         }
     }
 
-    /**
-     * 对条件表达式取反
-     */
     private Expression negateExpression(Expression expr) {
         if (expr instanceof UnaryOp && ((UnaryOp) expr).op.equals("not")) {
             return ((UnaryOp) expr).expr;
@@ -608,7 +608,7 @@ public class AstCleanupPass {
             return java.util.Collections.emptySet();
         }
 
-        System.out.println("[DEBUG] declareTopLevelLocals block, params: " + params + ", parentDeclared: " + parentDeclared);
+        Logger.debug("[DEBUG] declareTopLevelLocals block, params: " + params + ", parentDeclared: " + parentDeclared);
 
         Set<String> declared = new HashSet<>(parentDeclared);
         Set<String> hoistedRegisters = new HashSet<>();
@@ -617,16 +617,10 @@ public class AstCleanupPass {
         if (isFunction) {
             declared.addAll(params);
             
-            // 收集当前函数块中使用的所有 R\d+ 寄存器
             collectAllUsedRegisters(block, hoistedRegisters);
-            System.out.println("[DEBUG] Collected hoistedRegisters before remove: " + hoistedRegisters);
-            // 参数和上层作用域中已声明的局部变量不需要在头部重新定义（避免 shadowing 导致 upvalue 访问失效）
+            Logger.debug("[DEBUG] Collected hoistedRegisters before remove: " + hoistedRegisters);
             hoistedRegisters.removeAll(params);
             
-            // 我们只在 hoistedRegisters 中排除那些：
-            // 1. 在 parentDeclared 中声明过
-            // 2. 并且确实在当前函数被注册为 upvalue 的寄存器名
-            // 从而避免非 upvalue 的同名临时寄存器（如 R4）被错误排除而导致未定义变量 Bug
             Set<String> upvaluesToRemove = new HashSet<>();
             for (String reg : hoistedRegisters) {
                 if (parentDeclared.contains(reg) && upvalueNames.contains(reg)) {
@@ -634,10 +628,9 @@ public class AstCleanupPass {
                 }
             }
             hoistedRegisters.removeAll(upvaluesToRemove);
-            System.out.println("[DEBUG] Collected hoistedRegisters after remove: " + hoistedRegisters);
+            Logger.debug("[DEBUG] Collected hoistedRegisters after remove: " + hoistedRegisters);
         }
 
-        // 提前计算并填充即将被提升的变量到 declared 集合中，这样内部嵌套函数处理时能准确感知防作用域中已提升的变量
         List<String> missing = new ArrayList<>();
         if (isFunction && !hoistedRegisters.isEmpty()) {
             for (String reg : hoistedRegisters) {
@@ -646,7 +639,6 @@ public class AstCleanupPass {
                 }
             }
             if (!missing.isEmpty()) {
-                // 按寄存器数字排序
                 missing.sort((a, b) -> {
                     try {
                         int na = Integer.parseInt(a.substring(1));
@@ -659,7 +651,7 @@ public class AstCleanupPass {
                 declared.addAll(missing);
             }
         }
-        System.out.println("[DEBUG] computed declared (with missing): " + declared);
+        Logger.debug("[DEBUG] computed declared (with missing): " + declared);
 
         List<Statement> rewritten = new ArrayList<>();
         for (Statement statement : block.statements) {
@@ -670,7 +662,6 @@ public class AstCleanupPass {
         block.statements.addAll(rewritten);
 
         if (isFunction && !missing.isEmpty()) {
-            // 在 Block 最头部插入 local 声明
             block.statements.add(0, new LocalAssign(missing, new ArrayList<>(), block.pos));
         }
         return declared;
@@ -897,8 +888,6 @@ public class AstCleanupPass {
             return;
         }
 
-        // 不在 if/while/repeat/for 的嵌套块里新建 local，避免把条件分支里的第一次赋值误判成局部声明。
-        // 已经在父块声明过的变量，嵌套块里继续保持普通赋值。
         if (statement instanceof IfStatement) {
             IfStatement ifStatement = (IfStatement) statement;
 
@@ -936,7 +925,6 @@ public class AstCleanupPass {
         }
 
         if (statement instanceof FunctionDeclaration) {
-            // 函数声明本身有自己的作用域，不共享当前函数的 declared 集合，但上层作用域已声明的局部变量会作为 upvalues 传递
             declareTopLevelLocals(((FunctionDeclaration) statement).func.body, ((FunctionDeclaration) statement).func.params, declared, java.util.Collections.emptySet());
             result.add(statement);
             return;
@@ -961,13 +949,9 @@ public class AstCleanupPass {
     }
 
     private boolean shouldDeclareLocal(String name, Expression right) {
-        // R0/R1/R2/R3... 是 Lua VM 函数帧寄存器，第一次显式赋值应恢复成 local
         if (name.matches("R\\d+")) {
             return true;
         }
-
-        // require 返回值虽然被 convertCallInstruction 改名成 luci_util 这种形式，
-        // 但本质仍然是当前函数寄存器里的局部值，不是 GETGLOBAL/SETGLOBAL。
         return isRequireCall(right);
     }
 
@@ -978,5 +962,184 @@ public class AstCleanupPass {
 
         FunctionCall call = (FunctionCall) expression;
         return call.callee instanceof Name && "require".equals(((Name) call.callee).name);
+    }
+
+    private static class VerifiedPattern {
+        final int reg;
+        final Instruction assignInst;
+        final Instruction returnInst;
+        final Expression constExpr;
+
+        VerifiedPattern(int reg, Instruction assignInst, Instruction returnInst, Expression constExpr) {
+            this.reg = reg;
+            this.assignInst = assignInst;
+            this.returnInst = returnInst;
+            this.constExpr = constExpr;
+        }
+    }
+
+    private boolean isConstantExpr(Expression expr) {
+        return expr instanceof NilConst || expr instanceof BooleanConst || expr instanceof NumberConst || expr instanceof StringConst;
+    }
+
+    private boolean areConstantsEqual(Expression e1, Expression e2) {
+        if (e1 instanceof NilConst && e2 instanceof NilConst) {
+            return true;
+        }
+        if (e1 instanceof BooleanConst && e2 instanceof BooleanConst) {
+            return ((BooleanConst) e1).value == ((BooleanConst) e2).value;
+        }
+        if (e1 instanceof StringConst && e2 instanceof StringConst) {
+            return ((StringConst) e1).value.equals(((StringConst) e2).value);
+        }
+        if (e1 instanceof NumberConst && e2 instanceof NumberConst) {
+            return Double.compare(((NumberConst) e1).value, ((NumberConst) e2).value) == 0;
+        }
+        return false;
+    }
+
+    private VerifiedPattern verifyAssignReturnConstPattern(Assign assign, ReturnStatement ret, CodeGeneratorContext context, Set<String> upvalueNames) {
+        if (assign.left.size() != 1 || assign.right.size() != 1 || ret.values.size() != 1) {
+            return null;
+        }
+        Expression leftExpr = assign.left.get(0);
+        Expression rightExpr = assign.right.get(0);
+
+        if (!(leftExpr instanceof Name)) {
+            return null;
+        }
+        Name leftName = (Name) leftExpr;
+        Pattern regPattern = Pattern.compile("^R(\\d+)$");
+        Matcher matcher = regPattern.matcher(leftName.name);
+        if (!matcher.matches()) {
+            return null;
+        }
+        int reg = Integer.parseInt(matcher.group(1));
+
+        // 基础安全校验：PC 有效性、LabelPC 校验、Upvalue 校验
+        if (assign.pos == null || ret.pos == null ||
+            assign.pos.pc < 0 || ret.pos.pc < 0 ||
+            context.isLabelPC(assign.pos.pc) ||
+            context.isLabelPC(ret.pos.pc) ||
+            (upvalueNames != null && upvalueNames.contains(leftName.name))) {
+            return null;
+        }
+
+        // 获取指令并验证一致性
+        List<Instruction> instructions = context.getChunk().getInstructions();
+        if (assign.pos.pc >= instructions.size() || ret.pos.pc >= instructions.size()) {
+            return null;
+        }
+        Instruction assignInst = instructions.get(assign.pos.pc);
+        Instruction returnInst = instructions.get(ret.pos.pc);
+
+        if (returnInst.getOpcode() != Opcode.RETURN || 
+            returnInst.getB() != 2 || 
+            returnInst.getA() != reg ||
+            assignInst.getA() != reg) {
+            return null;
+        }
+
+        // 验证常量与指令的一致性
+        Opcode assignOp = assignInst.getOpcode();
+        boolean verified = false;
+
+        if (assignOp == Opcode.LOADNIL) {
+            if (assignInst.getA() == assignInst.getB() && rightExpr instanceof NilConst) {
+                verified = true;
+            }
+        } else if (assignOp == Opcode.LOADBOOL) {
+            if (rightExpr instanceof BooleanConst) {
+                boolean astValue = ((BooleanConst) rightExpr).value;
+                boolean instValue = assignInst.getB() != 0;
+                if (astValue == instValue) {
+                    verified = true;
+                }
+            }
+        } else if (assignOp == Opcode.LOADK) {
+            Constant k = context.getChunk().getConstant(assignInst.getBx());
+            if (k != null) {
+                Object kVal = k.getValue();
+                if (rightExpr instanceof StringConst) {
+                    String astStr = ((StringConst) rightExpr).value;
+                    if (astStr.equals(kVal)) {
+                        verified = true;
+                    }
+                } else if (rightExpr instanceof NumberConst) {
+                    if (kVal instanceof Number) {
+                        double astNum = ((NumberConst) rightExpr).value;
+                        double kNum = ((Number) kVal).doubleValue();
+                        if (Double.compare(astNum, kNum) == 0) {
+                            verified = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (verified) {
+            return new VerifiedPattern(reg, assignInst, returnInst, rightExpr);
+        }
+        return null;
+    }
+
+    void optimizeReturnPatterns(Block block, CodeGeneratorContext context, Set<String> upvalueNames) {
+        if (block == null || block.statements == null || context == null) {
+            return;
+        }
+
+        // 递归处理嵌套块
+        for (Statement statement : block.statements) {
+            if (statement instanceof IfStatement) {
+                IfStatement ifStmt = (IfStatement) statement;
+                for (Block nested : ifStmt.blocks) {
+                    optimizeReturnPatterns(nested, context, upvalueNames);
+                }
+                optimizeReturnPatterns(ifStmt.elseBlock, context, upvalueNames);
+            } else if (statement instanceof FunctionDeclaration) {
+                optimizeReturnPatterns(((FunctionDeclaration) statement).func.body, context, upvalueNames);
+            } else if (statement instanceof WhileStatement) {
+                optimizeReturnPatterns(((WhileStatement) statement).body, context, upvalueNames);
+            } else if (statement instanceof ForNumeric) {
+                optimizeReturnPatterns(((ForNumeric) statement).body, context, upvalueNames);
+            } else if (statement instanceof ForIn) {
+                optimizeReturnPatterns(((ForIn) statement).body, context, upvalueNames);
+            }
+        }
+
+        List<Statement> stmts = block.statements;
+        List<Statement> optimized = new ArrayList<>();
+
+        for (int i = 0; i < stmts.size(); i++) {
+            Statement s = stmts.get(i);
+
+            if (s instanceof Assign && i + 1 < stmts.size() && stmts.get(i + 1) instanceof ReturnStatement) {
+                Assign assign = (Assign) s;
+                ReturnStatement ret = (ReturnStatement) stmts.get(i + 1);
+
+                VerifiedPattern pattern = verifyAssignReturnConstPattern(assign, ret, context, upvalueNames);
+                if (pattern != null) {
+                    Expression retExpr = ret.values.get(0);
+
+                    // 模式 A：Rn = const; return Rn
+                    if (retExpr instanceof Name && ((Name) retExpr).name.equals(((Name) assign.left.get(0)).name)) {
+                        ReturnStatement newRet = new ReturnStatement(assign.right, ret.pos);
+                        optimized.add(newRet);
+                        i++; // 跳过下一个已经合并的 ReturnStatement
+                        continue;
+                    }
+
+                    // 模式 B：Rn = const; return const
+                    if (isConstantExpr(retExpr) && areConstantsEqual(pattern.constExpr, retExpr)) {
+                        // 只删除 Assign（即不将当前 assign s 加入到 optimized，保留 ret 在下一个循环迭代中加入）
+                        continue;
+                    }
+                }
+            }
+            optimized.add(s);
+        }
+
+        block.statements.clear();
+        block.statements.addAll(optimized);
     }
 }

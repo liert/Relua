@@ -8,6 +8,7 @@ import com.github.relua.model.Opcode;
 import com.github.relua.model.Register;
 import com.github.relua.model.ValueType;
 import com.github.relua.model.Register.RegisterEntity;
+import com.github.relua.util.LuaStringEscapeUtils;
 
 /**
  * 指令代码生成器，负责生成单个指令的Lua代码
@@ -414,7 +415,8 @@ public class InstructionCodeEmitter {
         System.out.println(registerEntity);
         switch (registerEntity.getType()) {
             case STRING:
-                return "\"" + registerEntity.getValue() + "\"";
+                Object val = registerEntity.getValue();
+                return "\"" + (val != null ? LuaStringEscapeUtils.escape(val.toString()) : "") + "\"";
             case NUMBER:
             case BOOLEAN:
             case NIL:
