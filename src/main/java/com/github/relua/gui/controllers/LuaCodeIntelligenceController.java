@@ -4,6 +4,7 @@ import com.github.relua.gui.services.LuaSymbolIndexer;
 import com.github.relua.gui.services.LuaSymbolIndexer.LuaSymbol;
 import com.github.relua.gui.services.LuaSymbolIndexer.SymbolType;
 import javafx.application.Platform;
+import javafx.concurrent.Task;
 import javafx.geometry.Bounds;
 import javafx.geometry.Point2D;
 import javafx.scene.Cursor;
@@ -242,16 +243,33 @@ public class LuaCodeIntelligenceController {
             rebuildTimeline.stop();
         }
         this.isRebuilding = true;
-        try {
-            indexer.rebuild(codeArea.getText());
-            jumpHistory.clear();
-            autocompletePopup.hide();
-            hoverPopup.hide();
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            this.isRebuilding = false;
-        }
+        String text = codeArea.getText();
+        
+        Task<Void> indexTask = new Task<Void>() {
+            @Override
+            protected Void call() throws Exception {
+                indexer.rebuild(text);
+                return null;
+            }
+            
+            @Override
+            protected void succeeded() {
+                jumpHistory.clear();
+                autocompletePopup.hide();
+                hoverPopup.hide();
+                isRebuilding = false;
+            }
+            
+            @Override
+            protected void failed() {
+                getException().printStackTrace();
+                isRebuilding = false;
+            }
+        };
+        
+        Thread thread = new Thread(indexTask);
+        thread.setDaemon(true);
+        thread.start();
     }
 
     private String getWordAt(String text, int charIdx) {

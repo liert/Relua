@@ -22,6 +22,7 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
@@ -40,6 +41,8 @@ public class MainController {
     private SplitPane mainSplitPane;
     @FXML
     private ScrollPane textEditorScrollPane;
+    @FXML
+    private StackPane textEditorStackPane;
     @FXML
     private ScrollPane graphScrollPane;
     @FXML
@@ -251,7 +254,7 @@ public class MainController {
         java.util.logging.Logger.getLogger("MainController").severe("错误信息: 这是一个测试错误");
         
         // 初始化菜单处理器
-        fileMenuHandler = new FileMenuHandler(textEditorView, astGraphConverter, cfgGraphConverter, i18nService, statusLabel, fileLabel, fileTreeView);
+        fileMenuHandler = new FileMenuHandler(textEditorView, astGraphConverter, cfgGraphConverter, i18nService, statusLabel, fileLabel, fileTreeView, textEditorStackPane);
         editMenuHandler = new EditMenuHandler(textEditorView);
         viewMenuHandler = new ViewMenuHandler(graphVisualizationView, mainSplitPane, graphContainer);
         helpMenuHandler = new HelpMenuHandler(i18nService);
@@ -281,6 +284,8 @@ public class MainController {
         // 显示文件夹选择对话框
         File selectedFolder = directoryChooser.showDialog(new Stage());
         if (selectedFolder != null) {
+            // 重置反编译状态
+            fileMenuHandler.resetLoadingState();
             // 加载文件夹内容到文件树
             fileTreeView.loadFolder(selectedFolder);
             updateStatus("Folder opened: " + selectedFolder.getName());

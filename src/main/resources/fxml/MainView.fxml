@@ -10,6 +10,7 @@
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.SeparatorMenuItem?>
@@ -104,9 +105,11 @@
                     <!-- 中间：文本编辑区域 -->
                     <VBox fx:id="textEditorContainer">
                         <Label fx:id="luaCodeLabel" style="-fx-font-weight: bold;" />
-                        <ScrollPane fx:id="textEditorScrollPane" VBox.vgrow="ALWAYS" prefHeight="0">
-                            <!-- 文本编辑器将通过代码添加 -->
-                        </ScrollPane>
+                        <StackPane fx:id="textEditorStackPane" VBox.vgrow="ALWAYS">
+                            <ScrollPane fx:id="textEditorScrollPane" prefHeight="0">
+                                <!-- 文本编辑器将通过代码添加 -->
+                            </ScrollPane>
+                        </StackPane>
                     </VBox>
                     
                     <!-- 右侧：图形可视化区域 -->

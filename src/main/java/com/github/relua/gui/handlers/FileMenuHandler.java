@@ -11,8 +11,15 @@ import com.github.relua.model.LuacFile;
 import javafx.event.ActionEvent;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
+import javafx.scene.control.ProgressIndicator;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.animation.Timeline;
+import javafx.animation.KeyFrame;
+import javafx.util.Duration;
+import javafx.concurrent.Task;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +39,29 @@ public class FileMenuHandler {
     private LuacFile currentLuacFile;
     private java.util.Map<String, com.github.relua.model.LineRange> chunkLineRanges = new java.util.HashMap<>();
 
+    // 加载动画及提示覆盖层
+    private StackPane textEditorStackPane;
+    private VBox loadingOverlay;
+    private ProgressIndicator progressIndicator;
+    private Label loadingLabel;
+    private Label warningLabel;
+    private Task<DecompileResult> activeTask;
+    private int currentTaskId = 0;
+
+    private static class DecompileResult {
+        final String luaCode;
+        final LuacFile luacFile;
+        final java.util.Map<String, com.github.relua.model.LineRange> chunkLineRanges;
+        final boolean isText;
+        
+        DecompileResult(String luaCode, LuacFile luacFile, java.util.Map<String, com.github.relua.model.LineRange> chunkLineRanges, boolean isText) {
+            this.luaCode = luaCode;
+            this.luacFile = luacFile;
+            this.chunkLineRanges = chunkLineRanges;
+            this.isText = isText;
+        }
+    }
+
     /**
      * 构造函数
      * @param textEditorView 文本编辑器视图
@@ -41,8 +71,9 @@ public class FileMenuHandler {
      * @param statusLabel 状态栏标签
      * @param fileLabel 文件标签
      * @param fileTreeView 文件树视图
+     * @param textEditorStackPane 文本编辑器StackPane容器
      */
-    public FileMenuHandler(TextEditorView textEditorView, ASTGraphConverter astGraphConverter, CFGGraphConverter cfgGraphConverter, I18nService i18nService, Label statusLabel, Label fileLabel, FileTreeView fileTreeView) {
+    public FileMenuHandler(TextEditorView textEditorView, ASTGraphConverter astGraphConverter, CFGGraphConverter cfgGraphConverter, I18nService i18nService, Label statusLabel, Label fileLabel, FileTreeView fileTreeView, StackPane textEditorStackPane) {
         this.textEditorView = textEditorView;
         this.astGraphConverter = astGraphConverter;
         this.cfgGraphConverter = cfgGraphConverter;
@@ -50,6 +81,47 @@ public class FileMenuHandler {
         this.statusLabel = statusLabel;
         this.fileLabel = fileLabel;
         this.fileTreeView = fileTreeView;
+        this.textEditorStackPane = textEditorStackPane;
+
+        // 初始化加载状态覆盖层
+        initLoadingOverlay();
+    }
+
+    private void initLoadingOverlay() {
+        if (textEditorStackPane == null) {
+            return;
+        }
+
+        loadingOverlay = new VBox();
+        loadingOverlay.setAlignment(javafx.geometry.Pos.CENTER);
+        loadingOverlay.setSpacing(15);
+        loadingOverlay.setStyle("-fx-background-color: rgba(255, 255, 255, 0.85);");
+
+        progressIndicator = new ProgressIndicator();
+        progressIndicator.setMinSize(50, 50);
+
+        loadingLabel = new Label("正在反编译，请稍候...");
+        loadingLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #333333;");
+
+        warningLabel = new Label("");
+        warningLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #666666;");
+
+        loadingOverlay.getChildren().addAll(progressIndicator, loadingLabel, warningLabel);
+        loadingOverlay.setVisible(false);
+
+        textEditorStackPane.getChildren().add(loadingOverlay);
+    }
+
+    /**
+     * 重置加载状态，取消所有运行中的任务并隐藏遮罩层
+     */
+    public void resetLoadingState() {
+        if (activeTask != null && activeTask.isRunning()) {
+            activeTask.cancel();
+        }
+        if (loadingOverlay != null) {
+            loadingOverlay.setVisible(false);
+        }
     }
 
     /**
@@ -88,12 +160,18 @@ public class FileMenuHandler {
 
         // 如果当前已经打开了该文件，直接忽略，避免重复反编译和高亮失效
         if (currentFile != null && currentFile.getAbsolutePath().equals(file.getAbsolutePath()) 
-                && textEditorView.getText() != null && !textEditorView.getText().isEmpty()) {
+                && textEditorView.getText() != null && !textEditorView.getText().isEmpty()
+                && (activeTask == null || !activeTask.isRunning())) {
             updateStatus("File already open: " + file.getName());
             if (fileTreeView != null) {
                 fileTreeView.selectFile(file);
             }
             return;
+        }
+
+        // 取消旧任务
+        if (activeTask != null && activeTask.isRunning()) {
+            activeTask.cancel();
         }
 
         currentFile = file;
@@ -106,46 +184,119 @@ public class FileMenuHandler {
             fileTreeView.selectFile(file);
         }
 
-            // 调用反编译功能并显示结果
-            try {
-                // 创建解析器和反编译器
+        final int taskId = ++currentTaskId;
+
+        if (loadingOverlay != null) {
+            loadingOverlay.setVisible(true);
+            loadingLabel.setText("正在反编译，请稍候...");
+            warningLabel.setText("");
+        }
+
+        // 如果文件处理耗时超过 3 秒，显示额外提示信息
+        Timeline warningTimeline = new Timeline(
+            new KeyFrame(Duration.seconds(3), e -> {
+                if (taskId == currentTaskId && loadingOverlay != null && loadingOverlay.isVisible()) {
+                    warningLabel.setText("文件较大，处理时间可能较长，请耐心等待...");
+                }
+            })
+        );
+        warningTimeline.play();
+
+        // 创建异步加载与反编译 Task
+        activeTask = new Task<DecompileResult>() {
+            @Override
+            protected DecompileResult call() throws Exception {
+                // 阶段一：解析字节码
+                updateMessage("正在解析字节码...");
                 LuacParser parser = new LuacParser();
-                Decompiler decompiler = new Decompiler();
+                
+                if (isCancelled()) return null;
 
-                // 解析Luac文件
-                updateStatus("Parsing file...");
-                LuacFile luacFile = parser.parse(file.getAbsolutePath());
-                this.currentLuacFile = luacFile;
-
-                // 反编译
-                updateStatus("Decompiling...");
-                String luaCode = decompiler.decompile(luacFile, false);
-                this.chunkLineRanges = decompiler.getChunkLineRanges();
-
-                // 显示反编译结果
-                textEditorView.setText(luaCode);
-
-                // 仅加载代码视图，跳过AST和CFG转换（按需加载）
-                updateStatus("File opened successfully");
-            } catch (Exception e) {
-                // 如果解析失败，判断是否为文本文件。是则正常打开，否则提示不支持的文件
-                if (isTextFile(file)) {
-                    try {
-                        updateStatus("Reading text file...");
+                LuacFile luacFile = null;
+                try {
+                    luacFile = parser.parse(file.getAbsolutePath());
+                } catch (Exception e) {
+                    // 解析失败时尝试作为普通文本文件读取
+                    if (isCancelled()) return null;
+                    if (isTextFile(file)) {
+                        updateMessage("正在读取文本文件...");
                         String textContent = readTextFileContent(file);
-                        this.currentLuacFile = null;
-                        this.chunkLineRanges = new java.util.HashMap<>();
-                        textEditorView.setText(textContent);
-                        updateStatus("Opened text file: " + file.getName());
-                    } catch (Exception textEx) {
-                        updateStatus("Error reading text file: " + textEx.getMessage());
-                        showError(i18nService.getErrorDialogTitle(), "无法读取文本文件: " + textEx.getMessage());
+                        return new DecompileResult(textContent, null, new java.util.HashMap<>(), true);
+                    } else {
+                        throw e;
                     }
-                } else {
-                    updateStatus("Unsupported file format: " + file.getName());
-                    showError(i18nService.getErrorDialogTitle(), "不支持的文件格式: 该文件既不是文本文件，也无法识别为有效的 Lua 字节码");
+                }
+
+                if (isCancelled()) return null;
+
+                // 阶段二：进行反编译并生成 Lua 代码
+                updateMessage("正在生成 Lua 代码...");
+                Decompiler decompiler = new Decompiler();
+                String luaCode = decompiler.decompile(luacFile, false);
+                java.util.Map<String, com.github.relua.model.LineRange> lineRanges = decompiler.getChunkLineRanges();
+
+                if (isCancelled()) return null;
+
+                return new DecompileResult(luaCode, luacFile, lineRanges, false);
+            }
+
+            @Override
+            protected void succeeded() {
+                warningTimeline.stop();
+                if (taskId != currentTaskId) {
+                    return;
+                }
+
+                if (loadingOverlay != null) {
+                    loadingOverlay.setVisible(false);
+                }
+
+                DecompileResult result = getValue();
+                if (result != null) {
+                    currentLuacFile = result.luacFile;
+                    chunkLineRanges = result.chunkLineRanges;
+
+                    // 显示反编译结果
+                    textEditorView.setText(result.luaCode);
+
+                    if (result.isText) {
+                        updateStatus("Opened text file: " + file.getName());
+                    } else {
+                        updateStatus("File opened successfully");
+                    }
                 }
             }
+
+            @Override
+            protected void failed() {
+                warningTimeline.stop();
+                if (taskId != currentTaskId) {
+                    return;
+                }
+
+                if (loadingOverlay != null) {
+                    loadingOverlay.setVisible(false);
+                }
+
+                Throwable e = getException();
+                updateStatus("Unsupported file format: " + file.getName());
+                showError(i18nService.getErrorDialogTitle(), "不支持的文件格式: " + e.getMessage());
+            }
+
+            @Override
+            protected void cancelled() {
+                warningTimeline.stop();
+            }
+        };
+
+        if (loadingOverlay != null) {
+            loadingLabel.textProperty().bind(activeTask.messageProperty());
+        }
+
+        // 启动后台线程执行任务
+        Thread thread = new Thread(activeTask);
+        thread.setDaemon(true);
+        thread.start();
     }
 
     /**
