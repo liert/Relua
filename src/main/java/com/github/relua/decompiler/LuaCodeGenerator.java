@@ -55,6 +55,13 @@ public class LuaCodeGenerator {
      */
     private void initializeContexts(Chunk chunk) {
         Register register = new Register();
+        
+        String prefix = "";
+        if ("main".equals(chunk.getFunction())) {
+            prefix = hasModuleCall(chunk) ? "module_" : "chunk_";
+        }
+        register.setVarPrefix(prefix);
+
         for (int i = 0; i < chunk.getNumParams(); i++) {
             register.setRegisterEntity(i, "a" + i, ValueType.OBJECT, FromType.GLOBAL);
         }
@@ -64,6 +71,25 @@ public class LuaCodeGenerator {
         for (Chunk subChunk : chunk.getSubChunks()) {
             initializeContexts(subChunk);
         }
+    }
+
+    private boolean hasModuleCall(Chunk mainChunk) {
+        if (mainChunk == null || mainChunk.getConstants() == null) {
+            return false;
+        }
+        for (com.github.relua.model.Constant c : mainChunk.getConstants()) {
+            Object val = c.getValue();
+            if (val != null) {
+                String s = val.toString();
+                if (s.length() >= 2 && s.startsWith("\"") && s.endsWith("\"")) {
+                    s = s.substring(1, s.length() - 1);
+                }
+                if ("module".equals(s)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

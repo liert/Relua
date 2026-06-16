@@ -279,7 +279,7 @@ public class DataFlowAnalyzer {
             if (assign.left.size() == 1 && assign.right.size() == 1
                     && assign.left.get(0) instanceof Name) {
                 String name = ((Name) assign.left.get(0)).name;
-                if (name.matches("R\\d+")) {
+                if (name.matches("(chunk_|module_)?R\\d+")) {
                     return name;
                 }
             }
@@ -287,7 +287,7 @@ public class DataFlowAnalyzer {
             LocalAssign local = (LocalAssign) stmt;
             if (local.names.size() == 1) {
                 String name = local.names.get(0);
-                if (name.matches("R\\d+")) {
+                if (name.matches("(chunk_|module_)?R\\d+")) {
                     return name;
                 }
             }

@@ -11,6 +11,9 @@ public class Register {
     // 使用Map存储所有寄存器，支持任意数量的寄存器
     private Map<Integer, RegisterEntity> registers = new HashMap<>();
     
+    // 命名变量的前缀，如 chunk_、module_ 或空串
+    private String varPrefix = "";
+
     // 控制流相关字段
     public boolean jump = false;
     public int ifDepth = 0; // if嵌套深度
@@ -27,15 +30,28 @@ public class Register {
      */
     public Register(Register other) {
         this();
+        this.varPrefix = other.varPrefix;
         for (Map.Entry<Integer, RegisterEntity> entry : other.registers.entrySet()) {
             RegisterEntity original = entry.getValue();
             RegisterEntity copy = new RegisterEntity(original.getIndex(), original.getValue(), original.getType(), original.getFromType());
+            copy.setNamePrefix(original.getNamePrefix());
             this.registers.put(original.getIndex(), copy);
         }
         this.jump = other.jump;
         this.ifDepth = other.ifDepth;
         System.arraycopy(other.jumpTargets, 0, this.jumpTargets, 0, other.jumpTargets.length);
         System.arraycopy(other.hasElse, 0, this.hasElse, 0, other.hasElse.length);
+    }
+
+    public String getVarPrefix() {
+        return varPrefix;
+    }
+
+    public void setVarPrefix(String varPrefix) {
+        this.varPrefix = varPrefix;
+        for (RegisterEntity entity : registers.values()) {
+            entity.setNamePrefix(varPrefix);
+        }
     }
 
     public RegisterEntity getRegisterEntity(String index) {
@@ -73,7 +89,11 @@ public class Register {
      * 获取寄存器实体，如果不存在则创建
      */
     public RegisterEntity getRegisterEntity(int index) {
-        return registers.computeIfAbsent(index, i -> new RegisterEntity(i, "nil", ValueType.NIL, FromType.NIL));
+        return registers.computeIfAbsent(index, i -> {
+            RegisterEntity entity = new RegisterEntity(i, "nil", ValueType.NIL, FromType.NIL);
+            entity.setNamePrefix(varPrefix);
+            return entity;
+        });
     }
 
     /**
@@ -84,12 +104,14 @@ public class Register {
         entity.setValue(value);
         entity.setType(type);
         entity.setFromType(fromType);
+        entity.setNamePrefix(varPrefix);
     }
 
     public void setRegisterEntity(int index, Object value, ValueType type) {
         RegisterEntity entity = getRegisterEntity(index);
         entity.setValue(value);
         entity.setType(type);
+        entity.setNamePrefix(varPrefix);
     }
 
     /**
@@ -116,6 +138,7 @@ public class Register {
         for (Map.Entry<Integer, RegisterEntity> entry : registers.entrySet()) {
             RegisterEntity original = entry.getValue();
             RegisterEntity copy = new RegisterEntity(original.getIndex(), original.getValue(), original.getType(), original.getFromType());
+            copy.setNamePrefix(original.getNamePrefix());
             target.registers.put(original.getIndex(), copy);
         }
     }
@@ -201,6 +224,7 @@ public class Register {
         private Object value = "nil";
         private ValueType type = ValueType.NIL;
         private FromType fromType = FromType.NIL;
+        private String namePrefix = "";
 
         /**
          * 构造函数，支持不同类型的初始值
@@ -212,13 +236,20 @@ public class Register {
             this.fromType = fromType;
         }
 
+        public String getNamePrefix() {
+            return namePrefix;
+        }
+
+        public void setNamePrefix(String namePrefix) {
+            this.namePrefix = namePrefix != null ? namePrefix : "";
+        }
+
         public int getIndex() {
             return index;
         }
 
         public String getName() {
-            // 只返回普通的寄存器名称，如R0、R1等
-            return "R" + index;
+            return namePrefix + "R" + index;
         }
 
         public Object getValue() {
@@ -249,11 +280,13 @@ public class Register {
          * 创建当前实体的副本
          */
         public RegisterEntity copy() {
-            return new RegisterEntity(index, value, type, fromType);
+            RegisterEntity copy = new RegisterEntity(index, value, type, fromType);
+            copy.setNamePrefix(namePrefix);
+            return copy;
         }
 
         public String toString() {
-            return "R" + index + " = " + value + " | type=" + type + " | from=" + fromType;
+            return getName() + " = " + value + " | type=" + type + " | from=" + fromType;
         }
         
         /**

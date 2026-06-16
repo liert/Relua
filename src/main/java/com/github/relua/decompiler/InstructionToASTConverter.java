@@ -194,7 +194,7 @@ public class InstructionToASTConverter {
         RegisterEntity sourceEntity = registerState.getRegisterEntity(b);
 
         // 目标变量
-        Expression target = new Name("R" + a, new SourcePos(instructionIndex, -1));
+        Expression target = new Name(getRegisterName(a, registerState), new SourcePos(instructionIndex, -1));
 
         // 源值
         Expression source;
@@ -222,7 +222,7 @@ public class InstructionToASTConverter {
         } else if (sourceEntity.getType() == ValueType.GLOBAL && sourceEntity.getValue() != null) {
             source = new Name(sourceEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
         } else {
-            source = new Name("R" + b, new SourcePos(instructionIndex, -1));
+            source = new Name(getRegisterName(b, registerState), new SourcePos(instructionIndex, -1));
         }
 
         List<Expression> left = new ArrayList<>();
@@ -249,7 +249,7 @@ public class InstructionToASTConverter {
 
         // 目标变量名
         List<String> names = new ArrayList<>();
-        names.add("R" + a);
+        names.add(getRegisterName(a, instructionIndex));
 
         // 常量值
         Expression source = null;
@@ -274,7 +274,7 @@ public class InstructionToASTConverter {
         SourcePos pos = new SourcePos(instructionIndex, -1);
 
         // 左侧目标: R(A)
-        Expression left = new Name("R" + a, pos);
+        Expression left = new Name(getRegisterName(a, instructionIndex), pos);
 
         return new Assign(left, source, pos);
     }
@@ -296,7 +296,7 @@ public class InstructionToASTConverter {
         pipeline.getContext().removePendingSelf(a);
 
         // 目标变量
-        Expression target = new Name("R" + a, new SourcePos(instructionIndex, -1));
+        Expression target = new Name(getRegisterName(a, instructionIndex), new SourcePos(instructionIndex, -1));
 
         // 布尔值
         Expression source = new BooleanConst(boolValue, new SourcePos(instructionIndex, -1));
@@ -354,7 +354,7 @@ public class InstructionToASTConverter {
                 continue;
             }
             // 目标变量
-            Expression target = new Name("R" + i, new SourcePos(instructionIndex, -1));
+            Expression target = new Name(getRegisterName(i, instructionIndex), new SourcePos(instructionIndex, -1));
 
             // nil值
             Expression source = new NilConst(new SourcePos(instructionIndex, -1));
@@ -394,7 +394,7 @@ public class InstructionToASTConverter {
             name = name.substring(1, name.length() - 1);
         }
         if (name.matches("^R\\d+$")) {
-            name = "global_" + name;
+            name = (isModuleScenario() ? "module_" : "global_") + name;
         }
 
         // System.out.println("AST GETGLOBAL: " + name);
@@ -402,7 +402,7 @@ public class InstructionToASTConverter {
         SourcePos pos = new SourcePos(instructionIndex, -1);
 
         // 左侧目标: R(A)
-        Expression target = new Name("R" + a, pos);
+        Expression target = new Name(getRegisterName(a, instructionIndex), pos);
 
         // 右侧变量名
         Expression globalName = new Name(name, pos);
@@ -437,7 +437,7 @@ public class InstructionToASTConverter {
             name = cv != null ? cv.toString() : "RK" + bx;
         }
         if (name.matches("^R\\d+$")) {
-            name = "global_" + name;
+            name = (isModuleScenario() ? "module_" : "global_") + name;
         }
 
         if (source != null) {
@@ -467,16 +467,16 @@ public class InstructionToASTConverter {
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
 
+        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         // 目标变量名
         List<String> names = new ArrayList<>();
-        names.add("R" + a);
+        names.add(getRegisterName(a, registerState));
 
-        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         RegisterEntity RB = registerState.getRegisterEntity(b);
         SourcePos pos = new SourcePos(instructionIndex, -1);
 
         // 表访问表达式
-        Expression table = new Name("R" + b, pos);
+        Expression table = new Name(getRegisterName(b, registerState), pos);
         if (RB.getValue() instanceof Expression) {
             table = (Expression) RB.getValue();
         } else if ((RB.getType() == ValueType.GLOBAL || RB.getFromType() == FromType.GLOBAL) && RB.getValue() != null) {
@@ -492,7 +492,7 @@ public class InstructionToASTConverter {
             return null;
         }
         List<Expression> left = new ArrayList<>();
-        left.add(new Name("R" + a, pos));
+        left.add(new Name(getRegisterName(a, registerState), pos));
         return new Assign(left, right, pos);
     }
 
@@ -553,7 +553,7 @@ public class InstructionToASTConverter {
         SourcePos pos = new SourcePos(instructionIndex, -1);
 
         // NEWTABLE 的目标变量始终用寄存器名 R+a，避免使用指令执行前残留的旧值
-        String targetName = "R" + a;
+        String targetName = getRegisterName(a, instructionIndex);
         Expression tableExpression = new TableConstructor(new ArrayList<>(), pos);
         List<Expression> left = new ArrayList<>();
         left.add(new Name(targetName, pos));
@@ -657,7 +657,7 @@ public class InstructionToASTConverter {
 
         // 算术指令：R(a) := RK(b) op RK(c)
         // 目标变量
-        Expression target = new Name("R" + a, pos);
+        Expression target = new Name(getRegisterName(a, registerState), pos);
 
         // 左操作数：解析真实的寄存器/常量名称
         Expression left = rkExpression(registerState, b, pos);
@@ -694,7 +694,7 @@ public class InstructionToASTConverter {
 
         // 一元指令：R(a) := op R(b)
         // 目标变量
-        Expression target = new Name("R" + a, new SourcePos(instructionIndex, -1));
+        Expression target = new Name(getRegisterName(a, registerState), new SourcePos(instructionIndex, -1));
 
         // 操作数：通过寄存器状态解析真实名称（如参数名、全局变量名等）
         RegisterEntity operandEntity = registerState.getRegisterEntity(b);
@@ -762,7 +762,7 @@ public class InstructionToASTConverter {
         Register register = pipeline.getRegisterByInstructionIndex(instructionIndex);
 
         // 目标变量
-        Expression target = new Name("R" + a, new SourcePos(instructionIndex, -1));
+        Expression target = new Name(getRegisterName(a, register), new SourcePos(instructionIndex, -1));
 
         // 字符串连接表达式
         Expression concatOp = null;
@@ -773,7 +773,9 @@ public class InstructionToASTConverter {
             Expression currentExpr;
 
             // 根据寄存器类型创建相应的表达式
-            if (currentEntity.getType() == ValueType.STRING
+            if (currentEntity.getValue() instanceof Expression) {
+                currentExpr = (Expression) currentEntity.getValue();
+            } else if (currentEntity.getType() == ValueType.STRING
                     && currentEntity.getFromType() == FromType.CONSTANT
                     && currentEntity.getValue() != null
                     && !currentEntity.getName().equals(currentEntity.getValue().toString())) {
@@ -799,7 +801,7 @@ public class InstructionToASTConverter {
                 currentExpr = new Name(currentEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
             } else {
                 // UNKNOWN 类型或值为 nil/占位符，使用寄存器名避免输出 "nil"
-                currentExpr = new Name("R" + i, new SourcePos(instructionIndex, -1));
+                currentExpr = new Name(getRegisterName(i, register), new SourcePos(instructionIndex, -1));
             }
 
             if (concatOp == null) {
@@ -921,7 +923,7 @@ public class InstructionToASTConverter {
 
             // 返回值写入 R(A) 到 R(A+C-2)
             for (int i = 0; i < c - 1; i++) {
-                Name returnName = new Name("R" + (a + i), pos);
+                Name returnName = new Name(getRegisterName(a + i, registerState), pos);
                 if (i == 0 && isNewCall && !objName.isEmpty()) {
                     returnName.name = objName;
                 } else {
@@ -978,13 +980,13 @@ public class InstructionToASTConverter {
         if (entity.getValue() instanceof Expression) {
             if (entity.getValue() instanceof TableConstructor
                     && ((TableConstructor) entity.getValue()).isEmpty()) {
-                return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
+                return new Name(entity.getName(), new SourcePos(instructionIndex, -1));
             }
             return (Expression) entity.getValue();
         }
         String tableName = TransformUtils.transformRegister(entity);
         if (tableName.equals("{}")) {
-            return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
+            return new Name(entity.getName(), new SourcePos(instructionIndex, -1));
         }
         try {
             // 根据实体类型创建不同的表达式
@@ -995,7 +997,7 @@ public class InstructionToASTConverter {
                 case OBJECT:
                     // 全局变量、函数引用、表引用
                     if (entity.getValue() == null) {
-                        return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
+                        return new Name(entity.getName(), new SourcePos(instructionIndex, -1));
                     }
                     String valStr = entity.getValue().toString();
                     SourcePos pos = new SourcePos(instructionIndex, -1);
@@ -1017,7 +1019,7 @@ public class InstructionToASTConverter {
                     if (entity.getValue() != null) {
                         return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
                     }
-                    return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
+                    return new Name(entity.getName(), new SourcePos(instructionIndex, -1));
                 case NUMBER:
                     // 数值常量
                     if (entity.getValue() instanceof Double) {
@@ -1026,7 +1028,7 @@ public class InstructionToASTConverter {
                         return new NumberConst(((Integer) entity.getValue()).doubleValue(), new SourcePos(instructionIndex, -1));
                     } else {
                         if (entity.getValue() == null) {
-                            return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
+                            return new Name(entity.getName(), new SourcePos(instructionIndex, -1));
                         }
                         return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
                     }
@@ -1036,7 +1038,7 @@ public class InstructionToASTConverter {
                         return new BooleanConst((Boolean) entity.getValue(), new SourcePos(instructionIndex, -1));
                     } else {
                         if (entity.getValue() == null) {
-                            return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
+                            return new Name(entity.getName(), new SourcePos(instructionIndex, -1));
                         }
                         return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
                     }
@@ -1048,7 +1050,7 @@ public class InstructionToASTConverter {
                     if (entity.getValue() != null && !entity.getValue().equals("nil")) {
                         return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
                     }
-                    return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
+                    return new Name(entity.getName(), new SourcePos(instructionIndex, -1));
             }
         } catch (Exception e) {
             // 处理异常，如果值不为空则返回值的名称，否则返回寄存器名作为占位符
@@ -1056,7 +1058,7 @@ public class InstructionToASTConverter {
             if (entity != null && entity.getValue() != null) {
                 return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
             }
-            return new Name("R" + registerIndex, new SourcePos(instructionIndex, -1));
+            return new Name(entity.getName(), new SourcePos(instructionIndex, -1));
         }
 
     }
@@ -1218,7 +1220,7 @@ public class InstructionToASTConverter {
         }
 
         // 操作数
-        Name operand = new Name("R" + a, new SourcePos(instructionIndex, -1));
+        Name operand = new Name(getRegisterName(a, registerState), new SourcePos(instructionIndex, -1));
         if (RA.getFromType() == FromType.GLOBAL && RA.getValue() != null) {
             operand.name = RA.getValue().toString();
         }
@@ -1402,7 +1404,7 @@ public class InstructionToASTConverter {
         Name funcRef = new Name(funcName, new SourcePos(instructionIndex, -1));
         
         // 生成赋值语句，将函数引用赋值给寄存器
-        Name target = new Name("R" + a, new SourcePos(instructionIndex, -1));
+        Name target = new Name(getRegisterName(a, instructionIndex), new SourcePos(instructionIndex, -1));
         List<Expression> targets = new ArrayList<>();
         targets.add(target);
         List<Expression> values = new ArrayList<>();
@@ -1455,10 +1457,15 @@ public class InstructionToASTConverter {
                     right = new BooleanConst((Boolean) val, pos);
                 } else if (val instanceof Number) {
                     right = new NumberConst(((Number) val).doubleValue(), pos);
-                } else if ("nil".equals(val.toString())) {
-                    right = new NilConst(pos);
+                } else if (val instanceof String) {
+                    if ("nil".equals(val.toString())) {
+                        right = new NilConst(pos);
+                    } else {
+                        right = new StringConst(val.toString(), pos);
+                    }
                 } else {
-                    right = new StringConst(val.toString(), pos);
+                    String upvalueName = (upvalue != null) ? upvalue.getName() : ("upvalue_" + b);
+                    right = new Name(upvalueName, pos);
                 }
             }
         } else {
@@ -1466,7 +1473,7 @@ public class InstructionToASTConverter {
             right = new Name(upvalueName, pos);
         }
         
-        return new Assign(new Name("R" + a, pos), right, pos);
+        return new Assign(new Name(getRegisterName(a, instructionIndex), pos), right, pos);
     }
 
     /**
@@ -1551,5 +1558,44 @@ public class InstructionToASTConverter {
      */
     public boolean tryOptimizeAssignReturn(Block block, ReturnStatement ret, int returnPC) {
         return GenerationPeepholeOptimizer.tryOptimizeAssignReturn(block, ret, returnPC, chunk, pipeline.getContext());
+    }
+
+    private String getRegisterName(int regIndex, int instructionIndex) {
+        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
+        return getRegisterName(regIndex, registerState);
+    }
+
+    private String getRegisterName(int regIndex, Register registerState) {
+        if (registerState != null) {
+            return registerState.getRegisterEntity(regIndex).getName();
+        }
+        return "R" + regIndex;
+    }
+
+    private boolean isModuleScenario() {
+        CodeGeneratorContext mainContext = pipeline.getContext("main");
+        if (mainContext != null && mainContext.getChunk() != null) {
+            return hasModuleCall(mainContext.getChunk());
+        }
+        return false;
+    }
+
+    private boolean hasModuleCall(Chunk mainChunk) {
+        if (mainChunk == null || mainChunk.getConstants() == null) {
+            return false;
+        }
+        for (Constant c : mainChunk.getConstants()) {
+            Object val = c.getValue();
+            if (val != null) {
+                String s = val.toString();
+                if (s.length() >= 2 && s.startsWith("\"") && s.endsWith("\"")) {
+                    s = s.substring(1, s.length() - 1);
+                }
+                if ("module".equals(s)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

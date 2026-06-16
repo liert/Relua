@@ -9,14 +9,13 @@ import com.github.relua.model.Register.RegisterEntity;
 import com.github.relua.model.ValueType;
 
 public class RegisterUtils {
-/**
-     * 合并前驱块的输出状态
-     * 
-     * @param block 当前块
-     * @return 合并后的寄存器状态
-     */
     public static Register mergePredecessors(BasicBlock block) {
+        return mergePredecessors(block, "");
+    }
+
+    public static Register mergePredecessors(BasicBlock block, String varPrefix) {
         Register merged = new Register();
+        merged.setVarPrefix(varPrefix);
 
         // 如果没有前驱，返回空状态
         if (block.getPredecessors().isEmpty()) {
@@ -26,6 +25,7 @@ public class RegisterUtils {
         // 获取第一个前驱的输出状态作为初始值
         BasicBlock firstPredecessor = block.getPredecessors().get(0);
         merged = new Register(firstPredecessor.getOutputState());
+        merged.setVarPrefix(varPrefix);
 
         // 合并其他前驱的输出状态
         for (int i = 1; i < block.getPredecessors().size(); i++) {
@@ -59,37 +59,16 @@ public class RegisterUtils {
                 continue;
             }
 
-            // 规则1：修复跨 Block 数据流分析中的符号丢失。
-            // 如果其中一个是未知类型，或者值是默认的寄存器名称 "Rxx"，而另一个是已知的具体符号，则优先保留具体符号。
-            if (isDefaultOrUnknown(entity1) && !isDefaultOrUnknown(entity2)) {
-                // 规则2（关键）：若 entity1 来源是 REGISTER/UNKNOWN（函数调用/变量结果），
-                // 而 entity2 来源是 CONSTANT（字面量），则不应用常量覆盖函数结果。
-                // 这修复了 Xiaomi 混淆 Lua 中 FORLOOP 用作条件跳转时，
-                // fallthrough 路径的常量（如数字 3）错误覆盖主路径的函数调用结果问题。
-                boolean entity1IsRegisterResult = (entity1 == null
-                        || entity1.getType() == ValueType.UNKNOWN
-                        || entity1.getFromType() == FromType.REGISTER
-                        || entity1.getFromType() == FromType.UNKNOWN);
-                boolean entity2IsConstant = (entity2.getFromType() == FromType.CONSTANT);
-                if (entity1IsRegisterResult && entity2IsConstant) {
-                    // 保留 entity1（UNKNOWN/REGISTER 来源），不被 CONSTANT 来源覆盖
-                    // 但如果 entity1 本身是空/nil，则仍然使用 entity2
-                    if (entity1 != null && entity1.getValue() != null
-                            && !entity1.getValue().toString().equals("nil")) {
-                        // entity1 有实际值，保持不变
-                    } else {
-                        merged.setRegisterEntity(index, entity2.getValue(), entity2.getType(), entity2.getFromType());
-                    }
-                } else {
-                    merged.setRegisterEntity(index, entity2.getValue(), entity2.getType(), entity2.getFromType());
-                }
-            } else if (!isDefaultOrUnknown(entity1) && isDefaultOrUnknown(entity2)) {
-                // 保持 state1 的具体符号，无需修改
-            } else if (!isDefaultOrUnknown(entity1) && !isDefaultOrUnknown(entity2)) {
-                // 两者都是具体符号，且值不同。因为是从不同分支合并而来，值在运行时是动态的，所以必须标记为UNKNOWN
-                merged.setRegisterEntity(index, "R" + index, ValueType.UNKNOWN, FromType.UNKNOWN);
+            // 处理未初始化状态的合并
+            if (isUninitialized(entity1) && !isUninitialized(entity2)) {
+                merged.setRegisterEntity(index, entity2.getValue(), entity2.getType(), entity2.getFromType());
+            } else if (!isUninitialized(entity1) && isUninitialized(entity2)) {
+                // 保持 entity1 的具体符号，无需修改
+            } else if (isUninitialized(entity1) && isUninitialized(entity2)) {
+                // 两者都是未初始化，无需修改
             } else {
-                // 两者都是默认/未知，标记为UNKNOWN
+                // 两者都已初始化但值或类型不同（真正的数据流分支合并差异，值在运行时是动态的）
+                // 必须标记为 UNKNOWN 并且值为 "R" + index，避免被常量错误覆盖
                 merged.setRegisterEntity(index, "R" + index, ValueType.UNKNOWN, FromType.UNKNOWN);
             }
         }
@@ -97,22 +76,10 @@ public class RegisterUtils {
         return merged;
     }
 
-    private static boolean isDefaultOrUnknown(RegisterEntity entity) {
-        if (entity == null || entity.getType() == ValueType.UNKNOWN) {
-            return true;
-        }
-        Object val = entity.getValue();
-        if (val == null) {
-            return true;
-        }
-        String s = val.toString();
-        if (s.equals("nil") || s.matches("R\\d+")) {
-            return true;
-        }
-        // 来源为 UNKNOWN 的也视为默认（PHI 合并后的占位符）
-        if (entity.getFromType() == FromType.UNKNOWN) {
-            return true;
-        }
-        return false;
+    private static boolean isUninitialized(RegisterEntity entity) {
+        return entity == null || 
+               entity.getType() == ValueType.NIL || 
+               entity.getFromType() == FromType.NIL || 
+               (entity.getValue() != null && entity.getValue().toString().equals("nil"));
     }
 }

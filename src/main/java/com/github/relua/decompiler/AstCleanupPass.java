@@ -79,7 +79,7 @@ public class AstCleanupPass {
         removeEmptyIfBlocks(block);
 
         // 2. 结构化控制流还原与 GOTO/Label 消解
-        new StructureRestorer().restructure(block);
+        new StructureRestorer(context != null ? context.getChunk() : null).restructure(block);
 
         // 2.5 再次清理空的if块（结构恢复可能产生新的空分支）
         removeEmptyIfBlocks(block);
@@ -408,7 +408,7 @@ public class AstCleanupPass {
         }
 
         String name = ((Name) assign.left.get(0)).name;
-        return name.matches("R\\d+") && consumedTables.contains(assign.right.get(0));
+        return name.matches("(chunk_|module_)?R\\d+") && consumedTables.contains(assign.right.get(0));
     }
 
     private void cleanupNestedBlocks(Statement statement, Set<TableConstructor> consumedTables) {
@@ -484,7 +484,7 @@ public class AstCleanupPass {
             return false;
         }
         return assign.left.get(0) instanceof Name
-                && ((Name) assign.left.get(0)).name.matches("R\\d+")
+                && ((Name) assign.left.get(0)).name.matches("(chunk_|module_)?R\\d+")
                 && assign.right.get(0) instanceof TableConstructor;
     }
 
@@ -716,7 +716,7 @@ public class AstCleanupPass {
         if (name == null) {
             return false;
         }
-        return name.matches("R\\d+") || name.endsWith("Obj");
+        return name.matches("(chunk_|module_)?R\\d+") || name.endsWith("Obj");
     }
 
     private void collectAllUsedRegisters(AstNode node, Set<String> registers) {
@@ -1061,7 +1061,7 @@ public class AstCleanupPass {
             return null;
         }
         Name leftName = (Name) leftExpr;
-        Pattern regPattern = Pattern.compile("^R(\\d+)$");
+        Pattern regPattern = Pattern.compile("^(?:chunk_|module_)?R(\\d+)$");
         Matcher matcher = regPattern.matcher(leftName.name);
         if (!matcher.matches()) {
             return null;

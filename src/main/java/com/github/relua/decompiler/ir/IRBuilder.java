@@ -214,7 +214,7 @@ public class IRBuilder {
                 varName = varName.substring(1, varName.length() - 1);
             }
             if (varName.matches("^R\\d+$")) {
-                varName = "global_" + varName;
+                varName = (isModuleScenario() ? "module_" : "global_") + varName;
             }
             currentState.setRegisterEntity(a, varName, ValueType.GLOBAL, FromType.GLOBAL);
         }
@@ -231,7 +231,7 @@ public class IRBuilder {
                 varName = varName.substring(1, varName.length() - 1);
             }
             if (varName.matches("^R\\d+$")) {
-                varName = "global_" + varName;
+                varName = (isModuleScenario() ? "module_" : "global_") + varName;
             }
             // 设置全局变量时，将寄存器标记为全局变量
             currentState.setRegisterEntity(a, varName, ValueType.GLOBAL);
@@ -572,6 +572,33 @@ public class IRBuilder {
         String name = (upvalue != null) ? upvalue.getName() : ("upvalue_" + b);
         context.addUpvalue(b, new UpValue(b, name,
                 registerEntity.getValue(), registerEntity.getType(), registerEntity.getFromType()));
+    }
+
+    private boolean isModuleScenario() {
+        CodeGeneratorContext mainContext = pipeline.getContext("main");
+        if (mainContext != null && mainContext.getChunk() != null) {
+            return hasModuleCall(mainContext.getChunk());
+        }
+        return false;
+    }
+
+    private boolean hasModuleCall(Chunk mainChunk) {
+        if (mainChunk == null || mainChunk.getConstants() == null) {
+            return false;
+        }
+        for (Constant c : mainChunk.getConstants()) {
+            Object val = c.getValue();
+            if (val != null) {
+                String s = val.toString();
+                if (s.length() >= 2 && s.startsWith("\"") && s.endsWith("\"")) {
+                    s = s.substring(1, s.length() - 1);
+                }
+                if ("module".equals(s)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }
 

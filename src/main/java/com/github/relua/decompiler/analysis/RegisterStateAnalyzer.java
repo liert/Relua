@@ -36,6 +36,12 @@ public class RegisterStateAnalyzer {
         // 初始化所有指令的输入和输出状态
         resetRegisterStates(numInstructions, chunk);
 
+        String varPrefix = "";
+        Register initRegister = pipeline.getContext(chunk.getFunction()).getRegister();
+        if (initRegister != null) {
+            varPrefix = initRegister.getVarPrefix();
+        }
+
         boolean changed = true;
         int maxIterations = 20; // 避免死循环
         int iter = 0;
@@ -47,7 +53,7 @@ public class RegisterStateAnalyzer {
             // 遍历所有基本块
             for (BasicBlock block : pipeline.getBasicBlocks(chunk.getFunction())) {
                 // 合并前驱块的输出状态作为当前块的输入状态
-                Register mergedInput = RegisterUtils.mergePredecessors(block);
+                Register mergedInput = RegisterUtils.mergePredecessors(block, varPrefix);
 
                 // 先更新块的输入状态（如果有变化）
                 if (!mergedInput.equals(block.getInputState())) {
@@ -102,15 +108,32 @@ public class RegisterStateAnalyzer {
     private void resetRegisterStates(int numInstructions, Chunk chunk) {
         inStates.clear();
         outStates.clear();
-        // 初始化所有指令的输入和输出状态
-
-        for (int i = 0; i < numInstructions; i++) {
-            inStates.add(new Register());
-            outStates.add(new Register());
+        
+        String prefix = "";
+        Register initRegister = pipeline.getContext(chunk.getFunction()).getRegister();
+        if (initRegister != null) {
+            prefix = initRegister.getVarPrefix();
         }
 
-        Register initRegister = pipeline.getContext(chunk.getFunction()).getRegister();
-        // Logger.debug("初始寄存器状态: " + initRegister);
+        for (int i = 0; i < numInstructions; i++) {
+            Register inReg = new Register();
+            inReg.setVarPrefix(prefix);
+            inStates.add(inReg);
+            
+            Register outReg = new Register();
+            outReg.setVarPrefix(prefix);
+            outStates.add(outReg);
+        }
+
+        for (BasicBlock block : pipeline.getBasicBlocks(chunk.getFunction())) {
+            if (block.getInputState() != null) {
+                block.getInputState().setVarPrefix(prefix);
+            }
+            if (block.getOutputState() != null) {
+                block.getOutputState().setVarPrefix(prefix);
+            }
+        }
+
         if (initRegister == null) {
             return;
         }
@@ -118,7 +141,6 @@ public class RegisterStateAnalyzer {
             RegisterEntity entity = initRegister.getRegisterEntity(i);
             inStates.get(0).setRegisterEntity(i, entity.getValue(), entity.getType(), entity.getFromType());
         }
-        // Logger.debug("入口寄存器状态: " + inStates.get(0));
     }
 
     /**

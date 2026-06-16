@@ -8,8 +8,19 @@ import java.util.Map;
 import java.util.Set;
 
 import com.github.relua.ast.*;
+import com.github.relua.model.Chunk;
+import com.github.relua.model.Instruction;
+import com.github.relua.model.Opcode;
 
 public class StructureRestorer {
+    private Chunk chunk;
+
+    public StructureRestorer() {
+    }
+
+    public StructureRestorer(Chunk chunk) {
+        this.chunk = chunk;
+    }
 
     public void restructure(Block block) {
         if (block == null || block.statements == null) {
@@ -47,7 +58,8 @@ public class StructureRestorer {
             }
             restructure(ifStmt.elseBlock);
         } else if (statement instanceof FunctionDeclaration) {
-            restructure(((FunctionDeclaration) statement).func.body);
+            Chunk subChunk = ((FunctionDeclaration) statement).func.getChunk();
+            new StructureRestorer(subChunk).restructure(((FunctionDeclaration) statement).func.body);
         } else if (statement instanceof WhileStatement) {
             restructure(((WhileStatement) statement).body);
         } else if (statement instanceof RepeatStatement) {
@@ -305,21 +317,34 @@ public class StructureRestorer {
             
             // 重命名循环变量
             int lhsCount = getLhsCount(iterStmt);
-            String kName, vName;
-            if (lhsCount == 4) {
-                kName = "R" + (regA + 2);
-                vName = "R" + (regA + 3);
-            } else {
-                kName = "R" + (regA + 3);
-                vName = "R" + (regA + 4);
+            int numVars = 2;
+            if (backwardGoto != null && backwardGoto.pos != null && backwardGoto.pos.pc > 0 && chunk != null) {
+                Instruction tforInstruction = chunk.getInstruction(backwardGoto.pos.pc - 1);
+                if (tforInstruction != null && tforInstruction.getOpcode() == Opcode.TFORLOOP) {
+                    numVars = tforInstruction.getC();
+                }
             }
-            renameVariable(bodyBlock, kName, "k");
-            renameVariable(bodyBlock, vName, "v");
-            
+
+            String prefix = "";
+            if (chunk != null && "main".equals(chunk.getFunction())) {
+                prefix = isModuleScenario() ? "module_" : "chunk_";
+            }
+
             List<Expression> iterators = getIteratorExpressions(iterStmt);
             List<String> names = new ArrayList<>();
-            names.add("k");
-            names.add("v");
+
+            if (numVars == 1) {
+                String varName = (lhsCount == 4) ? ("R" + (regA + 2)) : ("R" + (regA + 3));
+                renameVariable(bodyBlock, prefix + varName, "v");
+                names.add("v");
+            } else {
+                String kName = (lhsCount == 4) ? ("R" + (regA + 2)) : ("R" + (regA + 3));
+                String vName = (lhsCount == 4) ? ("R" + (regA + 3)) : ("R" + (regA + 4));
+                renameVariable(bodyBlock, prefix + kName, "k");
+                renameVariable(bodyBlock, prefix + vName, "v");
+                names.add("k");
+                names.add("v");
+            }
             
             ForIn forIn = new ForIn(names, iterators, bodyBlock, iterStmt.pos);
             
@@ -429,21 +454,34 @@ public class StructureRestorer {
                 int regA = getFirstRegisterIndex(extract.iterator);
                 if (regA == -1) continue;
                 int lhsCount = getLhsCount(extract.iterator);
-                String kName, vName;
-                if (lhsCount == 4) {
-                    kName = "R" + (regA + 2);
-                    vName = "R" + (regA + 3);
-                } else {
-                    kName = "R" + (regA + 3);
-                    vName = "R" + (regA + 4);
+                int numVars = 2;
+                if (backGoto != null && backGoto.pos != null && backGoto.pos.pc > 0 && chunk != null) {
+                    Instruction tforInstruction = chunk.getInstruction(backGoto.pos.pc - 1);
+                    if (tforInstruction != null && tforInstruction.getOpcode() == Opcode.TFORLOOP) {
+                        numVars = tforInstruction.getC();
+                    }
                 }
-                renameVariable(bodyBlock, kName, "k");
-                renameVariable(bodyBlock, vName, "v");
-                
+
+                String prefix = "";
+                if (chunk != null && "main".equals(chunk.getFunction())) {
+                    prefix = isModuleScenario() ? "module_" : "chunk_";
+                }
+
                 List<Expression> iterators = getIteratorExpressions(extract.iterator);
                 List<String> names = new ArrayList<>();
-                names.add("k");
-                names.add("v");
+
+                if (numVars == 1) {
+                    String varName = (lhsCount == 4) ? ("R" + (regA + 2)) : ("R" + (regA + 3));
+                    renameVariable(bodyBlock, prefix + varName, "v");
+                    names.add("v");
+                } else {
+                    String kName = (lhsCount == 4) ? ("R" + (regA + 2)) : ("R" + (regA + 3));
+                    String vName = (lhsCount == 4) ? ("R" + (regA + 3)) : ("R" + (regA + 4));
+                    renameVariable(bodyBlock, prefix + kName, "k");
+                    renameVariable(bodyBlock, prefix + vName, "v");
+                    names.add("k");
+                    names.add("v");
+                }
                 
                 ForIn forIn = new ForIn(names, iterators, bodyBlock, extract.iterator.pos);
                 
@@ -626,6 +664,18 @@ public class StructureRestorer {
         int span;
     }
 
+    private int getRegisterIndex(String name) {
+        if (name == null) {
+            return -1;
+        }
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile("^(?:chunk_|module_)?R(\\d+)$");
+        java.util.regex.Matcher m = p.matcher(name);
+        if (m.matches()) {
+            return Integer.parseInt(m.group(1));
+        }
+        return -1;
+    }
+
     private boolean isForInIteratorAssign(Statement stmt) {
         if (stmt instanceof Assign) {
             Assign assign = (Assign) stmt;
@@ -634,11 +684,12 @@ public class StructureRestorer {
             }
             // TFORLOOP 的 CALL c=4 产生 4 个返回值 (f, s, var, control)
             if (assign.left.size() == 4) {
+                int r2 = getRegisterIndex(((Name) assign.left.get(2)).name);
+                int r3 = getRegisterIndex(((Name) assign.left.get(3)).name);
                 return areContinuousRegisters(assign.left.get(0), assign.left.get(1), assign.left.get(2))
-                        && assign.left.get(3) instanceof Name
-                        && ((Name) assign.left.get(3)).name.matches("R\\d+")
-                        && Integer.parseInt(((Name) assign.left.get(3)).name.substring(1))
-                            == Integer.parseInt(((Name) assign.left.get(2)).name.substring(1)) + 1;
+                        && r3 != -1
+                        && r2 != -1
+                        && r3 == r2 + 1;
             }
         } else if (stmt instanceof LocalAssign) {
             LocalAssign local = (LocalAssign) stmt;
@@ -646,10 +697,12 @@ public class StructureRestorer {
                 return areContinuousRegisterNames(local.names.get(0), local.names.get(1), local.names.get(2));
             }
             if (local.names.size() == 4) {
+                int r2 = getRegisterIndex(local.names.get(2));
+                int r3 = getRegisterIndex(local.names.get(3));
                 return areContinuousRegisterNames(local.names.get(0), local.names.get(1), local.names.get(2))
-                        && local.names.get(3).matches("R\\d+")
-                        && Integer.parseInt(local.names.get(3).substring(1))
-                            == Integer.parseInt(local.names.get(2).substring(1)) + 1;
+                        && r3 != -1
+                        && r2 != -1
+                        && r3 == r2 + 1;
             }
         }
         return false;
@@ -663,10 +716,10 @@ public class StructureRestorer {
     }
 
     private boolean areContinuousRegisterNames(String n1, String n2, String n3) {
-        if (n1.matches("R\\d+") && n2.matches("R\\d+") && n3.matches("R\\d+")) {
-            int r1 = Integer.parseInt(n1.substring(1));
-            int r2 = Integer.parseInt(n2.substring(1));
-            int r3 = Integer.parseInt(n3.substring(1));
+        int r1 = getRegisterIndex(n1);
+        int r2 = getRegisterIndex(n2);
+        int r3 = getRegisterIndex(n3);
+        if (r1 != -1 && r2 != -1 && r3 != -1) {
             return r2 == r1 + 1 && r3 == r1 + 2;
         }
         return false;
@@ -694,10 +747,7 @@ public class StructureRestorer {
                 name = local.names.get(0);
             }
         }
-        if (name != null && name.matches("R\\d+")) {
-            return Integer.parseInt(name.substring(1));
-        }
-        return -1;
+        return getRegisterIndex(name);
     }
 
     private List<Expression> getIteratorExpressions(Statement stmt) {
@@ -984,18 +1034,12 @@ public class StructureRestorer {
         if (stmt instanceof Assign) {
             Assign assign = (Assign) stmt;
             if (assign.left.size() == 1 && assign.left.get(0) instanceof Name) {
-                String name = ((Name) assign.left.get(0)).name;
-                if (name.matches("R\\d+")) {
-                    return Integer.parseInt(name.substring(1));
-                }
+                return getRegisterIndex(((Name) assign.left.get(0)).name);
             }
         } else if (stmt instanceof LocalAssign) {
             LocalAssign local = (LocalAssign) stmt;
             if (local.names.size() == 1) {
-                String name = local.names.get(0);
-                if (name.matches("R\\d+")) {
-                    return Integer.parseInt(name.substring(1));
-                }
+                return getRegisterIndex(local.names.get(0));
             }
         }
         return -1;
@@ -1332,5 +1376,34 @@ public class StructureRestorer {
             }
             replaceGotoWithAssignTrue(ifStmt.elseBlock, labelName, targetVar, pos);
         }
+    }
+
+    private boolean isModuleScenario() {
+        if (chunk == null) {
+            return false;
+        }
+        if ("main".equals(chunk.getFunction())) {
+            return hasModuleCall(chunk);
+        }
+        return false;
+    }
+
+    private boolean hasModuleCall(Chunk mainChunk) {
+        if (mainChunk == null || mainChunk.getConstants() == null) {
+            return false;
+        }
+        for (com.github.relua.model.Constant c : mainChunk.getConstants()) {
+            Object val = c.getValue();
+            if (val != null) {
+                String s = val.toString();
+                if (s.length() >= 2 && s.startsWith("\"") && s.endsWith("\"")) {
+                    s = s.substring(1, s.length() - 1);
+                }
+                if ("module".equals(s)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

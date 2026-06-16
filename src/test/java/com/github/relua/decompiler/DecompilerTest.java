@@ -135,6 +135,32 @@ class DecompilerTest {
     }
 
     @Test
+    void testDecompileSha1() throws IOException {
+        String filePath = "src/test/resources/xiaomi/sha1.lua";
+        File file = new File(filePath);
+        assertTrue(file.exists(), "sha1.lua file does not exist: " + file.getAbsolutePath());
+
+        LuacParser parser = new LuacParser();
+        Decompiler decompiler = new Decompiler();
+
+        LuacFile luacFile = parser.parse(filePath);
+        assertNotNull(luacFile, "Failed to parse sha1.lua");
+
+        // Save raw bytecode disassembly
+        String bytecode = decompiler.decompile(luacFile, true);
+        try (PrintWriter writer = new PrintWriter(new FileWriter("target/sha1_bytecode.txt"))) {
+            writer.print(bytecode);
+        }
+
+        String luaCode = decompiler.decompile(luacFile);
+        assertNotNull(luaCode, "Failed to decompile");
+
+        try (PrintWriter writer = new PrintWriter(new FileWriter("target/sha1_decompiled.lua"))) {
+            writer.print(luaCode);
+        }
+    }
+
+    @Test
     void testPeepholeOptimizationEdgeCases() {
         // --- 模式 B 正例 1：R4 = nil; return nil -> return nil ---
         {

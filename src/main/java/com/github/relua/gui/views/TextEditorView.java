@@ -29,7 +29,7 @@ public class TextEditorView {
     private static final String STRINGS = "\\\"([^\\\\\"\\r\\n]|\\\\.)*\\\"|\\'([^\\\\\\'\\r\\n]|\\\\.)*\\'";
     private static final String COMMENTS = "--.*$";
     private static final String NUMBERS = "\\b\\d+\\.?\\d*\\b";
-    private static final String GLOBALVAR = "\\bglobal_[A-Za-z0-9_]+\\b";
+    private static final String GLOBALVAR = "\\b(global_|chunk_|module_)[A-Za-z0-9_]+\\b";
     private static final String METHODCALL = "(?<=:)[A-Za-z_][A-Za-z0-9_]*";
     private static final String TABLEFIELD = "(?<=\\.)[A-Za-z_][A-Za-z0-9_]*";
     private static final String FUNCTION = "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()";
