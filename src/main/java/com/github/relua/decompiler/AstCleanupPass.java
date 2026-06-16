@@ -772,7 +772,53 @@ public class AstCleanupPass {
         block.statements.addAll(rewritten);
 
         if (isFunction && !missing.isEmpty()) {
-            block.statements.add(0, new LocalAssign(missing, new ArrayList<>(), block.pos));
+            Map<Statement, List<String>> insertMap = new IdentityHashMap<>();
+            List<String> fallback = new ArrayList<>();
+
+            for (String reg : missing) {
+                Statement firstStmt = null;
+                for (Statement stmt : block.statements) {
+                    if (containsRegister(stmt, reg)) {
+                        firstStmt = stmt;
+                        break;
+                    }
+                }
+                if (firstStmt != null) {
+                    insertMap.computeIfAbsent(firstStmt, k -> new ArrayList<>()).add(reg);
+                } else {
+                    fallback.add(reg);
+                }
+            }
+
+            List<Statement> newStmts = new ArrayList<>();
+            if (!fallback.isEmpty()) {
+                fallback.sort((a, b) -> {
+                    try {
+                        return Integer.compare(Integer.parseInt(a.substring(1)), Integer.parseInt(b.substring(1)));
+                    } catch (Exception e) {
+                        return a.compareTo(b);
+                    }
+                });
+                newStmts.add(new LocalAssign(fallback, new ArrayList<>(), block.pos));
+            }
+
+            for (Statement stmt : block.statements) {
+                List<String> regsToDeclare = insertMap.get(stmt);
+                if (regsToDeclare != null && !regsToDeclare.isEmpty()) {
+                    regsToDeclare.sort((a, b) -> {
+                        try {
+                            return Integer.compare(Integer.parseInt(a.substring(1)), Integer.parseInt(b.substring(1)));
+                        } catch (Exception e) {
+                            return a.compareTo(b);
+                        }
+                    });
+                    newStmts.add(new LocalAssign(regsToDeclare, new ArrayList<>(), block.pos));
+                }
+                newStmts.add(stmt);
+            }
+
+            block.statements.clear();
+            block.statements.addAll(newStmts);
         }
         return declared;
     }
@@ -975,29 +1021,54 @@ public class AstCleanupPass {
         if (statement instanceof Assign) {
             Assign assign = (Assign) statement;
 
-            if (allowNewLocal
-                    && assign.left.size() == 1
-                    && assign.right.size() == 1
-                    && assign.left.get(0) instanceof Name) {
-                String name = ((Name) assign.left.get(0)).name;
-
-                if (!declared.contains(name) && shouldDeclareLocal(name, assign.right.get(0))) {
-                    if (hoistedRegisters != null && hoistedRegisters.contains(name)) {
-                        result.add(statement);
-                        return;
+            if (allowNewLocal) {
+                boolean allNames = true;
+                List<String> names = new ArrayList<>();
+                for (Expression left : assign.left) {
+                    if (left instanceof Name) {
+                        names.add(((Name) left).name);
+                    } else {
+                        allNames = false;
+                        break;
                     }
-                    declared.add(name);
-
-                    List<String> names = new ArrayList<>();
-                    names.add(name);
-
-                    result.add(new LocalAssign(names, assign.right, assign.pos));
-                    return;
                 }
-
-                if (declared.contains(name)) {
-                    result.add(statement);
-                    return;
+                if (allNames && !names.isEmpty()) {
+                    boolean noneDeclared = true;
+                    for (String name : names) {
+                        if (declared.contains(name)) {
+                            noneDeclared = false;
+                            break;
+                        }
+                    }
+                    if (noneDeclared) {
+                        boolean allShouldDeclare = true;
+                        for (int k = 0; k < names.size(); k++) {
+                            String name = names.get(k);
+                            Expression right = k < assign.right.size() ? assign.right.get(k) : null;
+                            if (!shouldDeclareLocal(name, right)) {
+                                allShouldDeclare = false;
+                                break;
+                            }
+                        }
+                        if (allShouldDeclare) {
+                            if (hoistedRegisters != null) {
+                                boolean hasHoisted = false;
+                                for (String name : names) {
+                                    if (hoistedRegisters.contains(name)) {
+                                        hasHoisted = true;
+                                        break;
+                                    }
+                                }
+                                if (hasHoisted) {
+                                    result.add(statement);
+                                    return;
+                                }
+                            }
+                            declared.addAll(names);
+                            result.add(new LocalAssign(names, assign.right, assign.pos));
+                            return;
+                        }
+                    }
                 }
             }
 
