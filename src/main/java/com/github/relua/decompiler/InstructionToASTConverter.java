@@ -166,7 +166,25 @@ public class InstructionToASTConverter {
                     }
                 }
                 int jumpTarget = prepIdx != -1 ? prepIdx + 1 : instructionIndex + 1;
-                return new GotoStatement("L" + jumpTarget, new SourcePos(instructionIndex, -1));
+                GotoStatement jmp = new GotoStatement("L" + jumpTarget, new SourcePos(instructionIndex, -1));
+                
+                Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
+                String loopVarName = getRegisterName(a + 3, registerState);
+                String idxVarName = getRegisterName(a, registerState);
+                String limitVarName = getRegisterName(a + 1, registerState);
+                
+                RegisterEntity stepEntity = registerState.getRegisterEntity(a + 2);
+                boolean isPositive = true;
+                if (stepEntity != null && stepEntity.getValue() instanceof Number) {
+                    double val = ((Number) stepEntity.getValue()).doubleValue();
+                    if (val < 0) {
+                        isPositive = false;
+                    }
+                }
+                
+                String condition = idxVarName + (isPositive ? " <= " : " >= ") + limitVarName;
+                jmp.setForLoopAssign(loopVarName, idxVarName, condition);
+                return jmp;
             }
             default:
                 // 对于其他指令，生成一个默认的表达式节点

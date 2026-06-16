@@ -530,8 +530,16 @@ public class IRBuilder {
     }
 
     private void processVarargInstruction(Chunk chunk, Instruction instruction, Register currentState) {
-        // 处理VARARG指令
-        // 不修改寄存器状态
+        int a = instruction.getA();
+        int b = instruction.getB();
+        SourcePos pos = new SourcePos(instruction.getPc(), -1);
+        if (b > 1) {
+            for (int i = 0; i < b - 1; i++) {
+                currentState.setRegisterEntity(a + i, new com.github.relua.ast.Vararg(pos), ValueType.OBJECT, FromType.REGISTER);
+            }
+        } else if (b == 0) {
+            currentState.setRegisterEntity(a, new com.github.relua.ast.Vararg(pos), ValueType.OBJECT, FromType.REGISTER);
+        }
     }
 
     private void processGetUpvalInstruction(Chunk chunk, Instruction instruction, Register register) {

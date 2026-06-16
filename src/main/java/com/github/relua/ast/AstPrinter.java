@@ -214,6 +214,12 @@ public class AstPrinter implements AstVisitor<String> {
     @Override
     public String visit(GotoStatement node) {
         // dedent();
+        if (node.isForLoop()) {
+            return "if " + node.getForCondition() + " then\n" + 
+                   getIndent() + "    " + node.getForAssignLeft() + " = " + node.getForAssignRight() + "\n" +
+                   getIndent() + "    goto " + node.label + "\n" +
+                   getIndent() + "end";
+        }
         return "goto " + node.label;
     }
     
