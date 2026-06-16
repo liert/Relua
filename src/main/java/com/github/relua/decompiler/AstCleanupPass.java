@@ -170,7 +170,7 @@ public class AstCleanupPass {
         // 先清除if块中残留的join-point goto/label（结构恢复的副产物）
         for (Statement statement : block.statements) {
             if (statement instanceof IfStatement) {
-                stripTrailingJoinGotos((IfStatement) statement);
+                stripTrailingJoinGotos(block, (IfStatement) statement);
             }
         }
 
@@ -359,29 +359,59 @@ public class AstCleanupPass {
         }
     }
 
-    private void stripTrailingJoinGotos(IfStatement ifStmt) {
+    private void stripTrailingJoinGotos(Block parentBlock, IfStatement ifStmt) {
+        int ifStmtIdx = parentBlock.statements.indexOf(ifStmt);
+        if (ifStmtIdx == -1) {
+            for (Block b : ifStmt.blocks) {
+                if (b != null) {
+                    stripTrailingGotosFromBlock(b, java.util.Collections.emptySet());
+                }
+            }
+            if (ifStmt.elseBlock != null) {
+                stripTrailingGotosFromBlock(ifStmt.elseBlock, java.util.Collections.emptySet());
+            }
+            return;
+        }
+
+        Set<String> redundantLabels = new HashSet<>();
+        for (int k = ifStmtIdx + 1; k < parentBlock.statements.size(); k++) {
+            Statement s = parentBlock.statements.get(k);
+            if (s instanceof LabelStatement) {
+                redundantLabels.add(((LabelStatement) s).label);
+            } else {
+                break;
+            }
+        }
+
         for (Block b : ifStmt.blocks) {
             if (b != null) {
-                stripTrailingGotosFromBlock(b);
+                stripTrailingGotosFromBlock(b, redundantLabels);
             }
         }
         if (ifStmt.elseBlock != null) {
-            stripTrailingGotosFromBlock(ifStmt.elseBlock);
+            stripTrailingGotosFromBlock(ifStmt.elseBlock, redundantLabels);
         }
     }
 
-    private void stripTrailingGotosFromBlock(Block block) {
+    private void stripTrailingGotosFromBlock(Block block, Set<String> redundantLabels) {
         if (block == null || block.statements.isEmpty()) {
             return;
         }
         for (Statement stmt : block.statements) {
             if (stmt instanceof IfStatement) {
-                stripTrailingJoinGotos((IfStatement) stmt);
+                stripTrailingJoinGotos(block, (IfStatement) stmt);
             }
         }
         while (!block.statements.isEmpty()) {
             Statement last = block.statements.get(block.statements.size() - 1);
-            if (last instanceof GotoStatement || last instanceof LabelStatement) {
+            if (last instanceof GotoStatement) {
+                String target = ((GotoStatement) last).label;
+                if (redundantLabels.contains(target)) {
+                    block.statements.remove(block.statements.size() - 1);
+                } else {
+                    break;
+                }
+            } else if (last instanceof LabelStatement) {
                 block.statements.remove(block.statements.size() - 1);
             } else {
                 break;
