@@ -342,12 +342,83 @@ public class AstPrinter implements AstVisitor<String> {
     
     @Override
     public String visit(UnaryOp node) {
-        return node.op + " " + node.expr.accept(this);
+        String expr = node.expr.accept(this);
+        if (node.expr instanceof BinaryOp) {
+            expr = "(" + expr + ")";
+        }
+        return node.op + " " + expr;
     }
     
     @Override
     public String visit(BinaryOp node) {
-        return node.left.accept(this) + " " + node.op + " " + node.right.accept(this);
+        return formatBinaryChild(node.left, node, true) + " " + node.op + " " + formatBinaryChild(node.right, node, false);
+    }
+
+    private String formatBinaryChild(Expression child, BinaryOp parent, boolean isLeft) {
+        String rendered = child.accept(this);
+        if (!(child instanceof BinaryOp)) {
+            return rendered;
+        }
+
+        BinaryOp childBinary = (BinaryOp) child;
+        if ("..".equals(parent.op) && !"..".equals(childBinary.op)) {
+            return "(" + rendered + ")";
+        }
+
+        int childPrecedence = binaryPrecedence(childBinary.op);
+        int parentPrecedence = binaryPrecedence(parent.op);
+        if (childPrecedence < parentPrecedence
+                || (childPrecedence == parentPrecedence && needsParensForEqualPrecedence(parent.op, childBinary.op, isLeft))) {
+            return "(" + rendered + ")";
+        }
+        return rendered;
+    }
+
+    private boolean needsParensForEqualPrecedence(String parentOp, String childOp, boolean isLeft) {
+        if (isRightAssociative(parentOp)) {
+            return isLeft;
+        }
+        if (!isLeft) {
+            return !isAssociative(parentOp) || !parentOp.equals(childOp);
+        }
+        return false;
+    }
+
+    private boolean isRightAssociative(String op) {
+        return "^".equals(op) || "..".equals(op);
+    }
+
+    private boolean isAssociative(String op) {
+        return "+".equals(op) || "*".equals(op) || "and".equals(op) || "or".equals(op);
+    }
+
+    private int binaryPrecedence(String op) {
+        switch (op) {
+            case "or":
+                return 1;
+            case "and":
+                return 2;
+            case "<":
+            case ">":
+            case "<=":
+            case ">=":
+            case "~=":
+            case "==":
+                return 3;
+            case "..":
+                return 4;
+            case "+":
+            case "-":
+                return 5;
+            case "*":
+            case "/":
+            case "%":
+                return 6;
+            case "^":
+                return 8;
+            default:
+                return 7;
+        }
     }
     
     @Override

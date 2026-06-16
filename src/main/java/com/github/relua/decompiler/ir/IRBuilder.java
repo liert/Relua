@@ -2,8 +2,13 @@ package com.github.relua.decompiler.ir;
 
 import com.github.relua.decompiler.CodeGeneratorContext;
 import com.github.relua.decompiler.DecompilerPipeline;
+import com.github.relua.ast.BooleanConst;
 import com.github.relua.ast.Expression;
+import com.github.relua.ast.IndexExpr;
+import com.github.relua.ast.NilConst;
+import com.github.relua.ast.NumberConst;
 import com.github.relua.ast.SourcePos;
+import com.github.relua.ast.StringConst;
 import com.github.relua.ast.TableConstructor;
 import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
@@ -246,20 +251,28 @@ public class IRBuilder {
         int c = instruction.getC();
 
         RegisterEntity RB = currentState.getRegisterEntity(b);
+        SourcePos pos = new SourcePos(instruction.getPc(), -1);
+        Expression table = TransformUtils.transformToAstNode(RB, instruction.getPc());
+        Expression index = rkExpression(chunk, currentState, c, pos);
+        currentState.setRegisterEntity(a, new IndexExpr(table, index, pos), ValueType.TABLE, FromType.REGISTER);
+    }
 
-        String rx = TransformUtils.transformRX(chunk, currentState, c);
-        String value;
-        if (rx.startsWith("\"") && rx.endsWith("\"") && rx.length() >= 2) {
-            String key = rx.substring(1, rx.length() - 1);
-            if (key.matches("[A-Za-z_][A-Za-z0-9_]*")) {
-                value = String.format("%s.%s", TransformUtils.transformRegister(RB), key);
-            } else {
-                value = String.format("%s[%s]", TransformUtils.transformRegister(RB), rx);
+    private Expression rkExpression(Chunk chunk, Register register, int rk, SourcePos pos) {
+        if (rk >= 256) {
+            Constant constant = chunk.getConstant(rk - 256);
+            Object value = constant != null ? constant.getValue() : null;
+            if (value == null) {
+                return new NilConst(pos);
             }
-        } else {
-            value = String.format("%s[%s]", TransformUtils.transformRegister(RB), rx);
+            if (value instanceof Number) {
+                return new NumberConst(((Number) value).doubleValue(), pos);
+            }
+            if (value instanceof Boolean) {
+                return new BooleanConst((Boolean) value, pos);
+            }
+            return new StringConst(value.toString(), pos);
         }
-        currentState.setRegisterEntity(a, value, ValueType.TABLE, FromType.GLOBAL);
+        return TransformUtils.transformToAstNode(register.getRegisterEntity(rk), pos.pc);
     }
 
     private void processSetTableInstruction(Chunk chunk, Instruction instruction, Register currentState) {
@@ -601,4 +614,3 @@ public class IRBuilder {
         return false;
     }
 }
-

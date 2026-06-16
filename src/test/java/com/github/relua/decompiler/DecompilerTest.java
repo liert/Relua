@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeAll;
 import com.github.relua.log.Logger;
 import com.github.relua.log.LogConfig;
 import com.github.relua.log.LogLevel;
+import com.github.relua.decompiler.analysis.DataFlowAnalyzer;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -157,6 +158,16 @@ class DecompilerTest {
 
         try (PrintWriter writer = new PrintWriter(new FileWriter("target/sha1_decompiled.lua"))) {
             writer.print(luaCode);
+        }
+
+        assertFalse(luaCode.contains("R3 = R2 + 3 .."), "Index arithmetic must not be merged into concat");
+        assertFalse(luaCode.contains("R2 + 3 .."), "Arithmetic index expression must not be absorbed by concat");
+        assertTrue(luaCode.contains("R3 = R2 + 3")
+                        || luaCode.contains("if a0[R2 + 3] then"),
+                "asHEX must preserve or safely inline the R2 + 3 index definition");
+        if (luaCode.contains("if a0[R3] then")) {
+            assertTrue(luaCode.indexOf("R3 = R2 + 3") < luaCode.indexOf("if a0[R3] then"),
+                    "R3 must be assigned before it is used as a0 index");
         }
     }
 
@@ -405,6 +416,78 @@ class DecompilerTest {
             assertEquals(1, block.statements.size());
             assertTrue(block.statements.get(0) instanceof Assign);
         }
+    }
+
+    @Test
+    void testDataFlowDoesNotMergeRegisterLifetimesAcrossIfCondition() {
+        SourcePos pos = new SourcePos(0, 0);
+        Block body = new Block(pos);
+
+        body.statements.add(new Assign("R3",
+                new BinaryOp("+", new Name("R2", pos), new NumberConst(3, pos), pos),
+                pos));
+        body.statements.add(new Assign("R3",
+                new IndexExpr(new Name("a0", pos), new Name("R3", pos), pos),
+                pos));
+
+        Block thenBlock = new Block(pos);
+        thenBlock.statements.add(new Assign("R3", new StringConst("1", pos), pos));
+        Block elseBlock = new Block(pos);
+        elseBlock.statements.add(new Assign("R3", new StringConst("0", pos), pos));
+        body.statements.add(new IfStatement(
+                new Name("R3", pos),
+                thenBlock,
+                elseBlock,
+                pos));
+
+        body.statements.add(new Assign("R4", new StringConst("1", pos), pos));
+        body.statements.add(new Assign("R5", new StringConst("0", pos), pos));
+        body.statements.add(new Assign("R6", new StringConst("1", pos), pos));
+        body.statements.add(new Assign("R3",
+                new BinaryOp("..",
+                        new BinaryOp("..",
+                                new BinaryOp("..", new Name("R3", pos), new Name("R4", pos), pos),
+                                new Name("R5", pos),
+                                pos),
+                        new Name("R6", pos),
+                        pos),
+                pos));
+
+        Block root = new Block(pos);
+        root.statements.add(new Assign("R3", new UnaryOp("#", new Name("a0", pos), pos), pos));
+        root.statements.add(new WhileStatement(
+                new BinaryOp("<", new Name("R2", pos), new Name("R3", pos), pos),
+                body,
+                pos));
+
+        new DataFlowAnalyzer().optimize(root);
+
+        String lua = root.accept(new AstPrinter());
+        assertFalse(lua.contains("R2 + 3 .."), "Index arithmetic must not be absorbed into concat: \n" + lua);
+        assertFalse(lua.contains("R3 = R2 + 3 .."), "R3 index lifetime must not merge with concat key lifetime: \n" + lua);
+        assertTrue(lua.contains("if a0[R2 + 3] then")
+                        || lua.contains("R3 = a0[R2 + 3]")
+                        || lua.contains("R3 = R2 + 3"),
+                "The index definition must be preserved or safely inlined into the condition: \n" + lua);
+        if (lua.contains("if a0[R3] then")) {
+            assertTrue(lua.indexOf("R3 = R2 + 3") < lua.indexOf("if a0[R3] then"),
+                    "If R3 is used as an index, its index definition must still be live: \n" + lua);
+        }
+    }
+
+    @Test
+    void testAstPrinterParenthesizesConcatOperandsWhenNeeded() {
+        SourcePos pos = new SourcePos(0, 0);
+        Expression expr = new BinaryOp("..",
+                new BinaryOp("..",
+                        new BinaryOp("+", new Name("R2", pos), new NumberConst(3, pos), pos),
+                        new Name("R4", pos),
+                        pos),
+                new Name("R5", pos),
+                pos);
+
+        String lua = expr.accept(new AstPrinter());
+        assertEquals("((R2 + 3) .. R4) .. R5", lua);
     }
 
     private void verifyPeephole(Statement assign, Statement ret, List<Instruction> instructions, List<Constant> constants, int expectedSize, Class<? extends Expression> expectedValueClass) {

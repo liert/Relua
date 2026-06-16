@@ -123,21 +123,31 @@ public class DataFlowAnalyzer {
                             dependencyBroken = true;
                         }
 
-                        // 检查 R_x 自身是否被重新定值
-                        if (hasAssignmentTo(nextStmt, regName)) {
-                            // 遇到 R_x 的下一个定值点，在此之后的 Use 与当前定值无关，停止扫描
-                            break;
-                        }
-
-                        // 统计 R_x 的使用
+                        // 统计 R_x 的使用。必须先于“自身重定义”检查：
+                        //   R3 = R2 + 3
+                        //   R3 = a0[R3]
+                        // 第二条语句的 RHS 读取旧 R3，LHS 才开启新生命周期。
                         int usesInStmt = countVariableUses(nextStmt, regName);
                         if (usesInStmt > 0) {
                             useCount += usesInStmt;
                             useIndex = j;
-                            // 如果使用发生在复杂的控制流或嵌套块内部，为保证安全性，不进行内联
+                            // 如果使用发生在复杂的控制流或嵌套块内部，为保证安全性，不进行内联。
+                            // 例外：变量只在 IfStatement 条件表达式中被读取。Lua 会先求值条件，
+                            // 再执行 then/else 块，因此可以把前置临时索引安全内联到条件里，
+                            // 即使同一寄存器在分支体中开启新的生命周期。
                             if (isComplexControlFlow(nextStmt)) {
-                                escaped = true;
+                                escaped = !useIsOnlyInIfCondition(nextStmt, regName);
                             }
+                            if (hasAnyAssignmentTo(nextStmt, regName)) {
+                                break;
+                            }
+                        }
+
+                        // 检查 R_x 自身是否被重新定值（仅检查顶层赋值，不递归进入嵌套块，
+                        // 因为嵌套块内的赋值不影响当前作用域层级的 use-def 分析）
+                        if (hasAssignmentTo(nextStmt, regName)) {
+                            // 遇到 R_x 的下一个定值点，在此之后的 Use 与当前定值无关，停止扫描
+                            break;
                         }
                     }
 
@@ -163,10 +173,14 @@ public class DataFlowAnalyzer {
                         } else if (nextDefIdx < stmts.size() && !hasGotoStatement(stmts, i + 1, nextDefIdx)) {
                             safeToDelete = true;
                         } else if (nextDefIdx == stmts.size()) {
-                            if (!parentDeclared.contains(regName) && !upvalueNames.contains(regName)) {
-                                boolean terminates = isTopLevel || (!stmts.isEmpty() && stmts.get(stmts.size() - 1) instanceof ReturnStatement);
-                                if (terminates && !hasEscapingControlFlow(stmts, i + 1)) {
-                                    safeToDelete = true;
+                            // 没有在当前作用域找到后续的顶层重定义：必须确认全局也无引用，
+                            // 否则该赋值可能被嵌套块（如 while 条件、if 条件）所引用，不能删除。
+                            if (totalUses == 0) {
+                                if (!parentDeclared.contains(regName) && !upvalueNames.contains(regName)) {
+                                    boolean terminates = isTopLevel || (!stmts.isEmpty() && stmts.get(stmts.size() - 1) instanceof ReturnStatement);
+                                    if (terminates && !hasEscapingControlFlow(stmts, i + 1)) {
+                                        safeToDelete = true;
+                                    }
                                 }
                             }
                         }
@@ -238,16 +252,21 @@ public class DataFlowAnalyzer {
                 for (int j = i + 1; j < stmts.size(); j++) {
                     Statement nextStmt = stmts.get(j);
 
-                    // 检查该寄存器是否被重新定值
-                    if (hasAssignmentTo(nextStmt, regName)) {
-                        redefineIndex = j;
-                        break;
-                    }
-
-                    // 检查该寄存器是否被读取
+                    // A compound statement can read the current value in its condition
+                    // before assigning the same register in a branch body:
+                    //   R3 = R2 + 3
+                    //   if a0[R3] then R3 = "1" else R3 = "0" end
+                    // The read belongs to the old definition and must stop dead-code
+                    // removal before the branch assignment starts a new lifetime.
                     int uses = countVariableUses(nextStmt, regName);
                     if (uses > 0) {
                         foundUse = true;
+                        break;
+                    }
+
+                    // 检查该寄存器是否被重新定值（含递归检查复合语句内部的分支块，避免遗漏 if-body 中的赋值）
+                    if (hasAnyAssignmentTo(nextStmt, regName)) {
+                        redefineIndex = j;
                         break;
                     }
                 }
@@ -393,6 +412,62 @@ public class DataFlowAnalyzer {
         Set<String> set = new HashSet<>();
         set.add(varName);
         return hasAssignmentTo(stmt, set);
+    }
+
+    /**
+     * 递归检查语句（含复合语句内部的所有分支块）中是否存在对指定变量的赋值。
+     * 与 hasAssignmentTo 的区别：本方法会递归进入 IfStatement/WhileStatement/for 等控制流的 body 中搜索。
+     * 注意：不递归进入 FunctionDeclaration/FunctionLiteral（它们是独立作用域）。
+     */
+    private boolean hasAnyAssignmentTo(Statement stmt, String varName) {
+        if (stmt == null) return false;
+        // 检查顶层赋值
+        if (hasAssignmentTo(stmt, varName)) return true;
+        // 递归检查复合语句的 body
+        if (stmt instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) stmt;
+            for (Block b : ifStmt.blocks) {
+                if (hasAnyAssignmentToInBlock(b, varName)) return true;
+            }
+            if (ifStmt.elseBlock != null && hasAnyAssignmentToInBlock(ifStmt.elseBlock, varName)) return true;
+        } else if (stmt instanceof WhileStatement) {
+            if (hasAnyAssignmentToInBlock(((WhileStatement) stmt).body, varName)) return true;
+        } else if (stmt instanceof RepeatStatement) {
+            if (hasAnyAssignmentToInBlock(((RepeatStatement) stmt).body, varName)) return true;
+        } else if (stmt instanceof ForNumeric) {
+            if (hasAnyAssignmentToInBlock(((ForNumeric) stmt).body, varName)) return true;
+        } else if (stmt instanceof ForIn) {
+            if (hasAnyAssignmentToInBlock(((ForIn) stmt).body, varName)) return true;
+        }
+        return false;
+    }
+
+    private boolean hasAnyAssignmentToInBlock(Block block, String varName) {
+        if (block == null || block.statements == null) return false;
+        for (Statement s : block.statements) {
+            if (hasAnyAssignmentTo(s, varName)) return true;
+        }
+        return false;
+    }
+
+    private boolean useIsOnlyInIfCondition(Statement stmt, String varName) {
+        if (!(stmt instanceof IfStatement)) {
+            return false;
+        }
+        IfStatement ifStmt = (IfStatement) stmt;
+        int conditionUses = 0;
+        for (Expression cond : ifStmt.conditions) {
+            conditionUses += countVariableUses(cond, varName);
+        }
+        if (conditionUses == 0) {
+            return false;
+        }
+        for (Block block : ifStmt.blocks) {
+            if (countVariableUses(block, varName) > 0) {
+                return false;
+            }
+        }
+        return countVariableUses(ifStmt.elseBlock, varName) == 0;
     }
 
     private int countVariableUses(AstNode node, String varName) {
@@ -767,6 +842,10 @@ public class DataFlowAnalyzer {
             BinaryOp binary = (BinaryOp) node;
             Expression newLeft = (Expression) rewriteNode(binary.left);
             Expression newRight = (Expression) rewriteNode(binary.right);
+            Expression simplified = simplifyBinary(binary.op, newLeft, newRight);
+            if (simplified != null) {
+                return simplified;
+            }
             return new BinaryOp(binary.op, newLeft, newRight, binary.pos);
         } else if (node instanceof UnaryOp) {
             UnaryOp unary = (UnaryOp) node;
@@ -842,6 +921,21 @@ public class DataFlowAnalyzer {
         }
 
         return node;
+    }
+
+    private Expression simplifyBinary(String op, Expression left, Expression right) {
+        if ("+".equals(op)) {
+            if (isZeroNumber(right)) return left;
+            if (isZeroNumber(left)) return right;
+        }
+        if ("-".equals(op) && isZeroNumber(right)) {
+            return left;
+        }
+        return null;
+    }
+
+    private boolean isZeroNumber(Expression expr) {
+        return expr instanceof NumberConst && Double.compare(((NumberConst) expr).value, 0.0) == 0;
     }
 
     private boolean isSameExpression(Expression e1, Expression e2) {

@@ -1461,11 +1461,32 @@ public class StructureRestorer {
                                                 }
                                             }
 
-                                            if (varName != null && rightExpr != null) {
+                                        if (varName != null && rightExpr != null) {
                                                 // Check if varName is referenced in cond
                                                 if (containsVar(cond, varName)) {
-                                                    cond = replaceVariable(cond, varName, rightExpr);
-                                                    inlinedPreps.add(prep);
+                                                    // 安全检查：如果该变量在循环体内部被重新赋值（循环携带变量），
+                                                    // 则不能将其初始值内联到条件表达式中，否则会破坏循环语义
+                                                    boolean assignedInLoopBody = false;
+                                                    // 检查 ifStmt then-block
+                                                    for (Statement s : ifStmt.blocks.get(0).statements) {
+                                                        if (isAssignedInStatement(s, varName)) {
+                                                            assignedInLoopBody = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                    // 检查 ifStmt 之后到 gotoIdx 之间的语句（循环体尾部）
+                                                    if (!assignedInLoopBody) {
+                                                        for (int k = ifIdx + 1; k < gotoIdx; k++) {
+                                                            if (isAssignedInStatement(stmts.get(k), varName)) {
+                                                                assignedInLoopBody = true;
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                    if (!assignedInLoopBody) {
+                                                        cond = replaceVariable(cond, varName, rightExpr);
+                                                        inlinedPreps.add(prep);
+                                                    }
                                                 }
                                             }
                                         }
@@ -1510,6 +1531,50 @@ public class StructureRestorer {
                 }
             }
         }
+    }
+
+    /**
+     * 检查语句中（含嵌套块）是否对指定变量执行了赋值（写入）操作。
+     * 不进入 FunctionDeclaration/FunctionLiteral（独立作用域）。
+     */
+    private boolean isAssignedInStatement(Statement stmt, String varName) {
+        if (stmt == null) return false;
+        if (stmt instanceof Assign) {
+            Assign assign = (Assign) stmt;
+            for (Expression left : assign.left) {
+                if (left instanceof Name && ((Name) left).name.equals(varName)) return true;
+            }
+        } else if (stmt instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) stmt;
+            if (local.names.contains(varName)) return true;
+        } else if (stmt instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) stmt;
+            for (Block b : ifStmt.blocks) {
+                if (b != null) {
+                    for (Statement s : b.statements) {
+                        if (isAssignedInStatement(s, varName)) return true;
+                    }
+                }
+            }
+            if (ifStmt.elseBlock != null) {
+                for (Statement s : ifStmt.elseBlock.statements) {
+                    if (isAssignedInStatement(s, varName)) return true;
+                }
+            }
+        } else if (stmt instanceof WhileStatement) {
+            Block body = ((WhileStatement) stmt).body;
+            if (body != null) for (Statement s : body.statements) if (isAssignedInStatement(s, varName)) return true;
+        } else if (stmt instanceof RepeatStatement) {
+            Block body = ((RepeatStatement) stmt).body;
+            if (body != null) for (Statement s : body.statements) if (isAssignedInStatement(s, varName)) return true;
+        } else if (stmt instanceof ForNumeric) {
+            Block body = ((ForNumeric) stmt).body;
+            if (body != null) for (Statement s : body.statements) if (isAssignedInStatement(s, varName)) return true;
+        } else if (stmt instanceof ForIn) {
+            Block body = ((ForIn) stmt).body;
+            if (body != null) for (Statement s : body.statements) if (isAssignedInStatement(s, varName)) return true;
+        }
+        return false;
     }
 
     private boolean containsVar(Expression expr, String varName) {

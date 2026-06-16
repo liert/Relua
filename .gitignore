@@ -45,6 +45,7 @@ Thumbs.db
 .trae/
 
 # Documentation files
+docs/
 I18N_GUIDELINES.md
 LUA_BYTECODE_DECOMPILATION_TECH_DOC.md
 技术文档.md

@@ -1219,11 +1219,9 @@ public class InstructionToASTConverter {
             return null;
         }
 
-        // 操作数
-        Name operand = new Name(getRegisterName(a, registerState), new SourcePos(instructionIndex, -1));
-        if (RA.getFromType() == FromType.GLOBAL && RA.getValue() != null) {
-            operand.name = RA.getValue().toString();
-        }
+        // 操作数。寄存器状态可能保存的是上一条 GETTABLE 产生的真实 AST 表达式，
+        // 必须保留该表达式结构，后续 use-def 分析才能看到其中的寄存器读取。
+        Expression operand = TransformUtils.transformToAstNode(RA, instructionIndex);
         Expression condition;
 
         // 根据c的值构建条件表达式
