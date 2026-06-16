@@ -35,6 +35,9 @@ public class StructureRestorer {
             restructureNestedBlocks(stmt);
         }
 
+        // 1.5 重构 while 循环 (GOTO 循环还原)
+        restoreWhileLoops(block);
+
         // 2. 重构泛型 for 循环 (FORGPREP/FORGLOOP 拓扑还原)
         restoreForInLoops(block);
 
@@ -1376,6 +1379,229 @@ public class StructureRestorer {
             }
             replaceGotoWithAssignTrue(ifStmt.elseBlock, labelName, targetVar, pos);
         }
+    }
+
+    private void restoreWhileLoops(Block block) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+        List<Statement> stmts = block.statements;
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < stmts.size(); i++) {
+                Statement stmt = stmts.get(i);
+                if (stmt instanceof LabelStatement) {
+                    LabelStatement labelStmt = (LabelStatement) stmt;
+                    String labelName = labelStmt.label;
+
+                    // Find a GotoStatement targeting this labelName
+                    int gotoIdx = -1;
+                    for (int j = i + 1; j < stmts.size(); j++) {
+                        if (stmts.get(j) instanceof GotoStatement) {
+                            GotoStatement gs = (GotoStatement) stmts.get(j);
+                            if (gs.label.equals(labelName)) {
+                                gotoIdx = j;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (gotoIdx != -1) {
+                        // Check if there is an IfStatement between i and gotoIdx
+                        int ifIdx = -1;
+                        for (int j = i + 1; j < gotoIdx; j++) {
+                            if (stmts.get(j) instanceof IfStatement) {
+                                ifIdx = j;
+                                break;
+                            }
+                        }
+
+                        if (ifIdx != -1) {
+                            IfStatement ifStmt = (IfStatement) stmts.get(ifIdx);
+                            // Verify standard shape of loop condition ifStmt:
+                            // 1 condition, 1 block, no else
+                            if (ifStmt.conditions.size() == 1 && ifStmt.blocks.size() == 1 && ifStmt.elseBlock == null) {
+                                // Find any preparation statements between label (i) and ifStmt (ifIdx)
+                                List<Statement> prepStmts = new ArrayList<>();
+                                for (int j = i + 1; j < ifIdx; j++) {
+                                    prepStmts.add(stmts.get(j));
+                                }
+
+                                // We must make sure prepStmts only contain assignments
+                                boolean prepsValid = true;
+                                for (Statement prep : prepStmts) {
+                                    if (!(prep instanceof Assign) && !(prep instanceof LocalAssign)) {
+                                        prepsValid = false;
+                                        break;
+                                    }
+                                }
+
+                                if (prepsValid) {
+                                    // Check if there are other gotos targeting this label
+                                    if (!hasOtherGotosTo(stmts, labelName, gotoIdx)) {
+                                        // Let's perform inlining on the condition
+                                        Expression cond = ifStmt.conditions.get(0);
+                                        Set<Statement> inlinedPreps = new HashSet<>();
+                                        for (int j = prepStmts.size() - 1; j >= 0; j--) {
+                                            Statement prep = prepStmts.get(j);
+                                            String varName = null;
+                                            Expression rightExpr = null;
+                                            if (prep instanceof LocalAssign) {
+                                                LocalAssign la = (LocalAssign) prep;
+                                                if (la.names.size() == 1 && la.right.size() == 1) {
+                                                    varName = la.names.get(0);
+                                                    rightExpr = la.right.get(0);
+                                                }
+                                            } else if (prep instanceof Assign) {
+                                                Assign ass = (Assign) prep;
+                                                if (ass.left.size() == 1 && ass.right.size() == 1 && ass.left.get(0) instanceof Name) {
+                                                    varName = ((Name) ass.left.get(0)).name;
+                                                    rightExpr = ass.right.get(0);
+                                                }
+                                            }
+
+                                            if (varName != null && rightExpr != null) {
+                                                // Check if varName is referenced in cond
+                                                if (containsVar(cond, varName)) {
+                                                    cond = replaceVariable(cond, varName, rightExpr);
+                                                    inlinedPreps.add(prep);
+                                                }
+                                            }
+                                        }
+
+                                        // Build the loop body:
+                                        // 1. Statements in ifStmt then-block
+                                        // 2. Statements in stmts after ifStmt (from ifIdx + 1 to gotoIdx - 1)
+                                        Block loopBody = new Block(ifStmt.blocks.get(0).pos);
+                                        loopBody.statements.addAll(ifStmt.blocks.get(0).statements);
+                                        for (int j = ifIdx + 1; j < gotoIdx; j++) {
+                                            loopBody.statements.add(stmts.get(j));
+                                        }
+
+                                        WhileStatement whileStmt = new WhileStatement(cond, loopBody, labelStmt.pos);
+
+                                        // Let's build the list of replacement statements
+                                        List<Statement> replacement = new ArrayList<>();
+                                        for (Statement prep : prepStmts) {
+                                            if (!inlinedPreps.contains(prep)) {
+                                                replacement.add(prep);
+                                            }
+                                        }
+                                        replacement.add(whileStmt);
+
+                                        // Remove everything from index i to gotoIdx
+                                        // and insert replacement at index i
+                                        for (int k = gotoIdx; k >= i; k--) {
+                                            stmts.remove(k);
+                                        }
+                                        stmts.addAll(i, replacement);
+
+                                        // Recursively restructure the loop body
+                                        restructure(loopBody);
+
+                                        changed = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean containsVar(Expression expr, String varName) {
+        if (expr == null) return false;
+        if (expr instanceof Name) {
+            return ((Name) expr).name.equals(varName);
+        }
+        if (expr instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) expr;
+            return containsVar(binary.left, varName) || containsVar(binary.right, varName);
+        }
+        if (expr instanceof UnaryOp) {
+            return containsVar(((UnaryOp) expr).expr, varName);
+        }
+        if (expr instanceof IndexExpr) {
+            IndexExpr idx = (IndexExpr) expr;
+            return containsVar(idx.table, varName) || containsVar(idx.index, varName);
+        }
+        if (expr instanceof MemberExpr) {
+            return containsVar(((MemberExpr) expr).table, varName);
+        }
+        if (expr instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) expr;
+            if (containsVar(call.callee, varName)) return true;
+            for (Expression arg : call.args) {
+                if (containsVar(arg, varName)) return true;
+            }
+        }
+        return false;
+    }
+
+    private Expression replaceVariable(Expression expr, String varName, Expression replacement) {
+        if (expr == null) return null;
+        if (expr instanceof Name) {
+            Name nameNode = (Name) expr;
+            if (nameNode.name.equals(varName)) {
+                return replacement;
+            }
+            return expr;
+        }
+        if (expr instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) expr;
+            Expression newLeft = replaceVariable(binary.left, varName, replacement);
+            Expression newRight = replaceVariable(binary.right, varName, replacement);
+            if (newLeft != binary.left || newRight != binary.right) {
+                return new BinaryOp(binary.op, newLeft, newRight, binary.pos);
+            }
+            return binary;
+        }
+        if (expr instanceof UnaryOp) {
+            UnaryOp unary = (UnaryOp) expr;
+            Expression newExpr = replaceVariable(unary.expr, varName, replacement);
+            if (newExpr != unary.expr) {
+                return new UnaryOp(unary.op, newExpr, unary.pos);
+            }
+            return unary;
+        }
+        if (expr instanceof IndexExpr) {
+            IndexExpr idx = (IndexExpr) expr;
+            Expression newTable = replaceVariable(idx.table, varName, replacement);
+            Expression newIndex = replaceVariable(idx.index, varName, replacement);
+            if (newTable != idx.table || newIndex != idx.index) {
+                return new IndexExpr(newTable, newIndex, idx.pos);
+            }
+            return idx;
+        }
+        if (expr instanceof MemberExpr) {
+            MemberExpr member = (MemberExpr) expr;
+            Expression newTable = replaceVariable(member.table, varName, replacement);
+            if (newTable != member.table) {
+                return new MemberExpr(newTable, member.member, member.pos);
+            }
+            return member;
+        }
+        if (expr instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) expr;
+            Expression newCallee = replaceVariable(call.callee, varName, replacement);
+            List<Expression> newArgs = new ArrayList<>(call.args);
+            boolean argsChanged = false;
+            for (int i = 0; i < newArgs.size(); i++) {
+                Expression newArg = replaceVariable(newArgs.get(i), varName, replacement);
+                if (newArg != newArgs.get(i)) {
+                    newArgs.set(i, newArg);
+                    argsChanged = true;
+                }
+            }
+            if (newCallee != call.callee || argsChanged) {
+                return new FunctionCall(newCallee, newArgs, call.isMethodCall, call.returns, call.pos);
+            }
+            return call;
+        }
+        return expr;
     }
 
     private boolean isModuleScenario() {

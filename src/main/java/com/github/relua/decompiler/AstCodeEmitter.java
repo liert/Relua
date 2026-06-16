@@ -49,7 +49,19 @@ public class AstCodeEmitter {
         // 如果生成的是Block，直接设置为上下文的astBlock
         if (ast instanceof com.github.relua.ast.Block) {
             com.github.relua.ast.Block block = (com.github.relua.ast.Block) ast;
+            if (!chunk.getFunction().equals("main")) {
+                System.out.println("=== BEFORE CLEANUP " + chunk.getFunction() + " AST ===");
+                for (com.github.relua.ast.Statement stmt : block.statements) {
+                    System.out.println("  " + stmt.getClass().getSimpleName() + ": " + stmt.toString());
+                }
+            }
             java.util.Set<String> declared = new AstCleanupPass().cleanup(block, context, parentDeclared, upvalueNames);
+            if (!chunk.getFunction().equals("main")) {
+                System.out.println("=== AFTER CLEANUP " + chunk.getFunction() + " AST ===");
+                for (com.github.relua.ast.Statement stmt : block.statements) {
+                    System.out.println("  " + stmt.getClass().getSimpleName() + ": " + stmt.toString());
+                }
+            }
             context.setDeclaredVariables(declared);
             context.setAstBlock(block);
         } else {
