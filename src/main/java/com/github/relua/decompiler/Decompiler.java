@@ -103,7 +103,7 @@ public class Decompiler {
      * @param chunk 代码块
      * @return 字节码输出
      */
-    private String generateBytecode(Chunk chunk) {
+    public String generateBytecode(Chunk chunk) {
         return generateBytecode(chunk, 0);
     }
     

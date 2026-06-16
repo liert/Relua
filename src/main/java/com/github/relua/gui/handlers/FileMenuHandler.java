@@ -116,8 +116,11 @@ public class FileMenuHandler {
      * 重置加载状态，取消所有运行中的任务并隐藏遮罩层
      */
     public void resetLoadingState() {
-        if (activeTask != null && activeTask.isRunning()) {
+        if (activeTask != null) {
             activeTask.cancel();
+        }
+        if (loadingLabel != null) {
+            loadingLabel.textProperty().unbind();
         }
         if (loadingOverlay != null) {
             loadingOverlay.setVisible(false);
@@ -169,9 +172,12 @@ public class FileMenuHandler {
             return;
         }
 
-        // 取消旧任务
-        if (activeTask != null && activeTask.isRunning()) {
+        // 取消旧任务并解除绑定，防止再次设置文本时抛出 "A bound value cannot be set" 异常
+        if (activeTask != null) {
             activeTask.cancel();
+        }
+        if (loadingLabel != null) {
+            loadingLabel.textProperty().unbind();
         }
 
         currentFile = file;

@@ -185,6 +185,14 @@ public class DataFlowAnalyzer {
                             }
                         }
                     }
+                    if (!safeToDelete && !parentDeclared.contains(regName) && !upvalueNames.contains(regName)) {
+                        if (countGotos(topBlock) == 0) {
+                            Boolean liveAfterAssign = isLiveAfter(topBlock, stmt, regName, false);
+                            if (liveAfterAssign != null && !liveAfterAssign) {
+                                safeToDelete = true;
+                            }
+                        }
+                    }
                     if (safeToDelete) {
                         if (defExpr instanceof StringConst 
                                 || defExpr instanceof NumberConst 
@@ -1096,5 +1104,209 @@ public class DataFlowAnalyzer {
             count += countEscapes(((FunctionLiteral) node).body);
         }
         return count;
+    }
+
+    private boolean isLiveBefore(Statement stmt, String regName, boolean liveAfter) {
+        if (stmt == null) return liveAfter;
+
+        if (stmt instanceof Assign) {
+            Assign assign = (Assign) stmt;
+            if (assign.left.size() == 1 && assign.left.get(0) instanceof Name) {
+                String lhsName = ((Name) assign.left.get(0)).name;
+                if (lhsName.equals(regName)) {
+                    for (Expression expr : assign.right) {
+                        if (countVariableUses(expr, regName) > 0) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+            }
+            if (countVariableUses(assign, regName) > 0) {
+                return true;
+            }
+            return liveAfter;
+        }
+
+        if (stmt instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) stmt;
+            if (local.names.size() == 1 && local.names.get(0).equals(regName)) {
+                for (Expression expr : local.right) {
+                    if (countVariableUses(expr, regName) > 0) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            if (countVariableUses(local, regName) > 0) {
+                return true;
+            }
+            return liveAfter;
+        }
+
+        if (stmt instanceof GlobalAssign) {
+            GlobalAssign global = (GlobalAssign) stmt;
+            if (global.names.size() == 1 && global.names.get(0).equals(regName)) {
+                for (Expression expr : global.right) {
+                    if (countVariableUses(expr, regName) > 0) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            if (countVariableUses(global, regName) > 0) {
+                return true;
+            }
+            return liveAfter;
+        }
+
+        if (stmt instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) stmt;
+            boolean liveInAnyBranch = false;
+            for (Block block : ifStmt.blocks) {
+                if (isLiveBeforeBlock(block, regName, liveAfter)) {
+                    liveInAnyBranch = true;
+                    break;
+                }
+            }
+            if (!liveInAnyBranch) {
+                if (ifStmt.elseBlock != null) {
+                    if (isLiveBeforeBlock(ifStmt.elseBlock, regName, liveAfter)) {
+                        liveInAnyBranch = true;
+                    }
+                } else {
+                    if (liveAfter) {
+                        liveInAnyBranch = true;
+                    }
+                }
+            }
+            if (liveInAnyBranch) {
+                return true;
+            }
+            for (Expression cond : ifStmt.conditions) {
+                if (countVariableUses(cond, regName) > 0) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        if (stmt instanceof WhileStatement) {
+            WhileStatement wh = (WhileStatement) stmt;
+            return liveAfter || countVariableUses(wh.condition, regName) > 0 || isLiveBeforeBlock(wh.body, regName, liveAfter);
+        }
+
+        if (stmt instanceof RepeatStatement) {
+            RepeatStatement rep = (RepeatStatement) stmt;
+            return liveAfter || countVariableUses(rep.condition, regName) > 0 || isLiveBeforeBlock(rep.body, regName, liveAfter);
+        }
+
+        if (stmt instanceof ForNumeric) {
+            ForNumeric fn = (ForNumeric) stmt;
+            return liveAfter 
+                || countVariableUses(fn.start, regName) > 0 
+                || countVariableUses(fn.end, regName) > 0 
+                || countVariableUses(fn.step, regName) > 0 
+                || isLiveBeforeBlock(fn.body, regName, liveAfter);
+        }
+
+        if (stmt instanceof ForIn) {
+            ForIn fi = (ForIn) stmt;
+            for (Expression expr : fi.iterators) {
+                if (countVariableUses(expr, regName) > 0) {
+                    return true;
+                }
+            }
+            return liveAfter || isLiveBeforeBlock(fi.body, regName, liveAfter);
+        }
+
+        if (stmt instanceof FunctionDeclaration) {
+            return liveAfter;
+        }
+
+        if (countVariableUses(stmt, regName) > 0) {
+            return true;
+        }
+        return liveAfter;
+    }
+
+    private boolean isLiveBeforeBlock(Block block, String regName, boolean liveAfter) {
+        if (block == null || block.statements == null) {
+            return liveAfter;
+        }
+        boolean live = liveAfter;
+        for (int i = block.statements.size() - 1; i >= 0; i--) {
+            live = isLiveBefore(block.statements.get(i), regName, live);
+        }
+        return live;
+    }
+
+    private Boolean isLiveAfter(Block block, Statement targetAssign, String regName, boolean liveAfter) {
+        if (block == null || block.statements == null) {
+            return null;
+        }
+        boolean live = liveAfter;
+        for (int i = block.statements.size() - 1; i >= 0; i--) {
+            Statement s = block.statements.get(i);
+            if (s == targetAssign) {
+                return live;
+            }
+            Boolean nestedResult = isLiveAfterNested(s, targetAssign, regName, live);
+            if (nestedResult != null) {
+                return nestedResult;
+            }
+            live = isLiveBefore(s, regName, live);
+        }
+        return null;
+    }
+
+    private Boolean isLiveAfterNested(Statement stmt, Statement targetAssign, String regName, boolean liveAfter) {
+        if (stmt instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) stmt;
+            for (Block b : ifStmt.blocks) {
+                Boolean res = isLiveAfter(b, targetAssign, regName, liveAfter);
+                if (res != null) return res;
+            }
+            if (ifStmt.elseBlock != null) {
+                Boolean res = isLiveAfter(ifStmt.elseBlock, targetAssign, regName, liveAfter);
+                if (res != null) return res;
+            }
+        } else if (stmt instanceof WhileStatement) {
+            WhileStatement wh = (WhileStatement) stmt;
+            boolean loopLiveAfter = liveAfter 
+                || isLiveBeforeBlock(wh.body, regName, liveAfter)
+                || countVariableUses(wh.condition, regName) > 0;
+            Boolean res = isLiveAfter(wh.body, targetAssign, regName, loopLiveAfter);
+            if (res != null) return res;
+        } else if (stmt instanceof RepeatStatement) {
+            RepeatStatement rep = (RepeatStatement) stmt;
+            boolean loopLiveAfter = liveAfter 
+                || isLiveBeforeBlock(rep.body, regName, liveAfter)
+                || countVariableUses(rep.condition, regName) > 0;
+            Boolean res = isLiveAfter(rep.body, targetAssign, regName, loopLiveAfter);
+            if (res != null) return res;
+        } else if (stmt instanceof ForNumeric) {
+            ForNumeric fn = (ForNumeric) stmt;
+            boolean loopLiveAfter = liveAfter 
+                || isLiveBeforeBlock(fn.body, regName, liveAfter)
+                || countVariableUses(fn.start, regName) > 0
+                || countVariableUses(fn.end, regName) > 0
+                || countVariableUses(fn.step, regName) > 0;
+            Boolean res = isLiveAfter(fn.body, targetAssign, regName, loopLiveAfter);
+            if (res != null) return res;
+        } else if (stmt instanceof ForIn) {
+            ForIn fi = (ForIn) stmt;
+            boolean loopLiveAfter = liveAfter 
+                || isLiveBeforeBlock(fi.body, regName, liveAfter);
+            for (Expression expr : fi.iterators) {
+                if (countVariableUses(expr, regName) > 0) {
+                    loopLiveAfter = true;
+                    break;
+                }
+            }
+            Boolean res = isLiveAfter(fi.body, targetAssign, regName, loopLiveAfter);
+            if (res != null) return res;
+        }
+        return null;
     }
 }

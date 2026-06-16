@@ -92,6 +92,47 @@ public class DecompilerPipeline {
 
         // 执行迭代数据流分析
         registerStateAnalyzer.analyze(chunk);
+
+        if (com.github.relua.debug.DecompilerDebugger.isEnabled()) {
+            com.github.relua.debug.DecompilerDebugger.dump("cfg_built_" + chunk.getFunction(), formatCFG(chunk, basicBlockBuilder));
+        }
+    }
+
+    private String formatCFG(Chunk chunk, BasicBlockBuilder builder) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("===== Chunk: ").append(chunk.getFunction()).append(" =====\n");
+        sb.append("Instructions count: ").append(chunk.getInstructions().size()).append("\n\n");
+        
+        List<BasicBlock> blocks = builder.getBasicBlocks();
+        if (blocks == null || blocks.isEmpty()) {
+            sb.append("No basic blocks.\n");
+            return sb.toString();
+        }
+        
+        sb.append("--- Basic Blocks ---\n");
+        for (int i = 0; i < blocks.size(); i++) {
+            BasicBlock block = blocks.get(i);
+            String blockType = "NORMAL";
+            if (block.isIfBlock()) blockType = "IF";
+            else if (block.isLoopBlock()) blockType = "LOOP";
+            else if (block.isElseBlock()) blockType = "ELSE";
+            
+            sb.append(String.format("Block %d: [%d - %d] Type: %s\n", 
+                    i, block.getStartIndex(), block.getEndIndex(), blockType));
+            
+            sb.append("  Predecessors:");
+            for (BasicBlock pred : block.getPredecessors()) {
+                sb.append(" Block ").append(blocks.indexOf(pred));
+            }
+            sb.append("\n");
+            
+            sb.append("  Successors:");
+            for (BasicBlock succ : block.getSuccessors()) {
+                sb.append(" Block ").append(blocks.indexOf(succ));
+            }
+            sb.append("\n\n");
+        }
+        return sb.toString();
     }
 
     public int processInstruction(Chunk chunk, Instruction instruction, int index, Register currentState) {

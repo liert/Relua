@@ -182,10 +182,18 @@ public class LuaCodeGenerator {
                     mainBlock.statements.add(funcDecl);
                 }
             }
+
+            if (com.github.relua.debug.DecompilerDebugger.isEnabled()) {
+                com.github.relua.debug.DecompilerDebugger.dump("closures_inlined_main", mainBlock);
+            }
             
             // 使用AstPrinter生成代码
             AstPrinter printer = new AstPrinter();
-            return mainBlock.accept(printer);
+            String finalCode = mainBlock.accept(printer);
+            if (com.github.relua.debug.DecompilerDebugger.isEnabled()) {
+                com.github.relua.debug.DecompilerDebugger.dump("final_code_main", finalCode);
+            }
+            return finalCode;
         }
         return "";
     }

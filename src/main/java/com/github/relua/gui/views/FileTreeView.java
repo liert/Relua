@@ -251,10 +251,18 @@ public class FileTreeView {
             return;
         }
         
-        // 清空现有子节点
-        parentItem.getChildren().clear();
+        // 排序：使用文件管理器排序规则 (文件夹优先，名字按自然排序)
+        java.util.Arrays.sort(files, this::compareFiles);
         
-        // 添加子节点
+        if (javafx.application.Platform.isFxApplicationThread()) {
+            updateChildren(parentItem, files);
+        } else {
+            javafx.application.Platform.runLater(() -> updateChildren(parentItem, files));
+        }
+    }
+    
+    private void updateChildren(TreeItem<FileNode> parentItem, File[] files) {
+        parentItem.getChildren().clear();
         for (File file : files) {
             FileNode childNode = new FileNode(file);
             TreeItem<FileNode> childItem = new TreeItem<>(childNode);
@@ -266,6 +274,57 @@ public class FileTreeView {
             
             parentItem.getChildren().add(childItem);
         }
+    }
+
+    /**
+     * 比较两个文件，使用类似文件管理器的排序规则：
+     * 1. 文件夹优先于文件
+     * 2. 名称按自然顺序（忽略大小写）排序
+     */
+    private int compareFiles(File f1, File f2) {
+        if (f1.isDirectory() && !f2.isDirectory()) {
+            return -1;
+        } else if (!f1.isDirectory() && f2.isDirectory()) {
+            return 1;
+        } else {
+            return compareNatural(f1.getName(), f2.getName());
+        }
+    }
+
+    private int compareNatural(String s1, String s2) {
+        int i = 0, j = 0;
+        while (i < s1.length() && j < s2.length()) {
+            char c1 = s1.charAt(i);
+            char c2 = s2.charAt(j);
+            
+            if (Character.isDigit(c1) && Character.isDigit(c2)) {
+                StringBuilder num1 = new StringBuilder();
+                while (i < s1.length() && Character.isDigit(s1.charAt(i))) {
+                    num1.append(s1.charAt(i));
+                    i++;
+                }
+                StringBuilder num2 = new StringBuilder();
+                while (j < s2.length() && Character.isDigit(s2.charAt(j))) {
+                    num2.append(s2.charAt(j));
+                    j++;
+                }
+                
+                java.math.BigInteger b1 = new java.math.BigInteger(num1.toString());
+                java.math.BigInteger b2 = new java.math.BigInteger(num2.toString());
+                int numComp = b1.compareTo(b2);
+                if (numComp != 0) {
+                    return numComp;
+                }
+            } else {
+                int charComp = Character.compare(Character.toLowerCase(c1), Character.toLowerCase(c2));
+                if (charComp != 0) {
+                    return charComp;
+                }
+                i++;
+                j++;
+            }
+        }
+        return Integer.compare(s1.length(), s2.length());
     }
     
     /**
@@ -303,6 +362,16 @@ public class FileTreeView {
         
         // 添加文件到根节点
         rootItem.getChildren().add(fileItem);
+        
+        // 排序根节点的子文件列表，保持列表有序
+        rootItem.getChildren().sort((item1, item2) -> {
+            FileNode node1 = item1.getValue();
+            FileNode node2 = item2.getValue();
+            if (node1 == null && node2 == null) return 0;
+            if (node1 == null) return 1;
+            if (node2 == null) return -1;
+            return compareFiles(node1.getFile(), node2.getFile());
+        });
     }
 
     /**

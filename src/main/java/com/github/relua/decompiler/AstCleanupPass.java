@@ -6,6 +6,8 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.HashMap;
 
 import com.github.relua.ast.AstNode;
 import com.github.relua.ast.TableField;
@@ -72,37 +74,73 @@ public class AstCleanupPass {
             return java.util.Collections.emptySet();
         }
 
+        String funcName = (context != null && context.getChunk() != null) ? context.getChunk().getFunction() : "unknown";
+
+        Set<String> finalUpvalueNames = new HashSet<>(upvalueNames);
+        if (context != null && context.getChunk() != null) {
+            com.github.relua.model.Chunk chunk = context.getChunk();
+            if (chunk.getInstructions() != null) {
+                for (com.github.relua.model.Instruction ins : chunk.getInstructions()) {
+                    if (ins != null) {
+                        if (ins.getOpcode() == com.github.relua.model.Opcode.GETUPVAL
+                                || ins.getOpcode() == com.github.relua.model.Opcode.SETUPVAL) {
+                            com.github.relua.model.UpValue uv = context.getUpvalue(ins.getB());
+                            if (uv != null && uv.getName() != null) {
+                                finalUpvalueNames.add(uv.getName());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // 1. 数据流变量内联及点号/冒号语法糖还原
-        new DataFlowAnalyzer().optimize(block, parentDeclared, upvalueNames);
+        new DataFlowAnalyzer().optimize(block, parentDeclared, finalUpvalueNames);
+        com.github.relua.debug.DecompilerDebugger.dump("dataflow_opt_1_" + funcName, block);
 
         // 1.5 清理空的if块（nil-guard等模式产生的空条件分支）
         removeEmptyIfBlocks(block);
+        com.github.relua.debug.DecompilerDebugger.dump("empty_if_removed_1_" + funcName, block);
 
         // 2. 结构化控制流还原与 GOTO/Label 消解
         new StructureRestorer(context != null ? context.getChunk() : null).restructure(block);
+        com.github.relua.debug.DecompilerDebugger.dump("structure_restored_" + funcName, block);
+
+        // 2.2 简化冗余的NaN/类型检查
+        simplifyRedundantNanChecks(block);
+        com.github.relua.debug.DecompilerDebugger.dump("nan_checks_simplified_" + funcName, block);
 
         // 2.5 再次清理空的if块（结构恢复可能产生新的空分支）
         removeEmptyIfBlocks(block);
+        com.github.relua.debug.DecompilerDebugger.dump("empty_if_removed_2_" + funcName, block);
 
         // 2.5.5 再次执行数据流变量内联（消解 GOTO/Label 之后，许多原本因跳转阻碍而无法安全内联的变量现在可以安全内联了）
-        new DataFlowAnalyzer().optimize(block, parentDeclared, upvalueNames);
+        new DataFlowAnalyzer().optimize(block, parentDeclared, finalUpvalueNames);
+        com.github.relua.debug.DecompilerDebugger.dump("dataflow_opt_2_" + funcName, block);
 
         // 2.6 移除 return 后的死代码
         removeDeadCodeAfterReturn(block);
+        com.github.relua.debug.DecompilerDebugger.dump("dead_code_removed_1_" + funcName, block);
 
         // 优化返回模式（Peephole 优化）：合并临时寄存器赋值与其后紧随的返回
-        optimizeReturnPatterns(block, context, upvalueNames);
+        optimizeReturnPatterns(block, context, finalUpvalueNames);
+        com.github.relua.debug.DecompilerDebugger.dump("return_opt_" + funcName, block);
 
         // 再次移除合并可能产生的新一轮死代码
         removeDeadCodeAfterReturn(block);
+        com.github.relua.debug.DecompilerDebugger.dump("dead_code_removed_2_" + funcName, block);
 
         Set<TableConstructor> consumedTables = Collections.newSetFromMap(new IdentityHashMap<>());
         collectConsumedTables(block, consumedTables, true);
         removeConsumedTemporaryTables(block, consumedTables);
         removeJoinGotos(block);
+        removeUnusedEmptyLocalDeclarations(block);
+        com.github.relua.debug.DecompilerDebugger.dump("ast_cleanup_final_" + funcName, block);
 
         // 3. 把函数体顶层第一次出现的寄存器赋值恢复为 local，主块无参数
-        return declareTopLevelLocals(block, java.util.Collections.emptyList(), parentDeclared, upvalueNames);
+        Set<String> declared = declareTopLevelLocals(block, java.util.Collections.emptyList(), parentDeclared, finalUpvalueNames);
+        com.github.relua.debug.DecompilerDebugger.dump("locals_declared_" + funcName, block);
+        return declared;
     }
 
     private void removeEmptyIfBlocks(Block block) {
@@ -655,13 +693,10 @@ public class AstCleanupPass {
             Logger.debug("[DEBUG] Collected hoistedRegisters before remove: " + hoistedRegisters);
             hoistedRegisters.removeAll(params);
             
-            Set<String> upvaluesToRemove = new HashSet<>();
-            for (String reg : hoistedRegisters) {
-                if (parentDeclared.contains(reg) && upvalueNames.contains(reg)) {
-                    upvaluesToRemove.add(reg);
-                }
-            }
-            hoistedRegisters.removeAll(upvaluesToRemove);
+            // Names loaded through GETUPVAL belong to an enclosing scope. They must
+            // never be hoisted as missing locals in the current function, otherwise
+            // the generated local shadows the captured value and changes semantics.
+            hoistedRegisters.removeAll(upvalueNames);
             Logger.debug("[DEBUG] Collected hoistedRegisters after remove: " + hoistedRegisters);
         }
 
@@ -1000,6 +1035,164 @@ public class AstCleanupPass {
         block.statements.addAll(rewritten);
     }
 
+    private void removeUnusedEmptyLocalDeclarations(Block block) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+
+        List<Statement> rewritten = new ArrayList<>();
+        for (Statement statement : block.statements) {
+            if (statement instanceof LocalAssign) {
+                LocalAssign local = (LocalAssign) statement;
+                if (local.right == null || local.right.isEmpty()) {
+                    List<String> keptNames = new ArrayList<>();
+                    for (String name : local.names) {
+                        if (countVariableReads(block, name) > 0) {
+                            keptNames.add(name);
+                        }
+                    }
+                    if (!keptNames.isEmpty()) {
+                        rewritten.add(new LocalAssign(keptNames, new ArrayList<>(), local.pos));
+                    }
+                    continue;
+                }
+            }
+
+            removeUnusedEmptyLocalDeclarationsInNested(statement);
+            rewritten.add(statement);
+        }
+
+        block.statements.clear();
+        block.statements.addAll(rewritten);
+    }
+
+    private void removeUnusedEmptyLocalDeclarationsInNested(Statement statement) {
+        if (statement instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) statement;
+            for (Block nested : ifStmt.blocks) {
+                removeUnusedEmptyLocalDeclarations(nested);
+            }
+            removeUnusedEmptyLocalDeclarations(ifStmt.elseBlock);
+        } else if (statement instanceof WhileStatement) {
+            removeUnusedEmptyLocalDeclarations(((WhileStatement) statement).body);
+        } else if (statement instanceof RepeatStatement) {
+            removeUnusedEmptyLocalDeclarations(((RepeatStatement) statement).body);
+        } else if (statement instanceof ForNumeric) {
+            removeUnusedEmptyLocalDeclarations(((ForNumeric) statement).body);
+        } else if (statement instanceof ForIn) {
+            removeUnusedEmptyLocalDeclarations(((ForIn) statement).body);
+        } else if (statement instanceof FunctionDeclaration) {
+            removeUnusedEmptyLocalDeclarations(((FunctionDeclaration) statement).func.body);
+        }
+    }
+
+    private int countVariableReads(AstNode node, String varName) {
+        if (node == null || varName == null) {
+            return 0;
+        }
+        int count = 0;
+
+        if (node instanceof Name) {
+            return varName.equals(((Name) node).name) ? 1 : 0;
+        } else if (node instanceof Block) {
+            for (Statement stmt : ((Block) node).statements) {
+                count += countVariableReads(stmt, varName);
+            }
+        } else if (node instanceof Assign) {
+            Assign assign = (Assign) node;
+            for (Expression left : assign.left) {
+                if (!(left instanceof Name)) {
+                    count += countVariableReads(left, varName);
+                }
+            }
+            for (Expression right : assign.right) {
+                count += countVariableReads(right, varName);
+            }
+        } else if (node instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) node;
+            if (local.right != null) {
+                for (Expression right : local.right) {
+                    count += countVariableReads(right, varName);
+                }
+            }
+        } else if (node instanceof GlobalAssign) {
+            GlobalAssign global = (GlobalAssign) node;
+            if (global.right != null) {
+                for (Expression right : global.right) {
+                    count += countVariableReads(right, varName);
+                }
+            }
+        } else if (node instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) node;
+            for (Expression condition : ifStmt.conditions) {
+                count += countVariableReads(condition, varName);
+            }
+            for (Block nested : ifStmt.blocks) {
+                count += countVariableReads(nested, varName);
+            }
+            count += countVariableReads(ifStmt.elseBlock, varName);
+        } else if (node instanceof WhileStatement) {
+            WhileStatement whileStmt = (WhileStatement) node;
+            count += countVariableReads(whileStmt.condition, varName);
+            count += countVariableReads(whileStmt.body, varName);
+        } else if (node instanceof RepeatStatement) {
+            RepeatStatement repeat = (RepeatStatement) node;
+            count += countVariableReads(repeat.condition, varName);
+            count += countVariableReads(repeat.body, varName);
+        } else if (node instanceof ForNumeric) {
+            ForNumeric numeric = (ForNumeric) node;
+            count += countVariableReads(numeric.start, varName);
+            count += countVariableReads(numeric.end, varName);
+            count += countVariableReads(numeric.step, varName);
+            count += countVariableReads(numeric.body, varName);
+        } else if (node instanceof ForIn) {
+            ForIn forIn = (ForIn) node;
+            for (Expression iterator : forIn.iterators) {
+                count += countVariableReads(iterator, varName);
+            }
+            count += countVariableReads(forIn.body, varName);
+        } else if (node instanceof FunctionDeclaration) {
+            count += countVariableReads(((FunctionDeclaration) node).func.body, varName);
+        } else if (node instanceof FunctionLiteral) {
+            count += countVariableReads(((FunctionLiteral) node).body, varName);
+        } else if (node instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) node;
+            count += countVariableReads(binary.left, varName);
+            count += countVariableReads(binary.right, varName);
+        } else if (node instanceof UnaryOp) {
+            count += countVariableReads(((UnaryOp) node).expr, varName);
+        } else if (node instanceof IndexExpr) {
+            IndexExpr index = (IndexExpr) node;
+            count += countVariableReads(index.table, varName);
+            count += countVariableReads(index.index, varName);
+        } else if (node instanceof MemberExpr) {
+            count += countVariableReads(((MemberExpr) node).table, varName);
+        } else if (node instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) node;
+            count += countVariableReads(call.callee, varName);
+            for (Expression arg : call.args) {
+                count += countVariableReads(arg, varName);
+            }
+        } else if (node instanceof TableConstructor) {
+            TableConstructor table = (TableConstructor) node;
+            if (table.fields != null) {
+                for (TableField field : table.fields) {
+                    count += countVariableReads(field.key, varName);
+                    count += countVariableReads(field.value, varName);
+                }
+            }
+        } else if (node instanceof ReturnStatement) {
+            ReturnStatement ret = (ReturnStatement) node;
+            for (Expression value : ret.values) {
+                count += countVariableReads(value, varName);
+            }
+        } else if (node instanceof ExpressionStatement) {
+            count += countVariableReads(((ExpressionStatement) node).expression, varName);
+        }
+
+        return count;
+    }
+
     private boolean shouldDeclareLocal(String name, Expression right) {
         if (isRegisterOrObj(name)) {
             return true;
@@ -1193,5 +1386,209 @@ public class AstCleanupPass {
 
         block.statements.clear();
         block.statements.addAll(optimized);
+    }
+
+    private void simplifyRedundantNanChecks(Block block) {
+        simplifyRedundantNanChecks(block, new HashSet<>(), new HashMap<>());
+    }
+
+    private void simplifyRedundantNanChecks(Block block, Set<String> nonNumberVars, Map<String, String> typeVarMap) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+
+        List<Statement> rewritten = new ArrayList<>();
+        for (Statement stmt : block.statements) {
+            if (stmt instanceof Assign) {
+                Assign assign = (Assign) stmt;
+                if (assign.left.size() == 1 && assign.right.size() == 1) {
+                    Expression left = assign.left.get(0);
+                    Expression right = assign.right.get(0);
+                    if (left instanceof Name) {
+                        String leftName = ((Name) left).name;
+                        if (right instanceof FunctionCall) {
+                            FunctionCall call = (FunctionCall) right;
+                            if (call.callee instanceof Name && ((Name) call.callee).name.equals("type") 
+                                    && call.args.size() == 1 && call.args.get(0) instanceof Name) {
+                                typeVarMap.put(leftName, ((Name) call.args.get(0)).name);
+                            } else {
+                                typeVarMap.remove(leftName);
+                            }
+                        } else {
+                            typeVarMap.remove(leftName);
+                        }
+                    }
+                }
+            } else if (stmt instanceof LocalAssign) {
+                LocalAssign local = (LocalAssign) stmt;
+                if (local.names.size() == 1 && local.right != null && local.right.size() == 1) {
+                    String leftName = local.names.get(0);
+                    Expression right = local.right.get(0);
+                    if (right instanceof FunctionCall) {
+                        FunctionCall call = (FunctionCall) right;
+                        if (call.callee instanceof Name && ((Name) call.callee).name.equals("type") 
+                                && call.args.size() == 1 && call.args.get(0) instanceof Name) {
+                            typeVarMap.put(leftName, ((Name) call.args.get(0)).name);
+                        } else {
+                            typeVarMap.remove(leftName);
+                        }
+                    } else {
+                        typeVarMap.remove(leftName);
+                    }
+                }
+            }
+
+            if (stmt instanceof IfStatement) {
+                IfStatement ifStmt = (IfStatement) stmt;
+                
+                Statement simplified = trySimplifyNanCheck(ifStmt, nonNumberVars);
+                if (simplified != null) {
+                    if (simplified instanceof Block) {
+                        simplifyRedundantNanChecks((Block) simplified, nonNumberVars, typeVarMap);
+                        rewritten.addAll(((Block) simplified).statements);
+                    } else {
+                        Block tempBlock = new Block(simplified.pos);
+                        tempBlock.statements.add(simplified);
+                        simplifyRedundantNanChecks(tempBlock, nonNumberVars, typeVarMap);
+                        rewritten.addAll(tempBlock.statements);
+                    }
+                    continue;
+                }
+
+                List<Expression> newConditions = new ArrayList<>();
+                List<Block> newBlocks = new ArrayList<>();
+                
+                for (int i = 0; i < ifStmt.conditions.size(); i++) {
+                    Expression cond = ifStmt.conditions.get(i);
+                    Block body = ifStmt.blocks.get(i);
+                    
+                    String nonNumVar = getNonNumberVariableFromCondition(cond, true, typeVarMap);
+                    Set<String> bodyNonNumberVars = new HashSet<>(nonNumberVars);
+                    if (nonNumVar != null) {
+                        bodyNonNumberVars.add(nonNumVar);
+                    }
+                    
+                    simplifyRedundantNanChecks(body, bodyNonNumberVars, new HashMap<>(typeVarMap));
+                    newConditions.add(cond);
+                    newBlocks.add(body);
+                }
+                
+                Block newElseBlock = null;
+                if (ifStmt.elseBlock != null) {
+                    Set<String> elseNonNumberVars = new HashSet<>(nonNumberVars);
+                    if (ifStmt.conditions.size() == 1) {
+                        String nonNumVar = getNonNumberVariableFromCondition(ifStmt.conditions.get(0), false, typeVarMap);
+                        if (nonNumVar != null) {
+                            elseNonNumberVars.add(nonNumVar);
+                        }
+                    }
+                    newElseBlock = ifStmt.elseBlock;
+                    simplifyRedundantNanChecks(newElseBlock, elseNonNumberVars, new HashMap<>(typeVarMap));
+                }
+                
+                IfStatement newIf = new IfStatement(newConditions, newBlocks, newElseBlock, ifStmt.pos);
+                rewritten.add(newIf);
+            } else if (stmt instanceof WhileStatement) {
+                WhileStatement wh = (WhileStatement) stmt;
+                simplifyRedundantNanChecks(wh.body, nonNumberVars, new HashMap<>(typeVarMap));
+                rewritten.add(wh);
+            } else if (stmt instanceof RepeatStatement) {
+                RepeatStatement rep = (RepeatStatement) stmt;
+                simplifyRedundantNanChecks(rep.body, nonNumberVars, new HashMap<>(typeVarMap));
+                rewritten.add(rep);
+            } else if (stmt instanceof ForNumeric) {
+                ForNumeric fn = (ForNumeric) stmt;
+                simplifyRedundantNanChecks(fn.body, nonNumberVars, new HashMap<>(typeVarMap));
+                rewritten.add(fn);
+            } else if (stmt instanceof ForIn) {
+                ForIn fi = (ForIn) stmt;
+                simplifyRedundantNanChecks(fi.body, nonNumberVars, new HashMap<>(typeVarMap));
+                rewritten.add(fi);
+            } else if (stmt instanceof FunctionDeclaration) {
+                FunctionDeclaration fd = (FunctionDeclaration) stmt;
+                simplifyRedundantNanChecks(fd.func.body, new HashSet<>(), new HashMap<>());
+                rewritten.add(fd);
+            } else {
+                rewritten.add(stmt);
+            }
+        }
+        block.statements.clear();
+        block.statements.addAll(rewritten);
+    }
+
+    private Statement trySimplifyNanCheck(Statement stmt, Set<String> nonNumberVars) {
+        if (stmt instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) stmt;
+            if (ifStmt.conditions.size() == 1) {
+                Expression cond = ifStmt.conditions.get(0);
+                if (cond instanceof BinaryOp) {
+                    BinaryOp bin = (BinaryOp) cond;
+                    if (bin.op.equals("~=") && bin.left instanceof Name && bin.right instanceof Name) {
+                        String leftName = ((Name) bin.left).name;
+                        String rightName = ((Name) bin.right).name;
+                        if (leftName.equals(rightName) && nonNumberVars.contains(leftName)) {
+                            if (ifStmt.elseBlock != null) {
+                                return ifStmt.elseBlock;
+                            } else {
+                                return new Block(stmt.pos);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private String getNonNumberVariableFromCondition(Expression cond, boolean thenBranch, Map<String, String> typeVarMap) {
+        if (cond instanceof BinaryOp) {
+            BinaryOp bin = (BinaryOp) cond;
+            Expression typeExpr = bin.left;
+            Expression constExpr = bin.right;
+            if (bin.right instanceof FunctionCall) {
+                typeExpr = bin.right;
+                constExpr = bin.left;
+            }
+            if (constExpr instanceof StringConst) {
+                String typeStr = ((StringConst) constExpr).value;
+                String varName = null;
+                if (typeExpr instanceof FunctionCall) {
+                    FunctionCall call = (FunctionCall) typeExpr;
+                    if (call.callee instanceof Name && ((Name) call.callee).name.equals("type") 
+                            && call.args.size() == 1 && call.args.get(0) instanceof Name) {
+                        varName = ((Name) call.args.get(0)).name;
+                    }
+                } else if (typeExpr instanceof Name) {
+                    String name = ((Name) typeExpr).name;
+                    if (typeVarMap != null && typeVarMap.containsKey(name)) {
+                        varName = typeVarMap.get(name);
+                    }
+                }
+                if (varName != null) {
+                    if (bin.op.equals("==")) {
+                        if (thenBranch) {
+                            if (!typeStr.equals("number")) {
+                                return varName;
+                            }
+                        } else {
+                            if (typeStr.equals("number")) {
+                                return varName;
+                            }
+                        }
+                    } else if (bin.op.equals("~=")) {
+                        if (thenBranch) {
+                            if (typeStr.equals("number")) {
+                                return varName;
+                            }
+                        } else {
+                            if (!typeStr.equals("number")) {
+                                return varName;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return null;
     }
 }

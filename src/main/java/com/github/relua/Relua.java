@@ -32,11 +32,12 @@ public class Relua {
             return;
         }
         
-        String inputFile = null;
+        java.util.List<String> inputFiles = new java.util.ArrayList<>();
         String outputFile = null;
         boolean showVersion = false;
         boolean showHelp = false;
         boolean showBytecode = false;
+        boolean debugMode = false;
         LogLevel logLevel = LogLevel.WARNING;
         boolean logToConsole = Boolean.getBoolean("relua.logToConsole");
         boolean fileOutput = false;
@@ -68,6 +69,9 @@ public class Relua {
                 case "--bytecode":
                     showBytecode = true;
                     break;
+                case "--debug":
+                    debugMode = true;
+                    break;
                 case "-l":
                 case "--log":
                     if (i + 1 < args.length) {
@@ -98,12 +102,8 @@ public class Relua {
                         Logger.error("Unknown option: " + arg);
                         showHelp();
                         System.exit(1);
-                    } else if (inputFile == null) {
-                        inputFile = arg;
                     } else {
-                        Logger.error("Multiple input files specified");
-                        showHelp();
-                        System.exit(1);
+                        inputFiles.add(arg);
                     }
                     break;
             }
@@ -120,31 +120,72 @@ public class Relua {
             return;
         }
         
-        if (inputFile == null) {
+        if (inputFiles.isEmpty()) {
             Logger.error("No input file specified");
             showHelp();
             System.exit(1);
         }
 
+        if (outputFile != null && inputFiles.size() > 1) {
+            Logger.error("Cannot specify --output (-o) when decompiling multiple files");
+            System.exit(1);
+        }
+
         // 应用解析后的日志配置与调试输出配置
-        System.setProperty("relua.debugOutput", String.valueOf(debugOutput));
+        System.setProperty("relua.debugOutput", String.valueOf(debugOutput || debugMode));
         initLogger(logLevel, logToConsole, fileOutput, logFilePath);
         
-        try {
-            final String finalInputFile = inputFile;
-            final boolean finalShowBytecode = showBytecode;
-            // 执行反编译
-            String luaCode = runWithCapturedStdout(() -> decompileFile(finalInputFile, finalShowBytecode));
-            
-            // 输出结果
-            if (outputFile != null) {
-                writeToFile(outputFile, luaCode);
-                Logger.info("Successfully decompiled " + inputFile + " to " + outputFile);
-            } else {
-                System.out.println(luaCode); // 直接输出反编译结果，不经过日志
+        boolean hasError = false;
+        for (String inputFile : inputFiles) {
+            com.github.relua.debug.DecompilerDebugger debugger = null;
+            if (debugMode) {
+                try {
+                    java.io.File file = new java.io.File(inputFile);
+                    String baseName = file.getName();
+                    int dotIndex = baseName.lastIndexOf('.');
+                    String nameWithoutExt = dotIndex > 0 ? baseName.substring(0, dotIndex) : baseName;
+                    String debugDir = "debug_output/" + nameWithoutExt;
+                    
+                    debugger = new com.github.relua.debug.DecompilerDebugger(debugDir, inputFile);
+                    com.github.relua.debug.DecompilerDebugger.set(debugger);
+                } catch (Exception e) {
+                    Logger.error("Failed to initialize debug output directory for " + inputFile + ": " + e.getMessage());
+                }
             }
-        } catch (Exception e) {
-            System.err.println("Error: " + e.getMessage());
+            
+            long fileStartTime = System.currentTimeMillis();
+            try {
+                final String finalInputFile = inputFile;
+                final boolean finalShowBytecode = showBytecode;
+                // 执行反编译
+                String luaCode = runWithCapturedStdout(() -> decompileFile(finalInputFile, finalShowBytecode));
+                
+                // 输出结果
+                if (outputFile != null) {
+                    writeToFile(outputFile, luaCode);
+                    Logger.info("Successfully decompiled " + inputFile + " to " + outputFile);
+                } else {
+                    System.out.println(luaCode); // 直接输出反编译结果，不经过日志
+                }
+            } catch (Exception e) {
+                System.err.println("Error decompiling " + inputFile + ": " + e.getMessage());
+                hasError = true;
+                if (debugger != null) {
+                    debugger.recordStageManual("decompilation_failed", fileStartTime, System.currentTimeMillis(), "ERROR", e.getMessage());
+                }
+            } finally {
+                if (debugger != null) {
+                    try {
+                        debugger.writeSummaryLog();
+                    } catch (Exception e) {
+                        Logger.error("Failed to write summary log for " + inputFile + ": " + e.getMessage());
+                    }
+                    com.github.relua.debug.DecompilerDebugger.clear();
+                }
+            }
+        }
+
+        if (hasError && inputFiles.size() == 1) {
             System.exit(1);
         }
     }
@@ -249,6 +290,10 @@ public class Relua {
         Logger.info("Parsing " + inputFile + "...");
         LuacFile luacFile = parser.parse(inputFile);
         
+        if (com.github.relua.debug.DecompilerDebugger.isEnabled() && luacFile != null && luacFile.getMainChunk() != null) {
+            com.github.relua.debug.DecompilerDebugger.dump("bytecode_parsed", decompiler.generateBytecode(luacFile.getMainChunk()));
+        }
+
         // 反编译
         Logger.info("Decompiling...");
         return decompiler.decompile(luacFile, showBytecode);
@@ -278,12 +323,13 @@ public class Relua {
      * 显示帮助信息
      */
     private static void showHelp() {
-        System.out.println("Usage: relua [OPTIONS] INPUT_FILE");
+        System.out.println("Usage: relua [OPTIONS] INPUT_FILES...");
         System.out.println("Decompile Lua bytecode files to readable Lua code");
         System.out.println();
         System.out.println("Options:");
-        System.out.println("  -o, --output FILE    Write output to FILE instead of stdout");
+        System.out.println("  -o, --output FILE    Write output to FILE instead of stdout (only for single input file)");
         System.out.println("  -b, --bytecode       Show bytecode instructions in output");
+        System.out.println("  --debug              Enable intermediate stages dumping for debugging");
         System.out.println("  -l, --log LEVEL      Set log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)");
         System.out.println("  -f, --log-file FILE  Write logs to FILE");
         System.out.println("  -v, --version        Show version information");
@@ -292,6 +338,7 @@ public class Relua {
         System.out.println("Examples:");
         System.out.println("  relua file.luac              Decompile file.luac to stdout");
         System.out.println("  relua -o file.lua file.luac  Decompile file.luac to file.lua");
+        System.out.println("  relua --debug file.luac      Decompile with debug stages dumped to debug_output/file/");
         System.out.println("  relua -b file.luac           Show bytecode instructions");
         System.out.println("  relua -l DEBUG file.luac     Decompile file.luac with DEBUG logs");
         System.out.println("  relua -l DEBUG -f my.log file.luac   Decompile with DEBUG logs redirected to my.log");
