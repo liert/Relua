@@ -68,6 +68,9 @@ public class RegisterStateAnalyzer {
                     Register register = inStates.get(0);
                     for (RegisterEntity entity : register.getRegisterEntities()) {
                         currentState.setRegisterEntity(entity.getIndex(), entity.getValue(), entity.getType(), entity.getFromType());
+                        if (entity.getCustomName() != null) {
+                            currentState.getRegisterEntity(entity.getIndex()).setCustomName(entity.getCustomName());
+                        }
                     }
                 }
                 
@@ -140,6 +143,9 @@ public class RegisterStateAnalyzer {
         for (int i = 0; i < initRegister.getRegisterCount(); i++) {
             RegisterEntity entity = initRegister.getRegisterEntity(i);
             inStates.get(0).setRegisterEntity(i, entity.getValue(), entity.getType(), entity.getFromType());
+            if (entity.getCustomName() != null) {
+                inStates.get(0).getRegisterEntity(i).setCustomName(entity.getCustomName());
+            }
         }
     }
 

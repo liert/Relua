@@ -62,6 +62,9 @@ public class RegisterUtils {
             // 处理未初始化状态的合并
             if (isUninitialized(entity1) && !isUninitialized(entity2)) {
                 merged.setRegisterEntity(index, entity2.getValue(), entity2.getType(), entity2.getFromType());
+                if (entity2.getCustomName() != null) {
+                    merged.getRegisterEntity(index).setCustomName(entity2.getCustomName());
+                }
             } else if (!isUninitialized(entity1) && isUninitialized(entity2)) {
                 // 保持 entity1 的具体符号，无需修改
             } else if (isUninitialized(entity1) && isUninitialized(entity2)) {
@@ -69,7 +72,11 @@ public class RegisterUtils {
             } else {
                 // 两者都已初始化但值或类型不同（真正的数据流分支合并差异，值在运行时是动态的）
                 // 必须标记为 UNKNOWN 并且值为 "R" + index，避免被常量错误覆盖
-                merged.setRegisterEntity(index, "R" + index, ValueType.UNKNOWN, FromType.UNKNOWN);
+                String varName = entity1.getCustomName() != null ? entity1.getCustomName() : "R" + index;
+                merged.setRegisterEntity(index, varName, ValueType.UNKNOWN, FromType.UNKNOWN);
+                if (entity1.getCustomName() != null) {
+                    merged.getRegisterEntity(index).setCustomName(entity1.getCustomName());
+                }
             }
         }
 

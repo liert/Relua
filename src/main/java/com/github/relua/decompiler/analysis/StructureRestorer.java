@@ -35,14 +35,15 @@ public class StructureRestorer {
             restructureNestedBlocks(stmt);
         }
 
-        // 1.5 重构 while 循环 (GOTO 循环还原)
-        restoreWhileLoops(block);
-
         // 2. 重构泛型 for 循环 (FORGPREP/FORGLOOP 拓扑还原)
         restoreForInLoops(block);
 
         // 2.5 重构数值 for 循环 (FORPREP/FORLOOP 拓扑还原)
         restoreForNumericLoops(block);
+
+        // 2.6 重构 while 循环 (GOTO 循环还原)。必须在数值 for 之后执行，
+        // 否则数值 for body 里的单分支 if/goto 会被提前折成 while，破坏 FORLOOP 拓扑。
+        restoreWhileLoops(block);
 
         // 3. 重构结构化的 if-else 分支
         eliminateInvertedIfElse(block);

@@ -46,6 +46,13 @@ public class InstructionHandler {
         pipeline.processChunk(chunk);
     }
 
+    public List<BasicBlock> getBasicBlocks(Chunk chunk) {
+        if (chunk == null) {
+            return java.util.Collections.emptyList();
+        }
+        return pipeline.getBasicBlocks(chunk.getFunction());
+    }
+
     /**
      * 检查是否是无条件跳转
      * 
@@ -103,6 +110,9 @@ public class InstructionHandler {
      * @return 寄存器名或变量名
      */
     public String getRegisterName(int register, int instructionIndex) {
+        if (register >= 0 && register < codeGenContext.getChunk().getNumParams()) {
+            return "a" + register;
+        }
         Register registerStates = pipeline.getRegisterByInstructionIndex(instructionIndex);
         RegisterEntity entity = registerStates.getRegisterEntity(register);
 
@@ -620,22 +630,29 @@ public class InstructionHandler {
             }
         }
 
-        // 如果没有SESE区域，直接添加所有基本块
+        // 如果没有SESE区域，直接添加所有基本块；如果 regions 不为空，也追加所有遗漏的可达基本块
+        List<BasicBlock> basicBlocks = pipeline.getBasicBlocks(chunk.getFunction());
         if (regions.isEmpty()) {
-            // System.out.println("   - 没有SESE区域，直接添加所有基本块:");
-            List<BasicBlock> basicBlocks = pipeline.getBasicBlocks(chunk.getFunction());
             for (int i = 0; i < basicBlocks.size(); i++) {
                 BasicBlock basicBlock = basicBlocks.get(i);
-                // System.out.println(
-                //         "     基本块 " + i + ": 范围=" + basicBlock.getStartIndex() + "-" + basicBlock.getEndIndex());
                 AstNode basicBlockNode = generateBasicBlockAST(basicBlock, chunk);
                 if (basicBlockNode != null) {
-                    // System.out.println("     生成基本块AST节点，子节点数量: " + ((Block) basicBlockNode).statements.size());
                     if (basicBlockNode instanceof Block) {
                         block.statements.addAll(((Block) basicBlockNode).statements);
                     }
-                } else {
-                    // System.out.println("     跳过已访问的基本块");
+                }
+            }
+        } else {
+            // 扫描并追加没有被 SESE 区域访问到的可达基本块（例如结尾的 return 块等）
+            for (int i = 0; i < basicBlocks.size(); i++) {
+                BasicBlock basicBlock = basicBlocks.get(i);
+                if (!basicBlock.isVisited()) {
+                    AstNode basicBlockNode = generateBasicBlockAST(basicBlock, chunk);
+                    if (basicBlockNode != null) {
+                        if (basicBlockNode instanceof Block) {
+                            block.statements.addAll(((Block) basicBlockNode).statements);
+                        }
+                    }
                 }
             }
         }

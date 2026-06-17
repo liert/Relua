@@ -35,6 +35,7 @@ public class Register {
             RegisterEntity original = entry.getValue();
             RegisterEntity copy = new RegisterEntity(original.getIndex(), original.getValue(), original.getType(), original.getFromType());
             copy.setNamePrefix(original.getNamePrefix());
+            copy.setCustomName(original.getCustomName());
             this.registers.put(original.getIndex(), copy);
         }
         this.jump = other.jump;
@@ -139,6 +140,7 @@ public class Register {
             RegisterEntity original = entry.getValue();
             RegisterEntity copy = new RegisterEntity(original.getIndex(), original.getValue(), original.getType(), original.getFromType());
             copy.setNamePrefix(original.getNamePrefix());
+            copy.setCustomName(original.getCustomName());
             target.registers.put(original.getIndex(), copy);
         }
     }
@@ -155,6 +157,9 @@ public class Register {
             // 总是更新当前寄存器状态，确保所有寄存器实体都被正确合并
             thisEntity.setValue(otherEntity.getValue());
             thisEntity.setType(otherEntity.getType());
+            if (otherEntity.getCustomName() != null) {
+                thisEntity.setCustomName(otherEntity.getCustomName());
+            }
         }
     }
 
@@ -225,6 +230,7 @@ public class Register {
         private ValueType type = ValueType.NIL;
         private FromType fromType = FromType.NIL;
         private String namePrefix = "";
+        private String customName = null;
 
         /**
          * 构造函数，支持不同类型的初始值
@@ -234,6 +240,14 @@ public class Register {
             this.value = value;
             this.type = type;
             this.fromType = fromType;
+        }
+
+        public String getCustomName() {
+            return customName;
+        }
+
+        public void setCustomName(String customName) {
+            this.customName = customName;
         }
 
         public String getNamePrefix() {
@@ -249,6 +263,9 @@ public class Register {
         }
 
         public String getName() {
+            if (customName != null) {
+                return namePrefix + customName;
+            }
             return namePrefix + "R" + index;
         }
 
@@ -282,6 +299,7 @@ public class Register {
         public RegisterEntity copy() {
             RegisterEntity copy = new RegisterEntity(index, value, type, fromType);
             copy.setNamePrefix(namePrefix);
+            copy.setCustomName(customName);
             return copy;
         }
 
@@ -308,6 +326,13 @@ public class Register {
             if (type != other.type) {
                 return false;
             }
+            if (customName == null) {
+                if (other.customName != null) {
+                    return false;
+                }
+            } else if (!customName.equals(other.customName)) {
+                return false;
+            }
             if (value == null) {
                 return other.value == null;
             } else {
@@ -323,6 +348,7 @@ public class Register {
             int result = index;
             result = 31 * result + (type != null ? type.hashCode() : 0);
             result = 31 * result + (value != null ? value.hashCode() : 0);
+            result = 31 * result + (customName != null ? customName.hashCode() : 0);
             return result;
         }
     }

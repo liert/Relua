@@ -168,7 +168,7 @@ public class DataFlowAnalyzer {
                     boolean safeToDelete = false;
                     if (useCount == 0) {
                         int totalUses = countTotalUsesInBlock(topBlock, regName);
-                        if (totalUses == 0) {
+                        if (totalUses == 0 && !hasEscapingControlFlow(stmts, i + 1)) {
                             safeToDelete = true;
                         } else if (nextDefIdx < stmts.size() && !hasGotoStatement(stmts, i + 1, nextDefIdx)) {
                             safeToDelete = true;
@@ -281,16 +281,29 @@ public class DataFlowAnalyzer {
 
                 // 寄存器在未被读取的情况下被重新定值，当前赋值为死赋值，且在此期间不包含 Goto 语句
                 if (redefineIndex != -1 && !foundUse && !hasGotoStatement(stmts, i + 1, redefineIndex)) {
-                    // 如果重定义表达式引用了该寄存器，先将死值代入
                     Statement redefineStmt = stmts.get(redefineIndex);
-                    if (countVariableUses(redefineStmt, regName) > 0) {
-                        Statement newRedefine = (Statement) replaceVariableWithExpression(
-                                redefineStmt, regName, deadExpr);
-                        stmts.set(redefineIndex, newRedefine);
+                    boolean canDelete = true;
+                    if (isComplexControlFlow(redefineStmt)) {
+                        // 如果重定义点是一个复合控制流（如 IfStatement），它可能在分支中只有条件赋值，无法完全覆盖所有路径。
+                        // 如果在它后面还有读取，或者该变量在它后面依然活跃，就不能将其判定为死定义而删除其初始赋值。
+                        for (int k = redefineIndex + 1; k < stmts.size(); k++) {
+                            if (countVariableUses(stmts.get(k), regName) > 0) {
+                                canDelete = false;
+                                break;
+                            }
+                        }
                     }
-                    stmts.remove(i);
-                    changed = true;
-                    break;
+                    if (canDelete) {
+                        // 如果重定义表达式引用了该寄存器，先将死值代入
+                        if (countVariableUses(redefineStmt, regName) > 0) {
+                            Statement newRedefine = (Statement) replaceVariableWithExpression(
+                                    redefineStmt, regName, deadExpr);
+                            stmts.set(redefineIndex, newRedefine);
+                        }
+                        stmts.remove(i);
+                        changed = true;
+                        break;
+                    }
                 }
             }
         }

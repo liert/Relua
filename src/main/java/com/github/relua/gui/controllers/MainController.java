@@ -195,6 +195,8 @@ public class MainController {
         textEditorView = new TextEditorView();
         textEditorView.initCodeIntelligence(statusLabel);
         
+        textEditorScrollPane.setFitToWidth(true);
+        textEditorScrollPane.setFitToHeight(true);
         textEditorScrollPane.setContent(textEditorView.getView());
         
         // 禁用外层 ScrollPane 的滚动条以避免与内层 VirtualizedScrollPane 发生冲突，实现完美流畅滚动

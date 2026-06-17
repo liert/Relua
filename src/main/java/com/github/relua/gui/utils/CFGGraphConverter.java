@@ -6,11 +6,10 @@ import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.LuacFile;
 import com.github.relua.decompiler.BasicBlock;
-import com.github.relua.decompiler.CFGGenerator;
-import com.github.relua.decompiler.CodeGeneratorContext;
+import com.github.relua.decompiler.InstructionHandler;
+import com.github.relua.decompiler.LuaCodeGenerator;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * CFG到图形的转换器，用于将Relua的控制流图转换为JavaFX Canvas的图形表示
@@ -41,20 +40,20 @@ public class CFGGraphConverter {
         
         if (chunk != null) {
             System.out.println("CFGGraphConverter.convertToGraph(Chunk): chunk.getInstructions().size() = " + chunk.getInstructions().size());
-            
-            // 创建代码生成上下文
-            CodeGeneratorContext codeGenContext = new CodeGeneratorContext();
-            
-            // 创建CFG生成器
-            CFGGenerator cfgGenerator = new CFGGenerator(codeGenContext);
-            
-            // 生成CFG
-            cfgGenerator.generateCFG(chunk);
-            
-            System.out.println("CFGGraphConverter.convertToGraph(Chunk): cfgGenerator.getBasicBlocks().size() = " + cfgGenerator.getBasicBlocks().size());
-            
-            // 将CFG转换为图形
-            convertCFGToGraph(cfgGenerator, chunk);
+
+            LuaCodeGenerator generator = new LuaCodeGenerator(chunk);
+            InstructionHandler handler = generator.getInstructionHandler(chunk.getFunction());
+            if (handler == null) {
+                graphView.addNode("No CFG handler found\nPlease check if the input file is valid", GraphVisualizationView.NodeType.NORMAL);
+                graphView.applyLayout();
+                return;
+            }
+
+            handler.process(chunk);
+            List<BasicBlock> basicBlocks = handler.getBasicBlocks(chunk);
+            System.out.println("CFGGraphConverter.convertToGraph(Chunk): basicBlocks.size() = " + basicBlocks.size());
+
+            convertCFGToGraph(basicBlocks, chunk);
         }
     }
     
@@ -70,14 +69,13 @@ public class CFGGraphConverter {
     
     /**
      * 将CFG转换为图形
-     * @param cfgGenerator CFG生成器
+     * @param basicBlocks 基本块列表
      * @param chunk 代码块
      */
-    public void convertCFGToGraph(CFGGenerator cfgGenerator, Chunk chunk) {
+    public void convertCFGToGraph(List<BasicBlock> basicBlocks, Chunk chunk) {
         // 清空现有图形
         graphView.clearGraph();
-        
-        List<BasicBlock> basicBlocks = cfgGenerator.getBasicBlocks();
+
         System.out.println("CFGGraphConverter.convertCFGToGraph: basicBlocks.size() = " + basicBlocks.size());
         
         if (basicBlocks.isEmpty()) {

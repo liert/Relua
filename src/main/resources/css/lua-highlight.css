@@ -55,3 +55,53 @@
 .operator {
     -fx-fill: #303030;
 }
+
+.search-hit {
+    -rtfx-background-color: #fff2a8;
+}
+
+.search-current {
+    -rtfx-background-color: #ffb347;
+    -fx-font-weight: bold;
+}
+
+.editor-search-bar {
+    -fx-background-color: #f3f6fb;
+    -fx-border-color: #d6deea;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 6 8 6 8;
+}
+
+.editor-search-field {
+    -fx-font-family: "Consolas";
+    -fx-font-size: 12px;
+}
+
+.editor-search-button {
+    -fx-padding: 2 8 2 8;
+    -fx-background-radius: 4;
+}
+
+.editor-search-status {
+    -fx-text-fill: #5b677a;
+    -fx-min-width: 54;
+}
+
+.fold-marker {
+    -fx-font-family: "Consolas";
+    -fx-font-size: 10px;
+    -fx-min-width: 16;
+    -fx-pref-width: 16;
+    -fx-max-width: 16;
+    -fx-min-height: 16;
+    -fx-pref-height: 16;
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-border-color: #b7c1d1;
+    -fx-border-radius: 2;
+    -fx-text-fill: #526070;
+}
+
+.fold-marker:hover {
+    -fx-background-color: #e7edf5;
+}

@@ -644,7 +644,18 @@ public class InstructionToASTConverter {
                 return new StringConst(value.toString(), pos);
             }
         }
-        RegisterEntity entity = register.getRegisterEntity(rk);
+        int rkIndex = rk;
+        Register registerState = register;
+        if (pos != null && pos.pc > 0) {
+            Instruction curInst = chunk.getInstruction(pos.pc);
+            if (curInst != null && curInst.getA() == rkIndex && isOutputRegisterOpcode(curInst.getOpcode())) {
+                Register prevRegisterState = pipeline.getRegisterByInstructionIndex(pos.pc - 1);
+                if (prevRegisterState != null) {
+                    registerState = prevRegisterState;
+                }
+            }
+        }
+        RegisterEntity entity = registerState.getRegisterEntity(rkIndex);
         if (entity != null) {
             if (entity.getFromType() == FromType.CONSTANT && entity.getValue() instanceof String
                     && !entity.getName().equals(entity.getValue().toString())) {
@@ -993,7 +1004,39 @@ public class InstructionToASTConverter {
      * @param registerState    当前寄存器状态
      * @return 解析后的表达式
      */
+    private boolean isOutputRegisterOpcode(Opcode op) {
+        if (op == null) return false;
+        return op != Opcode.RETURN 
+            && op != Opcode.TAILCALL 
+            && op != Opcode.SETTABLE 
+            && op != Opcode.SETUPVAL 
+            && op != Opcode.TEST 
+            && op != Opcode.JMP 
+            && op != Opcode.EQ 
+            && op != Opcode.LT 
+            && op != Opcode.LE 
+            && op != Opcode.FORLOOP 
+            && op != Opcode.FORPREP 
+            && op != Opcode.TFORLOOP 
+            && op != Opcode.SETLIST 
+            && op != Opcode.CLOSE;
+    }
+
     private Expression resolveExpressionFromRegister(int registerIndex, int instructionIndex, Register registerState) {
+        return resolveExpressionFromRegister(registerIndex, instructionIndex, registerState, false);
+    }
+
+    private Expression resolveExpressionFromRegister(int registerIndex, int instructionIndex, Register registerState,
+            boolean usePreviousWhenTarget) {
+        if (usePreviousWhenTarget && instructionIndex > 0) {
+            Instruction curInst = chunk.getInstruction(instructionIndex);
+            if (curInst != null && curInst.getA() == registerIndex && isOutputRegisterOpcode(curInst.getOpcode())) {
+                Register prevRegisterState = pipeline.getRegisterByInstructionIndex(instructionIndex - 1);
+                if (prevRegisterState != null) {
+                    registerState = prevRegisterState;
+                }
+            }
+        }
         RegisterEntity entity = registerState.getRegisterEntity(registerIndex);
         if (entity.getValue() instanceof Expression) {
             if (entity.getValue() instanceof TableConstructor
@@ -1103,23 +1146,92 @@ public class InstructionToASTConverter {
         } else if (b == 0) {
             // b = 0表示传递了前一个多返回值函数或vararg调用的所有返回值
             int top = a + 1;
+            int prevCallPC = -1;
             for (int i = instructionIndex - 1; i >= 0; i--) {
                 Instruction prev = chunk.getInstruction(i);
                 if (prev.getOpcode() == Opcode.CALL && prev.getC() == 0) {
                     top = prev.getA();
+                    prevCallPC = i;
                     break;
                 }
                 if (prev.getOpcode() == Opcode.VARARG && prev.getB() == 0) {
                     top = prev.getA();
+                    prevCallPC = i;
                     break;
                 }
             }
             for (int i = a + 1; i <= top; i++) {
-                args.add(resolveExpressionFromRegister(i, instructionIndex, registerState));
+                if (i == top && prevCallPC != -1) {
+                    args.add(buildMultiValueExpressionAt(prevCallPC));
+                } else {
+                    args.add(resolveExpressionFromRegister(i, instructionIndex, registerState));
+                }
             }
         }
 
         return args;
+    }
+
+    private Expression buildMultiValueExpressionAt(int pc) {
+        Instruction inst = chunk.getInstruction(pc);
+        if (inst != null && inst.getOpcode() == Opcode.VARARG) {
+            return new Vararg(new SourcePos(pc, -1));
+        }
+        return buildCallExpressionAt(pc);
+    }
+
+    private FunctionCall buildCallExpressionAt(int callPC) {
+        Instruction callInst = chunk.getInstruction(callPC);
+        Register registerState = pipeline.getRegisterByInstructionIndex(callPC);
+        SourcePos pos = new SourcePos(callPC, -1);
+        int a = callInst.getA();
+
+        Expression func;
+        boolean isMethodCall = false;
+        Instruction selfInst = findSelfForCall(a, callPC);
+        if (selfInst != null) {
+            isMethodCall = true;
+            Expression obj = resolveExpressionFromRegister(a + 1, callPC, registerState, false);
+            String methodName = constantName(selfInst.getC());
+            func = new MemberExpr(obj, methodName, pos);
+        } else {
+            func = resolveExpressionFromRegister(a, callPC, registerState);
+        }
+
+        List<Expression> args = resolveCallArguments(a, callInst.getB(), callPC, registerState);
+        FunctionCall call = new FunctionCall(func, args, isMethodCall, new ArrayList<>(), pos);
+        if (callInst.getC() == 0) {
+            call.setMultiReturn(true);
+        }
+        return call;
+    }
+
+    private Instruction findSelfForCall(int callRegister, int callPC) {
+        for (int pc = callPC - 1; pc >= 0; pc--) {
+            Instruction inst = chunk.getInstruction(pc);
+            if (inst == null) {
+                break;
+            }
+            if (inst.getOpcode() == Opcode.SELF && inst.getA() == callRegister) {
+                return inst;
+            }
+            if (inst.getA() == callRegister && isOutputRegisterOpcode(inst.getOpcode())) {
+                break;
+            }
+        }
+        return null;
+    }
+
+    private String constantName(int rk) {
+        if (rk >= 256) {
+            rk -= 256;
+        }
+        Object value = chunk.getConstant(rk).getValue();
+        String name = value != null ? value.toString() : "";
+        if (name.length() >= 2 && name.startsWith("\"") && name.endsWith("\"")) {
+            return name.substring(1, name.length() - 1);
+        }
+        return name;
     }
 
     /**
@@ -1144,19 +1256,26 @@ public class InstructionToASTConverter {
             }
         } else if (b == 0) {
             int top = a;
+            int prevCallPC = -1;
             for (int i = instructionIndex - 1; i >= 0; i--) {
                 Instruction prev = chunk.getInstruction(i);
                 if (prev.getOpcode() == Opcode.CALL && prev.getC() == 0) {
                     top = prev.getA();
+                    prevCallPC = i;
                     break;
                 }
                 if (prev.getOpcode() == Opcode.VARARG && prev.getB() == 0) {
                     top = prev.getA();
+                    prevCallPC = i;
                     break;
                 }
             }
             for (int i = a; i <= top; i++) {
-                values.add(resolveExpressionFromRegister(i, instructionIndex, registerState));
+                if (i == top && prevCallPC != -1) {
+                    values.add(buildMultiValueExpressionAt(prevCallPC));
+                } else {
+                    values.add(resolveExpressionFromRegister(i, instructionIndex, registerState));
+                }
             }
         }
 
@@ -1582,6 +1701,9 @@ public class InstructionToASTConverter {
     }
 
     private String getRegisterName(int regIndex, Register registerState) {
+        if (regIndex >= 0 && regIndex < chunk.getNumParams()) {
+            return "a" + regIndex;
+        }
         if (registerState != null) {
             return registerState.getRegisterEntity(regIndex).getName();
         }

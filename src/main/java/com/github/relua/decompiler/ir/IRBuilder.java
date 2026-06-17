@@ -2,6 +2,7 @@ package com.github.relua.decompiler.ir;
 
 import com.github.relua.decompiler.CodeGeneratorContext;
 import com.github.relua.decompiler.DecompilerPipeline;
+import com.github.relua.ast.BinaryOp;
 import com.github.relua.ast.BooleanConst;
 import com.github.relua.ast.Expression;
 import com.github.relua.ast.IndexExpr;
@@ -337,8 +338,32 @@ public class IRBuilder {
     private void processArithmeticInstruction(Chunk chunk, Instruction instruction, Register currentState) {
         // 处理算术指令 R(A) := RK(B) op RK(C)
         int a = instruction.getA();
-        // 将结果标记为 REGISTER 类型，名称为 null，后续读取时会输出 R+a 形式
-        currentState.setRegisterEntity(a, null, ValueType.UNKNOWN, FromType.REGISTER);
+        int b = instruction.getB();
+        int c = instruction.getC();
+        SourcePos pos = new SourcePos(instruction.getPc(), -1);
+        Expression left = rkExpression(chunk, currentState, b, pos);
+        Expression right = rkExpression(chunk, currentState, c, pos);
+        currentState.setRegisterEntity(a, new BinaryOp(arithmeticOperator(instruction.getOpcode()), left, right, pos),
+                ValueType.UNKNOWN, FromType.REGISTER);
+    }
+
+    private String arithmeticOperator(Opcode opcode) {
+        switch (opcode) {
+            case ADD:
+                return "+";
+            case SUB:
+                return "-";
+            case MUL:
+                return "*";
+            case DIV:
+                return "/";
+            case MOD:
+                return "%";
+            case POW:
+                return "^";
+            default:
+                return opcode.toString().toLowerCase();
+        }
     }
 
     private void processUnaryInstruction(Chunk chunk, Instruction instruction, Register currentState) {

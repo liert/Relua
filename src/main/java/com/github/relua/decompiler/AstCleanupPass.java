@@ -138,7 +138,14 @@ public class AstCleanupPass {
         com.github.relua.debug.DecompilerDebugger.dump("ast_cleanup_final_" + funcName, block);
 
         // 3. 把函数体顶层第一次出现的寄存器赋值恢复为 local，主块无参数
-        Set<String> declared = declareTopLevelLocals(block, java.util.Collections.emptyList(), parentDeclared, finalUpvalueNames);
+        List<String> params = new ArrayList<>();
+        if (context != null && context.getChunk() != null && !"main".equals(context.getChunk().getFunction())) {
+            com.github.relua.model.Chunk functionChunk = context.getChunk();
+            for (int i = 0; i < functionChunk.getNumParams(); i++) {
+                params.add(com.github.relua.util.TransformUtils.transformRegister(context.getRegister().getRegisterEntity(i)));
+            }
+        }
+        Set<String> declared = declareTopLevelLocals(block, params, parentDeclared, finalUpvalueNames);
         com.github.relua.debug.DecompilerDebugger.dump("locals_declared_" + funcName, block);
         return declared;
     }
@@ -335,26 +342,6 @@ public class AstCleanupPass {
                     stmts.removeAll(toRemove);
                 }
                 break;
-            } else if (s instanceof GotoStatement) {
-                int nextLabelIdx = -1;
-                for (int k = i + 1; k < stmts.size(); k++) {
-                    if (stmts.get(k) instanceof LabelStatement) {
-                        nextLabelIdx = k;
-                        break;
-                    }
-                }
-                if (nextLabelIdx != -1) {
-                    if (nextLabelIdx > i + 1) {
-                        List<Statement> toRemove = new ArrayList<>(stmts.subList(i + 1, nextLabelIdx));
-                        stmts.removeAll(toRemove);
-                    }
-                } else {
-                    if (i + 1 < stmts.size()) {
-                        List<Statement> toRemove = new ArrayList<>(stmts.subList(i + 1, stmts.size()));
-                        stmts.removeAll(toRemove);
-                    }
-                    break;
-                }
             }
         }
     }

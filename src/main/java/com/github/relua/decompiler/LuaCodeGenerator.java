@@ -63,7 +63,11 @@ public class LuaCodeGenerator {
         register.setVarPrefix(prefix);
 
         for (int i = 0; i < chunk.getNumParams(); i++) {
-            register.setRegisterEntity(i, "a" + i, ValueType.OBJECT, FromType.GLOBAL);
+            Register.RegisterEntity entity = register.getRegisterEntity(i);
+            entity.setCustomName("a" + i);
+            entity.setValue("a" + i);
+            entity.setType(ValueType.OBJECT);
+            entity.setFromType(FromType.GLOBAL);
         }
         CodeGeneratorContext context = new CodeGeneratorContext(chunk, register);
         contexts.add(context);
@@ -135,7 +139,11 @@ public class LuaCodeGenerator {
         for (Chunk subChunk : chunk.getSubChunks()) {
             Register temp = new Register();
             for (int i = 0; i < subChunk.getNumParams(); i++) {
-                temp.setRegisterEntity(i, "a" + i, ValueType.OBJECT, FromType.GLOBAL);
+                Register.RegisterEntity entity = temp.getRegisterEntity(i);
+                entity.setCustomName("a" + i);
+                entity.setValue("a" + i);
+                entity.setType(ValueType.OBJECT);
+                entity.setFromType(FromType.GLOBAL);
             }
             // 嵌套子闭包，合并当前的 parentDeclared 和本层 context 中新声明的变量，传给子闭包
             Set<String> mergedParentDeclared = new HashSet<>(parentDeclared);
@@ -157,19 +165,17 @@ public class LuaCodeGenerator {
             // 为main函数创建一个主Block
             Block mainBlock = new Block(null);
             
+            // 收集所有拉平输出的全局函数声明，并将它们放在 main 之前
+            List<Statement> globalDecls = new ArrayList<>();
             for (CodeGeneratorContext ctx : contexts) {
                 Chunk ctxChunk = ctx.getChunk();
                 String funcName = ctxChunk.getFunction();
                 
                 if (funcName.equals("main")) {
-                    // main函数不需要包装，直接添加其内容
-                    mainBlock.statements.addAll(ctx.getAstBlock().statements);
+                    continue;
                 } else if (emittedFunctions.contains(funcName)) {
-                    // 已经在闭包创建位置内联为函数声明
                     continue;
                 } else {
-                    // 为其他函数创建FunctionDeclaration节点
-                    
                     // 对于被拉平输出的全局函数，因为它们已经不嵌套在父闭包内部，不需要防 shadowed，重新 cleanup
                     new AstCleanupPass().cleanup(ctx.getAstBlock(), ctx, java.util.Collections.emptySet());
                     
@@ -177,9 +183,17 @@ public class LuaCodeGenerator {
                     
                     // 创建FunctionDeclaration
                     FunctionDeclaration funcDecl = new FunctionDeclaration(funcName, funcLit, false, null);
-                    
-                    // 添加到主Block
-                    mainBlock.statements.add(funcDecl);
+                    globalDecls.add(funcDecl);
+                }
+            }
+            
+            // 优先添加拉平输出的全局函数声明
+            mainBlock.statements.addAll(globalDecls);
+            
+            // 接着添加main函数的内容
+            for (CodeGeneratorContext ctx : contexts) {
+                if (ctx.getChunk().getFunction().equals("main")) {
+                    mainBlock.statements.addAll(ctx.getAstBlock().statements);
                 }
             }
 

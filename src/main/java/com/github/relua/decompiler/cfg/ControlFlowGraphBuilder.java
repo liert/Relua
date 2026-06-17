@@ -82,11 +82,18 @@ public class ControlFlowGraphBuilder {
                     currentBlock.addSuccessor(targetBlock);
                 }
 
-                // TFORLOOP指令执行后，如果条件满足则跳转到循环头，否则继续执行下一条指令
+                // Lua 5.1 generic-for compiles as TFORLOOP followed by a backward JMP.
+                // When iteration continues, control runs into the JMP; when it ends, it skips the JMP.
                 if (i + 1 < instructions.size()) {
                     BasicBlock nextBlock = pipeline.getBasicBlock(chunk.getFunction(), i + 1);
                     if (nextBlock != null) {
                         currentBlock.addSuccessor(nextBlock);
+                    }
+                }
+                if (i + 1 < instructions.size() && instructions.get(i + 1).getOpcode() == Opcode.JMP) {
+                    int afterLoop = i + 2;
+                    if (afterLoop < instructions.size()) {
+                        addEdge(chunk, currentBlock, afterLoop);
                     }
                 }
             } else if (opcode == Opcode.LOADBOOL) {
