@@ -587,7 +587,8 @@ public class IRBuilder {
             }
 
             // 如果上值是基础字面量常量或全局引入符号，优先保留其状态；如果是局部寄存器变量，直接返回上值变量名字本身，避免被内部赋值污染
-            if ((upvalue.getFromType() == FromType.GLOBAL || (upvalue.getFromType() == FromType.CONSTANT && isBasicConstant)) && val != null) {
+            boolean isRegName = val != null && val.toString().matches("^(chunk_|module_)?R\\d+$");
+            if ((upvalue.getFromType() == FromType.GLOBAL || (upvalue.getFromType() == FromType.CONSTANT && isBasicConstant)) && val != null && !isRegName) {
                 RA.setValue(val);
                 RA.setType(upvalue.getType());
                 RA.setFromType(upvalue.getFromType());

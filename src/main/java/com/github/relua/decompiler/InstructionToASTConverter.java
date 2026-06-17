@@ -1577,15 +1577,20 @@ public class InstructionToASTConverter {
             Object val = upvalue.getValue();
             if (upvalue.getFromType() == FromType.GLOBAL) {
                 String globalName = val.toString();
-                if (globalName.contains(".")) {
-                    String[] parts = globalName.split("\\.");
-                    Expression current = new Name(parts[0], pos);
-                    for (int i = 1; i < parts.length; i++) {
-                        current = new MemberExpr(current, parts[i], pos);
+                if (!globalName.matches("^(chunk_|module_)?R\\d+$")) {
+                    if (globalName.contains(".")) {
+                        String[] parts = globalName.split("\\.");
+                        Expression current = new Name(parts[0], pos);
+                        for (int i = 1; i < parts.length; i++) {
+                            current = new MemberExpr(current, parts[i], pos);
+                        }
+                        right = current;
+                    } else {
+                        right = new Name(globalName, pos);
                     }
-                    right = current;
                 } else {
-                    right = new Name(globalName, pos);
+                    String upvalueName = getResolvedUpvalueName(upvalue, b);
+                    right = new Name(upvalueName, pos);
                 }
             } else { // CONSTANT
                 if (val instanceof Boolean) {
@@ -1599,16 +1604,32 @@ public class InstructionToASTConverter {
                         right = new StringConst(val.toString(), pos);
                     }
                 } else {
-                    String upvalueName = (upvalue != null) ? upvalue.getName() : ("upvalue_" + b);
+                    String upvalueName = getResolvedUpvalueName(upvalue, b);
                     right = new Name(upvalueName, pos);
                 }
             }
         } else {
-            String upvalueName = (upvalue != null) ? upvalue.getName() : ("upvalue_" + b);
+            String upvalueName = getResolvedUpvalueName(upvalue, b);
             right = new Name(upvalueName, pos);
         }
         
         return new Assign(new Name(getRegisterName(a, instructionIndex), pos), right, pos);
+    }
+
+    private String getResolvedUpvalueName(UpValue upvalue, int b) {
+        if (upvalue != null && (upvalue.getFromType() == FromType.CONSTANT || upvalue.getFromType() == FromType.GLOBAL) && upvalue.getValue() != null) {
+            Object val = upvalue.getValue();
+            if (upvalue.getFromType() == FromType.GLOBAL) {
+                String globalName = val.toString();
+                if (!globalName.matches("^(chunk_|module_)?R\\d+$")) {
+                    if (globalName.contains(".")) {
+                        return globalName.split("\\.")[0];
+                    }
+                    return globalName;
+                }
+            }
+        }
+        return (upvalue != null) ? upvalue.getName() : ("upvalue_" + b);
     }
 
     /**
@@ -1628,7 +1649,7 @@ public class InstructionToASTConverter {
 
         CodeGeneratorContext context = pipeline.getContext();
         UpValue upvalue = context.getUpvalue(b);
-        String upvalueName = (upvalue != null) ? upvalue.getName() : ("upvalue_" + b);
+        String upvalueName = getResolvedUpvalueName(upvalue, b);
 
         SourcePos pos = new SourcePos(instructionIndex, -1);
         Expression left = new Name(upvalueName, pos);

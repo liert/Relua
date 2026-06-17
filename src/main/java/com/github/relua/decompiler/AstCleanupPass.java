@@ -85,8 +85,11 @@ public class AstCleanupPass {
                         if (ins.getOpcode() == com.github.relua.model.Opcode.GETUPVAL
                                 || ins.getOpcode() == com.github.relua.model.Opcode.SETUPVAL) {
                             com.github.relua.model.UpValue uv = context.getUpvalue(ins.getB());
-                            if (uv != null && uv.getName() != null) {
-                                finalUpvalueNames.add(uv.getName());
+                            if (uv != null) {
+                                String uvName = getResolvedUpvalueName(uv, ins.getB());
+                                if (uvName != null) {
+                                    finalUpvalueNames.add(uvName);
+                                }
                             }
                         }
                     }
@@ -94,8 +97,43 @@ public class AstCleanupPass {
             }
         }
 
+        // Collect local registers captured by child closures
+        Set<String> capturedLocals = new HashSet<>();
+        if (context != null && context.getChunk() != null) {
+            com.github.relua.model.Chunk chunk = context.getChunk();
+            java.util.List<com.github.relua.model.Instruction> insts = chunk.getInstructions();
+            if (insts != null) {
+                for (int i = 0; i < insts.size(); i++) {
+                    com.github.relua.model.Instruction ins = insts.get(i);
+                    if (ins != null && ins.getOpcode() == com.github.relua.model.Opcode.CLOSURE) {
+                        int bx = ins.getBx();
+                        if (bx >= 0 && bx < chunk.getSubChunks().size()) {
+                            com.github.relua.model.Chunk subChunk = chunk.getSubChunks().get(bx);
+                            int nup = subChunk.getNup();
+                            for (int j = 0; j < nup; j++) {
+                                int nextIdx = i + 1 + j;
+                                if (nextIdx < insts.size()) {
+                                    com.github.relua.model.Instruction upvalIns = insts.get(nextIdx);
+                                    if (upvalIns != null && upvalIns.getOpcode() == com.github.relua.model.Opcode.MOVE) {
+                                        int b = upvalIns.getB();
+                                        String regName = context.getRegister().getRegisterEntity(b).getName();
+                                        if (regName != null) {
+                                            capturedLocals.add(regName);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Set<String> optimizerUpvalues = new HashSet<>(finalUpvalueNames);
+        optimizerUpvalues.addAll(capturedLocals);
+
         // 1. 数据流变量内联及点号/冒号语法糖还原
-        new DataFlowAnalyzer().optimize(block, parentDeclared, finalUpvalueNames);
+        new DataFlowAnalyzer().optimize(block, parentDeclared, optimizerUpvalues);
         com.github.relua.debug.DecompilerDebugger.dump("dataflow_opt_1_" + funcName, block);
 
         // 1.5 清理空的if块（nil-guard等模式产生的空条件分支）
@@ -115,7 +153,7 @@ public class AstCleanupPass {
         com.github.relua.debug.DecompilerDebugger.dump("empty_if_removed_2_" + funcName, block);
 
         // 2.5.5 再次执行数据流变量内联（消解 GOTO/Label 之后，许多原本因跳转阻碍而无法安全内联的变量现在可以安全内联了）
-        new DataFlowAnalyzer().optimize(block, parentDeclared, finalUpvalueNames);
+        new DataFlowAnalyzer().optimize(block, parentDeclared, optimizerUpvalues);
         com.github.relua.debug.DecompilerDebugger.dump("dataflow_opt_2_" + funcName, block);
 
         // 2.6 移除 return 后的死代码
@@ -123,7 +161,7 @@ public class AstCleanupPass {
         com.github.relua.debug.DecompilerDebugger.dump("dead_code_removed_1_" + funcName, block);
 
         // 优化返回模式（Peephole 优化）：合并临时寄存器赋值与其后紧随的返回
-        optimizeReturnPatterns(block, context, finalUpvalueNames);
+        optimizeReturnPatterns(block, context, optimizerUpvalues);
         com.github.relua.debug.DecompilerDebugger.dump("return_opt_" + funcName, block);
 
         // 再次移除合并可能产生的新一轮死代码
@@ -1678,5 +1716,21 @@ public class AstCleanupPass {
             }
         }
         return null;
+    }
+
+    private String getResolvedUpvalueName(com.github.relua.model.UpValue upvalue, int b) {
+        if (upvalue != null && (upvalue.getFromType() == com.github.relua.model.FromType.CONSTANT || upvalue.getFromType() == com.github.relua.model.FromType.GLOBAL) && upvalue.getValue() != null) {
+            Object val = upvalue.getValue();
+            if (upvalue.getFromType() == com.github.relua.model.FromType.GLOBAL) {
+                String globalName = val.toString();
+                if (!globalName.matches("^(chunk_|module_)?R\\d+$")) {
+                    if (globalName.contains(".")) {
+                        return globalName.split("\\.")[0];
+                    }
+                    return globalName;
+                }
+            }
+        }
+        return (upvalue != null) ? upvalue.getName() : ("upvalue_" + b);
     }
 }

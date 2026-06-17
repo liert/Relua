@@ -40,8 +40,11 @@ public class AstCodeEmitter {
         }
         for (int idx : usedUpvalueIndices) {
             com.github.relua.model.UpValue uv = context.getUpvalue(idx);
-            if (uv != null && uv.getName() != null) {
-                upvalueNames.add(uv.getName());
+            if (uv != null) {
+                String uvName = getResolvedUpvalueName(uv, idx);
+                if (uvName != null) {
+                    upvalueNames.add(uvName);
+                }
             }
         }
         Logger.debug("[DEBUG] Chunk " + chunk.getFunction() + " usedUpvalueIndices: " + usedUpvalueIndices
@@ -77,5 +80,21 @@ public class AstCodeEmitter {
             context.setDeclaredVariables(declared);
             context.setAstBlock(block);
         }
+    }
+
+    private String getResolvedUpvalueName(com.github.relua.model.UpValue upvalue, int b) {
+        if (upvalue != null && (upvalue.getFromType() == com.github.relua.model.FromType.CONSTANT || upvalue.getFromType() == com.github.relua.model.FromType.GLOBAL) && upvalue.getValue() != null) {
+            Object val = upvalue.getValue();
+            if (upvalue.getFromType() == com.github.relua.model.FromType.GLOBAL) {
+                String globalName = val.toString();
+                if (!globalName.matches("^(chunk_|module_)?R\\d+$")) {
+                    if (globalName.contains(".")) {
+                        return globalName.split("\\.")[0];
+                    }
+                    return globalName;
+                }
+            }
+        }
+        return (upvalue != null) ? upvalue.getName() : ("upvalue_" + b);
     }
 }

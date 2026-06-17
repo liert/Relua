@@ -15,6 +15,7 @@ import com.github.relua.ast.FunctionDeclaration;
 import com.github.relua.ast.FunctionLiteral;
 import com.github.relua.ast.GlobalAssign;
 import com.github.relua.ast.IndexExpr;
+import com.github.relua.ast.MemberExpr;
 import com.github.relua.ast.Name;
 import com.github.relua.ast.Statement;
 import com.github.relua.ast.StringConst;
@@ -253,7 +254,7 @@ public class LuaCodeGenerator {
                 if (left instanceof Name && right instanceof Name) {
                     String leftName = ((Name) left).name;
                     String rightName = ((Name) right).name;
-                    if (leftName.startsWith("R") && emittedFunctions.contains(rightName)) {
+                    if (leftName.matches("^(chunk_|module_)?R\\d+$") && emittedFunctions.contains(rightName)) {
                         return true;
                     }
                 }
@@ -266,7 +267,7 @@ public class LuaCodeGenerator {
             Map<String, CodeGeneratorContext> contextByFunction) {
         String targetName = extractClosureTarget(statement);
         String closureName = extractClosureName(statement);
-        if (targetName.startsWith("R") || !contextByFunction.containsKey(closureName)) {
+        if (targetName.matches("^(chunk_|module_)?R\\d+$") || !contextByFunction.containsKey(closureName)) {
             return null;
         }
 
@@ -319,6 +320,13 @@ public class LuaCodeGenerator {
                 if (key.matches("[A-Za-z_][A-Za-z0-9_]*")) {
                     return tableName + "." + key;
                 }
+            }
+        }
+        if (expression instanceof MemberExpr) {
+            MemberExpr memberExpr = (MemberExpr) expression;
+            String tableName = expressionToFunctionName(memberExpr.table);
+            if (!tableName.isEmpty()) {
+                return tableName + "." + memberExpr.member;
             }
         }
         return "";

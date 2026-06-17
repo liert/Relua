@@ -105,3 +105,7 @@
 .fold-marker:hover {
     -fx-background-color: #e7edf5;
 }
+
+.collapse {
+    visibility: collapse;
+}

@@ -550,14 +550,14 @@ public class TextEditorView {
             return;
         }
         foldedFunctionStarts.add(fold.startLine);
-        codeArea.foldFunctionParagraphs(fold.startLine + 1, fold.endLine, fold.marker());
+        codeArea.foldFunctionParagraphs(fold.startLine, fold.endLine, fold.marker());
     }
 
     private void unfoldFunction(FunctionFold fold) {
         if (!foldedFunctionStarts.remove(fold.startLine)) {
             return;
         }
-        codeArea.unfoldFunctionParagraphs(fold.startLine + 1, fold.marker());
+        codeArea.unfoldFunctionParagraphs(fold.startLine, fold.marker());
     }
 
     private void expandFoldsContaining(int startOffset, int endOffset) {
@@ -734,6 +734,7 @@ public class TextEditorView {
                 foldParagraphs(startParagraph, endParagraph, styles -> {
                     Set<String> next = new HashSet<>(styles);
                     next.add(marker);
+                    next.add("collapse");
                     return next;
                 });
             }
@@ -743,6 +744,7 @@ public class TextEditorView {
             unfoldParagraphs(paragraph, styles -> styles.contains(marker), styles -> {
                 Set<String> next = new HashSet<>(styles);
                 next.remove(marker);
+                next.remove("collapse");
                 return next;
             });
         }

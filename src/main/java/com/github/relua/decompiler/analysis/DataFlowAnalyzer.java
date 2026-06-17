@@ -11,6 +11,7 @@ public class DataFlowAnalyzer {
     private Block topBlock;
     private Set<String> parentDeclared = new java.util.HashSet<>();
     private Set<String> upvalueNames = new java.util.HashSet<>();
+    private Set<Integer> consumedCallPcs = new HashSet<>();
 
     public void optimize(Block block) {
         optimize(block, true);
@@ -34,6 +35,13 @@ public class DataFlowAnalyzer {
             this.topBlock = block;
         }
 
+        Set<Integer> savedCallPcs = null;
+        if (isTopLevel) {
+            savedCallPcs = new HashSet<>(this.consumedCallPcs);
+            this.consumedCallPcs.clear();
+            collectConsumedCalls(block, this.consumedCallPcs, true);
+        }
+
         // 1. 递归优化所有嵌套的 Block
         for (Statement stmt : block.statements) {
             optimizeNestedBlocks(stmt, isTopLevel);
@@ -48,6 +56,10 @@ public class DataFlowAnalyzer {
 
         // 4. 自底向上重写当前 Block 里的所有表达式（还原点号和冒号语法糖）
         rewriteBlockExpressions(block);
+
+        if (isTopLevel) {
+            this.consumedCallPcs = savedCallPcs;
+        }
     }
 
     private void optimizeNestedBlocks(Statement statement, boolean isTopLevel) {
@@ -83,6 +95,12 @@ public class DataFlowAnalyzer {
                 Statement stmt = stmts.get(i);
                 if (isRegisterAssign(stmt)) {
                     String regName = getAssignedRegisterName(stmt);
+                    if (regName == null) {
+                        continue;
+                    }
+                    if (upvalueNames.contains(regName) || parentDeclared.contains(regName)) {
+                        continue;
+                    }
                     Expression defExpr;
                     if (stmt instanceof Assign) {
                         defExpr = ((Assign) stmt).right.get(0);
@@ -151,8 +169,8 @@ public class DataFlowAnalyzer {
                         }
                     }
 
-                    // 只有当该寄存器在当前作用域内仅被读取 1 次，且在此之前依赖未被破坏、没有进入复杂控制流时，才允许内联
-                    if (useCount == 1 && !dependencyBroken && !escaped && useIndex != -1) {
+                    // 只有当该寄存器在当前作用域内仅被读取 1 次，且在此之前依赖未被破坏、没有进入复杂控制流、且非自引用/自依赖时，才允许内联
+                    if (useCount == 1 && !dependencyBroken && !escaped && useIndex != -1 && !dependencies.contains(regName)) {
                         Statement useStmt = stmts.get(useIndex);
                         Statement newUseStmt = (Statement) replaceVariableWithExpression(useStmt, regName, defExpr);
                         newUseStmt = (Statement) rewriteNode(newUseStmt);
@@ -171,6 +189,8 @@ public class DataFlowAnalyzer {
                         if (totalUses == 0 && !hasEscapingControlFlow(stmts, i + 1)) {
                             safeToDelete = true;
                         } else if (nextDefIdx < stmts.size() && !hasGotoStatement(stmts, i + 1, nextDefIdx)) {
+                            safeToDelete = true;
+                        } else if (isTerminalBlock(block) && countGotos(block) == 0) {
                             safeToDelete = true;
                         } else if (nextDefIdx == stmts.size()) {
                             // 没有在当前作用域找到后续的顶层重定义：必须确认全局也无引用，
@@ -198,7 +218,8 @@ public class DataFlowAnalyzer {
                                 || defExpr instanceof NumberConst 
                                 || defExpr instanceof BooleanConst 
                                 || defExpr instanceof NilConst 
-                                || defExpr instanceof Name) {
+                                || defExpr instanceof Name
+                                || isConsumedCall(defExpr)) {
                             stmts.remove(i);
                             changed = true;
                             break;
@@ -239,6 +260,10 @@ public class DataFlowAnalyzer {
                 Statement stmt = stmts.get(i);
                 String regName = getAssignedRegisterName(stmt);
                 if (regName == null) {
+                    continue;
+                }
+
+                if (upvalueNames.contains(regName) || parentDeclared.contains(regName)) {
                     continue;
                 }
 
@@ -1321,5 +1346,182 @@ public class DataFlowAnalyzer {
             if (res != null) return res;
         }
         return null;
+    }
+
+    private boolean isTerminalStatement(Statement stmt) {
+        if (stmt instanceof ReturnStatement) {
+            return true;
+        }
+        if (stmt instanceof ExpressionStatement) {
+            Expression expr = ((ExpressionStatement) stmt).expression;
+            if (expr instanceof FunctionCall) {
+                FunctionCall call = (FunctionCall) expr;
+                if (call.callee instanceof Name) {
+                    String name = ((Name) call.callee).name;
+                    if ("error".equals(name)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        if (stmt instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) stmt;
+            if (ifStmt.elseBlock == null) {
+                return false;
+            }
+            for (Block b : ifStmt.blocks) {
+                if (!isTerminalBlock(b)) {
+                    return false;
+                }
+            }
+            return isTerminalBlock(ifStmt.elseBlock);
+        }
+        return false;
+    }
+
+    private boolean isTerminalBlock(Block block) {
+        if (block == null || block.statements == null || block.statements.isEmpty()) {
+            return false;
+        }
+        Statement last = block.statements.get(block.statements.size() - 1);
+        return isTerminalStatement(last);
+    }
+
+    private boolean isConsumedCall(Expression defExpr) {
+        int callPc = -1;
+        if (defExpr instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) defExpr;
+            if (call.pos != null) {
+                callPc = call.pos.pc;
+            }
+        } else if (defExpr instanceof UnaryOp) {
+            UnaryOp unary = (UnaryOp) defExpr;
+            if (unary.expr instanceof FunctionCall) {
+                FunctionCall call = (FunctionCall) unary.expr;
+                if (call.pos != null) {
+                    callPc = call.pos.pc;
+                }
+            }
+        }
+        return callPc != -1 && consumedCallPcs.contains(callPc);
+    }
+
+    private void collectConsumedCalls(Block block, Set<Integer> consumedCallPcs, boolean skipTempAssignRight) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+        for (Statement statement : block.statements) {
+            collectCallsFromStatement(statement, consumedCallPcs, skipTempAssignRight);
+        }
+    }
+
+    private void collectCallsFromStatement(Statement statement, Set<Integer> consumedCallPcs, boolean skipTempAssignRight) {
+        if (statement instanceof Assign) {
+            Assign assign = (Assign) statement;
+            for (Expression left : assign.left) {
+                collectCallsFromExpression(left, consumedCallPcs);
+            }
+            boolean skipRight = skipTempAssignRight && isTemporaryCallAssign(assign);
+            if (!skipRight) {
+                for (Expression right : assign.right) {
+                    collectCallsFromExpression(right, consumedCallPcs);
+                }
+            }
+        } else if (statement instanceof LocalAssign) {
+            for (Expression right : ((LocalAssign) statement).right) {
+                collectCallsFromExpression(right, consumedCallPcs);
+            }
+        } else if (statement instanceof GlobalAssign) {
+            for (Expression right : ((GlobalAssign) statement).right) {
+                collectCallsFromExpression(right, consumedCallPcs);
+            }
+        } else if (statement instanceof ExpressionStatement) {
+            collectCallsFromExpression(((ExpressionStatement) statement).expression, consumedCallPcs);
+        } else if (statement instanceof ReturnStatement) {
+            for (Expression value : ((ReturnStatement) statement).values) {
+                collectCallsFromExpression(value, consumedCallPcs);
+            }
+        } else if (statement instanceof IfStatement) {
+            IfStatement ifStatement = (IfStatement) statement;
+            for (Expression condition : ifStatement.conditions) {
+                collectCallsFromExpression(condition, consumedCallPcs);
+            }
+            for (Block nested : ifStatement.blocks) {
+                collectConsumedCalls(nested, consumedCallPcs, skipTempAssignRight);
+            }
+            if (ifStatement.elseBlock != null) {
+                collectConsumedCalls(ifStatement.elseBlock, consumedCallPcs, skipTempAssignRight);
+            }
+        } else if (statement instanceof FunctionDeclaration) {
+            collectCallsFromExpression(((FunctionDeclaration) statement).func, consumedCallPcs);
+        } else if (statement instanceof WhileStatement) {
+            collectCallsFromExpression(((WhileStatement) statement).condition, consumedCallPcs);
+            collectConsumedCalls(((WhileStatement) statement).body, consumedCallPcs, skipTempAssignRight);
+        } else if (statement instanceof RepeatStatement) {
+            collectCallsFromExpression(((RepeatStatement) statement).condition, consumedCallPcs);
+            collectConsumedCalls(((RepeatStatement) statement).body, consumedCallPcs, skipTempAssignRight);
+        } else if (statement instanceof ForNumeric) {
+            ForNumeric fn = (ForNumeric) statement;
+            collectCallsFromExpression(fn.start, consumedCallPcs);
+            collectCallsFromExpression(fn.end, consumedCallPcs);
+            collectCallsFromExpression(fn.step, consumedCallPcs);
+            collectConsumedCalls(fn.body, consumedCallPcs, skipTempAssignRight);
+        } else if (statement instanceof ForIn) {
+            ForIn fi = (ForIn) statement;
+            for (Expression expr : fi.iterators) {
+                collectCallsFromExpression(expr, consumedCallPcs);
+            }
+            collectConsumedCalls(fi.body, consumedCallPcs, skipTempAssignRight);
+        }
+    }
+
+    private boolean isTemporaryCallAssign(Assign assign) {
+        if (assign.left.size() != 1 || assign.right.size() != 1) {
+            return false;
+        }
+        return assign.left.get(0) instanceof Name
+                && ((Name) assign.left.get(0)).name.matches("(chunk_|module_)?R\\d+")
+                && (assign.right.get(0) instanceof FunctionCall 
+                    || (assign.right.get(0) instanceof UnaryOp && ((UnaryOp) assign.right.get(0)).expr instanceof FunctionCall));
+    }
+
+    private void collectCallsFromExpression(Expression expression, Set<Integer> consumedCallPcs) {
+        if (expression == null) {
+            return;
+        }
+        if (expression instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) expression;
+            if (call.pos != null && call.pos.pc != -1) {
+                consumedCallPcs.add(call.pos.pc);
+            }
+            collectCallsFromExpression(call.callee, consumedCallPcs);
+            for (Expression arg : call.args) {
+                collectCallsFromExpression(arg, consumedCallPcs);
+            }
+        } else if (expression instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) expression;
+            collectCallsFromExpression(binary.left, consumedCallPcs);
+            collectCallsFromExpression(binary.right, consumedCallPcs);
+        } else if (expression instanceof UnaryOp) {
+            collectCallsFromExpression(((UnaryOp) expression).expr, consumedCallPcs);
+        } else if (expression instanceof IndexExpr) {
+            IndexExpr index = (IndexExpr) expression;
+            collectCallsFromExpression(index.table, consumedCallPcs);
+            collectCallsFromExpression(index.index, consumedCallPcs);
+        } else if (expression instanceof MemberExpr) {
+            collectCallsFromExpression(((MemberExpr) expression).table, consumedCallPcs);
+        } else if (expression instanceof FunctionLiteral) {
+            collectConsumedCalls(((FunctionLiteral) expression).body, consumedCallPcs, false);
+        } else if (expression instanceof TableConstructor) {
+            TableConstructor tc = (TableConstructor) expression;
+            if (tc.fields != null) {
+                for (TableField field : tc.fields) {
+                    if (field != null) {
+                        collectCallsFromExpression(field.key, consumedCallPcs);
+                        collectCallsFromExpression(field.value, consumedCallPcs);
+                    }
+                }
+            }
+        }
     }
 }
