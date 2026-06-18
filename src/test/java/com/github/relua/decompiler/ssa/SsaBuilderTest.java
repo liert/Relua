@@ -43,7 +43,11 @@ class SsaBuilderTest {
                 "branch definitions must remain distinct SSA values");
         assertEquals(phi.getTarget(), function.getInstruction(3).getUses().get(0),
                 "return must read the merged phi value, not a physical register fallback");
+        assertEquals(1, function.getUseCount(phi.getTarget()), "phi result should have one return use");
         assertTrue(SsaVerifier.verify(function).isEmpty(), "synthetic branch SSA must satisfy invariants");
+
+        SsaExpressionAnalysis analysis = new SsaExpressionAnalyzer().analyze(function);
+        assertEquals(SsaValueKind.PHI, analysis.getSummary(phi.getTarget()).getKind());
     }
 
     private static BasicBlock block(int start, int end) {

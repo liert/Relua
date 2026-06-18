@@ -9,6 +9,8 @@ import com.github.relua.decompiler.analysis.RegisterStateAnalyzer;
 import com.github.relua.decompiler.builder.BasicBlockBuilder;
 import com.github.relua.decompiler.cfg.ControlFlowGraphBuilder;
 import com.github.relua.decompiler.ir.IRBuilder;
+import com.github.relua.decompiler.ssa.SsaExpressionAnalysis;
+import com.github.relua.decompiler.ssa.SsaExpressionAnalyzer;
 import com.github.relua.decompiler.ssa.SsaBuilder;
 import com.github.relua.decompiler.ssa.SsaFunction;
 import com.github.relua.decompiler.ssa.SsaVerifier;
@@ -26,7 +28,9 @@ public class DecompilerPipeline {
     private final RegisterStateAnalyzer registerStateAnalyzer;
     private final IRBuilder irBuilder;
     private final SsaBuilder ssaBuilder;
+    private final SsaExpressionAnalyzer ssaExpressionAnalyzer;
     private final Map<String, SsaFunction> ssaFunctions = new HashMap<>();
+    private final Map<String, SsaExpressionAnalysis> ssaExpressionAnalyses = new HashMap<>();
 
     public DecompilerPipeline(LuaCodeGenerator generator, InstructionHandler instructionHandler) {
         this.generator = generator;
@@ -37,6 +41,7 @@ public class DecompilerPipeline {
         this.registerStateAnalyzer = new RegisterStateAnalyzer(this);
         this.irBuilder = new IRBuilder(this);
         this.ssaBuilder = new SsaBuilder();
+        this.ssaExpressionAnalyzer = new SsaExpressionAnalyzer();
     }
 
     /**
@@ -108,10 +113,13 @@ public class DecompilerPipeline {
             Logger.error(message);
             throw new IllegalStateException(message);
         }
+        SsaExpressionAnalysis ssaExpressionAnalysis = ssaExpressionAnalyzer.analyze(ssaFunction);
+        ssaExpressionAnalyses.put(chunk.getFunction(), ssaExpressionAnalysis);
 
         if (com.github.relua.debug.DecompilerDebugger.isEnabled()) {
             com.github.relua.debug.DecompilerDebugger.dump("cfg_built_" + chunk.getFunction(), formatCFG(chunk, basicBlockBuilder));
             com.github.relua.debug.DecompilerDebugger.dump("ssa_built_" + chunk.getFunction(), ssaFunction.format());
+            com.github.relua.debug.DecompilerDebugger.dump("ssa_expr_" + chunk.getFunction(), ssaExpressionAnalysis.format());
             if (!ssaErrors.isEmpty()) {
                 com.github.relua.debug.DecompilerDebugger.dump("ssa_verify_failed_" + chunk.getFunction(),
                         String.join(System.lineSeparator(), ssaErrors));
@@ -183,6 +191,10 @@ public class DecompilerPipeline {
 
     public SsaFunction getSsaFunction(String function) {
         return ssaFunctions.get(function);
+    }
+
+    public SsaExpressionAnalysis getSsaExpressionAnalysis(String function) {
+        return ssaExpressionAnalyses.get(function);
     }
 
     /**

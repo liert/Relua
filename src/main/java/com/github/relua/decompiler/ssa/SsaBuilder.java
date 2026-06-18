@@ -53,6 +53,7 @@ public final class SsaBuilder {
         insertPhis();
         initializeParameters();
         rename(this.blocks.get(0), new HashSet<BasicBlock>());
+        function.rebuildDefUse();
         return function;
     }
 

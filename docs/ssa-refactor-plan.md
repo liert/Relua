@@ -43,6 +43,22 @@ Chunk bytecode
 
 During migration the existing `RegisterStateAnalyzer` remains active, and SSA is attached to `DecompilerPipeline` as a side analysis. Once parity is good enough, AST conversion should consume SSA values directly.
 
+SSA is mandatory. A chunk with invalid SSA is not allowed to continue to AST generation, because every later pass must be able to rely on stable value identity.
+
+## Additional Decompiler Mechanisms
+
+SSA is necessary but not sufficient. The broader refactor should also introduce these standard decompiler mechanisms:
+
+- Expression DAG recovery: build expressions from SSA definitions, not from mutable register snapshots.
+- Sparse conditional constant propagation: propagate constants through SSA and prune impossible branches when proven.
+- Copy propagation and value forwarding: remove MOVE chains and temporary aliases through use-def chains.
+- Side-effect aware dead code elimination: delete pure dead SSA definitions, but keep calls, table writes, upvalue writes, and volatile global effects.
+- Phi lowering: lower surviving phi nodes to structured locals at branch/loop boundaries.
+- Region-based structuring: recover if/elseif/else, while/repeat, numeric for, generic for, and early-return regions from CFG/SSA instead of raw PC ranges.
+- Interval/live-range based local naming: assign readable locals from SSA live ranges and debug local metadata, avoiding stale physical register reuse.
+- Effect and alias model: treat table mutation, global access, upvalue mutation, calls, vararg, and multi-return as explicit effects so expression inlining is safe.
+- Pattern library over SSA: recognize common Lua bytecode idioms such as boolean short-circuit, nil guards, method calls, constructors, and iterator loops as SSA patterns.
+
 ## SSA Model
 
 - `SsaValue`: one versioned definition of a Lua physical register, e.g. `R4_7`.
@@ -90,6 +106,7 @@ Phi nodes are not emitted as Lua. They are analysis nodes used by lowering. If a
 - Replace `DataFlowAnalyzer` dead temporary removal with SSA liveness and side-effect checks.
 - Replace captured-upvalue PC protection with direct `SsaValue` identity.
 - Replace same-register lifetime heuristics with SSA def-use chains.
+- Build a value summary table (`SsaExpressionAnalyzer`) with purity, constants, copies, calls, and table effects.
 
 ### Phase 4: SSA Expression Recovery
 
@@ -103,12 +120,20 @@ Phi nodes are not emitted as Lua. They are analysis nodes used by lowering. If a
 - Emit locals based on SSA live ranges and phi lowering.
 - Let structured control restoration consume SSA-backed regions.
 
+### Phase 6: Structured Region Engine
+
+- Replace PC range slicing in `InstructionHandler` with region detection over CFG.
+- Use dominance/post-dominance plus loop headers to recover structured source.
+- Lower phi nodes at region entries/exits.
+- Keep irreducible control flow as labels/goto only when structuring is not sound.
+
 ## Testing Strategy
 
 - Unit tests for instruction read/write summaries.
 - Synthetic CFG tests for if/else phi, loops, and uninitialized inputs.
 - Regression tests using existing Xiaomi/TP-Link fixtures.
 - Source quality assertions for recurring failures: stale register reuse, wrong branch merge, closure capture, table mutation, call side effects.
+- SSA summary assertions over Xiaomi fixtures: every instruction has def-use identity, expression summaries exist for supported definitions, and effectful operations are not marked pure.
 
 ## First Execution Slice
 

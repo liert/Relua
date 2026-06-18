@@ -1353,6 +1353,10 @@ public class InstructionHandler {
         return this.codeGenContext;
     }
 
+    public DecompilerPipeline getPipeline() {
+        return this.pipeline;
+    }
+
     private Set<BasicBlock> getReachableBlocks(Chunk chunk) {
         List<BasicBlock> basicBlocks = pipeline.getBasicBlocks(chunk.getFunction());
         Set<BasicBlock> reachable = new HashSet<>();
