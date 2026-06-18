@@ -50,7 +50,7 @@ class SsaXiaomiFixtureTest {
 
     private void assertSsaExpressionAnalysisExists(Decompiler decompiler, com.github.relua.model.Chunk chunk) {
         SsaExpressionAnalysis analysis = decompiler.getCodeGenerator().getInstructionHandler(chunk.getFunction())
-                .getPipeline().getSsaExpressionAnalysis(chunk.getFunction());
+                .getPipeline().requireSsaExpressionAnalysis(chunk.getFunction());
         assertNotNull(analysis,
                 "missing SSA expression analysis for " + chunk.getFunction());
         for (int pc = 0; pc < chunk.getInstructions().size(); pc++) {

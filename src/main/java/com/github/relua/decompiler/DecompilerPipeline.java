@@ -259,6 +259,14 @@ public class DecompilerPipeline {
         return ssaExpressionAnalyses.get(function);
     }
 
+    public SsaExpressionAnalysis requireSsaExpressionAnalysis(String function) {
+        SsaExpressionAnalysis analysis = ssaExpressionAnalyses.get(function);
+        if (analysis == null) {
+            throw new IllegalStateException("Missing SSA expression analysis for " + function);
+        }
+        return analysis;
+    }
+
     /**
      * 获取当前指令处理的上下文
      * 
