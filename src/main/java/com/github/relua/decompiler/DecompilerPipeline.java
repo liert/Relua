@@ -9,6 +9,8 @@ import com.github.relua.decompiler.analysis.RegisterStateAnalyzer;
 import com.github.relua.decompiler.builder.BasicBlockBuilder;
 import com.github.relua.decompiler.cfg.ControlFlowGraphBuilder;
 import com.github.relua.decompiler.ir.IRBuilder;
+import com.github.relua.decompiler.ssa.SsaBuilder;
+import com.github.relua.decompiler.ssa.SsaFunction;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Register;
@@ -21,6 +23,8 @@ public class DecompilerPipeline {
     private final ControlFlowAnalyzer controlFlowAnalyzer;
     private final RegisterStateAnalyzer registerStateAnalyzer;
     private final IRBuilder irBuilder;
+    private final SsaBuilder ssaBuilder;
+    private final Map<String, SsaFunction> ssaFunctions = new HashMap<>();
 
     public DecompilerPipeline(LuaCodeGenerator generator, InstructionHandler instructionHandler) {
         this.generator = generator;
@@ -30,6 +34,7 @@ public class DecompilerPipeline {
         this.controlFlowAnalyzer = new ControlFlowAnalyzer(this);
         this.registerStateAnalyzer = new RegisterStateAnalyzer(this);
         this.irBuilder = new IRBuilder(this);
+        this.ssaBuilder = new SsaBuilder();
     }
 
     /**
@@ -93,8 +98,12 @@ public class DecompilerPipeline {
         // 执行迭代数据流分析
         registerStateAnalyzer.analyze(chunk);
 
+        SsaFunction ssaFunction = ssaBuilder.build(chunk, basicBlockBuilder.getBasicBlocks());
+        ssaFunctions.put(chunk.getFunction(), ssaFunction);
+
         if (com.github.relua.debug.DecompilerDebugger.isEnabled()) {
             com.github.relua.debug.DecompilerDebugger.dump("cfg_built_" + chunk.getFunction(), formatCFG(chunk, basicBlockBuilder));
+            com.github.relua.debug.DecompilerDebugger.dump("ssa_built_" + chunk.getFunction(), ssaFunction.format());
         }
     }
 
@@ -158,6 +167,10 @@ public class DecompilerPipeline {
 
     public Register getRegisterByInstructionIndex(int instructionIndex) {
         return registerStateAnalyzer.getRegisterByInstructionIndex(instructionIndex);
+    }
+
+    public SsaFunction getSsaFunction(String function) {
+        return ssaFunctions.get(function);
     }
 
     /**
