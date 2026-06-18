@@ -140,8 +140,10 @@ final class SsaInstructionSummarizer {
                 break;
             case CLOSE:
             case JMP:
-            default:
                 break;
+            case UNKNOWN:
+            default:
+                throw new IllegalArgumentException("Unhandled opcode in SSA summarizer: " + opcode);
         }
 
         return summary;

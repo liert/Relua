@@ -2,6 +2,7 @@ package com.github.relua.decompiler.ssa;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -50,6 +51,19 @@ class SsaBuilderTest {
 
         SsaExpressionAnalysis analysis = new SsaExpressionAnalyzer().analyze(function);
         assertEquals(SsaValueKind.PHI, analysis.getSummary(phi.getTarget()).getKind());
+    }
+
+    @Test
+    void summarizerExplicitlyHandlesEveryKnownOpcode() {
+        for (Opcode opcode : Opcode.values()) {
+            Instruction instruction = abc(0, opcode, 0, 1, 0);
+            if (opcode == Opcode.UNKNOWN) {
+                assertThrows(IllegalArgumentException.class, () -> SsaInstructionSummarizer.summarize(instruction),
+                        "UNKNOWN opcode must not silently bypass SSA semantics");
+            } else {
+                SsaInstructionSummarizer.summarize(instruction);
+            }
+        }
     }
 
     private static BasicBlock block(int start, int end) {
