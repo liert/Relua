@@ -1,16 +1,20 @@
 package com.github.relua.decompiler.analysis;
 
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import com.github.relua.ast.*;
+import com.github.relua.log.Logger;
 
 public class DataFlowAnalyzer {
     private Block topBlock;
     private Set<String> parentDeclared = new java.util.HashSet<>();
     private Set<String> upvalueNames = new java.util.HashSet<>();
+    private Map<String, Set<Integer>> protectedUpvalueDefinitionPcs = new HashMap<>();
     private Set<Integer> consumedCallPcs = new HashSet<>();
 
     public void optimize(Block block) {
@@ -18,11 +22,19 @@ public class DataFlowAnalyzer {
     }
 
     public void optimize(Block block, Set<String> parentDeclared, Set<String> upvalueNames) {
+        optimize(block, parentDeclared, upvalueNames, null);
+    }
+
+    public void optimize(Block block, Set<String> parentDeclared, Set<String> upvalueNames,
+            Map<String, Set<Integer>> protectedUpvalueDefinitionPcs) {
         if (parentDeclared != null) {
             this.parentDeclared = parentDeclared;
         }
         if (upvalueNames != null) {
             this.upvalueNames = upvalueNames;
+        }
+        if (protectedUpvalueDefinitionPcs != null) {
+            this.protectedUpvalueDefinitionPcs = protectedUpvalueDefinitionPcs;
         }
         optimize(block, true);
     }
@@ -98,7 +110,7 @@ public class DataFlowAnalyzer {
                     if (regName == null) {
                         continue;
                     }
-                    if (upvalueNames.contains(regName) || parentDeclared.contains(regName)) {
+                    if (parentDeclared.contains(regName) || isProtectedUpvalueDefinition(regName, stmt)) {
                         continue;
                     }
                     Expression defExpr;
@@ -180,51 +192,8 @@ public class DataFlowAnalyzer {
                         break;
                     }
 
-                    // 如果使用次数为 0，且右侧表达式是没有副作用的常量/别名，可以直接安全删除该赋值语句
-                    // 安全删除条件：全局无引用（nextDefIdx == stmts.size()）或者被覆盖前无 Goto 跳转
-                    int nextDefIdx = findNextDefinitionIndex(stmts, i + 1, regName);
-                    boolean safeToDelete = false;
-                    if (useCount == 0) {
-                        int totalUses = countTotalUsesInBlock(topBlock, regName);
-                        if (totalUses == 0 && !hasEscapingControlFlow(stmts, i + 1)) {
-                            safeToDelete = true;
-                        } else if (nextDefIdx < stmts.size() && !hasGotoStatement(stmts, i + 1, nextDefIdx)) {
-                            safeToDelete = true;
-                        } else if (isTerminalBlock(block) && countGotos(block) == 0) {
-                            safeToDelete = true;
-                        } else if (nextDefIdx == stmts.size()) {
-                            // 没有在当前作用域找到后续的顶层重定义：必须确认全局也无引用，
-                            // 否则该赋值可能被嵌套块（如 while 条件、if 条件）所引用，不能删除。
-                            if (totalUses == 0) {
-                                if (!parentDeclared.contains(regName) && !upvalueNames.contains(regName)) {
-                                    boolean terminates = isTopLevel || (!stmts.isEmpty() && stmts.get(stmts.size() - 1) instanceof ReturnStatement);
-                                    if (terminates && !hasEscapingControlFlow(stmts, i + 1)) {
-                                        safeToDelete = true;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (!safeToDelete && !parentDeclared.contains(regName) && !upvalueNames.contains(regName)) {
-                        if (countGotos(topBlock) == 0) {
-                            Boolean liveAfterAssign = isLiveAfter(topBlock, stmt, regName, false);
-                            if (liveAfterAssign != null && !liveAfterAssign) {
-                                safeToDelete = true;
-                            }
-                        }
-                    }
-                    if (safeToDelete) {
-                        if (defExpr instanceof StringConst 
-                                || defExpr instanceof NumberConst 
-                                || defExpr instanceof BooleanConst 
-                                || defExpr instanceof NilConst 
-                                || defExpr instanceof Name
-                                || isConsumedCall(defExpr)) {
-                            stmts.remove(i);
-                            changed = true;
-                            break;
-                        }
-                    }
+                    // Dead assignment removal is handled by removeDeadRegisterAssignments().
+                    // Keeping deletion in one pass avoids mixing inlining heuristics with liveness.
                 }
             }
         }
@@ -240,15 +209,8 @@ public class DataFlowAnalyzer {
     }
 
     /**
-     * 消除死寄存器赋值：如果某个寄存器的赋值在其后被同一寄存器的另一次赋值覆盖，
-     * 且期间没有任何语句读取该寄存器，则该赋值是死赋值，可以安全移除。
-     * 
-     * 典型场景：GETTABLE R3 ... ; CALL R3 1 2 ; SETTABLE ... R3
-     * GETTABLE的结果在CALL之前未被读取，被CALL的返回值覆盖，因此GETTABLE是死赋值。
-     * 
-     * 当死赋值的寄存器在重定义表达式中被引用时（如 R19 = string.len(R5) 被 R19 = R19 + 1 覆盖），
-     * 需要先将死值代入重定义表达式（R19 = string.len(R5) + 1），再移除死赋值，
-     * 避免后续内联时出现未定义的寄存器引用。
+     * Removes compiler temporary assignments only when def-use/liveness proves the
+     * definition is dead and the RHS can be discarded without losing side effects.
      */
     private void removeDeadRegisterAssignments(Block block, boolean isTopLevel) {
         List<Statement> stmts = block.statements;
@@ -256,81 +218,532 @@ public class DataFlowAnalyzer {
 
         while (changed) {
             changed = false;
+            List<StatementInfo> infos = analyzeStatements(stmts);
+            List<Set<String>> liveAfter = computeLiveAfter(block, infos, isTopLevel);
             for (int i = 0; i < stmts.size(); i++) {
                 Statement stmt = stmts.get(i);
-                String regName = getAssignedRegisterName(stmt);
-                if (regName == null) {
+                StatementInfo info = infos.get(i);
+                AssignmentDef assignment = getSingleTemporaryAssignment(stmt);
+                if (assignment == null) {
                     continue;
                 }
 
-                if (upvalueNames.contains(regName) || parentDeclared.contains(regName)) {
+                String regName = assignment.name;
+                Set<String> currentLiveAfter = liveAfter.get(i);
+                boolean live = currentLiveAfter.contains(regName);
+                boolean pure = isPureExpression(assignment.rhs);
+                boolean hasSideEffect = info.sideEffect || !pure;
+                boolean controlSafe = isControlFlowSafeForDeletion(stmts, i, regName, isTopLevel);
+
+                if (parentDeclared.contains(regName) || isProtectedUpvalueDefinition(regName, stmt)) {
+                    logDeadAssignmentDecision("keep", stmt, regName, currentLiveAfter, pure, hasSideEffect,
+                            controlSafe, "parentDeclared/upvalue");
+                    continue;
+                }
+                if (live) {
+                    logDeadAssignmentDecision("keep", stmt, regName, currentLiveAfter, pure, hasSideEffect,
+                            controlSafe, "register live after definition");
+                    continue;
+                }
+                if (hasSideEffect) {
+                    logDeadAssignmentDecision("keep", stmt, regName, currentLiveAfter, pure, hasSideEffect,
+                            controlSafe, "RHS may have side effects");
+                    continue;
+                }
+                if (!controlSafe) {
+                    logDeadAssignmentDecision("keep", stmt, regName, currentLiveAfter, pure, hasSideEffect,
+                            controlSafe, "control flow not proven safe");
                     continue;
                 }
 
-                // 提取死赋值的右侧定义表达式
-                Expression deadExpr;
-                if (stmt instanceof Assign) {
-                    deadExpr = ((Assign) stmt).right.get(0);
+                logDeadAssignmentDecision("delete", stmt, regName, currentLiveAfter, pure, hasSideEffect,
+                        controlSafe, "dead temporary definition");
+                stmts.remove(i);
+                changed = true;
+                break;
+            }
+        }
+    }
+
+    private static final class StatementInfo {
+        final Set<String> defs = new HashSet<>();
+        final Set<String> uses = new HashSet<>();
+        boolean sideEffect;
+        boolean controlFlow;
+    }
+
+    private static final class AssignmentDef {
+        final String name;
+        final Expression rhs;
+
+        AssignmentDef(String name, Expression rhs) {
+            this.name = name;
+            this.rhs = rhs;
+        }
+    }
+
+    private List<StatementInfo> analyzeStatements(List<Statement> stmts) {
+        List<StatementInfo> infos = new ArrayList<>();
+        for (Statement stmt : stmts) {
+            infos.add(analyzeStatement(stmt));
+        }
+        return infos;
+    }
+
+    private List<Set<String>> computeLiveAfter(Block block, List<StatementInfo> infos, boolean isTopLevel) {
+        List<Set<String>> liveAfter = new ArrayList<>();
+        for (int i = 0; i < infos.size(); i++) {
+            liveAfter.add(new HashSet<>());
+        }
+
+        Set<String> live = isTopLevel ? new HashSet<>() : collectTemporaryNames(block);
+        for (int i = infos.size() - 1; i >= 0; i--) {
+            StatementInfo info = infos.get(i);
+            liveAfter.set(i, new HashSet<>(live));
+            Set<String> before = new HashSet<>(live);
+            if (!info.controlFlow) {
+                before.removeAll(info.defs);
+            }
+            before.addAll(info.uses);
+            live = before;
+        }
+        return liveAfter;
+    }
+
+    private StatementInfo analyzeStatement(Statement stmt) {
+        StatementInfo info = new StatementInfo();
+        if (stmt == null) {
+            return info;
+        }
+
+        if (stmt instanceof Assign) {
+            Assign assign = (Assign) stmt;
+            for (Expression left : assign.left) {
+                if (left instanceof Name) {
+                    addTemporaryName(info.defs, ((Name) left).name);
                 } else {
-                    LocalAssign la = (LocalAssign) stmt;
-                    if (la.right == null || la.right.isEmpty()) {
-                        continue;
-                    }
-                    deadExpr = la.right.get(0);
+                    collectExpressionUses(left, info.uses);
+                    info.sideEffect = true;
                 }
-
-                boolean foundUse = false;
-                int redefineIndex = -1;
-
-                for (int j = i + 1; j < stmts.size(); j++) {
-                    Statement nextStmt = stmts.get(j);
-
-                    // A compound statement can read the current value in its condition
-                    // before assigning the same register in a branch body:
-                    //   R3 = R2 + 3
-                    //   if a0[R3] then R3 = "1" else R3 = "0" end
-                    // The read belongs to the old definition and must stop dead-code
-                    // removal before the branch assignment starts a new lifetime.
-                    int uses = countVariableUses(nextStmt, regName);
-                    if (uses > 0) {
-                        foundUse = true;
-                        break;
-                    }
-
-                    // 检查该寄存器是否被重新定值（含递归检查复合语句内部的分支块，避免遗漏 if-body 中的赋值）
-                    if (hasAnyAssignmentTo(nextStmt, regName)) {
-                        redefineIndex = j;
-                        break;
-                    }
+            }
+            for (Expression right : assign.right) {
+                collectExpressionUses(right, info.uses);
+                if (!isPureExpression(right)) {
+                    info.sideEffect = true;
                 }
-
-                // 寄存器在未被读取的情况下被重新定值，当前赋值为死赋值，且在此期间不包含 Goto 语句
-                if (redefineIndex != -1 && !foundUse && !hasGotoStatement(stmts, i + 1, redefineIndex)) {
-                    Statement redefineStmt = stmts.get(redefineIndex);
-                    boolean canDelete = true;
-                    if (isComplexControlFlow(redefineStmt)) {
-                        // 如果重定义点是一个复合控制流（如 IfStatement），它可能在分支中只有条件赋值，无法完全覆盖所有路径。
-                        // 如果在它后面还有读取，或者该变量在它后面依然活跃，就不能将其判定为死定义而删除其初始赋值。
-                        for (int k = redefineIndex + 1; k < stmts.size(); k++) {
-                            if (countVariableUses(stmts.get(k), regName) > 0) {
-                                canDelete = false;
-                                break;
-                            }
-                        }
-                    }
-                    if (canDelete) {
-                        // 如果重定义表达式引用了该寄存器，先将死值代入
-                        if (countVariableUses(redefineStmt, regName) > 0) {
-                            Statement newRedefine = (Statement) replaceVariableWithExpression(
-                                    redefineStmt, regName, deadExpr);
-                            stmts.set(redefineIndex, newRedefine);
-                        }
-                        stmts.remove(i);
-                        changed = true;
-                        break;
+            }
+        } else if (stmt instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) stmt;
+            for (String name : local.names) {
+                addTemporaryName(info.defs, name);
+            }
+            if (local.right != null) {
+                for (Expression right : local.right) {
+                    collectExpressionUses(right, info.uses);
+                    if (!isPureExpression(right)) {
+                        info.sideEffect = true;
                     }
                 }
             }
+        } else if (stmt instanceof GlobalAssign) {
+            GlobalAssign global = (GlobalAssign) stmt;
+            for (Expression right : global.right) {
+                collectExpressionUses(right, info.uses);
+                if (!isPureExpression(right)) {
+                    info.sideEffect = true;
+                }
+            }
+            info.sideEffect = true;
+        } else if (stmt instanceof ExpressionStatement) {
+            Expression expr = ((ExpressionStatement) stmt).expression;
+            collectExpressionUses(expr, info.uses);
+            info.sideEffect = true;
+        } else if (stmt instanceof ReturnStatement) {
+            for (Expression value : ((ReturnStatement) stmt).values) {
+                collectExpressionUses(value, info.uses);
+                if (!isPureExpression(value)) {
+                    info.sideEffect = true;
+                }
+            }
+            info.controlFlow = true;
+        } else if (stmt instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) stmt;
+            for (Expression condition : ifStmt.conditions) {
+                collectExpressionUses(condition, info.uses);
+                if (!isPureExpression(condition)) {
+                    info.sideEffect = true;
+                }
+            }
+            collectBlockUses(ifStmt.elseBlock, info.uses);
+            for (Block nested : ifStmt.blocks) {
+                collectBlockUses(nested, info.uses);
+            }
+            info.controlFlow = true;
+        } else if (stmt instanceof WhileStatement) {
+            WhileStatement wh = (WhileStatement) stmt;
+            collectExpressionUses(wh.condition, info.uses);
+            collectBlockUses(wh.body, info.uses);
+            info.sideEffect = !isPureExpression(wh.condition);
+            info.controlFlow = true;
+        } else if (stmt instanceof RepeatStatement) {
+            RepeatStatement rep = (RepeatStatement) stmt;
+            collectBlockUses(rep.body, info.uses);
+            collectExpressionUses(rep.condition, info.uses);
+            info.sideEffect = !isPureExpression(rep.condition);
+            info.controlFlow = true;
+        } else if (stmt instanceof ForNumeric) {
+            ForNumeric fn = (ForNumeric) stmt;
+            addTemporaryName(info.defs, fn.name);
+            collectExpressionUses(fn.start, info.uses);
+            collectExpressionUses(fn.end, info.uses);
+            collectExpressionUses(fn.step, info.uses);
+            collectBlockUses(fn.body, info.uses);
+            info.sideEffect = !isPureExpression(fn.start) || !isPureExpression(fn.end) || !isPureExpression(fn.step);
+            info.controlFlow = true;
+        } else if (stmt instanceof ForIn) {
+            ForIn fi = (ForIn) stmt;
+            for (String name : fi.names) {
+                addTemporaryName(info.defs, name);
+            }
+            for (Expression iterator : fi.iterators) {
+                collectExpressionUses(iterator, info.uses);
+                if (!isPureExpression(iterator)) {
+                    info.sideEffect = true;
+                }
+            }
+            collectBlockUses(fi.body, info.uses);
+            info.controlFlow = true;
+        } else if (stmt instanceof FunctionDeclaration) {
+            FunctionDeclaration fd = (FunctionDeclaration) stmt;
+            addTemporaryName(info.defs, fd.name);
+            collectExpressionUses(fd.func, info.uses);
+            info.sideEffect = true;
+            info.controlFlow = true;
+        } else if (stmt instanceof BreakStatement || stmt instanceof GotoStatement || stmt instanceof LabelStatement) {
+            info.controlFlow = true;
+        } else if (stmt instanceof Block) {
+            collectBlockUses((Block) stmt, info.uses);
+            info.controlFlow = true;
+        }
+        return info;
+    }
+
+    private AssignmentDef getSingleTemporaryAssignment(Statement stmt) {
+        if (stmt instanceof Assign) {
+            Assign assign = (Assign) stmt;
+            if (assign.left.size() == 1 && assign.right.size() == 1 && assign.left.get(0) instanceof Name) {
+                String name = ((Name) assign.left.get(0)).name;
+                if (isTemporaryRegisterName(name)) {
+                    return new AssignmentDef(name, assign.right.get(0));
+                }
+            }
+        } else if (stmt instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) stmt;
+            if (local.names.size() == 1 && local.right != null && local.right.size() == 1) {
+                String name = local.names.get(0);
+                if (isTemporaryRegisterName(name)) {
+                    return new AssignmentDef(name, local.right.get(0));
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean isPureExpression(Expression expr) {
+        if (expr == null) {
+            return true;
+        }
+        if (expr instanceof NilConst || expr instanceof BooleanConst || expr instanceof NumberConst
+                || expr instanceof StringConst || expr instanceof Name) {
+            return true;
+        }
+        if (expr instanceof UnaryOp) {
+            return isPureExpression(((UnaryOp) expr).expr);
+        }
+        if (expr instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) expr;
+            return isPureExpression(binary.left) && isPureExpression(binary.right);
+        }
+        if (expr instanceof MultiVal) {
+            for (Expression value : ((MultiVal) expr).values) {
+                if (!isPureExpression(value)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private void collectExpressionUses(Expression expr, Set<String> uses) {
+        if (expr == null) {
+            return;
+        }
+        if (expr instanceof Name) {
+            addTemporaryName(uses, ((Name) expr).name);
+        } else if (expr instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) expr;
+            collectExpressionUses(binary.left, uses);
+            collectExpressionUses(binary.right, uses);
+        } else if (expr instanceof UnaryOp) {
+            collectExpressionUses(((UnaryOp) expr).expr, uses);
+        } else if (expr instanceof IndexExpr) {
+            IndexExpr idx = (IndexExpr) expr;
+            collectExpressionUses(idx.table, uses);
+            collectExpressionUses(idx.index, uses);
+        } else if (expr instanceof MemberExpr) {
+            collectExpressionUses(((MemberExpr) expr).table, uses);
+        } else if (expr instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) expr;
+            collectExpressionUses(call.callee, uses);
+            for (Expression arg : call.args) {
+                collectExpressionUses(arg, uses);
+            }
+        } else if (expr instanceof FunctionLiteral) {
+            FunctionLiteral fn = (FunctionLiteral) expr;
+            collectBlockUses(fn.body, uses);
+        } else if (expr instanceof TableConstructor) {
+            TableConstructor table = (TableConstructor) expr;
+            if (table.fields != null) {
+                for (TableField field : table.fields) {
+                    if (field != null) {
+                        collectExpressionUses(field.key, uses);
+                        collectExpressionUses(field.value, uses);
+                    }
+                }
+            }
+        } else if (expr instanceof MultiVal) {
+            for (Expression value : ((MultiVal) expr).values) {
+                collectExpressionUses(value, uses);
+            }
+        }
+    }
+
+    private void collectBlockUses(Block block, Set<String> uses) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+        for (Statement statement : block.statements) {
+            uses.addAll(analyzeStatement(statement).uses);
+        }
+    }
+
+    private Set<String> collectTemporaryNames(Block block) {
+        Set<String> names = new HashSet<>();
+        collectTemporaryNames(block, names);
+        return names;
+    }
+
+    private void collectTemporaryNames(AstNode node, Set<String> names) {
+        if (node == null) {
+            return;
+        }
+        if (node instanceof Name) {
+            addTemporaryName(names, ((Name) node).name);
+        } else if (node instanceof Assign) {
+            Assign assign = (Assign) node;
+            for (Expression left : assign.left) {
+                collectTemporaryNames(left, names);
+            }
+            for (Expression right : assign.right) {
+                collectTemporaryNames(right, names);
+            }
+        } else if (node instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) node;
+            for (String name : local.names) {
+                addTemporaryName(names, name);
+            }
+            if (local.right != null) {
+                for (Expression right : local.right) {
+                    collectTemporaryNames(right, names);
+                }
+            }
+        } else if (node instanceof GlobalAssign) {
+            for (Expression right : ((GlobalAssign) node).right) {
+                collectTemporaryNames(right, names);
+            }
+        } else if (node instanceof ExpressionStatement) {
+            collectTemporaryNames(((ExpressionStatement) node).expression, names);
+        } else if (node instanceof ReturnStatement) {
+            for (Expression value : ((ReturnStatement) node).values) {
+                collectTemporaryNames(value, names);
+            }
+        } else if (node instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) node;
+            for (Expression condition : ifStmt.conditions) {
+                collectTemporaryNames(condition, names);
+            }
+            for (Block nested : ifStmt.blocks) {
+                collectTemporaryNames(nested, names);
+            }
+            collectTemporaryNames(ifStmt.elseBlock, names);
+        } else if (node instanceof WhileStatement) {
+            collectTemporaryNames(((WhileStatement) node).condition, names);
+            collectTemporaryNames(((WhileStatement) node).body, names);
+        } else if (node instanceof RepeatStatement) {
+            collectTemporaryNames(((RepeatStatement) node).body, names);
+            collectTemporaryNames(((RepeatStatement) node).condition, names);
+        } else if (node instanceof ForNumeric) {
+            ForNumeric fn = (ForNumeric) node;
+            addTemporaryName(names, fn.name);
+            collectTemporaryNames(fn.start, names);
+            collectTemporaryNames(fn.end, names);
+            collectTemporaryNames(fn.step, names);
+            collectTemporaryNames(fn.body, names);
+        } else if (node instanceof ForIn) {
+            ForIn fi = (ForIn) node;
+            for (String name : fi.names) {
+                addTemporaryName(names, name);
+            }
+            for (Expression iterator : fi.iterators) {
+                collectTemporaryNames(iterator, names);
+            }
+            collectTemporaryNames(fi.body, names);
+        } else if (node instanceof FunctionDeclaration) {
+            FunctionDeclaration fd = (FunctionDeclaration) node;
+            addTemporaryName(names, fd.name);
+            collectTemporaryNames(fd.func, names);
+        } else if (node instanceof FunctionLiteral) {
+            collectTemporaryNames(((FunctionLiteral) node).body, names);
+        } else if (node instanceof Block) {
+            for (Statement statement : ((Block) node).statements) {
+                collectTemporaryNames(statement, names);
+            }
+        } else if (node instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) node;
+            collectTemporaryNames(binary.left, names);
+            collectTemporaryNames(binary.right, names);
+        } else if (node instanceof UnaryOp) {
+            collectTemporaryNames(((UnaryOp) node).expr, names);
+        } else if (node instanceof IndexExpr) {
+            IndexExpr idx = (IndexExpr) node;
+            collectTemporaryNames(idx.table, names);
+            collectTemporaryNames(idx.index, names);
+        } else if (node instanceof MemberExpr) {
+            collectTemporaryNames(((MemberExpr) node).table, names);
+        } else if (node instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) node;
+            collectTemporaryNames(call.callee, names);
+            for (Expression arg : call.args) {
+                collectTemporaryNames(arg, names);
+            }
+        } else if (node instanceof TableConstructor) {
+            TableConstructor table = (TableConstructor) node;
+            if (table.fields != null) {
+                for (TableField field : table.fields) {
+                    if (field != null) {
+                        collectTemporaryNames(field.key, names);
+                        collectTemporaryNames(field.value, names);
+                    }
+                }
+            }
+        } else if (node instanceof MultiVal) {
+            for (Expression value : ((MultiVal) node).values) {
+                collectTemporaryNames(value, names);
+            }
+        }
+    }
+
+    private boolean isControlFlowSafeForDeletion(List<Statement> stmts, int index, String regName, boolean isTopLevel) {
+        if (!isTopLevel && index == stmts.size() - 1) {
+            return false;
+        }
+        for (int i = index + 1; i < stmts.size(); i++) {
+            if (hasAssignmentTo(stmts.get(i), regName)) {
+                return true;
+            }
+            if (containsUnresolvedControlFlow(stmts.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean containsUnresolvedControlFlow(AstNode node) {
+        if (node == null) {
+            return false;
+        }
+        if (node instanceof GotoStatement || node instanceof LabelStatement || node instanceof BreakStatement) {
+            return true;
+        }
+        if (node instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) node;
+            for (Block nested : ifStmt.blocks) {
+                if (containsUnresolvedControlFlow(nested)) {
+                    return true;
+                }
+            }
+            return containsUnresolvedControlFlow(ifStmt.elseBlock);
+        }
+        if (node instanceof WhileStatement) {
+            return containsUnresolvedControlFlow(((WhileStatement) node).body);
+        }
+        if (node instanceof RepeatStatement) {
+            return containsUnresolvedControlFlow(((RepeatStatement) node).body);
+        }
+        if (node instanceof ForNumeric) {
+            return containsUnresolvedControlFlow(((ForNumeric) node).body);
+        }
+        if (node instanceof ForIn) {
+            return containsUnresolvedControlFlow(((ForIn) node).body);
+        }
+        if (node instanceof FunctionDeclaration) {
+            return containsUnresolvedControlFlow(((FunctionDeclaration) node).func.body);
+        }
+        if (node instanceof FunctionLiteral) {
+            return containsUnresolvedControlFlow(((FunctionLiteral) node).body);
+        }
+        if (node instanceof Block) {
+            for (Statement statement : ((Block) node).statements) {
+                if (containsUnresolvedControlFlow(statement)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void addTemporaryName(Set<String> names, String name) {
+        if (isTemporaryRegisterName(name)) {
+            names.add(name);
+        }
+    }
+
+    private boolean isTemporaryRegisterName(String name) {
+        return name != null && name.matches("(chunk_|module_)?R\\d+");
+    }
+
+    private boolean isProtectedUpvalueDefinition(String name, Statement stmt) {
+        if (!upvalueNames.contains(name)) {
+            return false;
+        }
+        if (!protectedUpvalueDefinitionPcs.containsKey(name)) {
+            return true;
+        }
+        int pc = stmt != null && stmt.pos != null ? stmt.pos.pc : -1;
+        return pc != -1 && protectedUpvalueDefinitionPcs.get(name).contains(pc);
+    }
+
+    private void logDeadAssignmentDecision(String action, Statement stmt, String regName, Set<String> liveAfter,
+            boolean pure, boolean sideEffect, boolean controlSafe, String reason) {
+        Logger.debug("[DataFlowAnalyzer] dead-assign " + action
+                + " stmt=\"" + safePrint(stmt) + "\""
+                + ", register=" + regName
+                + ", liveAfter=" + liveAfter
+                + ", pure=" + pure
+                + ", sideEffect=" + sideEffect
+                + ", controlFlowSafe=" + controlSafe
+                + ", reason=" + reason);
+    }
+
+    private String safePrint(Statement stmt) {
+        if (stmt == null) {
+            return "<null>";
+        }
+        try {
+            return stmt.accept(new AstPrinter()).replace('\n', ' ').trim();
+        } catch (RuntimeException ex) {
+            return stmt.getClass().getSimpleName();
         }
     }
 
@@ -344,7 +757,7 @@ public class DataFlowAnalyzer {
             if (assign.left.size() == 1 && assign.right.size() == 1
                     && assign.left.get(0) instanceof Name) {
                 String name = ((Name) assign.left.get(0)).name;
-                if (name.matches("(chunk_|module_)?R\\d+")) {
+                if (isTemporaryRegisterName(name)) {
                     return name;
                 }
             }
@@ -352,7 +765,7 @@ public class DataFlowAnalyzer {
             LocalAssign local = (LocalAssign) stmt;
             if (local.names.size() == 1) {
                 String name = local.names.get(0);
-                if (name.matches("(chunk_|module_)?R\\d+")) {
+                if (isTemporaryRegisterName(name)) {
                     return name;
                 }
             }

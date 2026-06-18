@@ -6,6 +6,7 @@ import com.github.relua.ast.Block;
 import com.github.relua.ast.Expression;
 import com.github.relua.ast.ExpressionStatement;
 import com.github.relua.ast.Statement;
+import com.github.relua.debug.DecompilerDebugger;
 import com.github.relua.model.Chunk;
 import com.github.relua.log.Logger;
 
@@ -57,8 +58,8 @@ public class AstCodeEmitter {
         // 获取指令处理器生成的AST
         AstNode ast = handler.generateASTFromChunk(chunk);
 
-        if (com.github.relua.debug.DecompilerDebugger.isEnabled()) {
-            com.github.relua.debug.DecompilerDebugger.dump("ast_constructed_" + chunk.getFunction(), ast);
+        if (DecompilerDebugger.isEnabled()) {
+            DecompilerDebugger.dump("ast_constructed_" + chunk.getFunction(), ast);
         }
 
         // 如果生成的是Block，直接设置为上下文的astBlock
@@ -83,7 +84,10 @@ public class AstCodeEmitter {
     }
 
     private String getResolvedUpvalueName(com.github.relua.model.UpValue upvalue, int b) {
-        if (upvalue != null && (upvalue.getFromType() == com.github.relua.model.FromType.CONSTANT || upvalue.getFromType() == com.github.relua.model.FromType.GLOBAL) && upvalue.getValue() != null) {
+        if (upvalue != null
+                && (upvalue.getFromType() == com.github.relua.model.FromType.CONSTANT
+                        || upvalue.getFromType() == com.github.relua.model.FromType.GLOBAL)
+                && upvalue.getValue() != null) {
             Object val = upvalue.getValue();
             if (upvalue.getFromType() == com.github.relua.model.FromType.GLOBAL) {
                 String globalName = val.toString();

@@ -1544,8 +1544,66 @@ public class InstructionToASTConverter {
         targets.add(target);
         List<Expression> values = new ArrayList<>();
         values.add(funcRef);
+        Assign closureAssign = new Assign(targets, values, new SourcePos(instructionIndex, -1));
+
+        Chunk childProto = chunk.getSubChunk(bx);
+        int nups = childProto != null ? childProto.getNup() : 0;
         
-        return new Assign(targets, values, new SourcePos(instructionIndex, -1));
+        boolean validBindings = true;
+        List<Instruction> instructions = chunk.getInstructions();
+        if (instructionIndex + nups >= instructions.size()) {
+            validBindings = false;
+        } else {
+            for (int k = 1; k <= nups; k++) {
+                Instruction bindInsn = instructions.get(instructionIndex + k);
+                if (bindInsn.getOpcode() != Opcode.MOVE && bindInsn.getOpcode() != Opcode.GETUPVAL) {
+                    validBindings = false;
+                    break;
+                }
+            }
+        }
+
+        int skipCount = 0;
+        if (validBindings && nups > 0) {
+            CodeGeneratorContext currentContext = pipeline.getContext();
+            CodeGeneratorContext childContext = pipeline.getContext(funcName);
+            Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
+
+            for (int k = 1; k <= nups; k++) {
+                Instruction bindInsn = instructions.get(instructionIndex + k);
+                int upvalueIndex = k - 1;
+                if (bindInsn.getOpcode() == Opcode.MOVE) {
+                    int b = bindInsn.getB();
+                    RegisterEntity RE = registerState.getRegisterEntity(b);
+                    String name = getRegisterName(b, registerState);
+                    UpValue upvalue = new UpValue(upvalueIndex, name, RE.getValue(), RE.getType(), RE.getFromType());
+                    childContext.addUpvalue(upvalueIndex, upvalue);
+                    Logger.debug(String.format("CLOSURE bindings: Child %s upvalue[%d] binds MOVE current register R%d (%s)", 
+                        funcName, upvalueIndex, b, name));
+                } else if (bindInsn.getOpcode() == Opcode.GETUPVAL) {
+                    int b = bindInsn.getB();
+                    UpValue parentUpvalue = currentContext.getUpvalue(b);
+                    if (parentUpvalue != null) {
+                        UpValue upvalue = new UpValue(upvalueIndex, parentUpvalue.getName(), parentUpvalue.getValue(), parentUpvalue.getType(), parentUpvalue.getFromType());
+                        childContext.addUpvalue(upvalueIndex, upvalue);
+                        Logger.debug(String.format("CLOSURE bindings: Child %s upvalue[%d] binds GETUPVAL current upvalue[%d] (%s)", 
+                            funcName, upvalueIndex, b, parentUpvalue.getName()));
+                    } else {
+                        String name = "upvalue_" + b;
+                        UpValue upvalue = new UpValue(upvalueIndex, name, null, ValueType.UNKNOWN, FromType.GLOBAL);
+                        childContext.addUpvalue(upvalueIndex, upvalue);
+                        Logger.debug(String.format("CLOSURE bindings: Child %s upvalue[%d] binds GETUPVAL current upvalue[%d] (missing, defaulted to %s)", 
+                            funcName, upvalueIndex, b, name));
+                    }
+                }
+            }
+            skipCount = nups;
+        } else if (nups > 0) {
+            Logger.warning(String.format("Warning: CLOSURE at PC=%d expected %d upvalue binding instructions, but next instructions are mismatch or out of bounds.", 
+                instructionIndex, nups));
+        }
+
+        return new ClosureSkipResult(closureAssign, skipCount);
     }
 
     /**

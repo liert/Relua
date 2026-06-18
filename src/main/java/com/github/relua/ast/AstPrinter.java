@@ -186,7 +186,7 @@ public class AstPrinter implements AstVisitor<String> {
         if (node.name != null) {
             sb.append(node.name);
         }
-        sb.append(node.func.accept(this));
+        sb.append(renderFunctionLiteral(node.func, false));
         return sb.toString();
     }
     
@@ -303,7 +303,14 @@ public class AstPrinter implements AstVisitor<String> {
     
     @Override
     public String visit(FunctionLiteral node) {
+        return renderFunctionLiteral(node, true);
+    }
+
+    private String renderFunctionLiteral(FunctionLiteral node, boolean includeFunctionKeyword) {
         StringBuilder sb = new StringBuilder();
+        if (includeFunctionKeyword) {
+            sb.append("function");
+        }
         sb.append("(");
         if (!node.params.isEmpty()) {
             sb.append(join(node.params, ", "));
@@ -323,7 +330,7 @@ public class AstPrinter implements AstVisitor<String> {
             sb.append(getIndent()).append("--[=[RELUA_CHUNK_END:").append(node.getChunk().getFunction()).append("]=]\n");
         }
         dedent();
-        sb.append("end\n");
+        sb.append(getIndent()).append("end");
         return sb.toString();
     }
     

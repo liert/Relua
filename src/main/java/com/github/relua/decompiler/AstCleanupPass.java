@@ -35,6 +35,7 @@ import com.github.relua.ast.Statement;
 import com.github.relua.ast.TableConstructor;
 import com.github.relua.ast.UnaryOp;
 import com.github.relua.ast.WhileStatement;
+import com.github.relua.debug.DecompilerDebugger;
 import com.github.relua.decompiler.analysis.DataFlowAnalyzer;
 import com.github.relua.decompiler.analysis.StructureRestorer;
 import com.github.relua.ast.NilConst;
@@ -43,6 +44,8 @@ import com.github.relua.ast.NumberConst;
 import com.github.relua.ast.StringConst;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Opcode;
+import com.github.relua.util.TransformUtils;
+import com.github.relua.model.Chunk;
 import com.github.relua.model.Constant;
 import com.github.relua.log.Logger;
 import java.util.regex.Pattern;
@@ -69,12 +72,14 @@ public class AstCleanupPass {
         return cleanup(block, context, parentDeclared, java.util.Collections.emptySet());
     }
 
-    public Set<String> cleanup(Block block, CodeGeneratorContext context, Set<String> parentDeclared, Set<String> upvalueNames) {
+    public Set<String> cleanup(Block block, CodeGeneratorContext context, Set<String> parentDeclared,
+            Set<String> upvalueNames) {
         if (block == null) {
             return java.util.Collections.emptySet();
         }
 
-        String funcName = (context != null && context.getChunk() != null) ? context.getChunk().getFunction() : "unknown";
+        String funcName = (context != null && context.getChunk() != null) ? context.getChunk().getFunction()
+                : "unknown";
 
         Set<String> finalUpvalueNames = new HashSet<>(upvalueNames);
         if (context != null && context.getChunk() != null) {
@@ -97,8 +102,12 @@ public class AstCleanupPass {
             }
         }
 
-        // Collect local registers captured by child closures
+        // Collect the exact local register definitions captured by child closures.
+        // The same physical register can hold several unrelated AST names over time,
+        // so a captured upvalue must protect the reaching definition version, not
+        // every assignment that happens to share the current register name.
         Set<String> capturedLocals = new HashSet<>();
+        Map<String, Set<Integer>> capturedLocalDefinitionPcs = new HashMap<>();
         if (context != null && context.getChunk() != null) {
             com.github.relua.model.Chunk chunk = context.getChunk();
             java.util.List<com.github.relua.model.Instruction> insts = chunk.getInstructions();
@@ -114,11 +123,18 @@ public class AstCleanupPass {
                                 int nextIdx = i + 1 + j;
                                 if (nextIdx < insts.size()) {
                                     com.github.relua.model.Instruction upvalIns = insts.get(nextIdx);
-                                    if (upvalIns != null && upvalIns.getOpcode() == com.github.relua.model.Opcode.MOVE) {
+                                    if (upvalIns != null
+                                            && upvalIns.getOpcode() == com.github.relua.model.Opcode.MOVE) {
                                         int b = upvalIns.getB();
                                         String regName = context.getRegister().getRegisterEntity(b).getName();
                                         if (regName != null) {
                                             capturedLocals.add(regName);
+                                            int reachingDefPc = findReachingRegisterDefinitionPc(insts, i, b);
+                                            if (reachingDefPc != -1) {
+                                                capturedLocalDefinitionPcs
+                                                        .computeIfAbsent(regName, k -> new HashSet<>())
+                                                        .add(reachingDefPc);
+                                            }
                                         }
                                     }
                                 }
@@ -132,59 +148,61 @@ public class AstCleanupPass {
         Set<String> optimizerUpvalues = new HashSet<>(finalUpvalueNames);
         optimizerUpvalues.addAll(capturedLocals);
 
+        DecompilerDebugger.dump("dataflow_opt_0_" + funcName, block);
+
         // 1. 数据流变量内联及点号/冒号语法糖还原
-        new DataFlowAnalyzer().optimize(block, parentDeclared, optimizerUpvalues);
-        com.github.relua.debug.DecompilerDebugger.dump("dataflow_opt_1_" + funcName, block);
+        new DataFlowAnalyzer().optimize(block, parentDeclared, optimizerUpvalues, capturedLocalDefinitionPcs);
+        DecompilerDebugger.dump("dataflow_opt_1_" + funcName, block);
 
         // 1.5 清理空的if块（nil-guard等模式产生的空条件分支）
         removeEmptyIfBlocks(block);
-        com.github.relua.debug.DecompilerDebugger.dump("empty_if_removed_1_" + funcName, block);
+        DecompilerDebugger.dump("empty_if_removed_1_" + funcName, block);
 
         // 2. 结构化控制流还原与 GOTO/Label 消解
         new StructureRestorer(context != null ? context.getChunk() : null).restructure(block);
-        com.github.relua.debug.DecompilerDebugger.dump("structure_restored_" + funcName, block);
+        DecompilerDebugger.dump("structure_restored_" + funcName, block);
 
         // 2.2 简化冗余的NaN/类型检查
         simplifyRedundantNanChecks(block);
-        com.github.relua.debug.DecompilerDebugger.dump("nan_checks_simplified_" + funcName, block);
+        DecompilerDebugger.dump("nan_checks_simplified_" + funcName, block);
 
         // 2.5 再次清理空的if块（结构恢复可能产生新的空分支）
         removeEmptyIfBlocks(block);
-        com.github.relua.debug.DecompilerDebugger.dump("empty_if_removed_2_" + funcName, block);
+        DecompilerDebugger.dump("empty_if_removed_2_" + funcName, block);
 
         // 2.5.5 再次执行数据流变量内联（消解 GOTO/Label 之后，许多原本因跳转阻碍而无法安全内联的变量现在可以安全内联了）
-        new DataFlowAnalyzer().optimize(block, parentDeclared, optimizerUpvalues);
-        com.github.relua.debug.DecompilerDebugger.dump("dataflow_opt_2_" + funcName, block);
+        new DataFlowAnalyzer().optimize(block, parentDeclared, optimizerUpvalues, capturedLocalDefinitionPcs);
+        DecompilerDebugger.dump("dataflow_opt_2_" + funcName, block);
 
         // 2.6 移除 return 后的死代码
         removeDeadCodeAfterReturn(block);
-        com.github.relua.debug.DecompilerDebugger.dump("dead_code_removed_1_" + funcName, block);
+        DecompilerDebugger.dump("dead_code_removed_1_" + funcName, block);
 
         // 优化返回模式（Peephole 优化）：合并临时寄存器赋值与其后紧随的返回
         optimizeReturnPatterns(block, context, optimizerUpvalues);
-        com.github.relua.debug.DecompilerDebugger.dump("return_opt_" + funcName, block);
+        DecompilerDebugger.dump("return_opt_" + funcName, block);
 
         // 再次移除合并可能产生的新一轮死代码
         removeDeadCodeAfterReturn(block);
-        com.github.relua.debug.DecompilerDebugger.dump("dead_code_removed_2_" + funcName, block);
+        DecompilerDebugger.dump("dead_code_removed_2_" + funcName, block);
 
         Set<TableConstructor> consumedTables = Collections.newSetFromMap(new IdentityHashMap<>());
         collectConsumedTables(block, consumedTables, true);
         removeConsumedTemporaryTables(block, consumedTables);
         removeJoinGotos(block);
         removeUnusedEmptyLocalDeclarations(block);
-        com.github.relua.debug.DecompilerDebugger.dump("ast_cleanup_final_" + funcName, block);
+        DecompilerDebugger.dump("ast_cleanup_final_" + funcName, block);
 
         // 3. 把函数体顶层第一次出现的寄存器赋值恢复为 local，主块无参数
         List<String> params = new ArrayList<>();
         if (context != null && context.getChunk() != null && !"main".equals(context.getChunk().getFunction())) {
-            com.github.relua.model.Chunk functionChunk = context.getChunk();
+            Chunk functionChunk = context.getChunk();
             for (int i = 0; i < functionChunk.getNumParams(); i++) {
-                params.add(com.github.relua.util.TransformUtils.transformRegister(context.getRegister().getRegisterEntity(i)));
+                params.add(TransformUtils.transformRegister(context.getRegister().getRegisterEntity(i)));
             }
         }
         Set<String> declared = declareTopLevelLocals(block, params, parentDeclared, finalUpvalueNames);
-        com.github.relua.debug.DecompilerDebugger.dump("locals_declared_" + funcName, block);
+        DecompilerDebugger.dump("locals_declared_" + funcName, block);
         return declared;
     }
 
@@ -460,13 +478,20 @@ public class AstCleanupPass {
 
     private String getNegatedOperator(String op) {
         switch (op) {
-            case "==": return "~=";
-            case "~=": return "==";
-            case "<":  return ">=";
-            case ">":  return "<=";
-            case "<=": return ">";
-            case ">=": return "<";
-            default:   return null;
+            case "==":
+                return "~=";
+            case "~=":
+                return "==";
+            case "<":
+                return ">=";
+            case ">":
+                return "<=";
+            case "<=":
+                return ">";
+            case ">=":
+                return "<";
+            default:
+                return null;
         }
     }
 
@@ -530,7 +555,8 @@ public class AstCleanupPass {
         }
     }
 
-    private void collectFromStatement(Statement statement, Set<TableConstructor> consumedTables, boolean skipTempAssignRight) {
+    private void collectFromStatement(Statement statement, Set<TableConstructor> consumedTables,
+            boolean skipTempAssignRight) {
         if (statement instanceof Assign) {
             Assign assign = (Assign) statement;
             for (Expression left : assign.left) {
@@ -730,7 +756,8 @@ public class AstCleanupPass {
         return false;
     }
 
-    private Set<String> declareTopLevelLocals(Block block, List<String> params, Set<String> parentDeclared, Set<String> upvalueNames) {
+    private Set<String> declareTopLevelLocals(Block block, List<String> params, Set<String> parentDeclared,
+            Set<String> upvalueNames) {
         if (block == null || block.statements == null) {
             return java.util.Collections.emptySet();
         }
@@ -739,15 +766,15 @@ public class AstCleanupPass {
 
         Set<String> declared = new HashSet<>(parentDeclared);
         Set<String> hoistedRegisters = new HashSet<>();
-        
+
         boolean isFunction = (params != null);
         if (isFunction) {
             declared.addAll(params);
-            
+
             collectAllUsedRegisters(block, hoistedRegisters);
             Logger.debug("[DEBUG] Collected hoistedRegisters before remove: " + hoistedRegisters);
             hoistedRegisters.removeAll(params);
-            
+
             // Names loaded through GETUPVAL belong to an enclosing scope. They must
             // never be hoisted as missing locals in the current function, otherwise
             // the generated local shadows the captured value and changes semantics.
@@ -928,7 +955,8 @@ public class AstCleanupPass {
             collectAllUsedRegisters(rs.body, registers);
         } else if (node instanceof ForNumeric) {
             ForNumeric fn = (ForNumeric) node;
-            if (isRegisterOrObj(fn.name)) registers.add(fn.name);
+            if (isRegisterOrObj(fn.name))
+                registers.add(fn.name);
             collectAllUsedRegisters(fn.start, registers);
             collectAllUsedRegisters(fn.end, registers);
             collectAllUsedRegisters(fn.step, registers);
@@ -936,7 +964,8 @@ public class AstCleanupPass {
         } else if (node instanceof ForIn) {
             ForIn fi = (ForIn) node;
             for (String n : fi.names) {
-                if (isRegisterOrObj(n)) registers.add(n);
+                if (isRegisterOrObj(n))
+                    registers.add(n);
             }
             if (fi.iterators != null) {
                 for (Expression expr : fi.iterators) {
@@ -991,10 +1020,11 @@ public class AstCleanupPass {
         }
     }
 
-    private void declareStatementLocalIfNeeded(Statement statement, Set<String> declared, boolean allowNewLocal, Set<String> hoistedRegisters, List<Statement> result) {
+    private void declareStatementLocalIfNeeded(Statement statement, Set<String> declared, boolean allowNewLocal,
+            Set<String> hoistedRegisters, List<Statement> result) {
         if (statement instanceof LocalAssign) {
             LocalAssign local = (LocalAssign) statement;
-            
+
             List<String> hoistedInLocal = new ArrayList<>();
             List<String> remainInLocal = new ArrayList<>();
             for (String name : local.names) {
@@ -1004,15 +1034,15 @@ public class AstCleanupPass {
                     remainInLocal.add(name);
                 }
             }
-            
+
             if (hoistedInLocal.isEmpty()) {
                 declared.addAll(local.names);
                 result.add(local);
                 return;
             }
-            
+
             declared.addAll(remainInLocal);
-            
+
             if (!remainInLocal.isEmpty()) {
                 List<Expression> remainRight = new ArrayList<>();
                 for (String rName : remainInLocal) {
@@ -1023,7 +1053,7 @@ public class AstCleanupPass {
                 }
                 result.add(new LocalAssign(remainInLocal, remainRight, local.pos));
             }
-            
+
             for (String hName : hoistedInLocal) {
                 int idx = local.names.indexOf(hName);
                 if (idx < local.right.size()) {
@@ -1138,7 +1168,8 @@ public class AstCleanupPass {
         }
 
         if (statement instanceof FunctionDeclaration) {
-            declareTopLevelLocals(((FunctionDeclaration) statement).func.body, ((FunctionDeclaration) statement).func.params, declared, java.util.Collections.emptySet());
+            declareTopLevelLocals(((FunctionDeclaration) statement).func.body,
+                    ((FunctionDeclaration) statement).func.params, declared, java.util.Collections.emptySet());
             result.add(statement);
             return;
         }
@@ -1350,7 +1381,8 @@ public class AstCleanupPass {
     }
 
     private boolean isConstantExpr(Expression expr) {
-        return expr instanceof NilConst || expr instanceof BooleanConst || expr instanceof NumberConst || expr instanceof StringConst;
+        return expr instanceof NilConst || expr instanceof BooleanConst || expr instanceof NumberConst
+                || expr instanceof StringConst;
     }
 
     private boolean areConstantsEqual(Expression e1, Expression e2) {
@@ -1369,7 +1401,8 @@ public class AstCleanupPass {
         return false;
     }
 
-    private VerifiedPattern verifyAssignReturnConstPattern(Assign assign, ReturnStatement ret, CodeGeneratorContext context, Set<String> upvalueNames) {
+    private VerifiedPattern verifyAssignReturnConstPattern(Assign assign, ReturnStatement ret,
+            CodeGeneratorContext context, Set<String> upvalueNames) {
         if (assign.left.size() != 1 || assign.right.size() != 1 || ret.values.size() != 1) {
             return null;
         }
@@ -1389,10 +1422,10 @@ public class AstCleanupPass {
 
         // 基础安全校验：PC 有效性、LabelPC 校验、Upvalue 校验
         if (assign.pos == null || ret.pos == null ||
-            assign.pos.pc < 0 || ret.pos.pc < 0 ||
-            context.isLabelPC(assign.pos.pc) ||
-            context.isLabelPC(ret.pos.pc) ||
-            (upvalueNames != null && upvalueNames.contains(leftName.name))) {
+                assign.pos.pc < 0 || ret.pos.pc < 0 ||
+                context.isLabelPC(assign.pos.pc) ||
+                context.isLabelPC(ret.pos.pc) ||
+                (upvalueNames != null && upvalueNames.contains(leftName.name))) {
             return null;
         }
 
@@ -1404,10 +1437,10 @@ public class AstCleanupPass {
         Instruction assignInst = instructions.get(assign.pos.pc);
         Instruction returnInst = instructions.get(ret.pos.pc);
 
-        if (returnInst.getOpcode() != Opcode.RETURN || 
-            returnInst.getB() != 2 || 
-            returnInst.getA() != reg ||
-            assignInst.getA() != reg) {
+        if (returnInst.getOpcode() != Opcode.RETURN ||
+                returnInst.getB() != 2 ||
+                returnInst.getA() != reg ||
+                assignInst.getA() != reg) {
             return null;
         }
 
@@ -1534,7 +1567,7 @@ public class AstCleanupPass {
                         String leftName = ((Name) left).name;
                         if (right instanceof FunctionCall) {
                             FunctionCall call = (FunctionCall) right;
-                            if (call.callee instanceof Name && ((Name) call.callee).name.equals("type") 
+                            if (call.callee instanceof Name && ((Name) call.callee).name.equals("type")
                                     && call.args.size() == 1 && call.args.get(0) instanceof Name) {
                                 typeVarMap.put(leftName, ((Name) call.args.get(0)).name);
                             } else {
@@ -1552,7 +1585,7 @@ public class AstCleanupPass {
                     Expression right = local.right.get(0);
                     if (right instanceof FunctionCall) {
                         FunctionCall call = (FunctionCall) right;
-                        if (call.callee instanceof Name && ((Name) call.callee).name.equals("type") 
+                        if (call.callee instanceof Name && ((Name) call.callee).name.equals("type")
                                 && call.args.size() == 1 && call.args.get(0) instanceof Name) {
                             typeVarMap.put(leftName, ((Name) call.args.get(0)).name);
                         } else {
@@ -1566,7 +1599,7 @@ public class AstCleanupPass {
 
             if (stmt instanceof IfStatement) {
                 IfStatement ifStmt = (IfStatement) stmt;
-                
+
                 Statement simplified = trySimplifyNanCheck(ifStmt, nonNumberVars);
                 if (simplified != null) {
                     if (simplified instanceof Block) {
@@ -1583,27 +1616,28 @@ public class AstCleanupPass {
 
                 List<Expression> newConditions = new ArrayList<>();
                 List<Block> newBlocks = new ArrayList<>();
-                
+
                 for (int i = 0; i < ifStmt.conditions.size(); i++) {
                     Expression cond = ifStmt.conditions.get(i);
                     Block body = ifStmt.blocks.get(i);
-                    
+
                     String nonNumVar = getNonNumberVariableFromCondition(cond, true, typeVarMap);
                     Set<String> bodyNonNumberVars = new HashSet<>(nonNumberVars);
                     if (nonNumVar != null) {
                         bodyNonNumberVars.add(nonNumVar);
                     }
-                    
+
                     simplifyRedundantNanChecks(body, bodyNonNumberVars, new HashMap<>(typeVarMap));
                     newConditions.add(cond);
                     newBlocks.add(body);
                 }
-                
+
                 Block newElseBlock = null;
                 if (ifStmt.elseBlock != null) {
                     Set<String> elseNonNumberVars = new HashSet<>(nonNumberVars);
                     if (ifStmt.conditions.size() == 1) {
-                        String nonNumVar = getNonNumberVariableFromCondition(ifStmt.conditions.get(0), false, typeVarMap);
+                        String nonNumVar = getNonNumberVariableFromCondition(ifStmt.conditions.get(0), false,
+                                typeVarMap);
                         if (nonNumVar != null) {
                             elseNonNumberVars.add(nonNumVar);
                         }
@@ -1611,7 +1645,7 @@ public class AstCleanupPass {
                     newElseBlock = ifStmt.elseBlock;
                     simplifyRedundantNanChecks(newElseBlock, elseNonNumberVars, new HashMap<>(typeVarMap));
                 }
-                
+
                 IfStatement newIf = new IfStatement(newConditions, newBlocks, newElseBlock, ifStmt.pos);
                 rewritten.add(newIf);
             } else if (stmt instanceof WhileStatement) {
@@ -1666,7 +1700,8 @@ public class AstCleanupPass {
         return null;
     }
 
-    private String getNonNumberVariableFromCondition(Expression cond, boolean thenBranch, Map<String, String> typeVarMap) {
+    private String getNonNumberVariableFromCondition(Expression cond, boolean thenBranch,
+            Map<String, String> typeVarMap) {
         if (cond instanceof BinaryOp) {
             BinaryOp bin = (BinaryOp) cond;
             Expression typeExpr = bin.left;
@@ -1680,7 +1715,7 @@ public class AstCleanupPass {
                 String varName = null;
                 if (typeExpr instanceof FunctionCall) {
                     FunctionCall call = (FunctionCall) typeExpr;
-                    if (call.callee instanceof Name && ((Name) call.callee).name.equals("type") 
+                    if (call.callee instanceof Name && ((Name) call.callee).name.equals("type")
                             && call.args.size() == 1 && call.args.get(0) instanceof Name) {
                         varName = ((Name) call.args.get(0)).name;
                     }
@@ -1719,7 +1754,10 @@ public class AstCleanupPass {
     }
 
     private String getResolvedUpvalueName(com.github.relua.model.UpValue upvalue, int b) {
-        if (upvalue != null && (upvalue.getFromType() == com.github.relua.model.FromType.CONSTANT || upvalue.getFromType() == com.github.relua.model.FromType.GLOBAL) && upvalue.getValue() != null) {
+        if (upvalue != null
+                && (upvalue.getFromType() == com.github.relua.model.FromType.CONSTANT
+                        || upvalue.getFromType() == com.github.relua.model.FromType.GLOBAL)
+                && upvalue.getValue() != null) {
             Object val = upvalue.getValue();
             if (upvalue.getFromType() == com.github.relua.model.FromType.GLOBAL) {
                 String globalName = val.toString();
@@ -1732,5 +1770,74 @@ public class AstCleanupPass {
             }
         }
         return (upvalue != null) ? upvalue.getName() : ("upvalue_" + b);
+    }
+
+    private int findReachingRegisterDefinitionPc(List<com.github.relua.model.Instruction> instructions,
+            int beforeInstructionIndex, int registerIndex) {
+        if (instructions == null) {
+            return -1;
+        }
+        for (int i = beforeInstructionIndex - 1; i >= 0; i--) {
+            com.github.relua.model.Instruction instruction = instructions.get(i);
+            if (instructionDefinesRegister(instruction, registerIndex)) {
+                return instruction.getPc();
+            }
+        }
+        return -1;
+    }
+
+    private boolean instructionDefinesRegister(com.github.relua.model.Instruction instruction, int registerIndex) {
+        if (instruction == null) {
+            return false;
+        }
+        int a = instruction.getA();
+        int b = instruction.getB();
+        int c = instruction.getC();
+        switch (instruction.getOpcode()) {
+            case MOVE:
+            case LOADK:
+            case LOADBOOL:
+            case GETUPVAL:
+            case GETGLOBAL:
+            case GETTABLE:
+            case NEWTABLE:
+            case ADD:
+            case SUB:
+            case MUL:
+            case DIV:
+            case MOD:
+            case POW:
+            case UNM:
+            case NOT:
+            case LEN:
+            case CONCAT:
+            case CLOSURE:
+            case TESTSET:
+                return registerIndex == a;
+            case LOADNIL:
+                return registerIndex >= a && registerIndex <= b;
+            case SELF:
+                return registerIndex == a || registerIndex == a + 1;
+            case CALL:
+                if (c == 0) {
+                    return registerIndex >= a;
+                }
+                return registerIndex >= a && registerIndex <= a + c - 2;
+            case TAILCALL:
+                return false;
+            case VARARG:
+                if (b == 0) {
+                    return registerIndex >= a;
+                }
+                return registerIndex >= a && registerIndex <= a + b - 1;
+            case FORLOOP:
+                return registerIndex == a || registerIndex == a + 3;
+            case FORPREP:
+                return registerIndex == a;
+            case TFORLOOP:
+                return c == 0 ? registerIndex >= a + 3 : registerIndex >= a + 3 && registerIndex <= a + 2 + c;
+            default:
+                return false;
+        }
     }
 }

@@ -16,6 +16,10 @@ import java.io.PrintWriter;
 import java.util.Collections;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import com.github.relua.ast.*;
 import com.github.relua.model.*;
@@ -488,6 +492,161 @@ class DecompilerTest {
 
         String lua = expr.accept(new AstPrinter());
         assertEquals("((R2 + 3) .. R4) .. R5", lua);
+    }
+
+    @Test
+    void testAstPrinterAlignsNestedFunctionDeclarationEnd() {
+        SourcePos pos = new SourcePos(0, 0);
+
+        Block handlerBody = new Block(pos);
+        handlerBody.statements.add(new ReturnStatement(Collections.emptyList(), pos));
+        FunctionDeclaration handler = new FunctionDeclaration("a0.filehandler",
+                new FunctionLiteral(Collections.emptyList(), false, handlerBody, pos),
+                false,
+                pos);
+
+        Block initBody = new Block(pos);
+        initBody.statements.add(new Assign("R4", new Name("main_0_0", pos), pos));
+        initBody.statements.add(handler);
+        initBody.statements.add(new Assign("R4", new TableConstructor(Collections.emptyList(), pos), pos));
+        FunctionDeclaration init = new FunctionDeclaration("Request.__init__",
+                new FunctionLiteral(Collections.singletonList("a0"), false, initBody, pos),
+                false,
+                pos);
+
+        String lua = init.accept(new AstPrinter());
+
+        assertEquals(String.join("\n",
+                "function Request.__init__(a0)",
+                "    R4 = main_0_0",
+                "    function a0.filehandler()",
+                "        return",
+                "    end",
+                "    R4 = {}",
+                "end"), lua);
+    }
+
+    @Test
+    void testAstPrinterFormatsAnonymousFunctionExpressionIndentation() {
+        SourcePos pos = new SourcePos(0, 0);
+        Block body = new Block(pos);
+        body.statements.add(new ReturnStatement(Collections.emptyList(), pos));
+
+        Block root = new Block(pos);
+        root.statements.add(new Assign("R1",
+                new FunctionLiteral(Collections.emptyList(), false, body, pos),
+                pos));
+        root.statements.add(new Assign("R2", new NumberConst(1, pos), pos));
+
+        String lua = root.accept(new AstPrinter());
+
+        assertEquals(String.join("\n",
+                "R1 = function()",
+                "    return",
+                "end",
+                "R2 = 1",
+                ""), lua);
+    }
+
+    @Test
+    void testDataFlowDeletesOnlyPureDeadTemporaryAssignments() {
+        SourcePos pos = new SourcePos(0, 0);
+        Block root = new Block(pos);
+
+        root.statements.add(new Assign("R7",
+                new BinaryOp("+", new NumberConst(1, pos), new NumberConst(2, pos), pos),
+                pos));
+        root.statements.add(new Assign("R8",
+                new FunctionCall(new Name("work", pos), Collections.emptyList(), false, pos),
+                pos));
+        root.statements.add(new Assign("R9",
+                new IndexExpr(new Name("tbl", pos), new StringConst("field", pos), pos),
+                pos));
+
+        new DataFlowAnalyzer().optimize(root);
+
+        String lua = root.accept(new AstPrinter());
+        assertFalse(lua.contains("R7 ="), "Pure dead temporary assignment should be removed: \n" + lua);
+        assertTrue(lua.contains("R8 = work()"), "FunctionCall RHS must be preserved: \n" + lua);
+        assertTrue(lua.contains("R9 = tbl.field"), "IndexExpr RHS is not assumed pure: \n" + lua);
+    }
+
+    @Test
+    void testDataFlowKeepsNestedAssignmentThatMayReachOuterUse() {
+        SourcePos pos = new SourcePos(0, 0);
+        Block thenBlock = new Block(pos);
+        thenBlock.statements.add(new Assign("R1", new NumberConst(1, pos), pos));
+
+        Block root = new Block(pos);
+        root.statements.add(new IfStatement(new Name("cond", pos), thenBlock, null, pos));
+        root.statements.add(new ExpressionStatement(
+                new FunctionCall(new Name("sink", pos), Collections.singletonList(new Name("R1", pos)), false, pos),
+                pos));
+
+        new DataFlowAnalyzer().optimize(root);
+
+        String lua = root.accept(new AstPrinter());
+        assertTrue(lua.contains("R1 = 1"), "Nested definition may reach code after the branch: \n" + lua);
+        assertTrue(lua.contains("sink(R1)"), "Outer use must remain tied to the temporary: \n" + lua);
+    }
+
+    @Test
+    void testDataFlowUsesSsaDefinitionPcForCapturedRegisterProtection() {
+        Block root = new Block(new SourcePos(0, 0));
+        root.statements.add(new Assign("module_R2", new StringConst("string", new SourcePos(4, 0)),
+                new SourcePos(4, 0)));
+        root.statements.add(new Assign("module_R2", new StringConst("table", new SourcePos(8, 0)),
+                new SourcePos(8, 0)));
+
+        Set<String> upvalues = new HashSet<>();
+        upvalues.add("module_R2");
+        Map<String, Set<Integer>> protectedDefs = new HashMap<>();
+        protectedDefs.put("module_R2", new HashSet<>(Collections.singletonList(8)));
+
+        new DataFlowAnalyzer().optimize(root, Collections.emptySet(), upvalues, protectedDefs);
+
+        String lua = root.accept(new AstPrinter());
+        assertFalse(lua.contains("module_R2 = \"string\""),
+                "Earlier SSA version should not be protected by a later closure capture: \n" + lua);
+        assertTrue(lua.contains("module_R2 = \"table\""),
+                "Captured reaching definition must remain protected: \n" + lua);
+    }
+
+    @Test
+    void testDataFlowDeletesDeadDefinitionKilledBeforeLaterLabel() {
+        SourcePos pos = new SourcePos(0, 0);
+        Block root = new Block(pos);
+        root.statements.add(new Assign("R4", new Name("main_0_0", pos), pos));
+        root.statements.add(new Assign(new IndexExpr(new Name("a0", pos), new StringConst("filehandler", pos), pos),
+                new Name("main_0_0", pos),
+                pos));
+        root.statements.add(new Assign("R4", new TableConstructor(Collections.emptyList(), pos), pos));
+        root.statements.add(new LabelStatement("L14", pos));
+        root.statements.add(new Assign(new IndexExpr(new Name("R4", pos), new StringConst("env", pos), pos),
+                new Name("a1", pos),
+                pos));
+
+        new DataFlowAnalyzer().optimize(root);
+
+        String lua = root.accept(new AstPrinter());
+        assertFalse(lua.contains("R4 = main_0_0"),
+                "Dead definition killed before the later label should be deleted: \n" + lua);
+        assertTrue(lua.contains("R4 = {}"), "Later live R4 definition must remain: \n" + lua);
+    }
+
+    @Test
+    void testDataFlowKeepsDeadLookingDefinitionWhenLabelPrecedesKill() {
+        SourcePos pos = new SourcePos(0, 0);
+        Block root = new Block(pos);
+        root.statements.add(new Assign("R4", new Name("main_0_0", pos), pos));
+        root.statements.add(new LabelStatement("L14", pos));
+        root.statements.add(new Assign("R4", new TableConstructor(Collections.emptyList(), pos), pos));
+
+        new DataFlowAnalyzer().optimize(root);
+
+        String lua = root.accept(new AstPrinter());
+        assertTrue(lua.contains("R4 = main_0_0"),
+                "A label before the killing definition means control flow may reach the old definition: \n" + lua);
     }
 
     private void verifyPeephole(Statement assign, Statement ret, List<Instruction> instructions, List<Constant> constants, int expectedSize, Class<? extends Expression> expectedValueClass) {

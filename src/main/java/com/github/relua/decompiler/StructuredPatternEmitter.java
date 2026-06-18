@@ -49,6 +49,12 @@ public class StructuredPatternEmitter {
             }
 
             Object node = converter.convertInstructionToAST(instructions.get(pc), pc);
+            if (node instanceof ClosureSkipResult) {
+                ClosureSkipResult csr = (ClosureSkipResult) node;
+                appendConverted(block, csr.astNode);
+                pc += csr.skipCount;
+                continue;
+            }
             if (node instanceof ReturnStatement) {
                 if (converter.tryOptimizeAssignReturn(block, (ReturnStatement) node, pc)) {
                     // Optimized
@@ -197,6 +203,12 @@ public class StructuredPatternEmitter {
                     continue;
                 }
                 Object node = converter.convertInstructionToAST(chunk.getInstructions().get(pc), pc);
+                if (node instanceof ClosureSkipResult) {
+                    ClosureSkipResult csr = (ClosureSkipResult) node;
+                    appendConverted(body, csr.astNode);
+                    pc += csr.skipCount;
+                    continue;
+                }
                 if (node instanceof ReturnStatement) {
                     if (converter.tryOptimizeAssignReturn(body, (ReturnStatement) node, pc)) {
                         // Optimized
