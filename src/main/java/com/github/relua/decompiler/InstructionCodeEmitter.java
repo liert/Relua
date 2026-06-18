@@ -743,8 +743,8 @@ public class InstructionCodeEmitter {
      * @return 寄存器名或变量名
      */
     private String getRegisterName(int register, int instructionIndex) {
-        // 这个方法需要根据实际情况实现，这里暂时返回寄存器号
-        return "R" + register;
+        throw new IllegalStateException("Legacy instruction emitter cannot resolve R" + register
+                + " at pc=" + instructionIndex + " without SSA-backed pipeline context");
     }
 }
 

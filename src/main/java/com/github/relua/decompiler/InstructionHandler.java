@@ -1,14 +1,13 @@
 package com.github.relua.decompiler;
 
 import com.github.relua.ast.*;
+import com.github.relua.decompiler.ssa.SsaAstNameResolver;
+import com.github.relua.decompiler.ssa.SsaValue;
 import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Opcode;
 import com.github.relua.model.Register;
-import com.github.relua.model.Register.RegisterEntity;
-import com.github.relua.model.ValueType;
-import com.github.relua.util.LuaStringEscapeUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,6 +24,7 @@ import java.util.ArrayDeque;
 public class InstructionHandler {
     private CodeGeneratorContext codeGenContext; // 代码生成上下文
     private final DecompilerPipeline pipeline;
+    private final SsaAstNameResolver ssaNameResolver = new SsaAstNameResolver();
     private Set<BasicBlock> reachableBlocks;
 
     /**
@@ -101,43 +101,20 @@ public class InstructionHandler {
         return null;
     }
 
-    /**
-     * 获取寄存器名，优先使用已知的变量名或值，否则使用R+寄存器号
-     * 
-     * @param register         寄存器号
-     * @param instructionIndex 指令索引，用于获取正确的寄存器状态
-     * @return 寄存器名或变量名
-     */
     public String getRegisterName(int register, int instructionIndex) {
-        if (register >= 0 && register < codeGenContext.getChunk().getNumParams()) {
-            return "a" + register;
+        Chunk chunk = codeGenContext.getChunk();
+        String function = chunk.getFunction();
+        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
+        SsaValue definition = pipeline.getSsaDefinition(function, instructionIndex, register);
+        if (definition != null) {
+            return ssaNameResolver.nameForDefinition(definition, register, registerState, chunk.getNumParams());
         }
-        Register registerStates = pipeline.getRegisterByInstructionIndex(instructionIndex);
-        RegisterEntity entity = registerStates.getRegisterEntity(register);
-
-        // 对于全局变量、函数、字符串等类型，返回实际值
-        if (entity.getType() == ValueType.GLOBAL ||
-                entity.getType() == ValueType.FUNCTION ||
-                entity.getType() == ValueType.STRING ||
-                entity.getType() == ValueType.BOOLEAN ||
-                entity.getType() == ValueType.NUMBER) {
-            Object value = entity.getValue();
-            if (value != null) {
-                if (entity.getType() == ValueType.STRING) {
-                    // 字符串需要添加引号并转义
-                    return String.format("\"%s\"", LuaStringEscapeUtils.escape(value.toString()));
-                }
-                return value.toString();
-            }
+        SsaValue use = pipeline.getSsaUse(function, instructionIndex, register);
+        if (use != null) {
+            return ssaNameResolver.nameForUse(use, register, registerState, chunk.getNumParams());
         }
-
-        // 对于表访问，返回表访问表达式
-        if (entity.getType() == ValueType.TABLE) {
-            return entity.getValue().toString();
-        }
-
-        // 对于其他类型，返回寄存器名
-        return "R" + register;
+        throw new IllegalStateException("Missing SSA value for " + function + " pc=" + instructionIndex
+                + " R" + register);
     }
 
     /**
