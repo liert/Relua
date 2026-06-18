@@ -154,16 +154,16 @@ public class IRBuilder {
         // 对于 TABLE 类型（无论是否为空），目标寄存器记录为对源寄存器的命名引用
         // 这样 CALL 参数展开时能显示正确的寄存器名（如 R0, R3 而非 {} 或 R5）
         if (srcEntity.getType() == ValueType.TABLE) {
-            currentState.setRegisterEntity(a, "R" + b, ValueType.TABLE, FromType.GLOBAL);
+            currentState.setRegisterEntity(a, physicalRegisterName(b), ValueType.TABLE, FromType.GLOBAL);
         } else if (srcEntity.getType() == ValueType.NIL) {
             // 源是 nil：不传播 NIL 类型，避免后续 MOVE 链将 literal nil 传递到
             // 方法调用位置（如 R7:match(...) 变成 nil:match(...)）。
             // 将目标标记为 UNKNOWN，让转换器输出寄存器名而非 nil 常量。
-            currentState.setRegisterEntity(a, "R" + a, ValueType.UNKNOWN, FromType.REGISTER);
+            currentState.setRegisterEntity(a, unknownRegisterValue(a), ValueType.UNKNOWN, FromType.REGISTER);
         } else if (srcEntity.getValue() == null || srcEntity.getFromType() == FromType.REGISTER || srcEntity.getFromType() == FromType.UNKNOWN) {
             // 当源没有具体的值，或者源是一个可变的寄存器引用（REGISTER/UNKNOWN）时，
             // 目标记录为对源寄存器的直接命名引用，而不是复制其当前的间接值（避免寄存器覆盖导致的值解析错误）。
-            currentState.setRegisterEntity(a, "R" + b, srcEntity.getType(), FromType.REGISTER);
+            currentState.setRegisterEntity(a, physicalRegisterName(b), srcEntity.getType(), FromType.REGISTER);
         } else {
             // 复制源寄存器的完整状态到目标寄存器
             currentState.setRegisterEntity(a, srcEntity.getValue(), srcEntity.getType(), srcEntity.getFromType());
@@ -220,7 +220,7 @@ public class IRBuilder {
                 varName = varName.substring(1, varName.length() - 1);
             }
             if (varName.matches("^R\\d+$")) {
-                varName = (isModuleScenario() ? "module_" : "global_") + varName;
+                varName = scopedGlobalRegisterName(varName);
             }
             currentState.setRegisterEntity(a, varName, ValueType.GLOBAL, FromType.GLOBAL);
         }
@@ -237,7 +237,7 @@ public class IRBuilder {
                 varName = varName.substring(1, varName.length() - 1);
             }
             if (varName.matches("^R\\d+$")) {
-                varName = (isModuleScenario() ? "module_" : "global_") + varName;
+                varName = scopedGlobalRegisterName(varName);
             }
             // 设置全局变量时，将寄存器标记为全局变量
             currentState.setRegisterEntity(a, varName, ValueType.GLOBAL);
@@ -401,7 +401,7 @@ public class IRBuilder {
             if (RB != null) {
                 currentState.setRegisterEntity(a, RB.getValue(), RB.getType(), RB.getFromType());
             } else {
-                currentState.setRegisterEntity(a, "R" + b, ValueType.UNKNOWN, FromType.REGISTER);
+                currentState.setRegisterEntity(a, unknownRegisterValue(b), ValueType.UNKNOWN, FromType.REGISTER);
             }
         }
     }
@@ -441,7 +441,7 @@ public class IRBuilder {
                     if (argsEntity != null && argsEntity.getValue() != null) {
                         RAValue = argsEntity.getValue().toString().replace(".", "_");
                     } else {
-                        RAValue = "R" + registerIndex;
+                        RAValue = callResultName(registerIndex);
                     }
                     currentState.setRegisterEntity(registerIndex, RAValue, ValueType.OBJECT, FromType.GLOBAL);
                     // Logger.debug(String.format("require 调用，返回值 %s 写入寄存器 R%d", RAValue,
@@ -455,10 +455,10 @@ public class IRBuilder {
                         currentState.setRegisterEntity(registerIndex, RAValue, ValueType.OBJECT, FromType.GLOBAL);
                         continue;
                     } else {
-                        RAValue = "R" + registerIndex;
+                        RAValue = callResultName(registerIndex);
                     }
                 } else {
-                    RAValue = "R" + registerIndex;
+                    RAValue = callResultName(registerIndex);
                 }
                 currentState.setRegisterEntity(registerIndex, RAValue, ValueType.UNKNOWN, FromType.REGISTER);
             }
@@ -478,7 +478,7 @@ public class IRBuilder {
                     return;
                 }
             }
-            currentState.setRegisterEntity(a, "R" + a, ValueType.UNKNOWN, FromType.REGISTER);
+            currentState.setRegisterEntity(a, unknownRegisterValue(a), ValueType.UNKNOWN, FromType.REGISTER);
         }
     }
 
@@ -494,7 +494,7 @@ public class IRBuilder {
             int loopVarReg = a + 3;
             // 将循环变量寄存器设置为 UNKNOWN 类型，且值为其自身的寄存器名，
             // 避免其默认被识别为 NIL 导致后续 MOVE 时目标寄存器被赋值为自己的寄存器名。
-            currentState.setRegisterEntity(loopVarReg, "R" + loopVarReg, ValueType.UNKNOWN, FromType.REGISTER);
+            currentState.setRegisterEntity(loopVarReg, unknownRegisterValue(loopVarReg), ValueType.UNKNOWN, FromType.REGISTER);
         }
     }
 
@@ -619,6 +619,22 @@ public class IRBuilder {
         String name = (upvalue != null) ? upvalue.getName() : ("upvalue_" + b);
         context.addUpvalue(b, new UpValue(b, name,
                 registerEntity.getValue(), registerEntity.getType(), registerEntity.getFromType()));
+    }
+
+    private String unknownRegisterValue(int register) {
+        return physicalRegisterName(register);
+    }
+
+    private String callResultName(int register) {
+        return physicalRegisterName(register);
+    }
+
+    private String physicalRegisterName(int register) {
+        return "R" + register;
+    }
+
+    private String scopedGlobalRegisterName(String registerName) {
+        return (isModuleScenario() ? "module_" : "global_") + registerName;
     }
 
     private boolean isModuleScenario() {
