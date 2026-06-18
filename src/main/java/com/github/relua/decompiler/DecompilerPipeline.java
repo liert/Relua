@@ -11,6 +11,8 @@ import com.github.relua.decompiler.cfg.ControlFlowGraphBuilder;
 import com.github.relua.decompiler.ir.IRBuilder;
 import com.github.relua.decompiler.ssa.SsaBuilder;
 import com.github.relua.decompiler.ssa.SsaFunction;
+import com.github.relua.decompiler.ssa.SsaVerifier;
+import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Register;
@@ -100,10 +102,22 @@ public class DecompilerPipeline {
 
         SsaFunction ssaFunction = ssaBuilder.build(chunk, basicBlockBuilder.getBasicBlocks());
         ssaFunctions.put(chunk.getFunction(), ssaFunction);
+        List<String> ssaErrors = SsaVerifier.verify(ssaFunction);
+        if (!ssaErrors.isEmpty()) {
+            String message = "SSA verification failed for " + chunk.getFunction() + ": " + ssaErrors;
+            if (Boolean.getBoolean("relua.ssa.verify")) {
+                throw new IllegalStateException(message);
+            }
+            Logger.warning(message);
+        }
 
         if (com.github.relua.debug.DecompilerDebugger.isEnabled()) {
             com.github.relua.debug.DecompilerDebugger.dump("cfg_built_" + chunk.getFunction(), formatCFG(chunk, basicBlockBuilder));
             com.github.relua.debug.DecompilerDebugger.dump("ssa_built_" + chunk.getFunction(), ssaFunction.format());
+            if (!ssaErrors.isEmpty()) {
+                com.github.relua.debug.DecompilerDebugger.dump("ssa_verify_failed_" + chunk.getFunction(),
+                        String.join(System.lineSeparator(), ssaErrors));
+            }
         }
     }
 

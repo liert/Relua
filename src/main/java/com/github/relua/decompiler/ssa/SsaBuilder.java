@@ -26,12 +26,14 @@ public final class SsaBuilder {
     private Map<BasicBlock, Set<BasicBlock>> dominanceFrontiers;
     private Map<BasicBlock, Set<Integer>> blockDefs;
     private Map<Integer, Set<BasicBlock>> definingBlocks;
+    private Set<BasicBlock> reachableBlockSet;
     private Map<Integer, Integer> nextVersion;
     private Map<Integer, Deque<SsaValue>> stacks;
 
     public SsaFunction build(Chunk chunk, List<BasicBlock> blocks) {
         this.chunk = chunk;
-        this.blocks = blocks != null ? blocks : Collections.<BasicBlock>emptyList();
+        this.blocks = reachableBlocks(blocks != null ? blocks : Collections.<BasicBlock>emptyList());
+        this.reachableBlockSet = new LinkedHashSet<>(this.blocks);
         this.function = new SsaFunction(chunk);
         this.nextVersion = new HashMap<>();
         this.stacks = new HashMap<>();
@@ -52,6 +54,32 @@ public final class SsaBuilder {
         initializeParameters();
         rename(this.blocks.get(0), new HashSet<BasicBlock>());
         return function;
+    }
+
+    private List<BasicBlock> reachableBlocks(List<BasicBlock> inputBlocks) {
+        if (inputBlocks.isEmpty()) {
+            return inputBlocks;
+        }
+        Set<BasicBlock> reachable = new LinkedHashSet<>();
+        Deque<BasicBlock> work = new ArrayDeque<>();
+        work.add(inputBlocks.get(0));
+        reachable.add(inputBlocks.get(0));
+        while (!work.isEmpty()) {
+            BasicBlock block = work.removeFirst();
+            for (BasicBlock successor : block.getSuccessors()) {
+                if (reachable.add(successor)) {
+                    work.addLast(successor);
+                }
+            }
+        }
+
+        List<BasicBlock> ordered = new ArrayList<>();
+        for (BasicBlock block : inputBlocks) {
+            if (reachable.contains(block)) {
+                ordered.add(block);
+            }
+        }
+        return ordered;
     }
 
     private void collectDefinitions() {
@@ -169,9 +197,16 @@ public final class SsaBuilder {
                 continue;
             }
             for (BasicBlock pred : block.getPredecessors()) {
+                if (!reachableBlockSet.contains(pred)) {
+                    continue;
+                }
                 BasicBlock runner = pred;
                 while (runner != null && runner != immediateDominators.get(block)) {
-                    dominanceFrontiers.get(runner).add(block);
+                    Set<BasicBlock> frontier = dominanceFrontiers.get(runner);
+                    if (frontier == null) {
+                        break;
+                    }
+                    frontier.add(block);
                     runner = immediateDominators.get(runner);
                 }
             }

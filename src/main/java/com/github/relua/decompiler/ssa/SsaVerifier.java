@@ -24,6 +24,9 @@ public final class SsaVerifier {
                 }
 
                 for (BasicBlock predecessor : block.getBasicBlock().getPredecessors()) {
+                    if (function.getBlock(predecessor) == null) {
+                        continue;
+                    }
                     if (!phi.getIncoming().containsKey(predecessor)) {
                         errors.add("phi for R" + phi.getRegister() + " in block "
                                 + blockName(block.getBasicBlock()) + " missing predecessor "
