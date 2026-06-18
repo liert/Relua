@@ -21,6 +21,10 @@ public final class RegisterNamePolicy {
         return name != null && TEMPORARY_REGISTER.matcher(name).matches();
     }
 
+    public static boolean isPhysicalRegisterName(String name) {
+        return name != null && name.equals(physicalRegisterName(temporaryRegisterIndex(name)));
+    }
+
     public static int temporaryRegisterIndex(String name) {
         if (name == null) {
             return -1;

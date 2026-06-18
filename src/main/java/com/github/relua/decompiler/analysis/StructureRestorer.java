@@ -11,6 +11,7 @@ import com.github.relua.ast.*;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Opcode;
+import com.github.relua.util.RegisterNamePolicy;
 
 public class StructureRestorer {
     private Chunk chunk;
@@ -635,15 +636,7 @@ public class StructureRestorer {
     }
 
     private int getRegisterIndex(String name) {
-        if (name == null) {
-            return -1;
-        }
-        java.util.regex.Pattern p = java.util.regex.Pattern.compile("^(?:chunk_|module_)?R(\\d+)$");
-        java.util.regex.Matcher m = p.matcher(name);
-        if (m.matches()) {
-            return Integer.parseInt(m.group(1));
-        }
-        return -1;
+        return RegisterNamePolicy.temporaryRegisterIndex(name);
     }
 
     private void addForInLoopVariables(Block bodyBlock, List<String> names, int baseRegister, int lhsCount, int numVars) {
@@ -676,7 +669,7 @@ public class StructureRestorer {
     }
 
     private String physicalRegisterName(int register) {
-        return "R" + register;
+        return RegisterNamePolicy.physicalRegisterName(register);
     }
 
     private boolean isForInIteratorAssign(Statement stmt) {

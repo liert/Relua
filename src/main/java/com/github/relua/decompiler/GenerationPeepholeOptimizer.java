@@ -15,19 +15,16 @@ import com.github.relua.model.Constant;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Opcode;
 import com.github.relua.model.UpValue;
+import com.github.relua.util.RegisterNamePolicy;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * 生成阶段的局部 peephole 优化。
  */
 final class GenerationPeepholeOptimizer {
-    private static final Pattern REGISTER_NAME = Pattern.compile("^R(\\d+)$");
-
     private GenerationPeepholeOptimizer() {
     }
 
@@ -63,11 +60,10 @@ final class GenerationPeepholeOptimizer {
             return false;
         }
         Name leftName = (Name) leftExpr;
-        Matcher matcher = REGISTER_NAME.matcher(leftName.name);
-        if (!matcher.matches()) {
+        int reg = RegisterNamePolicy.temporaryRegisterIndex(leftName.name);
+        if (reg == -1 || !RegisterNamePolicy.isPhysicalRegisterName(leftName.name)) {
             return false;
         }
-        int reg = Integer.parseInt(matcher.group(1));
 
         // 基础安全校验：PC 有效性、LabelPC 校验、Upvalue 校验
         if (assign.pos == null || ret.pos == null ||

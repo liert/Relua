@@ -13,6 +13,7 @@ import com.github.relua.model.UpValue;
 import com.github.relua.model.ValueType;
 import com.github.relua.decompiler.ssa.SsaAstNameResolver;
 import com.github.relua.decompiler.ssa.SsaValue;
+import com.github.relua.util.RegisterNamePolicy;
 import com.github.relua.util.TransformUtils;
 
 import java.util.List;
@@ -414,7 +415,7 @@ public class InstructionToASTConverter {
         if (name.length() >= 2 && name.startsWith("\"") && name.endsWith("\"")) {
             name = name.substring(1, name.length() - 1);
         }
-        if (name.matches("^R\\d+$")) {
+        if (RegisterNamePolicy.isPhysicalRegisterName(name)) {
             name = (isModuleScenario() ? "module_" : "global_") + name;
         }
 
@@ -458,7 +459,7 @@ public class InstructionToASTConverter {
             Object cv = chunk.getConstants().get(bx).getValue();
             name = cv != null ? cv.toString() : "RK" + bx;
         }
-        if (name.matches("^R\\d+$")) {
+        if (RegisterNamePolicy.isPhysicalRegisterName(name)) {
             name = (isModuleScenario() ? "module_" : "global_") + name;
         }
 
@@ -1621,7 +1622,7 @@ public class InstructionToASTConverter {
             Object val = upvalue.getValue();
             if (upvalue.getFromType() == FromType.GLOBAL) {
                 String globalName = val.toString();
-                if (!globalName.matches("^(chunk_|module_)?R\\d+$")) {
+                if (!RegisterNamePolicy.isTemporaryRegisterName(globalName)) {
                     if (globalName.contains(".")) {
                         String[] parts = globalName.split("\\.");
                         Expression current = new Name(parts[0], pos);
@@ -1665,7 +1666,7 @@ public class InstructionToASTConverter {
             Object val = upvalue.getValue();
             if (upvalue.getFromType() == FromType.GLOBAL) {
                 String globalName = val.toString();
-                if (!globalName.matches("^(chunk_|module_)?R\\d+$")) {
+                if (!RegisterNamePolicy.isTemporaryRegisterName(globalName)) {
                     if (globalName.contains(".")) {
                         return globalName.split("\\.")[0];
                     }

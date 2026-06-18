@@ -21,6 +21,7 @@ import com.github.relua.model.Register;
 import com.github.relua.model.Register.RegisterEntity;
 import com.github.relua.model.UpValue;
 import com.github.relua.util.BytecodeFormatter;
+import com.github.relua.util.RegisterNamePolicy;
 import com.github.relua.util.TransformUtils;
 import com.github.relua.model.ValueType;
 
@@ -219,7 +220,7 @@ public class IRBuilder {
             if (varName.length() >= 2 && varName.startsWith("\"") && varName.endsWith("\"")) {
                 varName = varName.substring(1, varName.length() - 1);
             }
-            if (varName.matches("^R\\d+$")) {
+            if (RegisterNamePolicy.isPhysicalRegisterName(varName)) {
                 varName = scopedGlobalRegisterName(varName);
             }
             currentState.setRegisterEntity(a, varName, ValueType.GLOBAL, FromType.GLOBAL);
@@ -236,7 +237,7 @@ public class IRBuilder {
             if (varName.length() >= 2 && varName.startsWith("\"") && varName.endsWith("\"")) {
                 varName = varName.substring(1, varName.length() - 1);
             }
-            if (varName.matches("^R\\d+$")) {
+            if (RegisterNamePolicy.isPhysicalRegisterName(varName)) {
                 varName = scopedGlobalRegisterName(varName);
             }
             // 设置全局变量时，将寄存器标记为全局变量
@@ -587,7 +588,7 @@ public class IRBuilder {
             }
 
             // 如果上值是基础字面量常量或全局引入符号，优先保留其状态；如果是局部寄存器变量，直接返回上值变量名字本身，避免被内部赋值污染
-            boolean isRegName = val != null && val.toString().matches("^(chunk_|module_)?R\\d+$");
+            boolean isRegName = val != null && RegisterNamePolicy.isTemporaryRegisterName(val.toString());
             if ((upvalue.getFromType() == FromType.GLOBAL || (upvalue.getFromType() == FromType.CONSTANT && isBasicConstant)) && val != null && !isRegName) {
                 RA.setValue(val);
                 RA.setType(upvalue.getType());
@@ -630,7 +631,7 @@ public class IRBuilder {
     }
 
     private String physicalRegisterName(int register) {
-        return "R" + register;
+        return RegisterNamePolicy.physicalRegisterName(register);
     }
 
     private String scopedGlobalRegisterName(String registerName) {

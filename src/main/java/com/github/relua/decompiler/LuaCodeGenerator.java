@@ -25,6 +25,7 @@ import com.github.relua.model.CodeLine;
 import com.github.relua.model.FromType;
 import com.github.relua.model.Register;
 import com.github.relua.model.ValueType;
+import com.github.relua.util.RegisterNamePolicy;
 
 /**
  * Lua代码生成器，作为总控类，负责协调各个代码生成器
@@ -254,7 +255,7 @@ public class LuaCodeGenerator {
                 if (left instanceof Name && right instanceof Name) {
                     String leftName = ((Name) left).name;
                     String rightName = ((Name) right).name;
-                    if (leftName.matches("^(chunk_|module_)?R\\d+$") && emittedFunctions.contains(rightName)) {
+                    if (RegisterNamePolicy.isTemporaryRegisterName(leftName) && emittedFunctions.contains(rightName)) {
                         return true;
                     }
                 }
@@ -267,7 +268,7 @@ public class LuaCodeGenerator {
             Map<String, CodeGeneratorContext> contextByFunction) {
         String targetName = extractClosureTarget(statement);
         String closureName = extractClosureName(statement);
-        if (targetName.matches("^(chunk_|module_)?R\\d+$") || !contextByFunction.containsKey(closureName)) {
+        if (RegisterNamePolicy.isTemporaryRegisterName(targetName) || !contextByFunction.containsKey(closureName)) {
             return null;
         }
 

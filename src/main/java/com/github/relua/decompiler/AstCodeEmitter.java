@@ -9,6 +9,7 @@ import com.github.relua.ast.Statement;
 import com.github.relua.debug.DecompilerDebugger;
 import com.github.relua.model.Chunk;
 import com.github.relua.log.Logger;
+import com.github.relua.util.RegisterNamePolicy;
 
 /**
  * AST代码生成器，负责将AST转换为Lua代码
@@ -91,7 +92,7 @@ public class AstCodeEmitter {
             Object val = upvalue.getValue();
             if (upvalue.getFromType() == com.github.relua.model.FromType.GLOBAL) {
                 String globalName = val.toString();
-                if (!globalName.matches("^(chunk_|module_)?R\\d+$")) {
+                if (!RegisterNamePolicy.isTemporaryRegisterName(globalName)) {
                     if (globalName.contains(".")) {
                         return globalName.split("\\.")[0];
                     }
