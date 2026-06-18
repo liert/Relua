@@ -48,8 +48,7 @@ import com.github.relua.util.TransformUtils;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Constant;
 import com.github.relua.log.Logger;
-import java.util.regex.Pattern;
-import java.util.regex.Matcher;
+import com.github.relua.util.RegisterNamePolicy;
 
 public class AstCleanupPass {
     public void cleanup(Block block) {
@@ -526,7 +525,7 @@ public class AstCleanupPass {
         }
 
         String name = ((Name) assign.left.get(0)).name;
-        return name.matches("(chunk_|module_)?R\\d+") && consumedTables.contains(assign.right.get(0));
+        return RegisterNamePolicy.isTemporaryRegisterName(name) && consumedTables.contains(assign.right.get(0));
     }
 
     private void cleanupNestedBlocks(Statement statement, Set<TableConstructor> consumedTables) {
@@ -603,7 +602,7 @@ public class AstCleanupPass {
             return false;
         }
         return assign.left.get(0) instanceof Name
-                && ((Name) assign.left.get(0)).name.matches("(chunk_|module_)?R\\d+")
+                && RegisterNamePolicy.isTemporaryRegisterName(((Name) assign.left.get(0)).name)
                 && assign.right.get(0) instanceof TableConstructor;
     }
 
@@ -879,7 +878,7 @@ public class AstCleanupPass {
         if (name == null) {
             return false;
         }
-        return name.matches("(chunk_|module_)?R\\d+") || name.endsWith("Obj");
+        return RegisterNamePolicy.isTemporaryRegisterName(name) || name.endsWith("Obj");
     }
 
     private void collectAllUsedRegisters(AstNode node, Set<String> registers) {
@@ -1413,12 +1412,10 @@ public class AstCleanupPass {
             return null;
         }
         Name leftName = (Name) leftExpr;
-        Pattern regPattern = Pattern.compile("^(?:chunk_|module_)?R(\\d+)$");
-        Matcher matcher = regPattern.matcher(leftName.name);
-        if (!matcher.matches()) {
+        int reg = RegisterNamePolicy.temporaryRegisterIndex(leftName.name);
+        if (reg == -1) {
             return null;
         }
-        int reg = Integer.parseInt(matcher.group(1));
 
         // 基础安全校验：PC 有效性、LabelPC 校验、Upvalue 校验
         if (assign.pos == null || ret.pos == null ||
@@ -1761,7 +1758,7 @@ public class AstCleanupPass {
             Object val = upvalue.getValue();
             if (upvalue.getFromType() == com.github.relua.model.FromType.GLOBAL) {
                 String globalName = val.toString();
-                if (!globalName.matches("^(chunk_|module_)?R\\d+$")) {
+                if (!RegisterNamePolicy.isTemporaryRegisterName(globalName)) {
                     if (globalName.contains(".")) {
                         return globalName.split("\\.")[0];
                     }

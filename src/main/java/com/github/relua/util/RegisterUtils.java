@@ -71,8 +71,9 @@ public class RegisterUtils {
                 // 两者都是未初始化，无需修改
             } else {
                 // 两者都已初始化但值或类型不同（真正的数据流分支合并差异，值在运行时是动态的）
-                // 必须标记为 UNKNOWN 并且值为 "R" + index，避免被常量错误覆盖
-                String varName = entity1.getCustomName() != null ? entity1.getCustomName() : "R" + index;
+                // 必须标记为 UNKNOWN 并保留物理寄存器名，避免被常量错误覆盖
+                String varName = entity1.getCustomName() != null ? entity1.getCustomName()
+                        : RegisterNamePolicy.physicalRegisterName(index);
                 merged.setRegisterEntity(index, varName, ValueType.UNKNOWN, FromType.UNKNOWN);
                 if (entity1.getCustomName() != null) {
                     merged.getRegisterEntity(index).setCustomName(entity1.getCustomName());

@@ -9,6 +9,7 @@ import java.util.Set;
 
 import com.github.relua.ast.*;
 import com.github.relua.log.Logger;
+import com.github.relua.util.RegisterNamePolicy;
 
 public class DataFlowAnalyzer {
     private Block topBlock;
@@ -710,7 +711,7 @@ public class DataFlowAnalyzer {
     }
 
     private boolean isTemporaryRegisterName(String name) {
-        return name != null && name.matches("(chunk_|module_)?R\\d+");
+        return RegisterNamePolicy.isTemporaryRegisterName(name);
     }
 
     private boolean isProtectedUpvalueDefinition(String name, Statement stmt) {
@@ -1893,7 +1894,7 @@ public class DataFlowAnalyzer {
             return false;
         }
         return assign.left.get(0) instanceof Name
-                && ((Name) assign.left.get(0)).name.matches("(chunk_|module_)?R\\d+")
+                && RegisterNamePolicy.isTemporaryRegisterName(((Name) assign.left.get(0)).name)
                 && (assign.right.get(0) instanceof FunctionCall 
                     || (assign.right.get(0) instanceof UnaryOp && ((UnaryOp) assign.right.get(0)).expr instanceof FunctionCall));
     }

@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.github.relua.util.RegisterNamePolicy;
+
 public class Register {
     // 使用Map存储所有寄存器，支持任意数量的寄存器
     private Map<Integer, RegisterEntity> registers = new HashMap<>();
@@ -266,7 +268,7 @@ public class Register {
             if (customName != null) {
                 return namePrefix + customName;
             }
-            return namePrefix + "R" + index;
+            return RegisterNamePolicy.prefixedRegisterName(namePrefix, index);
         }
 
         public Object getValue() {
