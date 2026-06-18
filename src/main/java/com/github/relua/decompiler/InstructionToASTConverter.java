@@ -172,9 +172,9 @@ public class InstructionToASTConverter {
                 GotoStatement jmp = new GotoStatement("L" + jumpTarget, new SourcePos(instructionIndex, -1));
                 
                 Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
-                String loopVarName = getRegisterName(a + 3, registerState);
-                String idxVarName = getRegisterName(a, registerState);
-                String limitVarName = getRegisterName(a + 1, registerState);
+                String loopVarName = getDefinedRegisterName(a + 3, instructionIndex, registerState);
+                String idxVarName = getDefinedRegisterName(a, instructionIndex, registerState);
+                String limitVarName = getUsedRegisterName(a + 1, instructionIndex, registerState);
                 
                 RegisterEntity stepEntity = registerState.getRegisterEntity(a + 2);
                 boolean isPositive = true;
@@ -802,7 +802,7 @@ public class InstructionToASTConverter {
         Register register = pipeline.getRegisterByInstructionIndex(instructionIndex);
 
         // 目标变量
-        Expression target = new Name(getRegisterName(a, register), new SourcePos(instructionIndex, -1));
+        Expression target = new Name(getDefinedRegisterName(a, instructionIndex, register), new SourcePos(instructionIndex, -1));
 
         // 字符串连接表达式
         Expression concatOp = null;
@@ -841,7 +841,7 @@ public class InstructionToASTConverter {
                 currentExpr = new Name(currentEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
             } else {
                 // UNKNOWN 类型或值为 nil/占位符，使用寄存器名避免输出 "nil"
-                currentExpr = new Name(getRegisterName(i, register), new SourcePos(instructionIndex, -1));
+                currentExpr = new Name(getUsedRegisterName(i, instructionIndex, register), new SourcePos(instructionIndex, -1));
             }
 
             if (concatOp == null) {
@@ -967,7 +967,7 @@ public class InstructionToASTConverter {
 
             // 返回值写入 R(A) 到 R(A+C-2)
             for (int i = 0; i < c - 1; i++) {
-                Name returnName = new Name(getRegisterName(a + i, registerState), pos);
+                Name returnName = new Name(getDefinedRegisterName(a + i, instructionIndex, registerState), pos);
                 if (i == 0 && isNewCall && !objName.isEmpty()) {
                     returnName.name = objName;
                 } else {
@@ -995,7 +995,7 @@ public class InstructionToASTConverter {
             List<Expression> targets = new ArrayList<>();
 
             // 对于多返回值，我们只处理第一个返回值
-            String targetNameVal = "R" + a;
+            String targetNameVal = getDefinedRegisterName(a, instructionIndex, registerState);
             if (isNewCall && !objName.isEmpty()) {
                 targetNameVal = objName;
             }
@@ -1389,10 +1389,6 @@ public class InstructionToASTConverter {
         RegisterEntity RA = registerState.getRegisterEntity(a);
         RegisterEntity RB = registerState.getRegisterEntity(b);
 
-        if (chunk.getFunction() != null && (chunk.getFunction().contains("sane") || chunk.getFunction().contains("main_2") || chunk.getFunction().contains("main_26"))) {
-            Logger.debug("[DEBUG-TESTSET] PC=" + instructionIndex + ", a=" + a + ", b=" + b + ", c=" + c + ", RA=" + RA + ", RB=" + RB);
-        }
-
         // 操作数 根据c的值构建条件表达式
         Expression condition = TransformUtils.transformToAstNode(RB, instructionIndex);
         if (c == 1) {
@@ -1533,7 +1529,7 @@ public class InstructionToASTConverter {
         Name funcRef = new Name(funcName, new SourcePos(instructionIndex, -1));
         
         // 生成赋值语句，将函数引用赋值给寄存器
-        Name target = new Name(getRegisterName(a, instructionIndex), new SourcePos(instructionIndex, -1));
+        Name target = new Name(getDefinedRegisterName(a, instructionIndex), new SourcePos(instructionIndex, -1));
         List<Expression> targets = new ArrayList<>();
         targets.add(target);
         List<Expression> values = new ArrayList<>();
@@ -1569,7 +1565,7 @@ public class InstructionToASTConverter {
                 if (bindInsn.getOpcode() == Opcode.MOVE) {
                     int b = bindInsn.getB();
                     RegisterEntity RE = registerState.getRegisterEntity(b);
-                    String name = getRegisterName(b, registerState);
+                    String name = getUsedRegisterName(b, instructionIndex + k, registerState);
                     UpValue upvalue = new UpValue(upvalueIndex, name, RE.getValue(), RE.getType(), RE.getFromType());
                     childContext.addUpvalue(upvalueIndex, upvalue);
                     Logger.debug(String.format("CLOSURE bindings: Child %s upvalue[%d] binds MOVE current register R%d (%s)", 
@@ -1619,10 +1615,6 @@ public class InstructionToASTConverter {
         CodeGeneratorContext context = pipeline.getContext();
         UpValue upvalue = context.getUpvalue(b);
         
-        if (chunk.getFunction() != null && (chunk.getFunction().contains("sane") || chunk.getFunction().contains("main_2") || chunk.getFunction().contains("main_26"))) {
-            Logger.debug("[DEBUG-GETUPVAL] PC=" + instructionIndex + ", a=" + a + ", b=" + b + ", uv=" + upvalue + (upvalue != null ? (", uv.name=" + upvalue.getName() + ", uv.val=" + upvalue.getValue()) : ""));
-        }
-        
         SourcePos pos = new SourcePos(instructionIndex, -1);
         Expression right;
         if (upvalue != null && (upvalue.getFromType() == FromType.CONSTANT || upvalue.getFromType() == FromType.GLOBAL) && upvalue.getValue() != null) {
@@ -1665,7 +1657,7 @@ public class InstructionToASTConverter {
             right = new Name(upvalueName, pos);
         }
         
-        return new Assign(new Name(getRegisterName(a, instructionIndex), pos), right, pos);
+        return new Assign(new Name(getDefinedRegisterName(a, instructionIndex), pos), right, pos);
     }
 
     private String getResolvedUpvalueName(UpValue upvalue, int b) {
@@ -1768,11 +1760,6 @@ public class InstructionToASTConverter {
         return GenerationPeepholeOptimizer.tryOptimizeAssignReturn(block, ret, returnPC, chunk, pipeline.getContext());
     }
 
-    private String getRegisterName(int regIndex, int instructionIndex) {
-        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
-        return getRegisterName(regIndex, registerState);
-    }
-
     private String getDefinedRegisterName(int regIndex, int instructionIndex) {
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         return getDefinedRegisterName(regIndex, instructionIndex, registerState);
@@ -1809,16 +1796,6 @@ public class InstructionToASTConverter {
 
     private String getSsaCompatibleUseName(int regIndex, Register registerState, SsaValue value) {
         return ssaNameResolver.nameForUse(value, regIndex, registerState, chunk.getNumParams());
-    }
-
-    private String getRegisterName(int regIndex, Register registerState) {
-        if (regIndex >= 0 && regIndex < chunk.getNumParams()) {
-            return "a" + regIndex;
-        }
-        if (registerState != null) {
-            return registerState.getRegisterEntity(regIndex).getName();
-        }
-        return "R" + regIndex;
     }
 
     private boolean isModuleScenario() {
