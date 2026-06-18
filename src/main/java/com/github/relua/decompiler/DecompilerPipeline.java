@@ -13,6 +13,8 @@ import com.github.relua.decompiler.ssa.SsaExpressionAnalysis;
 import com.github.relua.decompiler.ssa.SsaExpressionAnalyzer;
 import com.github.relua.decompiler.ssa.SsaBuilder;
 import com.github.relua.decompiler.ssa.SsaFunction;
+import com.github.relua.decompiler.ssa.SsaInstruction;
+import com.github.relua.decompiler.ssa.SsaValue;
 import com.github.relua.decompiler.ssa.SsaVerifier;
 import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
@@ -191,6 +193,21 @@ public class DecompilerPipeline {
 
     public SsaFunction getSsaFunction(String function) {
         return ssaFunctions.get(function);
+    }
+
+    public SsaInstruction getSsaInstruction(String function, int pc) {
+        SsaFunction ssaFunction = ssaFunctions.get(function);
+        return ssaFunction != null ? ssaFunction.getInstruction(pc) : null;
+    }
+
+    public SsaValue getSsaDefinition(String function, int pc, int register) {
+        SsaInstruction instruction = getSsaInstruction(function, pc);
+        return instruction != null ? instruction.getFirstDefForRegister(register) : null;
+    }
+
+    public SsaValue getSsaUse(String function, int pc, int register) {
+        SsaInstruction instruction = getSsaInstruction(function, pc);
+        return instruction != null ? instruction.getFirstUseForRegister(register) : null;
     }
 
     public SsaExpressionAnalysis getSsaExpressionAnalysis(String function) {

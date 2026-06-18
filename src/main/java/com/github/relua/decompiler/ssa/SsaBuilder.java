@@ -26,14 +26,15 @@ public final class SsaBuilder {
     private Map<BasicBlock, Set<BasicBlock>> dominanceFrontiers;
     private Map<BasicBlock, Set<Integer>> blockDefs;
     private Map<Integer, Set<BasicBlock>> definingBlocks;
-    private Set<BasicBlock> reachableBlockSet;
+    private List<BasicBlock> componentRoots;
+    private Map<BasicBlock, Set<BasicBlock>> componentBlocks;
+    private Map<BasicBlock, BasicBlock> componentRootByBlock;
     private Map<Integer, Integer> nextVersion;
     private Map<Integer, Deque<SsaValue>> stacks;
 
     public SsaFunction build(Chunk chunk, List<BasicBlock> blocks) {
         this.chunk = chunk;
-        this.blocks = reachableBlocks(blocks != null ? blocks : Collections.<BasicBlock>emptyList());
-        this.reachableBlockSet = new LinkedHashSet<>(this.blocks);
+        this.blocks = blocks != null ? blocks : Collections.<BasicBlock>emptyList();
         this.function = new SsaFunction(chunk);
         this.nextVersion = new HashMap<>();
         this.stacks = new HashMap<>();
@@ -45,6 +46,7 @@ public final class SsaBuilder {
             return function;
         }
 
+        computeComponents();
         collectDefinitions();
         computeDominators();
         computeImmediateDominators();
@@ -52,35 +54,50 @@ public final class SsaBuilder {
         computeDominanceFrontiers();
         insertPhis();
         initializeParameters();
-        rename(this.blocks.get(0), new HashSet<BasicBlock>());
+        Set<BasicBlock> renamed = new HashSet<BasicBlock>();
+        for (BasicBlock root : componentRoots) {
+            rename(root, renamed);
+        }
         function.rebuildDefUse();
         return function;
     }
 
-    private List<BasicBlock> reachableBlocks(List<BasicBlock> inputBlocks) {
-        if (inputBlocks.isEmpty()) {
-            return inputBlocks;
-        }
-        Set<BasicBlock> reachable = new LinkedHashSet<>();
-        Deque<BasicBlock> work = new ArrayDeque<>();
-        work.add(inputBlocks.get(0));
-        reachable.add(inputBlocks.get(0));
-        while (!work.isEmpty()) {
-            BasicBlock block = work.removeFirst();
-            for (BasicBlock successor : block.getSuccessors()) {
-                if (reachable.add(successor)) {
-                    work.addLast(successor);
+    private void computeComponents() {
+        componentRoots = new ArrayList<>();
+        componentBlocks = new LinkedHashMap<>();
+        componentRootByBlock = new LinkedHashMap<>();
+        Set<BasicBlock> assigned = new LinkedHashSet<>();
+
+        for (BasicBlock candidateRoot : blocks) {
+            if (assigned.contains(candidateRoot)) {
+                continue;
+            }
+
+            Set<BasicBlock> component = new LinkedHashSet<>();
+            Deque<BasicBlock> work = new ArrayDeque<>();
+            work.add(candidateRoot);
+            component.add(candidateRoot);
+            assigned.add(candidateRoot);
+
+            while (!work.isEmpty()) {
+                BasicBlock block = work.removeFirst();
+                for (BasicBlock successor : block.getSuccessors()) {
+                    if (!blocks.contains(successor)) {
+                        continue;
+                    }
+                    if (component.add(successor)) {
+                        assigned.add(successor);
+                        work.addLast(successor);
+                    }
                 }
             }
-        }
 
-        List<BasicBlock> ordered = new ArrayList<>();
-        for (BasicBlock block : inputBlocks) {
-            if (reachable.contains(block)) {
-                ordered.add(block);
+            componentRoots.add(candidateRoot);
+            componentBlocks.put(candidateRoot, component);
+            for (BasicBlock block : component) {
+                componentRootByBlock.put(block, candidateRoot);
             }
         }
-        return ordered;
     }
 
     private void collectDefinitions() {
@@ -107,13 +124,14 @@ public final class SsaBuilder {
 
     private void computeDominators() {
         dominators = new LinkedHashMap<>();
-        BasicBlock entry = blocks.get(0);
-        Set<BasicBlock> all = new LinkedHashSet<>(blocks);
-        for (BasicBlock block : blocks) {
-            if (block == entry) {
-                dominators.put(block, new LinkedHashSet<>(Collections.singleton(block)));
-            } else {
-                dominators.put(block, new LinkedHashSet<>(all));
+        for (BasicBlock root : componentRoots) {
+            Set<BasicBlock> component = componentBlocks.get(root);
+            for (BasicBlock block : component) {
+                if (block == root) {
+                    dominators.put(block, new LinkedHashSet<>(Collections.singleton(block)));
+                } else {
+                    dominators.put(block, new LinkedHashSet<>(component));
+                }
             }
         }
 
@@ -121,12 +139,13 @@ public final class SsaBuilder {
         do {
             changed = false;
             for (BasicBlock block : blocks) {
-                if (block == entry) {
+                BasicBlock root = componentRootByBlock.get(block);
+                if (block == root) {
                     continue;
                 }
                 Set<BasicBlock> newDom = null;
                 for (BasicBlock pred : block.getPredecessors()) {
-                    if (!dominators.containsKey(pred)) {
+                    if (!dominators.containsKey(pred) || componentRootByBlock.get(pred) != root) {
                         continue;
                     }
                     if (newDom == null) {
@@ -149,10 +168,12 @@ public final class SsaBuilder {
 
     private void computeImmediateDominators() {
         immediateDominators = new LinkedHashMap<>();
-        BasicBlock entry = blocks.get(0);
-        immediateDominators.put(entry, null);
+        for (BasicBlock root : componentRoots) {
+            immediateDominators.put(root, null);
+        }
         for (BasicBlock block : blocks) {
-            if (block == entry) {
+            BasicBlock root = componentRootByBlock.get(block);
+            if (block == root) {
                 continue;
             }
             Set<BasicBlock> strictDominators = new LinkedHashSet<>(dominators.get(block));
@@ -197,8 +218,9 @@ public final class SsaBuilder {
             if (block.getPredecessors().size() < 2) {
                 continue;
             }
+            BasicBlock root = componentRootByBlock.get(block);
             for (BasicBlock pred : block.getPredecessors()) {
-                if (!reachableBlockSet.contains(pred)) {
+                if (componentRootByBlock.get(pred) != root) {
                     continue;
                 }
                 BasicBlock runner = pred;

@@ -11,6 +11,8 @@ import com.github.relua.model.Register;
 import com.github.relua.model.Register.RegisterEntity;
 import com.github.relua.model.UpValue;
 import com.github.relua.model.ValueType;
+import com.github.relua.decompiler.ssa.SsaAstNameResolver;
+import com.github.relua.decompiler.ssa.SsaValue;
 import com.github.relua.util.TransformUtils;
 
 import java.util.List;
@@ -24,6 +26,7 @@ import java.util.Collections;
 public class InstructionToASTConverter {
     private Chunk chunk;
     private DecompilerPipeline pipeline;
+    private final SsaAstNameResolver ssaNameResolver = new SsaAstNameResolver();
     private PendingTest pendingTest = null;
 
     /**
@@ -212,7 +215,7 @@ public class InstructionToASTConverter {
         RegisterEntity sourceEntity = registerState.getRegisterEntity(b);
 
         // 目标变量
-        Expression target = new Name(getRegisterName(a, registerState), new SourcePos(instructionIndex, -1));
+        Expression target = new Name(getDefinedRegisterName(a, instructionIndex, registerState), new SourcePos(instructionIndex, -1));
 
         // 源值
         Expression source;
@@ -240,7 +243,7 @@ public class InstructionToASTConverter {
         } else if (sourceEntity.getType() == ValueType.GLOBAL && sourceEntity.getValue() != null) {
             source = new Name(sourceEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
         } else {
-            source = new Name(getRegisterName(b, registerState), new SourcePos(instructionIndex, -1));
+            source = new Name(getUsedRegisterName(b, instructionIndex, registerState), new SourcePos(instructionIndex, -1));
         }
 
         List<Expression> left = new ArrayList<>();
@@ -267,7 +270,7 @@ public class InstructionToASTConverter {
 
         // 目标变量名
         List<String> names = new ArrayList<>();
-        names.add(getRegisterName(a, instructionIndex));
+        names.add(getDefinedRegisterName(a, instructionIndex));
 
         // 常量值
         Expression source = null;
@@ -292,7 +295,7 @@ public class InstructionToASTConverter {
         SourcePos pos = new SourcePos(instructionIndex, -1);
 
         // 左侧目标: R(A)
-        Expression left = new Name(getRegisterName(a, instructionIndex), pos);
+        Expression left = new Name(getDefinedRegisterName(a, instructionIndex), pos);
 
         return new Assign(left, source, pos);
     }
@@ -314,7 +317,7 @@ public class InstructionToASTConverter {
         pipeline.getContext().removePendingSelf(a);
 
         // 目标变量
-        Expression target = new Name(getRegisterName(a, instructionIndex), new SourcePos(instructionIndex, -1));
+        Expression target = new Name(getDefinedRegisterName(a, instructionIndex), new SourcePos(instructionIndex, -1));
 
         // 布尔值
         Expression source = new BooleanConst(boolValue, new SourcePos(instructionIndex, -1));
@@ -372,7 +375,7 @@ public class InstructionToASTConverter {
                 continue;
             }
             // 目标变量
-            Expression target = new Name(getRegisterName(i, instructionIndex), new SourcePos(instructionIndex, -1));
+            Expression target = new Name(getDefinedRegisterName(i, instructionIndex), new SourcePos(instructionIndex, -1));
 
             // nil值
             Expression source = new NilConst(new SourcePos(instructionIndex, -1));
@@ -1777,6 +1780,37 @@ public class InstructionToASTConverter {
     private String getRegisterName(int regIndex, int instructionIndex) {
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         return getRegisterName(regIndex, registerState);
+    }
+
+    private String getDefinedRegisterName(int regIndex, int instructionIndex) {
+        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
+        return getDefinedRegisterName(regIndex, instructionIndex, registerState);
+    }
+
+    private String getDefinedRegisterName(int regIndex, int instructionIndex, Register registerState) {
+        SsaValue value = pipeline.getSsaDefinition(chunk.getFunction(), instructionIndex, regIndex);
+        if (value == null) {
+            throw new IllegalStateException("Missing SSA definition for " + chunk.getFunction()
+                    + " pc=" + instructionIndex + " R" + regIndex);
+        }
+        return getSsaCompatibleRegisterName(regIndex, registerState, value);
+    }
+
+    private String getUsedRegisterName(int regIndex, int instructionIndex, Register registerState) {
+        SsaValue value = pipeline.getSsaUse(chunk.getFunction(), instructionIndex, regIndex);
+        if (value == null) {
+            throw new IllegalStateException("Missing SSA use for " + chunk.getFunction()
+                    + " pc=" + instructionIndex + " R" + regIndex);
+        }
+        return getSsaCompatibleUseName(regIndex, registerState, value);
+    }
+
+    private String getSsaCompatibleRegisterName(int regIndex, Register registerState, SsaValue value) {
+        return ssaNameResolver.nameForDefinition(value, regIndex, registerState, chunk.getNumParams());
+    }
+
+    private String getSsaCompatibleUseName(int regIndex, Register registerState, SsaValue value) {
+        return ssaNameResolver.nameForUse(value, regIndex, registerState, chunk.getNumParams());
     }
 
     private String getRegisterName(int regIndex, Register registerState) {

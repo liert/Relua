@@ -119,6 +119,7 @@ Phi nodes are not emitted as Lua. They are analysis nodes used by lowering. If a
 - Generate AST from SSA blocks/regions rather than raw instruction ranges.
 - Emit locals based on SSA live ranges and phi lowering.
 - Let structured control restoration consume SSA-backed regions.
+- Keep SSA-to-source naming in `SsaAstNameResolver`; opcode converters must query this policy instead of hard-coding register or version naming locally.
 
 ### Phase 6: Structured Region Engine
 
