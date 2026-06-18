@@ -11,8 +11,11 @@ import com.github.relua.model.Register;
 import com.github.relua.model.Register.RegisterEntity;
 import com.github.relua.model.UpValue;
 import com.github.relua.model.ValueType;
+import com.github.relua.decompiler.ssa.SsaExpressionAnalysis;
 import com.github.relua.decompiler.ssa.SsaAstNameResolver;
 import com.github.relua.decompiler.ssa.SsaValue;
+import com.github.relua.decompiler.ssa.SsaValueKind;
+import com.github.relua.decompiler.ssa.SsaValueSummary;
 import com.github.relua.util.RegisterNamePolicy;
 import com.github.relua.util.TransformUtils;
 
@@ -240,7 +243,13 @@ public class InstructionToASTConverter {
         } else if (sourceEntity.getType() == ValueType.BOOLEAN && sourceEntity.getValue() != null) {
             source = new BooleanConst((Boolean) sourceEntity.getValue(), new SourcePos(instructionIndex, -1));
         } else if (sourceEntity.getType() == ValueType.NIL) {
-            source = new NilConst(new SourcePos(instructionIndex, -1));
+            SsaValue sourceUse = pipeline.requireSsaUse(chunk.getFunction(), instructionIndex, b);
+            if (isSsaNilConstant(sourceUse)) {
+                source = new NilConst(new SourcePos(instructionIndex, -1));
+            } else {
+                source = new Name(getSsaCompatibleUseName(b, registerState, sourceUse),
+                        new SourcePos(instructionIndex, -1));
+            }
         } else if (sourceEntity.getType() == ValueType.GLOBAL && sourceEntity.getValue() != null) {
             source = new Name(sourceEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
         } else {
@@ -1044,7 +1053,7 @@ public class InstructionToASTConverter {
 
     private Expression resolveExpressionFromRegister(int registerIndex, int instructionIndex, Register registerState,
             boolean usePreviousWhenTarget) {
-        requireSsaUse(registerIndex, instructionIndex);
+        SsaValue ssaUse = pipeline.requireSsaUse(chunk.getFunction(), instructionIndex, registerIndex);
         if (usePreviousWhenTarget && instructionIndex > 0) {
             Instruction curInst = chunk.getInstruction(instructionIndex);
             if (curInst != null && curInst.getA() == registerIndex && isOutputRegisterOpcode(curInst.getOpcode())) {
@@ -1122,6 +1131,10 @@ public class InstructionToASTConverter {
                     }
                 case NIL:
                     // nil值
+                    if (!isSsaNilConstant(ssaUse)) {
+                        return new Name(getSsaCompatibleUseName(registerIndex, registerState, ssaUse),
+                                new SourcePos(instructionIndex, -1));
+                    }
                     return new NilConst(new SourcePos(instructionIndex, -1));
                 default:
                     // 未知类型，如果值不为 null 且不是 "nil"，使用值名，否则使用寄存器名作为占位符
@@ -1139,6 +1152,14 @@ public class InstructionToASTConverter {
             return new Name(entity.getName(), new SourcePos(instructionIndex, -1));
         }
 
+    }
+
+    private boolean isSsaNilConstant(SsaValue value) {
+        SsaExpressionAnalysis analysis = pipeline.requireSsaExpressionAnalysis(chunk.getFunction());
+        SsaValueSummary summary = analysis.getSummary(value);
+        return summary != null
+                && summary.getKind() == SsaValueKind.CONSTANT
+                && summary.getConstantValue() == null;
     }
 
     /**

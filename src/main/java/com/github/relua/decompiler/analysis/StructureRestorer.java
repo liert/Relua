@@ -642,13 +642,13 @@ public class StructureRestorer {
     private void addForInLoopVariables(Block bodyBlock, List<String> names, int baseRegister, int lhsCount, int numVars) {
         int firstValueRegister = firstForInValueRegister(baseRegister, lhsCount);
         if (numVars == 1) {
-            renameVariable(bodyBlock, scopedPhysicalRegisterName(firstValueRegister), "v");
+            renameTemporaryRegister(bodyBlock, firstValueRegister, "v");
             names.add("v");
             return;
         }
 
-        renameVariable(bodyBlock, scopedPhysicalRegisterName(firstValueRegister), "k");
-        renameVariable(bodyBlock, scopedPhysicalRegisterName(firstValueRegister + 1), "v");
+        renameTemporaryRegister(bodyBlock, firstValueRegister, "k");
+        renameTemporaryRegister(bodyBlock, firstValueRegister + 1, "v");
         names.add("k");
         names.add("v");
     }
@@ -657,19 +657,18 @@ public class StructureRestorer {
         return lhsCount == 4 ? baseRegister + 2 : baseRegister + 3;
     }
 
-    private String scopedPhysicalRegisterName(int register) {
-        return registerNamePrefix() + physicalRegisterName(register);
-    }
-
-    private String registerNamePrefix() {
-        if (chunk != null && "main".equals(chunk.getFunction())) {
-            return isModuleScenario() ? "module_" : "chunk_";
+    private void renameTemporaryRegister(Block bodyBlock, int physicalRegister, String newName) {
+        for (String oldName : temporaryRegisterNameCandidates(physicalRegister)) {
+            renameVariable(bodyBlock, oldName, newName);
         }
-        return "";
     }
 
-    private String physicalRegisterName(int register) {
-        return RegisterNamePolicy.physicalRegisterName(register);
+    private List<String> temporaryRegisterNameCandidates(int physicalRegister) {
+        List<String> names = new ArrayList<>();
+        names.add(RegisterNamePolicy.physicalRegisterName(physicalRegister));
+        names.add(RegisterNamePolicy.prefixedRegisterName("chunk_", physicalRegister));
+        names.add(RegisterNamePolicy.prefixedRegisterName("module_", physicalRegister));
+        return names;
     }
 
     private boolean isForInIteratorAssign(Statement stmt) {
@@ -995,7 +994,7 @@ public class StructureRestorer {
                                         stepExpr = null;
                                     }
                                     
-                                    String varName = physicalRegisterName(r1 + 3);
+                                    String varName = RegisterNamePolicy.physicalRegisterName(r1 + 3);
                                     
                                     int bodyEnd = (backGotoIdx < endLabelIdx) ? endLabelIdx - 1 : endLabelIdx;
                                     Block bodyBlock = new Block(new SourcePos(i + 5, -1));
@@ -1662,32 +1661,4 @@ public class StructureRestorer {
         return expr;
     }
 
-    private boolean isModuleScenario() {
-        if (chunk == null) {
-            return false;
-        }
-        if ("main".equals(chunk.getFunction())) {
-            return hasModuleCall(chunk);
-        }
-        return false;
-    }
-
-    private boolean hasModuleCall(Chunk mainChunk) {
-        if (mainChunk == null || mainChunk.getConstants() == null) {
-            return false;
-        }
-        for (com.github.relua.model.Constant c : mainChunk.getConstants()) {
-            Object val = c.getValue();
-            if (val != null) {
-                String s = val.toString();
-                if (s.length() >= 2 && s.startsWith("\"") && s.endsWith("\"")) {
-                    s = s.substring(1, s.length() - 1);
-                }
-                if ("module".equals(s)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
 }
