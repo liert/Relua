@@ -66,8 +66,9 @@ public class LuaCodeGenerator {
 
         for (int i = 0; i < chunk.getNumParams(); i++) {
             Register.RegisterEntity entity = register.getRegisterEntity(i);
-            entity.setCustomName("a" + i);
-            entity.setValue("a" + i);
+            String parameterName = RegisterNamePolicy.parameterName(i);
+            entity.setCustomName(parameterName);
+            entity.setValue(parameterName);
             entity.setType(ValueType.OBJECT);
             entity.setFromType(FromType.GLOBAL);
         }
@@ -142,8 +143,9 @@ public class LuaCodeGenerator {
             Register temp = new Register();
             for (int i = 0; i < subChunk.getNumParams(); i++) {
                 Register.RegisterEntity entity = temp.getRegisterEntity(i);
-                entity.setCustomName("a" + i);
-                entity.setValue("a" + i);
+                String parameterName = RegisterNamePolicy.parameterName(i);
+                entity.setCustomName(parameterName);
+                entity.setValue(parameterName);
                 entity.setType(ValueType.OBJECT);
                 entity.setFromType(FromType.GLOBAL);
             }

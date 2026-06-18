@@ -13,6 +13,10 @@ public final class RegisterNamePolicy {
         return "R" + register;
     }
 
+    public static String parameterName(int parameterIndex) {
+        return "a" + parameterIndex;
+    }
+
     public static String prefixedRegisterName(String prefix, int register) {
         return (prefix != null ? prefix : "") + physicalRegisterName(register);
     }

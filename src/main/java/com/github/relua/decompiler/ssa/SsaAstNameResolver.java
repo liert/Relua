@@ -4,23 +4,23 @@ import com.github.relua.model.Register;
 import com.github.relua.util.RegisterNamePolicy;
 
 /**
- * Centralizes the temporary source-name policy used while AST lowering is being
- * migrated to SSA. The current policy preserves legacy register-looking output
- * so existing cleanup passes keep working; later phi lowering and live-range
- * naming should evolve here instead of inside opcode converters.
+ * Centralizes the source-name policy used by SSA-backed AST lowering. The
+ * current policy keeps physical-register-shaped temporaries so existing cleanup
+ * passes can reason about live ranges; phi lowering and richer local naming
+ * should evolve here instead of inside opcode converters.
  */
 public final class SsaAstNameResolver {
     public String nameForDefinition(SsaValue value, int physicalRegister, Register registerState, int parameterCount) {
-        return legacyCompatibleName(physicalRegister, registerState, parameterCount);
+        return sourceName(physicalRegister, registerState, parameterCount);
     }
 
     public String nameForUse(SsaValue value, int physicalRegister, Register registerState, int parameterCount) {
-        return legacyCompatibleName(physicalRegister, registerState, parameterCount);
+        return sourceName(physicalRegister, registerState, parameterCount);
     }
 
-    private String legacyCompatibleName(int physicalRegister, Register registerState, int parameterCount) {
+    private String sourceName(int physicalRegister, Register registerState, int parameterCount) {
         if (physicalRegister >= 0 && physicalRegister < parameterCount) {
-            return "a" + physicalRegister;
+            return RegisterNamePolicy.parameterName(physicalRegister);
         }
         if (registerState != null) {
             return registerState.getRegisterEntity(physicalRegister).getName();

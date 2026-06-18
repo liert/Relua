@@ -10,6 +10,7 @@ class RegisterNamePolicyTest {
     @Test
     void distinguishesPhysicalAndPrefixedTemporaryRegisterNames() {
         assertEquals("R7", RegisterNamePolicy.physicalRegisterName(7));
+        assertEquals("a2", RegisterNamePolicy.parameterName(2));
         assertEquals("chunk_R7", RegisterNamePolicy.prefixedRegisterName("chunk_", 7));
 
         assertTrue(RegisterNamePolicy.isTemporaryRegisterName("R7"));

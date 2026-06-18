@@ -798,15 +798,7 @@ public class AstCleanupPass {
                 }
             }
             if (!missing.isEmpty()) {
-                missing.sort((a, b) -> {
-                    try {
-                        int na = Integer.parseInt(a.substring(1));
-                        int nb = Integer.parseInt(b.substring(1));
-                        return Integer.compare(na, nb);
-                    } catch (Exception e) {
-                        return a.compareTo(b);
-                    }
-                });
+                missing.sort(this::compareTemporaryRegisterNames);
                 declared.addAll(missing);
             }
         }
@@ -824,7 +816,7 @@ public class AstCleanupPass {
 
         if (isFunction && !missing.isEmpty()) {
             Map<Statement, List<String>> insertMap = new IdentityHashMap<>();
-            List<String> fallback = new ArrayList<>();
+            List<String> unplacedDeclarations = new ArrayList<>();
 
             for (String reg : missing) {
                 Statement firstStmt = null;
@@ -837,32 +829,20 @@ public class AstCleanupPass {
                 if (firstStmt != null) {
                     insertMap.computeIfAbsent(firstStmt, k -> new ArrayList<>()).add(reg);
                 } else {
-                    fallback.add(reg);
+                    unplacedDeclarations.add(reg);
                 }
             }
 
             List<Statement> newStmts = new ArrayList<>();
-            if (!fallback.isEmpty()) {
-                fallback.sort((a, b) -> {
-                    try {
-                        return Integer.compare(Integer.parseInt(a.substring(1)), Integer.parseInt(b.substring(1)));
-                    } catch (Exception e) {
-                        return a.compareTo(b);
-                    }
-                });
-                newStmts.add(new LocalAssign(fallback, new ArrayList<>(), block.pos));
+            if (!unplacedDeclarations.isEmpty()) {
+                unplacedDeclarations.sort(this::compareTemporaryRegisterNames);
+                newStmts.add(new LocalAssign(unplacedDeclarations, new ArrayList<>(), block.pos));
             }
 
             for (Statement stmt : block.statements) {
                 List<String> regsToDeclare = insertMap.get(stmt);
                 if (regsToDeclare != null && !regsToDeclare.isEmpty()) {
-                    regsToDeclare.sort((a, b) -> {
-                        try {
-                            return Integer.compare(Integer.parseInt(a.substring(1)), Integer.parseInt(b.substring(1)));
-                        } catch (Exception e) {
-                            return a.compareTo(b);
-                        }
-                    });
+                    regsToDeclare.sort(this::compareTemporaryRegisterNames);
                     newStmts.add(new LocalAssign(regsToDeclare, new ArrayList<>(), block.pos));
                 }
                 newStmts.add(stmt);
@@ -872,6 +852,21 @@ public class AstCleanupPass {
             block.statements.addAll(newStmts);
         }
         return declared;
+    }
+
+    private int compareTemporaryRegisterNames(String left, String right) {
+        int leftIndex = RegisterNamePolicy.temporaryRegisterIndex(left);
+        int rightIndex = RegisterNamePolicy.temporaryRegisterIndex(right);
+        if (leftIndex != -1 && rightIndex != -1) {
+            return Integer.compare(leftIndex, rightIndex);
+        }
+        if (leftIndex != -1) {
+            return -1;
+        }
+        if (rightIndex != -1) {
+            return 1;
+        }
+        return left.compareTo(right);
     }
 
     private boolean isRegisterOrObj(String name) {
