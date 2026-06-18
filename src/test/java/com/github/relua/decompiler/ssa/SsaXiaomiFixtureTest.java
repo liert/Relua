@@ -33,6 +33,8 @@ class SsaXiaomiFixtureTest {
                     + fixture.getName());
             assertFalse(lua.contains("a0:byte)"), "SSA call results must not lower back to method references in "
                     + fixture.getName());
+            assertFalse(lua.contains("[nil]"), "unused SSA table reads must not leave nil-index artifacts in "
+                    + fixture.getName());
         }
     }
 

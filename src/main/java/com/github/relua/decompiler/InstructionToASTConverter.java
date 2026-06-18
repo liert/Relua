@@ -525,6 +525,9 @@ public class InstructionToASTConverter {
         }
         List<Expression> left = new ArrayList<>();
         left.add(new Name(getDefinedRegisterName(a, instructionIndex, registerState), pos));
+        if (isUnusedSsaDefinition(a, instructionIndex)) {
+            return null;
+        }
         return new Assign(left, right, pos);
     }
 
@@ -1155,6 +1158,12 @@ public class InstructionToASTConverter {
         SsaExpressionAnalysis analysis = pipeline.requireSsaExpressionAnalysis(chunk.getFunction());
         SsaValueSummary summary = analysis.getSummary(value);
         return summary != null && summary.getKind() == SsaValueKind.CALL_RESULT;
+    }
+
+    private boolean isUnusedSsaDefinition(int registerIndex, int instructionIndex) {
+        SsaExpressionAnalysis analysis = pipeline.requireSsaExpressionAnalysis(chunk.getFunction());
+        SsaValue definition = pipeline.requireSsaDefinition(chunk.getFunction(), instructionIndex, registerIndex);
+        return analysis.getFunction().getUseCount(definition) == 0;
     }
 
     /**
