@@ -31,6 +31,8 @@ class SsaXiaomiFixtureTest {
                     + fixture.getName());
             assertFalse(lua.contains("tostring(nil)"), "SSA loop values must not lower to nil tostring calls in "
                     + fixture.getName());
+            assertFalse(lua.contains("a0:byte)"), "SSA call results must not lower back to method references in "
+                    + fixture.getName());
         }
     }
 

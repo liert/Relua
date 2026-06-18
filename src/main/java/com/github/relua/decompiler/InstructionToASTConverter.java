@@ -662,27 +662,11 @@ public class InstructionToASTConverter {
             }
         }
         int rkIndex = rk;
-        if (pos != null && pos.pc >= 0) {
-            requireSsaUse(rkIndex, pos.pc);
+        if (pos == null || pos.pc < 0) {
+            RegisterEntity entity = register.getRegisterEntity(rkIndex);
+            return TransformUtils.transformToAstNode(entity, pos != null ? pos.pc : -1);
         }
-        Register registerState = register;
-        if (pos != null && pos.pc > 0) {
-            Instruction curInst = chunk.getInstruction(pos.pc);
-            if (curInst != null && curInst.getA() == rkIndex && isOutputRegisterOpcode(curInst.getOpcode())) {
-                Register prevRegisterState = pipeline.getRegisterByInstructionIndex(pos.pc - 1);
-                if (prevRegisterState != null) {
-                    registerState = prevRegisterState;
-                }
-            }
-        }
-        RegisterEntity entity = registerState.getRegisterEntity(rkIndex);
-        if (entity != null) {
-            if (entity.getFromType() == FromType.CONSTANT && entity.getValue() instanceof String
-                    && !entity.getName().equals(entity.getValue().toString())) {
-                return new StringConst(entity.getValue().toString(), pos);
-            }
-        }
-        return TransformUtils.transformToAstNode(entity, pos.pc);
+        return resolveExpressionFromRegister(rkIndex, pos.pc, register, true);
     }
 
     /**
@@ -994,6 +978,7 @@ public class InstructionToASTConverter {
                 targets.add(returnName);
             }
 
+            registerState.setRegisterEntity(a, call, ValueType.OBJECT, FromType.REGISTER);
             return new Assign(targets, Collections.singletonList(call), pos);
         }
 
@@ -1064,6 +1049,10 @@ public class InstructionToASTConverter {
             }
         }
         RegisterEntity entity = registerState.getRegisterEntity(registerIndex);
+        if (isSsaCallResult(ssaUse)) {
+            return new Name(getSsaCompatibleUseName(registerIndex, registerState, ssaUse),
+                    new SourcePos(instructionIndex, -1));
+        }
         if (entity.getValue() instanceof Expression) {
             if (entity.getValue() instanceof TableConstructor
                     && ((TableConstructor) entity.getValue()).isEmpty()) {
@@ -1160,6 +1149,12 @@ public class InstructionToASTConverter {
         return summary != null
                 && summary.getKind() == SsaValueKind.CONSTANT
                 && summary.getConstantValue() == null;
+    }
+
+    private boolean isSsaCallResult(SsaValue value) {
+        SsaExpressionAnalysis analysis = pipeline.requireSsaExpressionAnalysis(chunk.getFunction());
+        SsaValueSummary summary = analysis.getSummary(value);
+        return summary != null && summary.getKind() == SsaValueKind.CALL_RESULT;
     }
 
     /**
