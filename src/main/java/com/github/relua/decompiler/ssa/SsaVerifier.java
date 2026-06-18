@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Set;
 
 import com.github.relua.decompiler.BasicBlock;
+import com.github.relua.model.Chunk;
 
 public final class SsaVerifier {
     private SsaVerifier() {
@@ -51,6 +52,7 @@ public final class SsaVerifier {
                 }
             }
             for (SsaInstruction instruction : block.getInstructions()) {
+                verifyInstructionSummary(function.getChunk(), instruction, errors);
                 for (SsaValue value : instruction.getUses()) {
                     if (value == null) {
                         errors.add("instruction " + instruction.getPc() + " has null use");
@@ -62,6 +64,31 @@ public final class SsaVerifier {
         }
 
         return errors;
+    }
+
+    private static void verifyInstructionSummary(Chunk chunk, SsaInstruction instruction, List<String> errors) {
+        if (chunk == null) {
+            return;
+        }
+        SsaInstructionSummary summary = SsaInstructionSummarizer.summarize(chunk, instruction.getPc());
+        List<Integer> actualUses = registersOf(instruction.getUses());
+        List<Integer> actualDefs = registersOf(instruction.getDefs());
+        if (!summary.getUses().equals(actualUses)) {
+            errors.add("instruction " + instruction.getPc() + " SSA uses " + actualUses
+                    + " do not match opcode summary " + summary.getUses());
+        }
+        if (!summary.getDefs().equals(actualDefs)) {
+            errors.add("instruction " + instruction.getPc() + " SSA defs " + actualDefs
+                    + " do not match opcode summary " + summary.getDefs());
+        }
+    }
+
+    private static List<Integer> registersOf(List<SsaValue> values) {
+        List<Integer> registers = new ArrayList<>();
+        for (SsaValue value : values) {
+            registers.add(value != null ? value.getRegister() : -1);
+        }
+        return registers;
     }
 
     private static String blockName(BasicBlock block) {
