@@ -1,6 +1,7 @@
 package com.github.relua.decompiler.ssa;
 
 import com.github.relua.model.Register;
+import com.github.relua.util.RegisterNamePolicy;
 
 /**
  * Centralizes the temporary source-name policy used while AST lowering is being
@@ -24,6 +25,6 @@ public final class SsaAstNameResolver {
         if (registerState != null) {
             return registerState.getRegisterEntity(physicalRegister).getName();
         }
-        return "R" + physicalRegister;
+        return RegisterNamePolicy.physicalRegisterName(physicalRegister);
     }
 }
