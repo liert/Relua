@@ -10,8 +10,12 @@ import com.github.relua.ast.NumberConst;
 import com.github.relua.ast.ReturnStatement;
 import com.github.relua.ast.Statement;
 import com.github.relua.ast.StringConst;
+import com.github.relua.decompiler.ssa.SsaExpressionAnalysis;
+import com.github.relua.decompiler.ssa.SsaInstruction;
+import com.github.relua.decompiler.ssa.SsaValue;
+import com.github.relua.decompiler.ssa.SsaValueKind;
+import com.github.relua.decompiler.ssa.SsaValueSummary;
 import com.github.relua.model.Chunk;
-import com.github.relua.model.Constant;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Opcode;
 import com.github.relua.model.UpValue;
@@ -37,7 +41,7 @@ final class GenerationPeepholeOptimizer {
      *   return nil
      */
     static boolean tryOptimizeAssignReturn(Block block, ReturnStatement ret, int returnPC, Chunk chunk,
-            CodeGeneratorContext context) {
+            CodeGeneratorContext context, SsaExpressionAnalysis ssaExpressionAnalysis) {
         if (block == null || block.statements == null || block.statements.isEmpty()) {
             return false;
         }
@@ -91,7 +95,7 @@ final class GenerationPeepholeOptimizer {
             return false;
         }
 
-        if (!isVerifiedConstantAssign(assignInst, rightExpr, chunk)) {
+        if (!isVerifiedConstantAssign(assign.pos.pc, reg, rightExpr, ssaExpressionAnalysis)) {
             return false;
         }
 
@@ -114,31 +118,34 @@ final class GenerationPeepholeOptimizer {
         return upvalueNames.contains(name);
     }
 
-    private static boolean isVerifiedConstantAssign(Instruction assignInst, Expression rightExpr, Chunk chunk) {
-        Opcode assignOp = assignInst.getOpcode();
-
-        if (assignOp == Opcode.LOADNIL) {
-            return assignInst.getA() == assignInst.getB() && rightExpr instanceof NilConst;
+    private static boolean isVerifiedConstantAssign(int assignPc, int register, Expression rightExpr,
+            SsaExpressionAnalysis ssaExpressionAnalysis) {
+        if (ssaExpressionAnalysis == null) {
+            throw new IllegalStateException("Missing SSA expression analysis for generation peephole optimization");
         }
-
-        if (assignOp == Opcode.LOADBOOL) {
-            if (!(rightExpr instanceof BooleanConst)) {
-                return false;
-            }
-            boolean astValue = ((BooleanConst) rightExpr).value;
-            boolean instValue = assignInst.getB() != 0;
-            return astValue == instValue;
+        SsaInstruction ssaInstruction = ssaExpressionAnalysis.getFunction().getInstruction(assignPc);
+        if (ssaInstruction == null) {
+            throw new IllegalStateException("Missing SSA instruction for generation peephole pc=" + assignPc);
         }
-
-        if (assignOp == Opcode.LOADK) {
-            Constant k = chunk.getConstant(assignInst.getBx());
-            return k != null && constantMatchesAst(k.getValue(), rightExpr);
+        SsaValue definition = ssaInstruction.getFirstDefForRegister(register);
+        if (definition == null) {
+            return false;
         }
-
-        return false;
+        SsaValueSummary summary = ssaExpressionAnalysis.getSummary(definition);
+        return summary != null
+                && summary.getKind() == SsaValueKind.CONSTANT
+                && constantMatchesAst(summary.getConstantValue(), rightExpr);
     }
 
     private static boolean constantMatchesAst(Object constantValue, Expression expression) {
+        if (constantValue == null) {
+            return expression instanceof NilConst;
+        }
+
+        if (expression instanceof BooleanConst && constantValue instanceof Boolean) {
+            return ((BooleanConst) expression).value == (Boolean) constantValue;
+        }
+
         if (expression instanceof StringConst) {
             return ((StringConst) expression).value.equals(constantValue);
         }

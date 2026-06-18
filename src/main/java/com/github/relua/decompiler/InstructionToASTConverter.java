@@ -1758,7 +1758,8 @@ public class InstructionToASTConverter {
      * @return 是否成功进行了优化
      */
     public boolean tryOptimizeAssignReturn(Block block, ReturnStatement ret, int returnPC) {
-        return GenerationPeepholeOptimizer.tryOptimizeAssignReturn(block, ret, returnPC, chunk, pipeline.getContext());
+        return GenerationPeepholeOptimizer.tryOptimizeAssignReturn(block, ret, returnPC, chunk, pipeline.getContext(),
+                pipeline.getSsaExpressionAnalysis(chunk.getFunction()));
     }
 
     private String getDefinedRegisterName(int regIndex, int instructionIndex) {

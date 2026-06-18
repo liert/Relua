@@ -366,6 +366,7 @@ class DecompilerTest {
             block.statements.add(assign);
 
             Chunk chunk = new Chunk();
+            chunk.setFunction("peephole_constant_return");
             chunk.addInstruction(new Instruction(0, (4 << 6) | (4 << 23), Opcode.LOADNIL)); // A=4, B=4
             chunk.addInstruction(new Instruction(1, (4 << 6) | (2 << 23), Opcode.RETURN));  // A=4, B=2
 
@@ -375,6 +376,7 @@ class DecompilerTest {
             LuaCodeGenerator generator = new LuaCodeGenerator(chunk);
             InstructionHandler handler = new InstructionHandler(generator, context);
             DecompilerPipeline pipeline = new DecompilerPipeline(generator, handler);
+            pipeline.processChunk(chunk);
             InstructionToASTConverter converter = new InstructionToASTConverter(chunk, pipeline);
 
             // 运行生成阶段优化
@@ -403,6 +405,7 @@ class DecompilerTest {
             block.statements.add(assign);
 
             Chunk chunk = new Chunk();
+            chunk.setFunction("peephole_label_return");
             chunk.addInstruction(new Instruction(0, (4 << 6) | (4 << 23), Opcode.LOADNIL)); // A=4, B=4
             chunk.addInstruction(new Instruction(1, (4 << 6) | (2 << 23), Opcode.RETURN));  // A=4, B=2
 
@@ -413,6 +416,7 @@ class DecompilerTest {
             LuaCodeGenerator generator = new LuaCodeGenerator(chunk);
             InstructionHandler handler = new InstructionHandler(generator, context);
             DecompilerPipeline pipeline = new DecompilerPipeline(generator, handler);
+            pipeline.processChunk(chunk);
             InstructionToASTConverter converter = new InstructionToASTConverter(chunk, pipeline);
 
             boolean optimized = converter.tryOptimizeAssignReturn(block, ret, 1);
