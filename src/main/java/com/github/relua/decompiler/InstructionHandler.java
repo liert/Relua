@@ -2,6 +2,7 @@ package com.github.relua.decompiler;
 
 import com.github.relua.ast.*;
 import com.github.relua.decompiler.ssa.SsaAstNameResolver;
+import com.github.relua.decompiler.ssa.SsaInstruction;
 import com.github.relua.decompiler.ssa.SsaValue;
 import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
@@ -105,16 +106,17 @@ public class InstructionHandler {
         Chunk chunk = codeGenContext.getChunk();
         String function = chunk.getFunction();
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
-        SsaValue definition = pipeline.getSsaDefinition(function, instructionIndex, register);
+        SsaInstruction ssaInstruction = pipeline.requireSsaInstruction(function, instructionIndex);
+        SsaValue definition = ssaInstruction.getFirstDefForRegister(register);
         if (definition != null) {
             return ssaNameResolver.nameForDefinition(definition, register, registerState, chunk.getNumParams());
         }
-        SsaValue use = pipeline.getSsaUse(function, instructionIndex, register);
+        SsaValue use = ssaInstruction.getFirstUseForRegister(register);
         if (use != null) {
             return ssaNameResolver.nameForUse(use, register, registerState, chunk.getNumParams());
         }
-        throw new IllegalStateException("Missing SSA value for " + function + " pc=" + instructionIndex
-                + " R" + register);
+        pipeline.requireSsaValue(function, instructionIndex, register);
+        throw new IllegalStateException("Unreachable SSA lookup failure");
     }
 
     /**

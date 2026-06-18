@@ -55,7 +55,7 @@ class SsaXiaomiFixtureTest {
                 "missing SSA expression analysis for " + chunk.getFunction());
         for (int pc = 0; pc < chunk.getInstructions().size(); pc++) {
             assertNotNull(decompiler.getCodeGenerator().getInstructionHandler(chunk.getFunction()).getPipeline()
-                    .getSsaInstruction(chunk.getFunction(), pc),
+                    .requireSsaInstruction(chunk.getFunction(), pc),
                     "missing SSA instruction for " + chunk.getFunction() + " pc=" + pc);
         }
         if (!chunk.getInstructions().isEmpty()) {

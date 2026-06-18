@@ -20,6 +20,7 @@ import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Register;
+import com.github.relua.util.RegisterNamePolicy;
 
 public class DecompilerPipeline {
     private final LuaCodeGenerator generator;
@@ -200,14 +201,58 @@ public class DecompilerPipeline {
         return ssaFunction != null ? ssaFunction.getInstruction(pc) : null;
     }
 
+    public SsaInstruction requireSsaInstruction(String function, int pc) {
+        SsaFunction ssaFunction = ssaFunctions.get(function);
+        if (ssaFunction == null) {
+            throw new IllegalStateException("Missing SSA function for " + function);
+        }
+        SsaInstruction instruction = ssaFunction.getInstruction(pc);
+        if (instruction == null) {
+            throw new IllegalStateException("Missing SSA instruction for " + function + " pc=" + pc);
+        }
+        return instruction;
+    }
+
     public SsaValue getSsaDefinition(String function, int pc, int register) {
         SsaInstruction instruction = getSsaInstruction(function, pc);
         return instruction != null ? instruction.getFirstDefForRegister(register) : null;
     }
 
+    public SsaValue requireSsaDefinition(String function, int pc, int register) {
+        SsaValue value = requireSsaInstruction(function, pc).getFirstDefForRegister(register);
+        if (value == null) {
+            throw new IllegalStateException("Missing SSA definition for " + function
+                    + " pc=" + pc + " " + RegisterNamePolicy.physicalRegisterName(register));
+        }
+        return value;
+    }
+
     public SsaValue getSsaUse(String function, int pc, int register) {
         SsaInstruction instruction = getSsaInstruction(function, pc);
         return instruction != null ? instruction.getFirstUseForRegister(register) : null;
+    }
+
+    public SsaValue requireSsaUse(String function, int pc, int register) {
+        SsaValue value = requireSsaInstruction(function, pc).getFirstUseForRegister(register);
+        if (value == null) {
+            throw new IllegalStateException("Missing SSA use for " + function
+                    + " pc=" + pc + " " + RegisterNamePolicy.physicalRegisterName(register));
+        }
+        return value;
+    }
+
+    public SsaValue requireSsaValue(String function, int pc, int register) {
+        SsaInstruction instruction = requireSsaInstruction(function, pc);
+        SsaValue value = instruction.getFirstDefForRegister(register);
+        if (value != null) {
+            return value;
+        }
+        value = instruction.getFirstUseForRegister(register);
+        if (value != null) {
+            return value;
+        }
+        throw new IllegalStateException("Missing SSA value for " + function
+                + " pc=" + pc + " " + RegisterNamePolicy.physicalRegisterName(register));
     }
 
     public SsaExpressionAnalysis getSsaExpressionAnalysis(String function) {

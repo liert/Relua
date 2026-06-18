@@ -1767,28 +1767,17 @@ public class InstructionToASTConverter {
     }
 
     private String getDefinedRegisterName(int regIndex, int instructionIndex, Register registerState) {
-        SsaValue value = pipeline.getSsaDefinition(chunk.getFunction(), instructionIndex, regIndex);
-        if (value == null) {
-            throw new IllegalStateException("Missing SSA definition for " + chunk.getFunction()
-                    + " pc=" + instructionIndex + " R" + regIndex);
-        }
+        SsaValue value = pipeline.requireSsaDefinition(chunk.getFunction(), instructionIndex, regIndex);
         return getSsaCompatibleRegisterName(regIndex, registerState, value);
     }
 
     private String getUsedRegisterName(int regIndex, int instructionIndex, Register registerState) {
-        SsaValue value = pipeline.getSsaUse(chunk.getFunction(), instructionIndex, regIndex);
-        if (value == null) {
-            throw new IllegalStateException("Missing SSA use for " + chunk.getFunction()
-                    + " pc=" + instructionIndex + " R" + regIndex);
-        }
+        SsaValue value = pipeline.requireSsaUse(chunk.getFunction(), instructionIndex, regIndex);
         return getSsaCompatibleUseName(regIndex, registerState, value);
     }
 
     private void requireSsaUse(int regIndex, int instructionIndex) {
-        if (pipeline.getSsaUse(chunk.getFunction(), instructionIndex, regIndex) == null) {
-            throw new IllegalStateException("Missing SSA use for " + chunk.getFunction()
-                    + " pc=" + instructionIndex + " R" + regIndex);
-        }
+        pipeline.requireSsaUse(chunk.getFunction(), instructionIndex, regIndex);
     }
 
     private String getSsaCompatibleRegisterName(int regIndex, Register registerState, SsaValue value) {
