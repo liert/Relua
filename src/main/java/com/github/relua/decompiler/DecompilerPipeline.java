@@ -105,10 +105,8 @@ public class DecompilerPipeline {
         List<String> ssaErrors = SsaVerifier.verify(ssaFunction);
         if (!ssaErrors.isEmpty()) {
             String message = "SSA verification failed for " + chunk.getFunction() + ": " + ssaErrors;
-            if (Boolean.getBoolean("relua.ssa.verify")) {
-                throw new IllegalStateException(message);
-            }
-            Logger.warning(message);
+            Logger.error(message);
+            throw new IllegalStateException(message);
         }
 
         if (com.github.relua.debug.DecompilerDebugger.isEnabled()) {

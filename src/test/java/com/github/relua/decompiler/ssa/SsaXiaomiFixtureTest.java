@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.io.File;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import com.github.relua.decompiler.Decompiler;
@@ -13,14 +12,8 @@ import com.github.relua.model.LuacFile;
 import com.github.relua.parser.LuacParser;
 
 class SsaXiaomiFixtureTest {
-    @AfterEach
-    void clearStrictVerifierFlag() {
-        System.clearProperty("relua.ssa.verify");
-    }
-
     @Test
     void verifiesSsaForAllXiaomiFixturesDuringDecompilation() throws Exception {
-        System.setProperty("relua.ssa.verify", "true");
         File dir = new File("src/test/resources/xiaomi");
         File[] fixtures = dir.listFiles((parent, name) -> name.endsWith(".lua"));
         assertNotNull(fixtures, "xiaomi fixture directory must be readable");
