@@ -423,7 +423,7 @@ public class InstructionToASTConverter {
         SourcePos pos = new SourcePos(instructionIndex, -1);
 
         // 左侧目标: R(A)
-        Expression target = new Name(getRegisterName(a, instructionIndex), pos);
+        Expression target = new Name(getDefinedRegisterName(a, instructionIndex), pos);
 
         // 右侧变量名
         Expression globalName = new Name(name, pos);
@@ -447,6 +447,7 @@ public class InstructionToASTConverter {
 
         // 源变量 - 使用寄存器的实际值
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
+        requireSsaUse(a, instructionIndex);
         RegisterEntity sourceEntity = registerState.getRegisterEntity(a);
 
         Expression source = TransformUtils.transformToAstNode(sourceEntity, instructionIndex);
@@ -491,13 +492,13 @@ public class InstructionToASTConverter {
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         // 目标变量名
         List<String> names = new ArrayList<>();
-        names.add(getRegisterName(a, registerState));
+        names.add(getDefinedRegisterName(a, instructionIndex, registerState));
 
         RegisterEntity RB = registerState.getRegisterEntity(b);
         SourcePos pos = new SourcePos(instructionIndex, -1);
 
         // 表访问表达式
-        Expression table = new Name(getRegisterName(b, registerState), pos);
+        Expression table = new Name(getUsedRegisterName(b, instructionIndex, registerState), pos);
         if (RB.getValue() instanceof Expression) {
             table = (Expression) RB.getValue();
         } else if ((RB.getType() == ValueType.GLOBAL || RB.getFromType() == FromType.GLOBAL) && RB.getValue() != null) {
@@ -513,7 +514,7 @@ public class InstructionToASTConverter {
             return null;
         }
         List<Expression> left = new ArrayList<>();
-        left.add(new Name(getRegisterName(a, registerState), pos));
+        left.add(new Name(getDefinedRegisterName(a, instructionIndex, registerState), pos));
         return new Assign(left, right, pos);
     }
 
@@ -530,6 +531,7 @@ public class InstructionToASTConverter {
         int b = instruction.getB();
         int c = instruction.getC();
         Register register = pipeline.getRegisterByInstructionIndex(instructionIndex);
+        requireSsaUse(a, instructionIndex);
         RegisterEntity RA = register.getRegisterEntity(a);
 
         SourcePos pos = new SourcePos(instructionIndex, -1);
@@ -574,7 +576,7 @@ public class InstructionToASTConverter {
         SourcePos pos = new SourcePos(instructionIndex, -1);
 
         // NEWTABLE 的目标变量始终用寄存器名 R+a，避免使用指令执行前残留的旧值
-        String targetName = getRegisterName(a, instructionIndex);
+        String targetName = getDefinedRegisterName(a, instructionIndex);
         Expression tableExpression = new TableConstructor(new ArrayList<>(), pos);
         List<Expression> left = new ArrayList<>();
         left.add(new Name(targetName, pos));
@@ -612,7 +614,9 @@ public class InstructionToASTConverter {
 
         // 获取方法名
         String methodName = null;
+        requireSsaUse(b, instructionIndex);
         if (c < 256) {
+            requireSsaUse(c, instructionIndex);
             Register register = pipeline.getRegisterByInstructionIndex(instructionIndex);
             methodName = TransformUtils.transformRegister(register.getRegisterEntity(c));
         } else {
@@ -625,7 +629,7 @@ public class InstructionToASTConverter {
         }
 
         // 存储pending的SELF指令，不生成AST节点
-        pipeline.getContext().addPendingSelf(a, b, methodName);
+        pipeline.getContext().addPendingSelf(a, b, methodName, instructionIndex);
         
         // SELF指令不生成代码，返回null
         return null;
@@ -648,6 +652,9 @@ public class InstructionToASTConverter {
             }
         }
         int rkIndex = rk;
+        if (pos != null && pos.pc >= 0) {
+            requireSsaUse(rkIndex, pos.pc);
+        }
         Register registerState = register;
         if (pos != null && pos.pc > 0) {
             Instruction curInst = chunk.getInstruction(pos.pc);
@@ -689,7 +696,7 @@ public class InstructionToASTConverter {
 
         // 算术指令：R(a) := RK(b) op RK(c)
         // 目标变量
-        Expression target = new Name(getRegisterName(a, registerState), pos);
+        Expression target = new Name(getDefinedRegisterName(a, instructionIndex, registerState), pos);
 
         // 左操作数：解析真实的寄存器/常量名称
         Expression left = rkExpression(registerState, b, pos);
@@ -726,9 +733,10 @@ public class InstructionToASTConverter {
 
         // 一元指令：R(a) := op R(b)
         // 目标变量
-        Expression target = new Name(getRegisterName(a, registerState), new SourcePos(instructionIndex, -1));
+        Expression target = new Name(getDefinedRegisterName(a, instructionIndex, registerState), new SourcePos(instructionIndex, -1));
 
         // 操作数：通过寄存器状态解析真实名称（如参数名、全局变量名等）
+        requireSsaUse(b, instructionIndex);
         RegisterEntity operandEntity = registerState.getRegisterEntity(b);
         Expression operand = TransformUtils.transformToAstNode(operandEntity, instructionIndex);
 
@@ -894,10 +902,14 @@ public class InstructionToASTConverter {
             // 解析对象表达式（base register）
             // 如果 base 寄存器与 target 寄存器 a 相同，则 base 已经被 SELF 指令覆盖，其原始值备份在 a + 1 中
             int baseReg = pendingSelf.getBaseRegister();
+            int baseInstructionIndex = pendingSelf.getInstructionIndex();
+            Register baseRegisterState = pipeline.getRegisterByInstructionIndex(baseInstructionIndex);
             if (baseReg == a) {
                 baseReg = a + 1;
+                baseInstructionIndex = instructionIndex;
+                baseRegisterState = registerState;
             }
-            Expression obj = resolveExpressionFromRegister(baseReg, instructionIndex, registerState);
+            Expression obj = resolveExpressionFromRegister(baseReg, baseInstructionIndex, baseRegisterState);
             
             // 创建成员访问表达式作为函数调用的callee
             func = new MemberExpr(obj, pendingSelf.getMethodName(), pos);
@@ -1031,6 +1043,7 @@ public class InstructionToASTConverter {
 
     private Expression resolveExpressionFromRegister(int registerIndex, int instructionIndex, Register registerState,
             boolean usePreviousWhenTarget) {
+        requireSsaUse(registerIndex, instructionIndex);
         if (usePreviousWhenTarget && instructionIndex > 0) {
             Instruction curInst = chunk.getInstruction(instructionIndex);
             if (curInst != null && curInst.getA() == registerIndex && isOutputRegisterOpcode(curInst.getOpcode())) {
@@ -1139,36 +1152,14 @@ public class InstructionToASTConverter {
     private List<Expression> resolveCallArguments(int a, int b, int instructionIndex, Register registerState) {
         List<Expression> args = new ArrayList<>();
 
-        // 处理参数：B=1表示无参数，B>1表示有B-1个参数
-        if (b > 1) {
-            for (int i = 1; i < b; i++) {
-                int argRegister = a + i;
-                Expression arg = resolveExpressionFromRegister(argRegister, instructionIndex, registerState);
-                args.add(arg);
-            }
-        } else if (b == 0) {
-            // b = 0表示传递了前一个多返回值函数或vararg调用的所有返回值
-            int top = a + 1;
-            int prevCallPC = -1;
-            for (int i = instructionIndex - 1; i >= 0; i--) {
-                Instruction prev = chunk.getInstruction(i);
-                if (prev.getOpcode() == Opcode.CALL && prev.getC() == 0) {
-                    top = prev.getA();
-                    prevCallPC = i;
-                    break;
-                }
-                if (prev.getOpcode() == Opcode.VARARG && prev.getB() == 0) {
-                    top = prev.getA();
-                    prevCallPC = i;
-                    break;
-                }
-            }
-            for (int i = a + 1; i <= top; i++) {
-                if (i == top && prevCallPC != -1) {
-                    args.add(buildMultiValueExpressionAt(prevCallPC));
-                } else {
-                    args.add(resolveExpressionFromRegister(i, instructionIndex, registerState));
-                }
+        List<Integer> argumentRegisters = VariableArityResolver.callArgumentRegisters(chunk, instructionIndex);
+        int openProducerPc = b == 0 ? VariableArityResolver.findOpenResultProducerPc(chunk, instructionIndex) : -1;
+        int openStart = openProducerPc >= 0 ? chunk.getInstruction(openProducerPc).getA() : -1;
+        for (Integer argRegister : argumentRegisters) {
+            if (argRegister == openStart) {
+                args.add(buildMultiValueExpressionAt(openProducerPc));
+            } else {
+                args.add(resolveExpressionFromRegister(argRegister, instructionIndex, registerState));
             }
         }
 
@@ -1803,6 +1794,13 @@ public class InstructionToASTConverter {
                     + " pc=" + instructionIndex + " R" + regIndex);
         }
         return getSsaCompatibleUseName(regIndex, registerState, value);
+    }
+
+    private void requireSsaUse(int regIndex, int instructionIndex) {
+        if (pipeline.getSsaUse(chunk.getFunction(), instructionIndex, regIndex) == null) {
+            throw new IllegalStateException("Missing SSA use for " + chunk.getFunction()
+                    + " pc=" + instructionIndex + " R" + regIndex);
+        }
     }
 
     private String getSsaCompatibleRegisterName(int regIndex, Register registerState, SsaValue value) {

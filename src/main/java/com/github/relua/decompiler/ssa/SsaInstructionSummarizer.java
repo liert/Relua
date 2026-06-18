@@ -1,5 +1,7 @@
 package com.github.relua.decompiler.ssa;
 
+import com.github.relua.decompiler.VariableArityResolver;
+import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Opcode;
 
@@ -7,7 +9,15 @@ final class SsaInstructionSummarizer {
     private SsaInstructionSummarizer() {
     }
 
+    static SsaInstructionSummary summarize(Chunk chunk, int pc) {
+        return summarize(chunk.getInstruction(pc), chunk, pc);
+    }
+
     static SsaInstructionSummary summarize(Instruction instruction) {
+        return summarize(instruction, null, -1);
+    }
+
+    private static SsaInstructionSummary summarize(Instruction instruction, Chunk chunk, int pc) {
         SsaInstructionSummary summary = new SsaInstructionSummary();
         Opcode opcode = instruction.getOpcode();
         int a = instruction.getA();
@@ -36,6 +46,9 @@ final class SsaInstructionSummarizer {
             case GETUPVAL:
             case VARARG:
                 summary.def(a);
+                break;
+            case SETGLOBAL:
+                summary.use(a);
                 break;
             case SETUPVAL:
                 summary.use(a);
@@ -93,10 +106,10 @@ final class SsaInstructionSummarizer {
                 break;
             case CALL:
             case TAILCALL:
-                summarizeCall(summary, instruction);
+                summarizeCall(summary, instruction, chunk, pc);
                 break;
             case RETURN:
-                summarizeReturn(summary, instruction);
+                summarizeReturn(summary, instruction, chunk, pc);
                 break;
             case FORPREP:
                 summary.use(a);
@@ -140,15 +153,21 @@ final class SsaInstructionSummarizer {
         }
     }
 
-    private static void summarizeCall(SsaInstructionSummary summary, Instruction instruction) {
+    private static void summarizeCall(SsaInstructionSummary summary, Instruction instruction, Chunk chunk, int pc) {
         int a = instruction.getA();
-        int b = instruction.getB();
         int c = instruction.getC();
 
         summary.use(a);
-        if (b > 0) {
-            for (int reg = a + 1; reg <= a + b - 1; reg++) {
+        if (chunk != null && pc >= 0) {
+            for (Integer reg : VariableArityResolver.callArgumentRegisters(chunk, pc)) {
                 summary.use(reg);
+            }
+        } else {
+            int b = instruction.getB();
+            if (b > 0) {
+                for (int reg = a + 1; reg <= a + b - 1; reg++) {
+                    summary.use(reg);
+                }
             }
         }
 
@@ -164,15 +183,21 @@ final class SsaInstructionSummarizer {
         }
     }
 
-    private static void summarizeReturn(SsaInstructionSummary summary, Instruction instruction) {
+    private static void summarizeReturn(SsaInstructionSummary summary, Instruction instruction, Chunk chunk, int pc) {
         int a = instruction.getA();
         int b = instruction.getB();
-        if (b > 0) {
-            for (int reg = a; reg <= a + b - 2; reg++) {
+        if (chunk != null && pc >= 0) {
+            for (Integer reg : VariableArityResolver.returnRegisters(chunk, pc)) {
                 summary.use(reg);
             }
         } else {
-            summary.use(a);
+            if (b > 0) {
+                for (int reg = a; reg <= a + b - 2; reg++) {
+                    summary.use(reg);
+                }
+            } else {
+                summary.use(a);
+            }
         }
     }
 }

@@ -107,7 +107,7 @@ public final class SsaBuilder {
         for (BasicBlock block : blocks) {
             Set<Integer> defs = new LinkedHashSet<>();
             for (int pc = block.getStartIndex(); pc <= block.getEndIndex() && pc < instructions.size(); pc++) {
-                SsaInstructionSummary summary = SsaInstructionSummarizer.summarize(instructions.get(pc));
+                SsaInstructionSummary summary = SsaInstructionSummarizer.summarize(chunk, pc);
                 for (Integer register : summary.getDefs()) {
                     defs.add(register);
                     Set<BasicBlock> defBlocks = definingBlocks.get(register);
@@ -281,7 +281,7 @@ public final class SsaBuilder {
         List<Instruction> instructions = chunk.getInstructions();
         for (int pc = block.getStartIndex(); pc <= block.getEndIndex() && pc < instructions.size(); pc++) {
             Instruction instruction = instructions.get(pc);
-            SsaInstructionSummary summary = SsaInstructionSummarizer.summarize(instruction);
+            SsaInstructionSummary summary = SsaInstructionSummarizer.summarize(chunk, pc);
             SsaInstruction ssaInstruction = new SsaInstruction(instruction, pc);
             for (Integer register : summary.getUses()) {
                 ssaInstruction.addUse(peekOrCreateImplicit(register));

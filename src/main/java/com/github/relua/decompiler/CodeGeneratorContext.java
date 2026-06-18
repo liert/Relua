@@ -71,10 +71,12 @@ public class CodeGeneratorContext {
     public static class PendingSelf {
         private final int baseRegister; // 基础寄存器B
         private final String methodName; // 方法名RK(C)
+        private final int instructionIndex; // SELF 指令位置
         
-        public PendingSelf(int baseRegister, String methodName) {
+        public PendingSelf(int baseRegister, String methodName, int instructionIndex) {
             this.baseRegister = baseRegister;
             this.methodName = methodName;
+            this.instructionIndex = instructionIndex;
         }
         
         public int getBaseRegister() {
@@ -83,6 +85,10 @@ public class CodeGeneratorContext {
         
         public String getMethodName() {
             return methodName;
+        }
+
+        public int getInstructionIndex() {
+            return instructionIndex;
         }
     }
 
@@ -417,8 +423,8 @@ public class CodeGeneratorContext {
      * @param baseRegister 基础寄存器B
      * @param methodName 方法名RK(C)
      */
-    public void addPendingSelf(int registerA, int baseRegister, String methodName) {
-        this.pendingSelfCalls.put(registerA, new PendingSelf(baseRegister, methodName));
+    public void addPendingSelf(int registerA, int baseRegister, String methodName, int instructionIndex) {
+        this.pendingSelfCalls.put(registerA, new PendingSelf(baseRegister, methodName, instructionIndex));
     }
     
     /**
