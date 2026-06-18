@@ -329,26 +329,9 @@ public class StructureRestorer {
                 }
             }
 
-            String prefix = "";
-            if (chunk != null && "main".equals(chunk.getFunction())) {
-                prefix = isModuleScenario() ? "module_" : "chunk_";
-            }
-
             List<Expression> iterators = getIteratorExpressions(iterStmt);
             List<String> names = new ArrayList<>();
-
-            if (numVars == 1) {
-                String varName = (lhsCount == 4) ? ("R" + (regA + 2)) : ("R" + (regA + 3));
-                renameVariable(bodyBlock, prefix + varName, "v");
-                names.add("v");
-            } else {
-                String kName = (lhsCount == 4) ? ("R" + (regA + 2)) : ("R" + (regA + 3));
-                String vName = (lhsCount == 4) ? ("R" + (regA + 3)) : ("R" + (regA + 4));
-                renameVariable(bodyBlock, prefix + kName, "k");
-                renameVariable(bodyBlock, prefix + vName, "v");
-                names.add("k");
-                names.add("v");
-            }
+            addForInLoopVariables(bodyBlock, names, regA, lhsCount, numVars);
             
             ForIn forIn = new ForIn(names, iterators, bodyBlock, iterStmt.pos);
             
@@ -466,26 +449,9 @@ public class StructureRestorer {
                     }
                 }
 
-                String prefix = "";
-                if (chunk != null && "main".equals(chunk.getFunction())) {
-                    prefix = isModuleScenario() ? "module_" : "chunk_";
-                }
-
                 List<Expression> iterators = getIteratorExpressions(extract.iterator);
                 List<String> names = new ArrayList<>();
-
-                if (numVars == 1) {
-                    String varName = (lhsCount == 4) ? ("R" + (regA + 2)) : ("R" + (regA + 3));
-                    renameVariable(bodyBlock, prefix + varName, "v");
-                    names.add("v");
-                } else {
-                    String kName = (lhsCount == 4) ? ("R" + (regA + 2)) : ("R" + (regA + 3));
-                    String vName = (lhsCount == 4) ? ("R" + (regA + 3)) : ("R" + (regA + 4));
-                    renameVariable(bodyBlock, prefix + kName, "k");
-                    renameVariable(bodyBlock, prefix + vName, "v");
-                    names.add("k");
-                    names.add("v");
-                }
+                addForInLoopVariables(bodyBlock, names, regA, lhsCount, numVars);
                 
                 ForIn forIn = new ForIn(names, iterators, bodyBlock, extract.iterator.pos);
                 
@@ -678,6 +644,39 @@ public class StructureRestorer {
             return Integer.parseInt(m.group(1));
         }
         return -1;
+    }
+
+    private void addForInLoopVariables(Block bodyBlock, List<String> names, int baseRegister, int lhsCount, int numVars) {
+        int firstValueRegister = firstForInValueRegister(baseRegister, lhsCount);
+        if (numVars == 1) {
+            renameVariable(bodyBlock, scopedPhysicalRegisterName(firstValueRegister), "v");
+            names.add("v");
+            return;
+        }
+
+        renameVariable(bodyBlock, scopedPhysicalRegisterName(firstValueRegister), "k");
+        renameVariable(bodyBlock, scopedPhysicalRegisterName(firstValueRegister + 1), "v");
+        names.add("k");
+        names.add("v");
+    }
+
+    private int firstForInValueRegister(int baseRegister, int lhsCount) {
+        return lhsCount == 4 ? baseRegister + 2 : baseRegister + 3;
+    }
+
+    private String scopedPhysicalRegisterName(int register) {
+        return registerNamePrefix() + physicalRegisterName(register);
+    }
+
+    private String registerNamePrefix() {
+        if (chunk != null && "main".equals(chunk.getFunction())) {
+            return isModuleScenario() ? "module_" : "chunk_";
+        }
+        return "";
+    }
+
+    private String physicalRegisterName(int register) {
+        return "R" + register;
     }
 
     private boolean isForInIteratorAssign(Statement stmt) {
@@ -1003,7 +1002,7 @@ public class StructureRestorer {
                                         stepExpr = null;
                                     }
                                     
-                                    String varName = "R" + (r1 + 3);
+                                    String varName = physicalRegisterName(r1 + 3);
                                     
                                     int bodyEnd = (backGotoIdx < endLabelIdx) ? endLabelIdx - 1 : endLabelIdx;
                                     Block bodyBlock = new Block(new SourcePos(i + 5, -1));
