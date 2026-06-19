@@ -22,11 +22,19 @@ public final class SsaAstNameResolver {
     }
 
     public String nameForDefinition(SsaValue value, int physicalRegister, Register registerState, int parameterCount) {
-        return sourceName(physicalRegister, registerState, parameterCount);
+        String base = sourceName(physicalRegister, registerState, parameterCount);
+        if (value == null || value.isImplicit()) {
+            return base;
+        }
+        return base + "_" + value.getVersion();
     }
 
     public String nameForUse(SsaValue value, int physicalRegister, Register registerState, int parameterCount) {
-        return sourceName(physicalRegister, registerState, parameterCount);
+        String base = sourceName(physicalRegister, registerState, parameterCount);
+        if (value == null || value.isImplicit()) {
+            return base;
+        }
+        return base + "_" + value.getVersion();
     }
 
     private String sourceName(int physicalRegister, Register registerState, int parameterCount) {

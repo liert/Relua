@@ -118,6 +118,30 @@ class SsaBuilderTest {
         assertEquals(constantSummary, analysis.resolveCopySummary(copy));
     }
 
+    @Test
+    void insertsPhiAtMergeOfMultipleEntries() {
+        Chunk chunk = new Chunk();
+        chunk.setFunction("ssa_multi_entry");
+        chunk.addInstruction(abx(0, Opcode.LOADK, 1, 0)); // entry1: def R1
+        chunk.addInstruction(abx(1, Opcode.LOADK, 1, 1)); // entry2: def R1
+        chunk.addInstruction(abc(2, Opcode.RETURN, 1, 2, 0)); // merge: use R1
+
+        BasicBlock entry1 = block(0, 0);
+        BasicBlock entry2 = block(1, 1);
+        BasicBlock merge = block(2, 2);
+
+        entry1.addSuccessor(merge);
+        entry2.addSuccessor(merge);
+
+        SsaFunction function = new SsaBuilder().build(chunk, Arrays.asList(entry1, entry2, merge));
+        SsaPhi phi = function.getBlock(merge).getPhi(1);
+
+        assertNotNull(phi, "R1 must be represented by an explicit phi at the merge of multiple entries");
+        assertNotNull(phi.getTarget(), "phi must define a new SSA value");
+        assertEquals(2, phi.getIncoming().size(), "phi must have two inputs");
+        assertTrue(SsaVerifier.verify(function).isEmpty(), "multi-entry SSA must satisfy invariants");
+    }
+
     private static BasicBlock block(int start, int end) {
         BasicBlock block = new BasicBlock(start);
         block.setEndIndex(end);

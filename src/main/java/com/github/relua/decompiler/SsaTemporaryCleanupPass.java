@@ -37,8 +37,11 @@ import com.github.relua.ast.TableConstructor;
 import com.github.relua.ast.TableField;
 import com.github.relua.ast.UnaryOp;
 import com.github.relua.ast.WhileStatement;
+import com.github.relua.decompiler.ssa.SsaBlock;
 import com.github.relua.decompiler.ssa.SsaExpressionAnalysis;
+import com.github.relua.decompiler.ssa.SsaFunction;
 import com.github.relua.decompiler.ssa.SsaInstruction;
+import com.github.relua.decompiler.ssa.SsaPhi;
 import com.github.relua.decompiler.ssa.SsaValue;
 import com.github.relua.decompiler.ssa.SsaValueKind;
 import com.github.relua.decompiler.ssa.SsaValueSummary;
@@ -63,16 +66,27 @@ final class SsaTemporaryCleanupPass {
                 if (assignment == null || isSelfCopy(assignment)) {
                     continue;
                 }
+
+                boolean isPure = isDiscardableSsaTemporarySummary(assignment.analysis.getSummary(assignment.definition))
+                        && isAstPureExpression(assignment.right);
+
                 int useIndex = findSingleLinearUseIndex(block.statements, i, assignment);
                 if (useIndex < 0 || !canInlineIntoStatement(block.statements.get(useIndex))) {
                     continue;
                 }
-                if (countVariableReadsOutsideExpression(block.statements.get(useIndex), assignment.name,
-                        assignment.right) == 0) {
+                
+                int readsOutside = countVariableReadsOutsideExpression(block.statements.get(useIndex), assignment.name,
+                        assignment.right);
+                if (readsOutside == 0) {
                     block.statements.remove(i);
                     changed = true;
                     break;
                 }
+
+                if (!isPure) {
+                    continue;
+                }
+
                 Statement rewritten = replaceVariableReadInStatement(block.statements.get(useIndex), assignment.name,
                         assignment.right);
                 block.statements.set(useIndex, rewritten);
@@ -88,13 +102,23 @@ final class SsaTemporaryCleanupPass {
         if (!hasSsaContext(block, context, pipeline)) {
             return;
         }
+        Set<SsaValue> livePhis = computeLivePhis(pipeline.requireSsaExpressionAnalysis(context.getChunk().getFunction()).getFunction());
+        deleteDead(block, context, pipeline, protectedDefinitionPcs, deleteAtBlockExitWhenNoAstUse, livePhis);
+    }
+
+    private void deleteDead(Block block, CodeGeneratorContext context, DecompilerPipeline pipeline,
+            Map<String, Set<Integer>> protectedDefinitionPcs, boolean deleteAtBlockExitWhenNoAstUse,
+            Set<SsaValue> livePhis) {
+        if (!hasSsaContext(block, context, pipeline)) {
+            return;
+        }
 
         boolean changed = true;
         while (changed) {
             changed = false;
             for (int i = 0; i < block.statements.size(); i++) {
                 Statement statement = block.statements.get(i);
-                deleteDeadInNested(statement, context, pipeline, protectedDefinitionPcs);
+                deleteDeadInNested(statement, context, pipeline, protectedDefinitionPcs, livePhis);
 
                 SsaTemporaryAssignment assignment = ssaTemporaryAssignment(block.statements, i, context, pipeline,
                         protectedDefinitionPcs);
@@ -109,7 +133,7 @@ final class SsaTemporaryCleanupPass {
                 }
                 if (isSelfCopy(assignment)
                         || canDeleteSsaTemporaryDefinition(block.statements, i, assignment,
-                                deleteAtBlockExitWhenNoAstUse)
+                                deleteAtBlockExitWhenNoAstUse, livePhis)
                         || canDeleteAstDeadTemporaryDefinition(block.statements, i,
                                 new AstTemporaryAssignment(assignment.name, assignment.right))) {
                     block.statements.remove(i);
@@ -126,9 +150,9 @@ final class SsaTemporaryCleanupPass {
     }
 
     private void deleteDeadInNested(Statement statement, CodeGeneratorContext context, DecompilerPipeline pipeline,
-            Map<String, Set<Integer>> protectedDefinitionPcs) {
+            Map<String, Set<Integer>> protectedDefinitionPcs, Set<SsaValue> livePhis) {
         forEachNestedBlock(statement, block -> deleteDead(block, context, pipeline, protectedDefinitionPcs,
-                statement instanceof FunctionDeclaration));
+                statement instanceof FunctionDeclaration, livePhis));
     }
 
     private void inlineSingleUseInNested(Statement statement, CodeGeneratorContext context, DecompilerPipeline pipeline,
@@ -197,8 +221,12 @@ final class SsaTemporaryCleanupPass {
         }
         SsaExpressionAnalysis analysis = pipeline.requireSsaExpressionAnalysis(context.getChunk().getFunction());
         SsaValueSummary summary = analysis.getSummary(definition);
-        if (summary == null || !isDiscardableSsaTemporarySummary(summary) || !isAstPureExpression(ast.right)
-                || !matchesSsaSummary(ast.right, summary)) {
+        if (summary == null) {
+            return null;
+        }
+        boolean allowedSummary = isDiscardableSsaTemporarySummary(summary) || summary.getKind() == SsaValueKind.CALL_RESULT;
+        boolean allowedAst = isAstPureExpression(ast.right) || (ast.right instanceof FunctionCall);
+        if (!allowedSummary || !allowedAst || !matchesSsaSummary(ast.right, summary)) {
             return null;
         }
         return new SsaTemporaryAssignment(ast.name, ast.right, definition, analysis);
@@ -291,7 +319,8 @@ final class SsaTemporaryCleanupPass {
     }
 
     private boolean canDeleteSsaTemporaryDefinition(List<Statement> statements, int index,
-            SsaTemporaryAssignment assignment, boolean deleteAtBlockExitWhenNoAstUse) {
+            SsaTemporaryAssignment assignment, boolean deleteAtBlockExitWhenNoAstUse,
+            Set<SsaValue> livePhis) {
         Set<Integer> astConsumedUsePcs = new HashSet<>();
         int lastLinearPc = -1;
         for (int i = index + 1; i < statements.size(); i++) {
@@ -306,20 +335,28 @@ final class SsaTemporaryCleanupPass {
             if (definesTemporary(next, assignment.name)) {
                 return true;
             }
-            if (containsUnresolvedTransfer(next)) {
+        }
+        boolean isPure = isDiscardableSsaTemporarySummary(assignment.analysis.getSummary(assignment.definition))
+                && isAstPureExpression(assignment.right);
+        List<SsaInstruction> ssaUses = assignment.analysis.getFunction().getInstructionUses(assignment.definition);
+
+        if (deleteAtBlockExitWhenNoAstUse || assignment.analysis.getFunction().getUseCount(assignment.definition) == 0) {
+            return isPure;
+        }
+        if (!isPure) {
+            if (ssaUses.size() != 1) {
                 return false;
             }
         }
-        if (deleteAtBlockExitWhenNoAstUse || assignment.analysis.getFunction().getUseCount(assignment.definition) == 0) {
-            return true;
-        }
-        return hasOnlyAstConsumedLinearSsaUses(assignment, astConsumedUsePcs, lastLinearPc);
+        return hasOnlyAstConsumedLinearSsaUses(assignment, astConsumedUsePcs, lastLinearPc, livePhis);
     }
 
     private boolean hasOnlyAstConsumedLinearSsaUses(SsaTemporaryAssignment assignment, Set<Integer> astConsumedUsePcs,
-            int lastLinearPc) {
-        if (assignment.analysis.getFunction().getPhiUses(assignment.definition).size() > 0) {
-            return false;
+            int lastLinearPc, Set<SsaValue> livePhis) {
+        for (SsaPhi phi : assignment.analysis.getFunction().getPhiUses(assignment.definition)) {
+            if (livePhis.contains(phi.getTarget())) {
+                return false;
+            }
         }
         SsaInstruction definitionInstruction = assignment.analysis.getFunction()
                 .getDefiningInstruction(assignment.definition);
@@ -523,6 +560,9 @@ final class SsaTemporaryCleanupPass {
             return summary.getKind() == SsaValueKind.COPY || summary.getKind() == SsaValueKind.UPVALUE
                     || summary.isPure();
         }
+        if (expression instanceof FunctionCall && summary.getKind() == SsaValueKind.CALL_RESULT) {
+            return true;
+        }
         return summary.isPure();
     }
 
@@ -599,6 +639,14 @@ final class SsaTemporaryCleanupPass {
         if (expression instanceof NilConst || expression instanceof BooleanConst || expression instanceof NumberConst
                 || expression instanceof StringConst || expression instanceof Name) {
             return true;
+        }
+        if (expression instanceof IndexExpr) {
+            IndexExpr idx = (IndexExpr) expression;
+            return isAstPureExpression(idx.table) && isAstPureExpression(idx.index);
+        }
+        if (expression instanceof MemberExpr) {
+            MemberExpr mem = (MemberExpr) expression;
+            return isAstPureExpression(mem.table);
         }
         if (expression instanceof UnaryOp) {
             return isAstPureExpression(((UnaryOp) expression).expr);
@@ -1017,6 +1065,39 @@ final class SsaTemporaryCleanupPass {
 
     private boolean isAssignedName(Expression expression, String assignedName) {
         return expression instanceof Name && assignedName.equals(((Name) expression).name);
+    }
+
+    private Set<SsaValue> computeLivePhis(SsaFunction function) {
+        Set<SsaValue> livePhis = new HashSet<>();
+        List<SsaValue> worklist = new ArrayList<>();
+        
+        for (SsaBlock block : function.getBlocks()) {
+            for (SsaPhi phi : block.getPhis()) {
+                SsaValue target = phi.getTarget();
+                if (target != null) {
+                    if (!function.getInstructionUses(target).isEmpty()) {
+                        livePhis.add(target);
+                        worklist.add(target);
+                    }
+                }
+            }
+        }
+        
+        int head = 0;
+        while (head < worklist.size()) {
+            SsaValue liveValue = worklist.get(head++);
+            SsaPhi definingPhi = function.getDefiningPhi(liveValue);
+            if (definingPhi != null) {
+                for (SsaValue incoming : definingPhi.getIncoming().values()) {
+                    if (incoming != null && function.getDefiningPhi(incoming) != null) {
+                        if (livePhis.add(incoming)) {
+                            worklist.add(incoming);
+                        }
+                    }
+                }
+            }
+        }
+        return livePhis;
     }
 
     private static final class AstTemporaryAssignment {

@@ -44,8 +44,19 @@ final class SsaInstructionSummarizer {
                 }
                 break;
             case GETUPVAL:
-            case VARARG:
                 summary.def(a);
+                break;
+            case VARARG:
+                {
+                    int varargB = instruction.getB();
+                    if (varargB > 1) {
+                        for (int reg = a; reg <= a + varargB - 2; reg++) {
+                            summary.def(reg);
+                        }
+                    } else {
+                        summary.def(a);
+                    }
+                }
                 break;
             case SETGLOBAL:
                 summary.use(a);

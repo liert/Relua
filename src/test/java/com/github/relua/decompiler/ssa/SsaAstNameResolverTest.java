@@ -15,11 +15,11 @@ class SsaAstNameResolverTest {
         SsaValue value = new SsaValue(3, 1, false);
 
         assertEquals("a0", resolver.nameForUse(new SsaValue(0, 0, true), 0, null, 2));
-        assertEquals("R3", resolver.nameForDefinition(value, 3, null, 0));
+        assertEquals("R3_1", resolver.nameForDefinition(value, 3, null, 0));
 
         Register register = new Register();
         register.setVarPrefix("chunk_");
-        assertEquals("chunk_R3", resolver.nameForUse(value, 3, register, 0));
+        assertEquals("chunk_R3_1", resolver.nameForUse(value, 3, register, 0));
     }
 
     @Test

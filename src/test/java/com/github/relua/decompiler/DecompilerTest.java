@@ -56,9 +56,14 @@ class DecompilerTest {
         assertNotNull(luacFile, "Failed to parse xqdatacenter.lua");
 
         // 反编译
+        com.github.relua.debug.DecompilerDebugger debugger = new com.github.relua.debug.DecompilerDebugger("target/debug_xqdatacenter", "xqdatacenter.lua");
+        com.github.relua.debug.DecompilerDebugger.set(debugger);
+
         String luaCode = decompiler.decompile(luacFile);
         assertNotNull(luaCode, "Failed to decompile");
         assertFalse(luaCode.isEmpty(), "Decompiled code is empty");
+
+        com.github.relua.debug.DecompilerDebugger.clear();
 
         // 写入输出文件
         try (PrintWriter writer = new PrintWriter(new FileWriter("target/xqdatacenter_decompiled.lua"))) {
@@ -99,8 +104,13 @@ class DecompilerTest {
         LuacFile luacFile = parser.parse(filePath);
         assertNotNull(luacFile, "Failed to parse http.lua");
 
+        com.github.relua.debug.DecompilerDebugger debugger = new com.github.relua.debug.DecompilerDebugger("target/debug_http", "http.lua");
+        com.github.relua.debug.DecompilerDebugger.set(debugger);
+
         String luaCode = decompiler.decompile(luacFile);
         assertNotNull(luaCode, "Failed to decompile");
+
+        com.github.relua.debug.DecompilerDebugger.clear();
 
         try (PrintWriter writer = new PrintWriter(new FileWriter("target/http_decompiled.lua"))) {
             writer.print(luaCode);

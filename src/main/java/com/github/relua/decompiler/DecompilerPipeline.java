@@ -110,6 +110,9 @@ public class DecompilerPipeline {
 
         SsaFunction ssaFunction = ssaBuilder.build(chunk, basicBlockBuilder.getBasicBlocks());
         ssaFunctions.put(chunk.getFunction(), ssaFunction);
+        if (chunk.getFunction().contains("write_jsonp")) {
+            System.out.println("DEBUG SSA FOR " + chunk.getFunction() + ":\n" + ssaFunction.format());
+        }
         List<String> ssaErrors = SsaVerifier.verify(ssaFunction);
         if (!ssaErrors.isEmpty()) {
             String message = "SSA verification failed for " + chunk.getFunction() + ": " + ssaErrors;

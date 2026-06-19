@@ -54,8 +54,15 @@ public final class SsaValueSummary {
     }
 
     public boolean isPure() {
-        return effects.isEmpty()
-                && kind != SsaValueKind.CALL_RESULT
+        for (SsaEffect effect : effects) {
+            if (effect != SsaEffect.READ_GLOBAL
+                    && effect != SsaEffect.READ_UPVALUE
+                    && effect != SsaEffect.READ_TABLE
+                    && effect != SsaEffect.NONE) {
+                return false;
+            }
+        }
+        return kind != SsaValueKind.CALL_RESULT
                 && kind != SsaValueKind.VARARG
                 && kind != SsaValueKind.UNKNOWN;
     }

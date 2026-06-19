@@ -16,6 +16,8 @@ import com.github.relua.decompiler.ssa.SsaAstNameResolver;
 import com.github.relua.decompiler.ssa.SsaValue;
 import com.github.relua.decompiler.ssa.SsaValueKind;
 import com.github.relua.decompiler.ssa.SsaValueSummary;
+import com.github.relua.decompiler.ssa.SsaFunction;
+import com.github.relua.decompiler.ssa.SsaInstruction;
 import com.github.relua.util.RegisterNamePolicy;
 
 import java.util.List;
@@ -1055,9 +1057,17 @@ public class InstructionToASTConverter {
         if (entity.getValue() instanceof Expression) {
             if (entity.getValue() instanceof TableConstructor
                     && ((TableConstructor) entity.getValue()).isEmpty()) {
-                return new Name(entity.getName(), new SourcePos(instructionIndex, -1));
+                return new Name(getSsaCompatibleUseName(registerIndex, registerState, ssaUse), new SourcePos(instructionIndex, -1));
             }
-            return (Expression) entity.getValue();
+            int defInstructionIndex = instructionIndex;
+            SsaFunction ssaFunc = pipeline.getSsaFunction(chunk.getFunction());
+            if (ssaFunc != null) {
+                SsaInstruction defInst = ssaFunc.getDefiningInstruction(ssaUse);
+                if (defInst != null) {
+                    defInstructionIndex = defInst.getPc();
+                }
+            }
+            return rewriteExpressionWithSsaVersions((Expression) entity.getValue(), defInstructionIndex);
         }
         try {
             // 根据实体类型创建不同的表达式
@@ -1067,30 +1077,24 @@ public class InstructionToASTConverter {
                 case TABLE:
                 case OBJECT:
                     // 全局变量、函数引用、表引用
-                    if (entity.getValue() == null) {
-                        return new Name(entity.getName(), new SourcePos(instructionIndex, -1));
-                    }
-                    String valStr = entity.getValue().toString();
+                    String fallbackName = getFallbackName(registerIndex, registerState, ssaUse, entity);
                     SourcePos pos = new SourcePos(instructionIndex, -1);
-                    if (valStr.contains(".")) {
-                        String[] parts = valStr.split("\\.");
+                    if (fallbackName.contains(".")) {
+                        String[] parts = fallbackName.split("\\.");
                         Expression current = new Name(parts[0], pos);
                         for (int i = 1; i < parts.length; i++) {
                             current = new MemberExpr(current, parts[i], pos);
                         }
                         return current;
                     }
-                    return new Name(valStr, pos);
+                    return new Name(fallbackName, pos);
                 case STRING:
                     // 只有当实体是常量（例如 FromType == CONSTANT）且其 value 不等于寄存器自身名称时才包装为 StringConst 
                     if (entity.getFromType() == FromType.CONSTANT && entity.getValue() != null 
                             && !entity.getName().equals(entity.getValue().toString())) {
                         return new StringConst(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
                     }
-                    if (entity.getValue() != null) {
-                        return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
-                    }
-                    return new Name(entity.getName(), new SourcePos(instructionIndex, -1));
+                    return new Name(getFallbackName(registerIndex, registerState, ssaUse, entity), new SourcePos(instructionIndex, -1));
                 case NUMBER:
                     // 数值常量
                     if (entity.getValue() instanceof Double) {
@@ -1098,20 +1102,14 @@ public class InstructionToASTConverter {
                     } else if (entity.getValue() instanceof Integer) {
                         return new NumberConst(((Integer) entity.getValue()).doubleValue(), new SourcePos(instructionIndex, -1));
                     } else {
-                        if (entity.getValue() == null) {
-                            return new Name(entity.getName(), new SourcePos(instructionIndex, -1));
-                        }
-                        return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
+                        return new Name(getFallbackName(registerIndex, registerState, ssaUse, entity), new SourcePos(instructionIndex, -1));
                     }
                 case BOOLEAN:
                     // 布尔值常量
                     if (entity.getValue() instanceof Boolean) {
                         return new BooleanConst((Boolean) entity.getValue(), new SourcePos(instructionIndex, -1));
                     } else {
-                        if (entity.getValue() == null) {
-                            return new Name(entity.getName(), new SourcePos(instructionIndex, -1));
-                        }
-                        return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
+                        return new Name(getFallbackName(registerIndex, registerState, ssaUse, entity), new SourcePos(instructionIndex, -1));
                     }
                 case NIL:
                     // nil值
@@ -1122,19 +1120,39 @@ public class InstructionToASTConverter {
                     return new NilConst(new SourcePos(instructionIndex, -1));
                 default:
                     // 未知类型，如果值不为 null 且不是 "nil"，使用值名，否则使用寄存器名作为占位符
-                    if (entity.getValue() != null && !entity.getValue().equals("nil")) {
-                        return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
+                    if (entity.getValue() != null && entity.getValue().equals("nil")) {
+                        return new Name(getSsaCompatibleUseName(registerIndex, registerState, ssaUse), new SourcePos(instructionIndex, -1));
                     }
-                    return new Name(entity.getName(), new SourcePos(instructionIndex, -1));
+                    return new Name(getFallbackName(registerIndex, registerState, ssaUse, entity), new SourcePos(instructionIndex, -1));
             }
         } catch (Exception e) {
             // 处理异常，如果值不为空则返回值的名称，否则返回寄存器名作为占位符
-            // System.out.println("异常寄存器: " + entity);
-            if (entity != null && entity.getValue() != null) {
-                return new Name(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
-            }
-            return new Name(entity.getName(), new SourcePos(instructionIndex, -1));
+            return new Name(getFallbackName(registerIndex, registerState, ssaUse, entity), new SourcePos(instructionIndex, -1));
         }
+    }
+
+    private String getFallbackName(int registerIndex, Register registerState, SsaValue ssaUse, RegisterEntity entity) {
+        String result;
+        if (entity == null) {
+            result = getSsaCompatibleUseName(registerIndex, registerState, ssaUse);
+        } else if (entity.getValue() == null) {
+            result = getSsaCompatibleUseName(registerIndex, registerState, ssaUse);
+        } else {
+            String val = entity.getValue().toString();
+            if (RegisterNamePolicy.isPhysicalRegisterName(val) || val.equals(entity.getName())) {
+                result = getSsaCompatibleUseName(registerIndex, registerState, ssaUse);
+            } else {
+                result = val;
+            }
+        }
+        if (chunk.getFunction().contains("write_jsonp")) {
+            System.out.println("FALLBACK log: chunk=" + chunk.getFunction() 
+                + " reg=" + registerIndex 
+                + " entity.name=" + (entity != null ? entity.getName() : "null") 
+                + " ssaUse=" + ssaUse 
+                + " result=" + result);
+        }
+        return result;
 
     }
 
@@ -1869,5 +1887,95 @@ public class InstructionToASTConverter {
             }
         }
         return false;
+    }
+
+    private Expression rewriteExpressionWithSsaVersions(Expression expr, int instructionIndex) {
+        if (expr == null) {
+            return null;
+        }
+        if (expr instanceof Name) {
+            Name nameNode = (Name) expr;
+            String name = nameNode.name;
+            if (RegisterNamePolicy.isPhysicalRegisterName(name)) {
+                int regIndex = RegisterNamePolicy.temporaryRegisterIndex(name);
+                SsaValue use = null;
+                try {
+                    use = pipeline.requireSsaUse(chunk.getFunction(), instructionIndex, regIndex);
+                } catch (Exception ignored) {
+                }
+                if (use != null) {
+                    Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
+                    return new Name(getSsaCompatibleUseName(regIndex, registerState, use), nameNode.pos);
+                }
+            }
+            return new Name(name, nameNode.pos);
+        }
+        if (expr instanceof IndexExpr) {
+            IndexExpr idx = (IndexExpr) expr;
+            return new IndexExpr(
+                rewriteExpressionWithSsaVersions(idx.table, instructionIndex),
+                rewriteExpressionWithSsaVersions(idx.index, instructionIndex),
+                idx.pos
+            );
+        }
+        if (expr instanceof MemberExpr) {
+            MemberExpr mem = (MemberExpr) expr;
+            return new MemberExpr(
+                rewriteExpressionWithSsaVersions(mem.table, instructionIndex),
+                mem.member,
+                mem.pos
+            );
+        }
+        if (expr instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) expr;
+            List<Expression> newArgs = new ArrayList<>();
+            if (call.args != null) {
+                for (Expression arg : call.args) {
+                    newArgs.add(rewriteExpressionWithSsaVersions(arg, instructionIndex));
+                }
+            }
+            List<Expression> newReturns = new ArrayList<>();
+            if (call.returns != null) {
+                for (Expression ret : call.returns) {
+                    newReturns.add(rewriteExpressionWithSsaVersions(ret, instructionIndex));
+                }
+            }
+            FunctionCall newCall = new FunctionCall(
+                rewriteExpressionWithSsaVersions(call.callee, instructionIndex),
+                newArgs,
+                call.isMethodCall,
+                newReturns,
+                call.pos
+            );
+            newCall.setMultiReturn(call.multiReturn);
+            return newCall;
+        }
+        if (expr instanceof TableConstructor) {
+            TableConstructor tc = (TableConstructor) expr;
+            List<TableField> newFields = new ArrayList<>();
+            if (tc.fields != null) {
+                for (TableField field : tc.fields) {
+                    newFields.add(new TableField(
+                        rewriteExpressionWithSsaVersions(field.key, instructionIndex),
+                        rewriteExpressionWithSsaVersions(field.value, instructionIndex)
+                    ));
+                }
+            }
+            return new TableConstructor(newFields, tc.pos);
+        }
+        if (expr instanceof UnaryOp) {
+            UnaryOp u = (UnaryOp) expr;
+            return new UnaryOp(u.op, rewriteExpressionWithSsaVersions(u.expr, instructionIndex), u.pos);
+        }
+        if (expr instanceof BinaryOp) {
+            BinaryOp b = (BinaryOp) expr;
+            return new BinaryOp(
+                b.op,
+                rewriteExpressionWithSsaVersions(b.left, instructionIndex),
+                rewriteExpressionWithSsaVersions(b.right, instructionIndex),
+                b.pos
+            );
+        }
+        return expr;
     }
 }

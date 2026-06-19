@@ -43,13 +43,11 @@ Thumbs.db
 
 # Trae AI files
 .trae/
+.claude/
+.agents/
 
 # Documentation files
 docs/
-I18N_GUIDELINES.md
-LUA_BYTECODE_DECOMPILATION_TECH_DOC.md
-技术文档.md
-架构信息.md
 
 # Debug outputs
 debug_output/
