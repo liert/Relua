@@ -10,15 +10,29 @@ import java.util.Set;
 import com.github.relua.ast.Assign;
 import com.github.relua.ast.AstPrinter;
 import com.github.relua.ast.Block;
+import com.github.relua.ast.BinaryOp;
 import com.github.relua.ast.Expression;
+import com.github.relua.ast.ExpressionStatement;
+import com.github.relua.ast.ForIn;
+import com.github.relua.ast.ForNumeric;
 import com.github.relua.ast.FunctionDeclaration;
 import com.github.relua.ast.FunctionLiteral;
+import com.github.relua.ast.FunctionCall;
 import com.github.relua.ast.GlobalAssign;
+import com.github.relua.ast.IfStatement;
 import com.github.relua.ast.IndexExpr;
+import com.github.relua.ast.LocalAssign;
 import com.github.relua.ast.MemberExpr;
+import com.github.relua.ast.MultiVal;
 import com.github.relua.ast.Name;
+import com.github.relua.ast.RepeatStatement;
+import com.github.relua.ast.ReturnStatement;
 import com.github.relua.ast.Statement;
 import com.github.relua.ast.StringConst;
+import com.github.relua.ast.TableConstructor;
+import com.github.relua.ast.TableField;
+import com.github.relua.ast.UnaryOp;
+import com.github.relua.ast.WhileStatement;
 import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.CodeLine;
@@ -239,13 +253,19 @@ public class LuaCodeGenerator {
             }
         }
 
-        // 第二遍：过滤掉对已被内联的闭包的多余临时寄存器赋值
+        // 第二遍：把匿名闭包作为表达式内联，并过滤掉对应的临时寄存器赋值。
         List<Statement> finalStatements = new ArrayList<>();
-        for (Statement statement : rewritten) {
+        for (int i = 0; i < rewritten.size(); i++) {
+            Statement statement = rewritten.get(i);
+            ClosureBinding binding = asTemporaryClosureBinding(statement, contextByFunction);
+            if (binding != null && inlineSingleUseClosureBinding(rewritten, i, binding, contextByFunction,
+                    emittedFunctions)) {
+                continue;
+            }
             if (isTemporaryRegisterClosureAssign(statement, emittedFunctions)) {
                 continue;
             }
-            finalStatements.add(statement);
+            finalStatements.add(rewriteAnonymousClosureUses(statement, contextByFunction, emittedFunctions));
         }
 
         block.statements.clear();
@@ -281,6 +301,352 @@ public class LuaCodeGenerator {
         CodeGeneratorContext closureContext = contextByFunction.get(closureName);
         FunctionLiteral literal = createFunctionLiteral(closureContext);
         return new FunctionDeclaration(targetName, literal, false, statement.pos);
+    }
+
+    private ClosureBinding asTemporaryClosureBinding(Statement statement,
+            Map<String, CodeGeneratorContext> contextByFunction) {
+        if (!(statement instanceof Assign)) {
+            return null;
+        }
+        Assign assign = (Assign) statement;
+        if (assign.left.size() != 1 || assign.right.size() != 1) {
+            return null;
+        }
+        Expression left = assign.left.get(0);
+        Expression right = assign.right.get(0);
+        if (!(left instanceof Name) || !(right instanceof Name)) {
+            return null;
+        }
+        String targetName = ((Name) left).name;
+        String closureName = ((Name) right).name;
+        if (!RegisterNamePolicy.isTemporaryRegisterName(targetName) || !contextByFunction.containsKey(closureName)) {
+            return null;
+        }
+        return new ClosureBinding(targetName, closureName);
+    }
+
+    private boolean inlineSingleUseClosureBinding(List<Statement> statements, int bindingIndex, ClosureBinding binding,
+            Map<String, CodeGeneratorContext> contextByFunction, Set<String> emittedFunctions) {
+        for (int i = bindingIndex + 1; i < statements.size(); i++) {
+            Statement statement = statements.get(i);
+            if (definesName(statement, binding.targetName)) {
+                return false;
+            }
+            int reads = countNameReads(statement, binding.targetName);
+            if (reads == 0) {
+                if (isControlBoundary(statement)) {
+                    return false;
+                }
+                continue;
+            }
+            if (reads != 1) {
+                return false;
+            }
+            FunctionLiteral literal = createAnonymousFunctionLiteral(contextByFunction.get(binding.closureName));
+            statements.set(i, replaceNameRead(statement, binding.targetName, literal));
+            emittedFunctions.add(binding.closureName);
+            return true;
+        }
+        return false;
+    }
+
+    private Statement rewriteAnonymousClosureUses(Statement statement,
+            Map<String, CodeGeneratorContext> contextByFunction, Set<String> emittedFunctions) {
+        if (asTemporaryClosureBinding(statement, contextByFunction) != null) {
+            return statement;
+        }
+        if (statement instanceof Assign) {
+            Assign assign = (Assign) statement;
+            List<Expression> right = rewriteClosureExpressions(assign.right, contextByFunction, emittedFunctions);
+            return new Assign(assign.left, right, assign.pos);
+        }
+        if (statement instanceof GlobalAssign) {
+            GlobalAssign assign = (GlobalAssign) statement;
+            return new GlobalAssign(assign.names, rewriteClosureExpressions(assign.right, contextByFunction,
+                    emittedFunctions), assign.pos);
+        }
+        if (statement instanceof LocalAssign) {
+            LocalAssign assign = (LocalAssign) statement;
+            return new LocalAssign(assign.names, rewriteClosureExpressions(assign.right, contextByFunction,
+                    emittedFunctions), assign.pos);
+        }
+        if (statement instanceof ExpressionStatement) {
+            ExpressionStatement expr = (ExpressionStatement) statement;
+            return new ExpressionStatement(rewriteClosureExpression(expr.expression, contextByFunction,
+                    emittedFunctions), expr.pos);
+        }
+        if (statement instanceof ReturnStatement) {
+            ReturnStatement ret = (ReturnStatement) statement;
+            return new ReturnStatement(rewriteClosureExpressions(ret.values, contextByFunction, emittedFunctions),
+                    ret.pos);
+        }
+        if (statement instanceof IfStatement) {
+            IfStatement ifs = (IfStatement) statement;
+            List<Expression> conditions = rewriteClosureExpressions(ifs.conditions, contextByFunction,
+                    emittedFunctions);
+            for (Block child : ifs.blocks) {
+                inlineClosureDeclarations(child, contextByFunction, emittedFunctions);
+            }
+            if (ifs.elseBlock != null) {
+                inlineClosureDeclarations(ifs.elseBlock, contextByFunction, emittedFunctions);
+            }
+            return new IfStatement(conditions, ifs.blocks, ifs.elseBlock, ifs.pos);
+        }
+        if (statement instanceof WhileStatement) {
+            WhileStatement loop = (WhileStatement) statement;
+            inlineClosureDeclarations(loop.body, contextByFunction, emittedFunctions);
+            return new WhileStatement(rewriteClosureExpression(loop.condition, contextByFunction, emittedFunctions),
+                    loop.body, loop.pos);
+        }
+        if (statement instanceof RepeatStatement) {
+            RepeatStatement loop = (RepeatStatement) statement;
+            inlineClosureDeclarations(loop.body, contextByFunction, emittedFunctions);
+            return new RepeatStatement(loop.body, rewriteClosureExpression(loop.condition, contextByFunction,
+                    emittedFunctions), loop.pos);
+        }
+        if (statement instanceof ForIn) {
+            ForIn loop = (ForIn) statement;
+            inlineClosureDeclarations(loop.body, contextByFunction, emittedFunctions);
+            return new ForIn(loop.names, rewriteClosureExpressions(loop.iterators, contextByFunction,
+                    emittedFunctions), loop.body, loop.pos);
+        }
+        if (statement instanceof ForNumeric) {
+            ForNumeric loop = (ForNumeric) statement;
+            inlineClosureDeclarations(loop.body, contextByFunction, emittedFunctions);
+            return new ForNumeric(loop.name, rewriteClosureExpression(loop.start, contextByFunction, emittedFunctions),
+                    rewriteClosureExpression(loop.end, contextByFunction, emittedFunctions),
+                    rewriteClosureExpression(loop.step, contextByFunction, emittedFunctions), loop.body, loop.pos);
+        }
+        if (statement instanceof FunctionDeclaration) {
+            FunctionDeclaration declaration = (FunctionDeclaration) statement;
+            inlineClosureDeclarations(declaration.func.body, contextByFunction, emittedFunctions);
+        }
+        return statement;
+    }
+
+    private List<Expression> rewriteClosureExpressions(List<Expression> expressions,
+            Map<String, CodeGeneratorContext> contextByFunction, Set<String> emittedFunctions) {
+        List<Expression> rewritten = new ArrayList<>();
+        for (Expression expression : expressions) {
+            rewritten.add(rewriteClosureExpression(expression, contextByFunction, emittedFunctions));
+        }
+        return rewritten;
+    }
+
+    private Expression rewriteClosureExpression(Expression expression,
+            Map<String, CodeGeneratorContext> contextByFunction, Set<String> emittedFunctions) {
+        if (expression instanceof Name) {
+            String name = ((Name) expression).name;
+            if (contextByFunction.containsKey(name)) {
+                emittedFunctions.add(name);
+                return createAnonymousFunctionLiteral(contextByFunction.get(name));
+            }
+            return expression;
+        }
+        if (expression instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) expression;
+            return new BinaryOp(binary.op, rewriteClosureExpression(binary.left, contextByFunction, emittedFunctions),
+                    rewriteClosureExpression(binary.right, contextByFunction, emittedFunctions), binary.pos);
+        }
+        if (expression instanceof UnaryOp) {
+            UnaryOp unary = (UnaryOp) expression;
+            return new UnaryOp(unary.op, rewriteClosureExpression(unary.expr, contextByFunction, emittedFunctions),
+                    unary.pos);
+        }
+        if (expression instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) expression;
+            return new FunctionCall(rewriteClosureExpression(call.callee, contextByFunction, emittedFunctions),
+                    rewriteClosureExpressions(call.args, contextByFunction, emittedFunctions), call.isMethodCall,
+                    call.returns, call.pos);
+        }
+        if (expression instanceof IndexExpr) {
+            IndexExpr index = (IndexExpr) expression;
+            return new IndexExpr(rewriteClosureExpression(index.table, contextByFunction, emittedFunctions),
+                    rewriteClosureExpression(index.index, contextByFunction, emittedFunctions), index.pos);
+        }
+        if (expression instanceof MemberExpr) {
+            MemberExpr member = (MemberExpr) expression;
+            return new MemberExpr(rewriteClosureExpression(member.table, contextByFunction, emittedFunctions),
+                    member.member, member.pos);
+        }
+        if (expression instanceof TableConstructor) {
+            TableConstructor table = (TableConstructor) expression;
+            List<TableField> fields = new ArrayList<>();
+            for (TableField field : table.fields) {
+                fields.add(new TableField(
+                        field.key == null ? null : rewriteClosureExpression(field.key, contextByFunction,
+                                emittedFunctions),
+                        rewriteClosureExpression(field.value, contextByFunction, emittedFunctions)));
+            }
+            return new TableConstructor(fields, table.pos);
+        }
+        if (expression instanceof MultiVal) {
+            MultiVal multi = (MultiVal) expression;
+            return new MultiVal(rewriteClosureExpressions(multi.values, contextByFunction, emittedFunctions),
+                    multi.pos);
+        }
+        return expression;
+    }
+
+    private boolean definesName(Statement statement, String name) {
+        if (statement instanceof Assign) {
+            Assign assign = (Assign) statement;
+            for (Expression left : assign.left) {
+                if (left instanceof Name && name.equals(((Name) left).name)) {
+                    return true;
+                }
+            }
+        }
+        if (statement instanceof LocalAssign) {
+            LocalAssign assign = (LocalAssign) statement;
+            return assign.names.contains(name);
+        }
+        return false;
+    }
+
+    private int countNameReads(Statement statement, String name) {
+        if (statement instanceof Assign) {
+            Assign assign = (Assign) statement;
+            return countNameReads(assign.right, name);
+        }
+        if (statement instanceof GlobalAssign) {
+            return countNameReads(((GlobalAssign) statement).right, name);
+        }
+        if (statement instanceof LocalAssign) {
+            return countNameReads(((LocalAssign) statement).right, name);
+        }
+        if (statement instanceof ExpressionStatement) {
+            return countNameReads(((ExpressionStatement) statement).expression, name);
+        }
+        if (statement instanceof ReturnStatement) {
+            return countNameReads(((ReturnStatement) statement).values, name);
+        }
+        return 0;
+    }
+
+    private int countNameReads(List<Expression> expressions, String name) {
+        int count = 0;
+        for (Expression expression : expressions) {
+            count += countNameReads(expression, name);
+        }
+        return count;
+    }
+
+    private int countNameReads(Expression expression, String name) {
+        if (expression instanceof Name) {
+            return name.equals(((Name) expression).name) ? 1 : 0;
+        }
+        if (expression instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) expression;
+            return countNameReads(binary.left, name) + countNameReads(binary.right, name);
+        }
+        if (expression instanceof UnaryOp) {
+            return countNameReads(((UnaryOp) expression).expr, name);
+        }
+        if (expression instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) expression;
+            return countNameReads(call.callee, name) + countNameReads(call.args, name);
+        }
+        if (expression instanceof IndexExpr) {
+            IndexExpr index = (IndexExpr) expression;
+            return countNameReads(index.table, name) + countNameReads(index.index, name);
+        }
+        if (expression instanceof MemberExpr) {
+            return countNameReads(((MemberExpr) expression).table, name);
+        }
+        if (expression instanceof TableConstructor) {
+            int count = 0;
+            for (TableField field : ((TableConstructor) expression).fields) {
+                count += field.key == null ? 0 : countNameReads(field.key, name);
+                count += countNameReads(field.value, name);
+            }
+            return count;
+        }
+        if (expression instanceof MultiVal) {
+            return countNameReads(((MultiVal) expression).values, name);
+        }
+        return 0;
+    }
+
+    private Statement replaceNameRead(Statement statement, String name, Expression replacement) {
+        if (statement instanceof Assign) {
+            Assign assign = (Assign) statement;
+            return new Assign(assign.left, replaceNameReads(assign.right, name, replacement), assign.pos);
+        }
+        if (statement instanceof GlobalAssign) {
+            GlobalAssign assign = (GlobalAssign) statement;
+            return new GlobalAssign(assign.names, replaceNameReads(assign.right, name, replacement), assign.pos);
+        }
+        if (statement instanceof LocalAssign) {
+            LocalAssign assign = (LocalAssign) statement;
+            return new LocalAssign(assign.names, replaceNameReads(assign.right, name, replacement), assign.pos);
+        }
+        if (statement instanceof ExpressionStatement) {
+            ExpressionStatement expr = (ExpressionStatement) statement;
+            return new ExpressionStatement(replaceNameRead(expr.expression, name, replacement), expr.pos);
+        }
+        if (statement instanceof ReturnStatement) {
+            ReturnStatement ret = (ReturnStatement) statement;
+            return new ReturnStatement(replaceNameReads(ret.values, name, replacement), ret.pos);
+        }
+        return statement;
+    }
+
+    private List<Expression> replaceNameReads(List<Expression> expressions, String name, Expression replacement) {
+        List<Expression> rewritten = new ArrayList<>();
+        for (Expression expression : expressions) {
+            rewritten.add(replaceNameRead(expression, name, replacement));
+        }
+        return rewritten;
+    }
+
+    private Expression replaceNameRead(Expression expression, String name, Expression replacement) {
+        if (expression instanceof Name) {
+            return name.equals(((Name) expression).name) ? replacement : expression;
+        }
+        if (expression instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) expression;
+            return new BinaryOp(binary.op, replaceNameRead(binary.left, name, replacement),
+                    replaceNameRead(binary.right, name, replacement), binary.pos);
+        }
+        if (expression instanceof UnaryOp) {
+            UnaryOp unary = (UnaryOp) expression;
+            return new UnaryOp(unary.op, replaceNameRead(unary.expr, name, replacement), unary.pos);
+        }
+        if (expression instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) expression;
+            return new FunctionCall(replaceNameRead(call.callee, name, replacement),
+                    replaceNameReads(call.args, name, replacement), call.isMethodCall, call.returns, call.pos);
+        }
+        if (expression instanceof IndexExpr) {
+            IndexExpr index = (IndexExpr) expression;
+            return new IndexExpr(replaceNameRead(index.table, name, replacement),
+                    replaceNameRead(index.index, name, replacement), index.pos);
+        }
+        if (expression instanceof MemberExpr) {
+            MemberExpr member = (MemberExpr) expression;
+            return new MemberExpr(replaceNameRead(member.table, name, replacement), member.member, member.pos);
+        }
+        if (expression instanceof TableConstructor) {
+            TableConstructor table = (TableConstructor) expression;
+            List<TableField> fields = new ArrayList<>();
+            for (TableField field : table.fields) {
+                fields.add(new TableField(field.key == null ? null : replaceNameRead(field.key, name, replacement),
+                        replaceNameRead(field.value, name, replacement)));
+            }
+            return new TableConstructor(fields, table.pos);
+        }
+        if (expression instanceof MultiVal) {
+            MultiVal multi = (MultiVal) expression;
+            return new MultiVal(replaceNameReads(multi.values, name, replacement), multi.pos);
+        }
+        return expression;
+    }
+
+    private boolean isControlBoundary(Statement statement) {
+        return statement instanceof IfStatement || statement instanceof WhileStatement
+                || statement instanceof RepeatStatement || statement instanceof ForIn || statement instanceof ForNumeric
+                || statement instanceof FunctionDeclaration;
     }
 
     private String extractClosureName(Statement statement) {
@@ -345,6 +711,22 @@ public class LuaCodeGenerator {
         FunctionLiteral literal = new FunctionLiteral(params, functionChunk.getIsVararg() != 0, context.getAstBlock(), null);
         literal.setChunk(functionChunk);
         return literal;
+    }
+
+    private FunctionLiteral createAnonymousFunctionLiteral(CodeGeneratorContext context) {
+        Chunk functionChunk = context.getChunk();
+        List<String> params = ssaNameResolver.parameterNames(functionChunk.getNumParams());
+        return new FunctionLiteral(params, functionChunk.getIsVararg() != 0, context.getAstBlock(), null);
+    }
+
+    private static class ClosureBinding {
+        final String targetName;
+        final String closureName;
+
+        ClosureBinding(String targetName, String closureName) {
+            this.targetName = targetName;
+            this.closureName = closureName;
+        }
     }
 
     /**

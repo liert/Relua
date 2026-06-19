@@ -49,6 +49,20 @@ class SsaXiaomiFixtureTest {
                         "SSA/AST cleanup must delete constants whose call operands were substituted in "
                                 + fixture.getName());
             }
+            if ("http.lua".equals(fixture.getName())) {
+                assertFalse(lua.contains("function main_26_0("),
+                        "anonymous closure callbacks must not be emitted as top-level helper functions in "
+                                + fixture.getName());
+                assertFalse(lua.contains("function main_28_0("),
+                        "anonymous closure callbacks must not be emitted as top-level helper functions in "
+                                + fixture.getName());
+                assertFalse(lua.contains("function main_28_1("),
+                        "anonymous closure callbacks must not be emitted as top-level helper functions in "
+                                + fixture.getName());
+                assertFalse(lua.contains("gsub(\"[\\\"%z\\001-\\031]\", main_"),
+                        "anonymous closure callbacks must be lowered as function expressions in "
+                                + fixture.getName());
+            }
         }
     }
 
