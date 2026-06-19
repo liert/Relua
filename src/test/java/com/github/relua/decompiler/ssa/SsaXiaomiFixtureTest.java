@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.io.File;
+import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.Test;
 
@@ -12,6 +13,9 @@ import com.github.relua.model.LuacFile;
 import com.github.relua.parser.LuacParser;
 
 class SsaXiaomiFixtureTest {
+    private static final Pattern SELF_COPY_TEMPORARY = Pattern
+            .compile("(?m)^\\s*(?:local\\s+)?(R\\d+)\\s*=\\s*\\1\\s*$");
+
     @Test
     void verifiesSsaForAllXiaomiFixturesDuringDecompilation() throws Exception {
         File dir = new File("src/test/resources/xiaomi");
@@ -35,12 +39,12 @@ class SsaXiaomiFixtureTest {
                     + fixture.getName());
             assertFalse(lua.contains("[nil]"), "unused SSA table reads must not leave nil-index artifacts in "
                     + fixture.getName());
+            assertFalse(SELF_COPY_TEMPORARY.matcher(lua).find(),
+                    "SSA use-def cleanup must delete self-copy temporaries in " + fixture.getName());
             if ("xqdatacenter.lua".equals(fixture.getName())) {
                 assertFalse(lua.contains("R4 = \"/userdisk/upload.tmp\""),
                         "SSA def-use cleanup must delete substituted upload path temporaries in "
                                 + fixture.getName());
-                assertFalse(lua.contains("R4 = R4"),
-                        "SSA use-def cleanup must delete self-copy temporaries in " + fixture.getName());
             }
         }
     }

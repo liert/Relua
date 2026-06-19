@@ -164,6 +164,7 @@ public class AstCleanupPass {
 
         // 1. 数据流变量内联及点号/冒号语法糖还原
         new DataFlowAnalyzer().optimize(block, parentDeclared, optimizerUpvalues, capturedLocalDefinitionPcs);
+        inlineSsaSingleUseTemporaryAssignments(block, context, pipeline, capturedLocalDefinitionPcs);
         removeSsaDeadTemporaryAssignments(block, context, pipeline, capturedLocalDefinitionPcs, true);
         DecompilerDebugger.dump("dataflow_opt_1_" + funcName, block);
 
@@ -185,6 +186,7 @@ public class AstCleanupPass {
 
         // 2.5.5 再次执行数据流变量内联（消解 GOTO/Label 之后，许多原本因跳转阻碍而无法安全内联的变量现在可以安全内联了）
         new DataFlowAnalyzer().optimize(block, parentDeclared, optimizerUpvalues, capturedLocalDefinitionPcs);
+        inlineSsaSingleUseTemporaryAssignments(block, context, pipeline, capturedLocalDefinitionPcs);
         removeSsaDeadTemporaryAssignments(block, context, pipeline, capturedLocalDefinitionPcs, true);
         DecompilerDebugger.dump("dataflow_opt_2_" + funcName, block);
 
@@ -214,6 +216,7 @@ public class AstCleanupPass {
             params.addAll(ssaNameResolver.parameterNames(functionChunk.getNumParams()));
         }
         Set<String> declared = declareTopLevelLocals(block, params, parentDeclared, finalUpvalueNames);
+        inlineSsaSingleUseTemporaryAssignments(block, context, pipeline, capturedLocalDefinitionPcs);
         removeSsaDeadTemporaryAssignments(block, context, pipeline, capturedLocalDefinitionPcs, true);
         DecompilerDebugger.dump("locals_declared_" + funcName, block);
         return declared;
@@ -391,6 +394,223 @@ public class AstCleanupPass {
         }
     }
 
+    private void inlineSsaSingleUseTemporaryAssignments(Block block, CodeGeneratorContext context,
+            DecompilerPipeline pipeline, Map<String, Set<Integer>> protectedDefinitionPcs) {
+        if (block == null || block.statements == null || context == null || context.getChunk() == null
+                || pipeline == null) {
+            return;
+        }
+
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < block.statements.size(); i++) {
+                Statement statement = block.statements.get(i);
+                inlineSsaSingleUseTemporaryAssignmentsInNested(statement, context, pipeline, protectedDefinitionPcs);
+
+                SsaTemporaryAssignment assignment = ssaTemporaryAssignment(statement, context, pipeline,
+                        protectedDefinitionPcs);
+                if (assignment == null || isSelfCopy(assignment)) {
+                    continue;
+                }
+                int useIndex = findSingleLinearUseIndex(block.statements, i, assignment);
+                if (useIndex < 0) {
+                    continue;
+                }
+                Statement useStatement = block.statements.get(useIndex);
+                if (!canInlineIntoStatement(useStatement)) {
+                    continue;
+                }
+                Statement rewritten = replaceVariableReadInStatement(useStatement, assignment.name, assignment.right);
+                block.statements.set(useIndex, rewritten);
+                block.statements.remove(i);
+                changed = true;
+                break;
+            }
+        }
+    }
+
+    private void inlineSsaSingleUseTemporaryAssignmentsInNested(Statement statement, CodeGeneratorContext context,
+            DecompilerPipeline pipeline, Map<String, Set<Integer>> protectedDefinitionPcs) {
+        if (statement instanceof IfStatement) {
+            IfStatement ifStatement = (IfStatement) statement;
+            for (Block nested : ifStatement.blocks) {
+                inlineSsaSingleUseTemporaryAssignments(nested, context, pipeline, protectedDefinitionPcs);
+            }
+            inlineSsaSingleUseTemporaryAssignments(ifStatement.elseBlock, context, pipeline, protectedDefinitionPcs);
+        } else if (statement instanceof WhileStatement) {
+            inlineSsaSingleUseTemporaryAssignments(((WhileStatement) statement).body, context, pipeline,
+                    protectedDefinitionPcs);
+        } else if (statement instanceof RepeatStatement) {
+            inlineSsaSingleUseTemporaryAssignments(((RepeatStatement) statement).body, context, pipeline,
+                    protectedDefinitionPcs);
+        } else if (statement instanceof ForNumeric) {
+            inlineSsaSingleUseTemporaryAssignments(((ForNumeric) statement).body, context, pipeline,
+                    protectedDefinitionPcs);
+        } else if (statement instanceof ForIn) {
+            inlineSsaSingleUseTemporaryAssignments(((ForIn) statement).body, context, pipeline, protectedDefinitionPcs);
+        } else if (statement instanceof FunctionDeclaration) {
+            inlineSsaSingleUseTemporaryAssignments(((FunctionDeclaration) statement).func.body, context, pipeline,
+                    protectedDefinitionPcs);
+        }
+    }
+
+    private int findSingleLinearUseIndex(List<Statement> statements, int definitionIndex,
+            SsaTemporaryAssignment assignment) {
+        Set<String> dependencies = new HashSet<>();
+        collectTemporaryNameReads(assignment.right, dependencies);
+        dependencies.remove(assignment.name);
+
+        int useIndex = -1;
+        int totalReads = 0;
+        for (int i = definitionIndex + 1; i < statements.size(); i++) {
+            Statement next = statements.get(i);
+            if (containsUnresolvedTransfer(next)) {
+                return -1;
+            }
+
+            int reads = countVariableReads(next, assignment.name);
+            if (reads > 0) {
+                totalReads += reads;
+                if (totalReads > 1) {
+                    return -1;
+                }
+                useIndex = i;
+                if (definesAnyTemporary(next, dependencies) && !writesDependenciesAfterReadableOperands(next)) {
+                    return -1;
+                }
+            } else if (hasSideEffectBeforeUse(next, dependencies)) {
+                return -1;
+            }
+            if (definesTemporary(next, assignment.name)) {
+                return totalReads == 1 ? useIndex : -1;
+            }
+            if (definesAnyTemporary(next, dependencies)) {
+                return -1;
+            }
+        }
+        return totalReads == 1 ? useIndex : -1;
+    }
+
+    private boolean hasSideEffectBeforeUse(Statement statement, Set<String> dependencies) {
+        return dependencies != null && !dependencies.isEmpty() && statementHasSideEffect(statement);
+    }
+
+    private boolean writesDependenciesAfterReadableOperands(Statement statement) {
+        if (statement instanceof Assign) {
+            for (Expression left : ((Assign) statement).left) {
+                if (!(left instanceof Name)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return statement instanceof LocalAssign || statement instanceof GlobalAssign;
+    }
+
+    private boolean canInlineIntoStatement(Statement statement) {
+        return statement instanceof Assign || statement instanceof LocalAssign || statement instanceof GlobalAssign
+                || statement instanceof ExpressionStatement || statement instanceof ReturnStatement;
+    }
+
+    private Statement replaceVariableReadInStatement(Statement statement, String name, Expression replacement) {
+        return (Statement) replaceVariableRead(statement, name, replacement);
+    }
+
+    private AstNode replaceVariableRead(AstNode node, String name, Expression replacement) {
+        if (node == null) {
+            return null;
+        }
+        if (node instanceof Name) {
+            return name.equals(((Name) node).name) ? replacement : node;
+        }
+        if (node instanceof Assign) {
+            Assign assign = (Assign) node;
+            List<Expression> newLeft = new ArrayList<>();
+            for (Expression left : assign.left) {
+                newLeft.add(left instanceof Name ? left : (Expression) replaceVariableRead(left, name, replacement));
+            }
+            List<Expression> newRight = new ArrayList<>();
+            for (Expression right : assign.right) {
+                newRight.add((Expression) replaceVariableRead(right, name, replacement));
+            }
+            return new Assign(newLeft, newRight, assign.pos);
+        }
+        if (node instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) node;
+            List<Expression> newRight = new ArrayList<>();
+            if (local.right != null) {
+                for (Expression right : local.right) {
+                    newRight.add((Expression) replaceVariableRead(right, name, replacement));
+                }
+            }
+            return new LocalAssign(local.names, newRight, local.pos);
+        }
+        if (node instanceof GlobalAssign) {
+            GlobalAssign global = (GlobalAssign) node;
+            List<Expression> newRight = new ArrayList<>();
+            if (global.right != null) {
+                for (Expression right : global.right) {
+                    newRight.add((Expression) replaceVariableRead(right, name, replacement));
+                }
+            }
+            return new GlobalAssign(global.names, newRight, global.pos);
+        }
+        if (node instanceof ExpressionStatement) {
+            ExpressionStatement expr = (ExpressionStatement) node;
+            return new ExpressionStatement((Expression) replaceVariableRead(expr.expression, name, replacement),
+                    expr.pos);
+        }
+        if (node instanceof ReturnStatement) {
+            ReturnStatement ret = (ReturnStatement) node;
+            List<Expression> values = new ArrayList<>();
+            for (Expression value : ret.values) {
+                values.add((Expression) replaceVariableRead(value, name, replacement));
+            }
+            return new ReturnStatement(values, ret.pos);
+        }
+        if (node instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) node;
+            return new BinaryOp(binary.op, (Expression) replaceVariableRead(binary.left, name, replacement),
+                    (Expression) replaceVariableRead(binary.right, name, replacement), binary.pos);
+        }
+        if (node instanceof UnaryOp) {
+            UnaryOp unary = (UnaryOp) node;
+            return new UnaryOp(unary.op, (Expression) replaceVariableRead(unary.expr, name, replacement), unary.pos);
+        }
+        if (node instanceof IndexExpr) {
+            IndexExpr index = (IndexExpr) node;
+            return new IndexExpr((Expression) replaceVariableRead(index.table, name, replacement),
+                    (Expression) replaceVariableRead(index.index, name, replacement), index.pos);
+        }
+        if (node instanceof MemberExpr) {
+            MemberExpr member = (MemberExpr) node;
+            return new MemberExpr((Expression) replaceVariableRead(member.table, name, replacement), member.member,
+                    member.pos);
+        }
+        if (node instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) node;
+            List<Expression> args = new ArrayList<>();
+            for (Expression arg : call.args) {
+                args.add((Expression) replaceVariableRead(arg, name, replacement));
+            }
+            return new FunctionCall((Expression) replaceVariableRead(call.callee, name, replacement), args,
+                    call.isMethodCall, call.returns, call.pos);
+        }
+        if (node instanceof TableConstructor) {
+            TableConstructor table = (TableConstructor) node;
+            List<TableField> fields = new ArrayList<>();
+            if (table.fields != null) {
+                for (TableField field : table.fields) {
+                    fields.add(new TableField((Expression) replaceVariableRead(field.key, name, replacement),
+                            (Expression) replaceVariableRead(field.value, name, replacement)));
+                }
+            }
+            return new TableConstructor(fields, table.pos);
+        }
+        return node;
+    }
+
     private SsaTemporaryAssignment ssaTemporaryAssignment(Statement statement, CodeGeneratorContext context,
             DecompilerPipeline pipeline, Map<String, Set<Integer>> protectedDefinitionPcs) {
         String name;
@@ -486,6 +706,18 @@ public class AstCleanupPass {
         return false;
     }
 
+    private boolean definesAnyTemporary(Statement statement, Set<String> names) {
+        if (statement == null || names == null || names.isEmpty()) {
+            return false;
+        }
+        for (String name : names) {
+            if (definesTemporary(statement, name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean containsUnresolvedTransfer(AstNode node) {
         if (node == null) {
             return false;
@@ -529,6 +761,83 @@ public class AstCleanupPass {
         }
         if (expression instanceof TableConstructor) {
             return ((TableConstructor) expression).isEmpty();
+        }
+        return false;
+    }
+
+    private void collectTemporaryNameReads(AstNode node, Set<String> names) {
+        if (node == null || names == null) {
+            return;
+        }
+        if (node instanceof Name) {
+            String name = ((Name) node).name;
+            if (RegisterNamePolicy.isTemporaryRegisterName(name)) {
+                names.add(name);
+            }
+        } else if (node instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) node;
+            collectTemporaryNameReads(binary.left, names);
+            collectTemporaryNameReads(binary.right, names);
+        } else if (node instanceof UnaryOp) {
+            collectTemporaryNameReads(((UnaryOp) node).expr, names);
+        } else if (node instanceof IndexExpr) {
+            IndexExpr index = (IndexExpr) node;
+            collectTemporaryNameReads(index.table, names);
+            collectTemporaryNameReads(index.index, names);
+        } else if (node instanceof MemberExpr) {
+            collectTemporaryNameReads(((MemberExpr) node).table, names);
+        } else if (node instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) node;
+            collectTemporaryNameReads(call.callee, names);
+            for (Expression arg : call.args) {
+                collectTemporaryNameReads(arg, names);
+            }
+        } else if (node instanceof TableConstructor) {
+            TableConstructor table = (TableConstructor) node;
+            if (table.fields != null) {
+                for (TableField field : table.fields) {
+                    collectTemporaryNameReads(field.key, names);
+                    collectTemporaryNameReads(field.value, names);
+                }
+            }
+        }
+    }
+
+    private boolean statementHasSideEffect(Statement statement) {
+        if (statement == null) {
+            return false;
+        }
+        if (statement instanceof Assign) {
+            Assign assign = (Assign) statement;
+            for (Expression left : assign.left) {
+                if (!(left instanceof Name) || !RegisterNamePolicy.isTemporaryRegisterName(((Name) left).name)) {
+                    return true;
+                }
+            }
+            for (Expression right : assign.right) {
+                if (!isAstPureExpression(right)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (statement instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) statement;
+            if (local.right != null) {
+                for (Expression right : local.right) {
+                    if (!isAstPureExpression(right)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        if (statement instanceof GlobalAssign || statement instanceof ExpressionStatement
+                || statement instanceof ReturnStatement || statement instanceof IfStatement
+                || statement instanceof WhileStatement || statement instanceof RepeatStatement
+                || statement instanceof ForNumeric || statement instanceof ForIn
+                || statement instanceof FunctionDeclaration) {
+            return true;
         }
         return false;
     }
