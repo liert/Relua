@@ -981,6 +981,9 @@ public class InstructionToASTConverter {
 
         // 情况 3：C == 0 → 多返回值（VARARG 返回）
         if (c == 0) {
+            if (VariableArityResolver.isOpenResultProducer(chunk, instructionIndex)) {
+                return null;
+            }
             // 调用带有多返回值标志
             call.setMultiReturn(true);
 
@@ -1036,6 +1039,12 @@ public class InstructionToASTConverter {
     private Expression resolveExpressionFromRegister(int registerIndex, int instructionIndex, Register registerState,
             boolean usePreviousWhenTarget) {
         SsaValue ssaUse = pipeline.requireSsaUse(chunk.getFunction(), instructionIndex, registerIndex);
+        SsaExpressionAnalysis ssaAnalysis = pipeline.requireSsaExpressionAnalysis(chunk.getFunction());
+        SsaValueSummary copySummary = ssaAnalysis.resolveCopySummary(ssaUse);
+        if (copySummary != null) {
+            ssaUse = copySummary.getValue();
+            registerIndex = ssaUse.getRegister();
+        }
         if (usePreviousWhenTarget && instructionIndex > 0) {
             Instruction curInst = chunk.getInstruction(instructionIndex);
             if (curInst != null && curInst.getA() == registerIndex && isOutputRegisterOpcode(curInst.getOpcode())) {
@@ -1855,11 +1864,13 @@ public class InstructionToASTConverter {
     }
 
     private String getSsaCompatibleRegisterName(int regIndex, Register registerState, SsaValue value) {
-        return ssaNameResolver.nameForDefinition(value, regIndex, registerState, chunk.getNumParams());
+        int actualReg = value != null ? value.getRegister() : regIndex;
+        return ssaNameResolver.nameForDefinition(value, actualReg, registerState, chunk.getNumParams());
     }
 
     private String getSsaCompatibleUseName(int regIndex, Register registerState, SsaValue value) {
-        return ssaNameResolver.nameForUse(value, regIndex, registerState, chunk.getNumParams());
+        int actualReg = value != null ? value.getRegister() : regIndex;
+        return ssaNameResolver.nameForUse(value, actualReg, registerState, chunk.getNumParams());
     }
 
     private boolean isModuleScenario() {

@@ -1389,6 +1389,10 @@ public class StructureRestorer {
 
                     // Find a GotoStatement targeting this labelName
                     int gotoIdx = -1;
+                    int ifIdx = -1;
+                    boolean isNestedGoto = false;
+
+                    // Case A: Find direct GotoStatement
                     for (int j = i + 1; j < stmts.size(); j++) {
                         if (stmts.get(j) instanceof GotoStatement) {
                             GotoStatement gs = (GotoStatement) stmts.get(j);
@@ -1401,121 +1405,146 @@ public class StructureRestorer {
 
                     if (gotoIdx != -1) {
                         // Check if there is an IfStatement between i and gotoIdx
-                        int ifIdx = -1;
                         for (int j = i + 1; j < gotoIdx; j++) {
                             if (stmts.get(j) instanceof IfStatement) {
                                 ifIdx = j;
                                 break;
                             }
                         }
-
-                        if (ifIdx != -1) {
-                            IfStatement ifStmt = (IfStatement) stmts.get(ifIdx);
-                            // Verify standard shape of loop condition ifStmt:
-                            // 1 condition, 1 block, no else
-                            if (ifStmt.conditions.size() == 1 && ifStmt.blocks.size() == 1 && ifStmt.elseBlock == null) {
-                                // Find any preparation statements between label (i) and ifStmt (ifIdx)
-                                List<Statement> prepStmts = new ArrayList<>();
-                                for (int j = i + 1; j < ifIdx; j++) {
-                                    prepStmts.add(stmts.get(j));
-                                }
-
-                                // We must make sure prepStmts only contain assignments
-                                boolean prepsValid = true;
-                                for (Statement prep : prepStmts) {
-                                    if (!(prep instanceof Assign) && !(prep instanceof LocalAssign)) {
-                                        prepsValid = false;
-                                        break;
+                    } else {
+                        // Case B: Find IfStatement containing nested GotoStatement as the last statement of thenBlock
+                        for (int j = i + 1; j < stmts.size(); j++) {
+                            if (stmts.get(j) instanceof IfStatement) {
+                                IfStatement candidateIf = (IfStatement) stmts.get(j);
+                                if (candidateIf.conditions.size() == 1 && candidateIf.blocks.size() == 1 && candidateIf.elseBlock == null) {
+                                    Block thenBlock = candidateIf.blocks.get(0);
+                                    if (thenBlock != null && !thenBlock.statements.isEmpty()) {
+                                        Statement lastStmt = thenBlock.statements.get(thenBlock.statements.size() - 1);
+                                        if (lastStmt instanceof GotoStatement && ((GotoStatement) lastStmt).label.equals(labelName)) {
+                                            ifIdx = j;
+                                            gotoIdx = j;
+                                            isNestedGoto = true;
+                                            break;
+                                        }
                                     }
                                 }
+                            }
+                        }
+                    }
 
-                                if (prepsValid) {
-                                    // Check if there are other gotos targeting this label
-                                    if (!hasOtherGotosTo(stmts, labelName, gotoIdx)) {
-                                        // Let's perform inlining on the condition
-                                        Expression cond = ifStmt.conditions.get(0);
-                                        Set<Statement> inlinedPreps = new HashSet<>();
-                                        for (int j = prepStmts.size() - 1; j >= 0; j--) {
-                                            Statement prep = prepStmts.get(j);
-                                            String varName = null;
-                                            Expression rightExpr = null;
-                                            if (prep instanceof LocalAssign) {
-                                                LocalAssign la = (LocalAssign) prep;
-                                                if (la.names.size() == 1 && la.right.size() == 1) {
-                                                    varName = la.names.get(0);
-                                                    rightExpr = la.right.get(0);
-                                                }
-                                            } else if (prep instanceof Assign) {
-                                                Assign ass = (Assign) prep;
-                                                if (ass.left.size() == 1 && ass.right.size() == 1 && ass.left.get(0) instanceof Name) {
-                                                    varName = ((Name) ass.left.get(0)).name;
-                                                    rightExpr = ass.right.get(0);
-                                                }
+                    if (gotoIdx != -1 && ifIdx != -1) {
+                        IfStatement ifStmt = (IfStatement) stmts.get(ifIdx);
+                        // Verify standard shape of loop condition ifStmt:
+                        // 1 condition, 1 block, no else
+                        if (ifStmt.conditions.size() == 1 && ifStmt.blocks.size() == 1 && ifStmt.elseBlock == null) {
+                            // Find any preparation statements between label (i) and ifStmt (ifIdx)
+                            List<Statement> prepStmts = new ArrayList<>();
+                            for (int j = i + 1; j < ifIdx; j++) {
+                                prepStmts.add(stmts.get(j));
+                            }
+
+                            // We must make sure prepStmts only contain assignments
+                            boolean prepsValid = true;
+                            for (Statement prep : prepStmts) {
+                                if (!(prep instanceof Assign) && !(prep instanceof LocalAssign)) {
+                                    prepsValid = false;
+                                    break;
+                                }
+                            }
+
+                            if (prepsValid) {
+                                // Check if there are other gotos targeting this label
+                                if (!hasOtherGotosTo(stmts, labelName, gotoIdx)) {
+                                    // Let's perform inlining on the condition
+                                    Expression cond = ifStmt.conditions.get(0);
+                                    Set<Statement> inlinedPreps = new HashSet<>();
+                                    for (int j = prepStmts.size() - 1; j >= 0; j--) {
+                                        Statement prep = prepStmts.get(j);
+                                        String varName = null;
+                                        Expression rightExpr = null;
+                                        if (prep instanceof LocalAssign) {
+                                            LocalAssign la = (LocalAssign) prep;
+                                            if (la.names.size() == 1 && la.right.size() == 1) {
+                                                varName = la.names.get(0);
+                                                rightExpr = la.right.get(0);
                                             }
+                                        } else if (prep instanceof Assign) {
+                                            Assign ass = (Assign) prep;
+                                            if (ass.left.size() == 1 && ass.right.size() == 1 && ass.left.get(0) instanceof Name) {
+                                                varName = ((Name) ass.left.get(0)).name;
+                                                rightExpr = ass.right.get(0);
+                                            }
+                                        }
 
                                         if (varName != null && rightExpr != null) {
-                                                // Check if varName is referenced in cond
-                                                if (containsVar(cond, varName)) {
-                                                    // 安全检查：如果该变量在循环体内部被重新赋值（循环携带变量），
-                                                    // 则不能将其初始值内联到条件表达式中，否则会破坏循环语义
-                                                    boolean assignedInLoopBody = false;
-                                                    // 检查 ifStmt then-block
-                                                    for (Statement s : ifStmt.blocks.get(0).statements) {
-                                                        if (isAssignedInStatement(s, varName)) {
+                                            // Check if varName is referenced in cond
+                                            if (containsVar(cond, varName)) {
+                                                // 安全检查：如果该变量在循环体内部被重新赋值（循环携带变量），
+                                                // 则不能将其初始值内联到条件表达式中，否则会破坏循环语义
+                                                boolean assignedInLoopBody = false;
+                                                // 检查 ifStmt then-block
+                                                for (Statement s : ifStmt.blocks.get(0).statements) {
+                                                    if (isAssignedInStatement(s, varName)) {
+                                                        assignedInLoopBody = true;
+                                                        break;
+                                                    }
+                                                }
+                                                // 检查 ifStmt 之后到 gotoIdx 之间的语句（循环体尾部）
+                                                if (!assignedInLoopBody) {
+                                                    for (int k = ifIdx + 1; k < gotoIdx; k++) {
+                                                        if (isAssignedInStatement(stmts.get(k), varName)) {
                                                             assignedInLoopBody = true;
                                                             break;
                                                         }
                                                     }
-                                                    // 检查 ifStmt 之后到 gotoIdx 之间的语句（循环体尾部）
-                                                    if (!assignedInLoopBody) {
-                                                        for (int k = ifIdx + 1; k < gotoIdx; k++) {
-                                                            if (isAssignedInStatement(stmts.get(k), varName)) {
-                                                                assignedInLoopBody = true;
-                                                                break;
-                                                            }
-                                                        }
-                                                    }
-                                                    if (!assignedInLoopBody) {
-                                                        cond = replaceVariable(cond, varName, rightExpr);
-                                                        inlinedPreps.add(prep);
-                                                    }
+                                                }
+                                                if (!assignedInLoopBody) {
+                                                    cond = replaceVariable(cond, varName, rightExpr);
+                                                    inlinedPreps.add(prep);
                                                 }
                                             }
                                         }
+                                    }
 
-                                        // Build the loop body:
-                                        // 1. Statements in ifStmt then-block
-                                        // 2. Statements in stmts after ifStmt (from ifIdx + 1 to gotoIdx - 1)
-                                        Block loopBody = new Block(ifStmt.blocks.get(0).pos);
+                                    // Build the loop body:
+                                    // 1. Statements in ifStmt then-block (excluding trailing goto if nested)
+                                    // 2. Statements in stmts after ifStmt (from ifIdx + 1 to gotoIdx - 1)
+                                    Block loopBody = new Block(ifStmt.blocks.get(0).pos);
+                                    if (isNestedGoto) {
+                                        List<Statement> thenStmts = ifStmt.blocks.get(0).statements;
+                                        for (int j = 0; j < thenStmts.size() - 1; j++) {
+                                            loopBody.statements.add(thenStmts.get(j));
+                                        }
+                                    } else {
                                         loopBody.statements.addAll(ifStmt.blocks.get(0).statements);
                                         for (int j = ifIdx + 1; j < gotoIdx; j++) {
                                             loopBody.statements.add(stmts.get(j));
                                         }
-
-                                        WhileStatement whileStmt = new WhileStatement(cond, loopBody, labelStmt.pos);
-
-                                        // Let's build the list of replacement statements
-                                        List<Statement> replacement = new ArrayList<>();
-                                        for (Statement prep : prepStmts) {
-                                            if (!inlinedPreps.contains(prep)) {
-                                                replacement.add(prep);
-                                            }
-                                        }
-                                        replacement.add(whileStmt);
-
-                                        // Remove everything from index i to gotoIdx
-                                        // and insert replacement at index i
-                                        for (int k = gotoIdx; k >= i; k--) {
-                                            stmts.remove(k);
-                                        }
-                                        stmts.addAll(i, replacement);
-
-                                        // Recursively restructure the loop body
-                                        restructure(loopBody);
-
-                                        changed = true;
-                                        break;
                                     }
+
+                                    WhileStatement whileStmt = new WhileStatement(cond, loopBody, labelStmt.pos);
+
+                                    // Let's build the list of replacement statements
+                                    List<Statement> replacement = new ArrayList<>();
+                                    for (Statement prep : prepStmts) {
+                                        if (!inlinedPreps.contains(prep)) {
+                                            replacement.add(prep);
+                                        }
+                                    }
+                                    replacement.add(whileStmt);
+
+                                    // Remove everything from index i to gotoIdx
+                                    // and insert replacement at index i
+                                    for (int k = gotoIdx; k >= i; k--) {
+                                        stmts.remove(k);
+                                    }
+                                    stmts.addAll(i, replacement);
+
+                                    // Recursively restructure the loop body
+                                    restructure(loopBody);
+
+                                    changed = true;
+                                    break;
                                 }
                             }
                         }

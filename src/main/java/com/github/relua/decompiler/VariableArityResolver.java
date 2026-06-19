@@ -66,6 +66,40 @@ public final class VariableArityResolver {
         return -1;
     }
 
+    public static boolean isOpenResultProducer(Chunk chunk, int producerPc) {
+        Instruction producer = chunk.getInstruction(producerPc);
+        if (producer == null) {
+            return false;
+        }
+        if (producer.getOpcode() != Opcode.CALL || producer.getC() != 0) {
+            return false;
+        }
+        for (int i = producerPc + 1; i < chunk.getInstructions().size(); i++) {
+            Instruction inst = chunk.getInstruction(i);
+            if (inst == null) {
+                break;
+            }
+            if (inst.getOpcode() == Opcode.CALL && inst.getB() == 0) {
+                if (findOpenResultProducerPc(chunk, i) == producerPc) {
+                    return true;
+                }
+            }
+            if (inst.getOpcode() == Opcode.RETURN && inst.getB() == 0) {
+                if (findOpenResultProducerPc(chunk, i) == producerPc) {
+                    return true;
+                }
+            }
+            if (inst.getOpcode() == Opcode.CALL && inst.getC() == 0) {
+                break;
+            }
+            if (inst.getOpcode() == Opcode.VARARG && inst.getB() == 0) {
+                break;
+            }
+        }
+        return false;
+    }
+
+
     private static List<Integer> range(int startInclusive, int endInclusive) {
         if (endInclusive < startInclusive) {
             return Collections.emptyList();

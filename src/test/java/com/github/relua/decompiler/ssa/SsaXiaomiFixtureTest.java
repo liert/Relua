@@ -31,6 +31,11 @@ class SsaXiaomiFixtureTest {
             String lua = new Decompiler().decompile(luacFile);
             assertNotNull(lua, "failed to decompile " + fixture.getName());
             assertFalse(lua.isEmpty(), "empty decompilation for " + fixture.getName());
+            if (lua.contains("nil:")) {
+                System.out.println("--- DECOMPILED LUA FOR " + fixture.getName() + " ---");
+                System.out.println(lua);
+                System.out.println("----------------------------------------");
+            }
             assertFalse(lua.contains("nil:"), "SSA loop values must not lower to nil method calls in "
                     + fixture.getName());
             assertFalse(lua.contains("tostring(nil)"), "SSA loop values must not lower to nil tostring calls in "

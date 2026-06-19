@@ -12,6 +12,7 @@ public final class SsaExpressionAnalyzer {
     public SsaExpressionAnalysis analyze(SsaFunction function) {
         Map<SsaValue, SsaValueSummary> summaries = new LinkedHashMap<>();
         Chunk chunk = function.getChunk();
+        java.util.Set<Integer> modifiedRegs = getCapturedModifiedRegisters(chunk);
         int analyzedInstructions = 0;
         int effectfulInstructions = 0;
 
@@ -22,7 +23,7 @@ public final class SsaExpressionAnalyzer {
             }
             for (SsaInstruction instruction : block.getInstructions()) {
                 analyzedInstructions++;
-                if (summarizeInstruction(chunk, instruction, summaries)) {
+                if (summarizeInstruction(chunk, instruction, summaries, modifiedRegs)) {
                     effectfulInstructions++;
                 }
             }
@@ -32,7 +33,7 @@ public final class SsaExpressionAnalyzer {
     }
 
     private boolean summarizeInstruction(Chunk chunk, SsaInstruction ssaInstruction,
-            Map<SsaValue, SsaValueSummary> summaries) {
+            Map<SsaValue, SsaValueSummary> summaries, java.util.Set<Integer> modifiedRegs) {
         Instruction instruction = ssaInstruction.getInstruction();
         Opcode opcode = instruction.getOpcode();
         boolean effectful = false;
@@ -43,10 +44,15 @@ public final class SsaExpressionAnalyzer {
         switch (opcode) {
             case MOVE:
                 if (!ssaInstruction.getDefs().isEmpty()) {
-                    SsaValueSummary summary = summaryFor(summaries, ssaInstruction.getDefs().get(0));
-                    summary.setKind(SsaValueKind.COPY);
-                    if (!ssaInstruction.getUses().isEmpty()) {
-                        summary.setCopySource(ssaInstruction.getUses().get(0));
+                    SsaValue def = ssaInstruction.getDefs().get(0);
+                    SsaValueSummary summary = summaryFor(summaries, def);
+                    if (modifiedRegs.contains(def.getRegister())) {
+                        summary.setKind(SsaValueKind.UNKNOWN);
+                    } else {
+                        summary.setKind(SsaValueKind.COPY);
+                        if (!ssaInstruction.getUses().isEmpty()) {
+                            summary.setCopySource(ssaInstruction.getUses().get(0));
+                        }
                     }
                 }
                 break;
@@ -83,10 +89,27 @@ public final class SsaExpressionAnalyzer {
                 defKind(summaries, ssaInstruction, SsaValueKind.TABLE_NEW, SsaEffect.NONE);
                 break;
             case SELF:
-                for (SsaValue def : ssaInstruction.getDefs()) {
-                    SsaValueSummary summary = summaryFor(summaries, def);
-                    summary.setKind(SsaValueKind.TABLE_READ);
-                    summary.addEffect(SsaEffect.READ_TABLE);
+                if (ssaInstruction.getDefs().size() >= 2) {
+                    SsaValueSummary methodSummary = summaryFor(summaries, ssaInstruction.getDefs().get(0));
+                    methodSummary.setKind(SsaValueKind.TABLE_READ);
+                    methodSummary.addEffect(SsaEffect.READ_TABLE);
+
+                    SsaValue def1 = ssaInstruction.getDefs().get(1);
+                    SsaValueSummary selfSummary = summaryFor(summaries, def1);
+                    if (modifiedRegs.contains(def1.getRegister())) {
+                        selfSummary.setKind(SsaValueKind.UNKNOWN);
+                    } else {
+                        selfSummary.setKind(SsaValueKind.COPY);
+                        if (!ssaInstruction.getUses().isEmpty()) {
+                            selfSummary.setCopySource(ssaInstruction.getUses().get(0));
+                        }
+                    }
+                } else {
+                    for (SsaValue def : ssaInstruction.getDefs()) {
+                        SsaValueSummary summary = summaryFor(summaries, def);
+                        summary.setKind(SsaValueKind.TABLE_READ);
+                        summary.addEffect(SsaEffect.READ_TABLE);
+                    }
                 }
                 break;
             case ADD:
@@ -200,5 +223,39 @@ public final class SsaExpressionAnalyzer {
             summaries.put(value, summary);
         }
         return summary;
+    }
+
+    private java.util.Set<Integer> getCapturedModifiedRegisters(Chunk chunk) {
+        java.util.Set<Integer> modifiedRegs = new java.util.HashSet<>();
+        java.util.List<Instruction> instructions = chunk.getInstructions();
+        for (int i = 0; i < instructions.size(); i++) {
+            Instruction inst = instructions.get(i);
+            if (inst.getOpcode() == Opcode.CLOSURE) {
+                int bx = inst.getBx();
+                Chunk subChunk = chunk.getSubChunk(bx);
+                System.out.println("DEBUG CLOSURE: chunk=" + chunk.getFunction() + " bx=" + bx + " subChunk=" + (subChunk != null ? subChunk.getFunction() : "null"));
+                if (subChunk != null) {
+                    java.util.Set<Integer> writtenUpvalues = new java.util.HashSet<>();
+                    for (Instruction subInst : subChunk.getInstructions()) {
+                        if (subInst.getOpcode() == Opcode.SETUPVAL) {
+                            writtenUpvalues.add(subInst.getB());
+                            System.out.println("DEBUG SETUPVAL in subChunk: upvalIndex=" + subInst.getB());
+                        }
+                    }
+                    for (int upvalIndex : writtenUpvalues) {
+                        int upvalInstIndex = i + 1 + upvalIndex;
+                        if (upvalInstIndex < instructions.size()) {
+                            Instruction upvalInst = instructions.get(upvalInstIndex);
+                            System.out.println("DEBUG UpvalueDecl: upvalIndex=" + upvalIndex + " inst=" + upvalInst.getOpcode() + " A=" + upvalInst.getA() + " B=" + upvalInst.getB());
+                            if (upvalInst.getOpcode() == Opcode.MOVE) {
+                                modifiedRegs.add(upvalInst.getB());
+                                System.out.println("DEBUG ADDED modified register: " + upvalInst.getB());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return modifiedRegs;
     }
 }
