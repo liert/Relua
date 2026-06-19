@@ -675,8 +675,7 @@ public class InstructionToASTConverter {
         }
         int rkIndex = rk;
         if (pos == null || pos.pc < 0) {
-            RegisterEntity entity = register.getRegisterEntity(rkIndex);
-            return TransformUtils.transformToAstNode(entity, pos != null ? pos.pc : -1);
+            throw new IllegalArgumentException("RK register operands require a source pc for SSA resolution");
         }
         return resolveExpressionFromRegister(rkIndex, pos.pc, register, true);
     }
