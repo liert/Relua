@@ -635,27 +635,26 @@ public class InstructionToASTConverter {
         int b = instruction.getB();
         int c = instruction.getC();
 
-        // 获取方法名
-        String methodName = null;
         requireSsaUse(b, instructionIndex);
-        if (c < 256) {
-            requireSsaUse(c, instructionIndex);
-            Register register = pipeline.getRegisterByInstructionIndex(instructionIndex);
-            methodName = TransformUtils.transformRegister(register.getRegisterEntity(c));
-        } else {
-            methodName = chunk.getConstant(c - 256).getValue().toString();
-        }
-        
-        // 处理字符串类型，去除引号
-        if (methodName != null && methodName.length() >= 2 && methodName.startsWith("\"") && methodName.endsWith("\"")) {
-            methodName = methodName.substring(1, methodName.length() - 1);
-        }
+        Register register = pipeline.getRegisterByInstructionIndex(instructionIndex);
+        String methodName = methodNameFromExpression(rkExpression(register, c, new SourcePos(instructionIndex, -1)));
 
         // 存储pending的SELF指令，不生成AST节点
         pipeline.getContext().addPendingSelf(a, b, methodName, instructionIndex);
         
         // SELF指令不生成代码，返回null
         return null;
+    }
+
+    private String methodNameFromExpression(Expression expression) {
+        if (expression instanceof StringConst) {
+            return ((StringConst) expression).value;
+        }
+        String name = getExpressionName(expression);
+        if (name != null && name.length() >= 2 && name.startsWith("\"") && name.endsWith("\"")) {
+            return name.substring(1, name.length() - 1);
+        }
+        return name;
     }
 
     private Expression rkExpression(Register register, int rk, SourcePos pos) {
