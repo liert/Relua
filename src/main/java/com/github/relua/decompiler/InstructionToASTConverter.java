@@ -1043,6 +1043,10 @@ public class InstructionToASTConverter {
             return new Name(getSsaCompatibleUseName(registerIndex, registerState, ssaUse),
                     new SourcePos(instructionIndex, -1));
         }
+        Expression ssaConstant = constantExpressionFromSsa(ssaUse, new SourcePos(instructionIndex, -1));
+        if (ssaConstant != null) {
+            return ssaConstant;
+        }
         if (entity.getValue() instanceof Expression) {
             if (entity.getValue() instanceof TableConstructor
                     && ((TableConstructor) entity.getValue()).isEmpty()) {
@@ -1145,6 +1149,28 @@ public class InstructionToASTConverter {
         SsaExpressionAnalysis analysis = pipeline.requireSsaExpressionAnalysis(chunk.getFunction());
         SsaValueSummary summary = analysis.getSummary(value);
         return summary != null && summary.getKind() == SsaValueKind.CALL_RESULT;
+    }
+
+    private Expression constantExpressionFromSsa(SsaValue value, SourcePos pos) {
+        SsaExpressionAnalysis analysis = pipeline.requireSsaExpressionAnalysis(chunk.getFunction());
+        SsaValueSummary summary = analysis.getSummary(value);
+        if (summary == null || summary.getKind() != SsaValueKind.CONSTANT) {
+            return null;
+        }
+        Object constant = summary.getConstantValue();
+        if (constant == null) {
+            return new NilConst(pos);
+        }
+        if (constant instanceof Boolean) {
+            return new BooleanConst((Boolean) constant, pos);
+        }
+        if (constant instanceof Number) {
+            return new NumberConst(((Number) constant).doubleValue(), pos);
+        }
+        if (constant instanceof String) {
+            return new StringConst(constant.toString(), pos);
+        }
+        return null;
     }
 
     private boolean isUnusedDiscardableDefinition(int registerIndex, int instructionIndex) {
