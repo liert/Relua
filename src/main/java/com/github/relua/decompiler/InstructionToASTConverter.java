@@ -722,7 +722,7 @@ public class InstructionToASTConverter {
 
         // 二元操作
         String opStr = arithmeticOperator(opcode);
-        Expression binaryOp = new BinaryOp(opStr, left, right, pos);
+        Expression binaryOp = LuaExpressionFactory.arithmetic(opStr, left, right, pos);
 
         List<Expression> leftList = new ArrayList<>();
         leftList.add(target);

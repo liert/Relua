@@ -607,7 +607,26 @@ final class SsaTemporaryCleanupPass {
             BinaryOp binary = (BinaryOp) expression;
             return isAstPureExpression(binary.left) && isAstPureExpression(binary.right);
         }
+        if (expression instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) expression;
+            if (!isPureStringFormatCall(call)) {
+                return false;
+            }
+            for (Expression arg : call.args) {
+                if (!isAstPureExpression(arg)) {
+                    return false;
+                }
+            }
+            return true;
+        }
         return expression instanceof TableConstructor && ((TableConstructor) expression).isEmpty();
+    }
+
+    private boolean isPureStringFormatCall(FunctionCall call) {
+        return call != null && !call.isMethodCall && call.callee instanceof MemberExpr
+                && "format".equals(((MemberExpr) call.callee).member)
+                && ((MemberExpr) call.callee).table instanceof Name
+                && "string".equals(((Name) ((MemberExpr) call.callee).table).name);
     }
 
     private void collectTemporaryNameReads(AstNode node, Set<String> names) {
@@ -793,7 +812,7 @@ final class SsaTemporaryCleanupPass {
         if (node == null || varName == null) {
             return 0;
         }
-        if (node instanceof Expression && isSameExpression((Expression) node, consumedExpression)) {
+        if (node instanceof Expression && isConsumedExpression((Expression) node, consumedExpression, varName)) {
             return 0;
         }
         int count = 0;
@@ -957,6 +976,47 @@ final class SsaTemporaryCleanupPass {
             return true;
         }
         return false;
+    }
+
+    private boolean isConsumedExpression(Expression useExpression, Expression consumedExpression, String assignedName) {
+        if (isSameExpression(useExpression, consumedExpression)) {
+            return true;
+        }
+        if (useExpression instanceof BinaryOp && consumedExpression instanceof BinaryOp) {
+            BinaryOp use = (BinaryOp) useExpression;
+            BinaryOp consumed = (BinaryOp) consumedExpression;
+            return use.op.equals(consumed.op) && isSameExpression(use.left, consumed.left)
+                    && isAssignedName(use.right, assignedName);
+        }
+        if (useExpression instanceof UnaryOp && consumedExpression instanceof UnaryOp) {
+            UnaryOp use = (UnaryOp) useExpression;
+            UnaryOp consumed = (UnaryOp) consumedExpression;
+            return use.op.equals(consumed.op) && isAssignedName(use.expr, assignedName);
+        }
+        if (useExpression instanceof FunctionCall && consumedExpression instanceof FunctionCall) {
+            FunctionCall use = (FunctionCall) useExpression;
+            FunctionCall consumed = (FunctionCall) consumedExpression;
+            if (use.isMethodCall != consumed.isMethodCall || !isSameExpression(use.callee, consumed.callee)
+                    || use.args.size() != consumed.args.size()) {
+                return false;
+            }
+            boolean hasAssignedArgument = false;
+            for (int i = 0; i < use.args.size(); i++) {
+                Expression useArg = use.args.get(i);
+                Expression consumedArg = consumed.args.get(i);
+                if (isAssignedName(useArg, assignedName)) {
+                    hasAssignedArgument = true;
+                } else if (!isSameExpression(useArg, consumedArg)) {
+                    return false;
+                }
+            }
+            return hasAssignedArgument;
+        }
+        return false;
+    }
+
+    private boolean isAssignedName(Expression expression, String assignedName) {
+        return expression instanceof Name && assignedName.equals(((Name) expression).name);
     }
 
     private static final class AstTemporaryAssignment {

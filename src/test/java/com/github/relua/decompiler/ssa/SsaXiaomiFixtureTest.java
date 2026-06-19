@@ -68,6 +68,15 @@ class SsaXiaomiFixtureTest {
                 assertFalse(lua.contains("(\\\"%s\\\");\" % (\"(\\\"%s\\\");\" % R4)"),
                         "SSA temporary cleanup must not duplicate nested format expressions in "
                                 + fixture.getName());
+                assertFalse(lua.contains("\\\"\\\\u%04x\\\" % (\"\\\\u%04x\\\" %"),
+                        "SSA temporary cleanup must not duplicate consumed anonymous callback return expressions in "
+                                + fixture.getName());
+                assertFalse(lua.contains("\\\"\\\\u%04x\\\" %"),
+                        "string format bytecode must lower to string.format instead of Lua modulo syntax in "
+                                + fixture.getName());
+                assertFalse(lua.contains("jsonpHandler(\\\"%s\\\");\" %"),
+                        "string format bytecode must lower jsonp formatters to string.format in "
+                                + fixture.getName());
             }
         }
     }

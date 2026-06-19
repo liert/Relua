@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Set;
 
 import com.github.relua.ast.*;
+import com.github.relua.decompiler.LuaExpressionFactory;
 import com.github.relua.log.Logger;
 import com.github.relua.util.RegisterNamePolicy;
 
@@ -470,6 +471,18 @@ public class DataFlowAnalyzer {
             BinaryOp binary = (BinaryOp) expr;
             return isPureExpression(binary.left) && isPureExpression(binary.right);
         }
+        if (expr instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) expr;
+            if (!isPureStringFormatCall(call)) {
+                return false;
+            }
+            for (Expression arg : call.args) {
+                if (!isPureExpression(arg)) {
+                    return false;
+                }
+            }
+            return true;
+        }
         if (expr instanceof MultiVal) {
             for (Expression value : ((MultiVal) expr).values) {
                 if (!isPureExpression(value)) {
@@ -479,6 +492,13 @@ public class DataFlowAnalyzer {
             return true;
         }
         return false;
+    }
+
+    private boolean isPureStringFormatCall(FunctionCall call) {
+        return call != null && !call.isMethodCall && call.callee instanceof MemberExpr
+                && "format".equals(((MemberExpr) call.callee).member)
+                && ((MemberExpr) call.callee).table instanceof Name
+                && "string".equals(((Name) ((MemberExpr) call.callee).table).name);
     }
 
     private void collectExpressionUses(Expression expr, Set<String> uses) {
@@ -1039,7 +1059,7 @@ public class DataFlowAnalyzer {
 
     private int countVariableUsesOutsideExpression(AstNode node, String varName, Expression consumedExpression) {
         if (node == null) return 0;
-        if (node instanceof Expression && isSameExpression((Expression) node, consumedExpression)) {
+        if (node instanceof Expression && isConsumedExpression((Expression) node, consumedExpression, varName)) {
             return 0;
         }
         int count = 0;
@@ -1267,7 +1287,7 @@ public class DataFlowAnalyzer {
             BinaryOp binary = (BinaryOp) root;
             Expression newLeft = (Expression) replaceVariableWithExpression(binary.left, varName, replacement);
             Expression newRight = (Expression) replaceVariableWithExpression(binary.right, varName, replacement);
-            return new BinaryOp(binary.op, newLeft, newRight, binary.pos);
+            return LuaExpressionFactory.arithmetic(binary.op, newLeft, newRight, binary.pos);
         }
 
         if (root instanceof UnaryOp) {
@@ -1568,6 +1588,47 @@ public class DataFlowAnalyzer {
             return true;
         }
         return false;
+    }
+
+    private boolean isConsumedExpression(Expression useExpression, Expression consumedExpression, String assignedName) {
+        if (isSameExpression(useExpression, consumedExpression)) {
+            return true;
+        }
+        if (useExpression instanceof BinaryOp && consumedExpression instanceof BinaryOp) {
+            BinaryOp use = (BinaryOp) useExpression;
+            BinaryOp consumed = (BinaryOp) consumedExpression;
+            return use.op.equals(consumed.op) && isSameExpression(use.left, consumed.left)
+                    && isAssignedName(use.right, assignedName);
+        }
+        if (useExpression instanceof UnaryOp && consumedExpression instanceof UnaryOp) {
+            UnaryOp use = (UnaryOp) useExpression;
+            UnaryOp consumed = (UnaryOp) consumedExpression;
+            return use.op.equals(consumed.op) && isAssignedName(use.expr, assignedName);
+        }
+        if (useExpression instanceof FunctionCall && consumedExpression instanceof FunctionCall) {
+            FunctionCall use = (FunctionCall) useExpression;
+            FunctionCall consumed = (FunctionCall) consumedExpression;
+            if (use.isMethodCall != consumed.isMethodCall || !isSameExpression(use.callee, consumed.callee)
+                    || use.args.size() != consumed.args.size()) {
+                return false;
+            }
+            boolean hasAssignedArgument = false;
+            for (int i = 0; i < use.args.size(); i++) {
+                Expression useArg = use.args.get(i);
+                Expression consumedArg = consumed.args.get(i);
+                if (isAssignedName(useArg, assignedName)) {
+                    hasAssignedArgument = true;
+                } else if (!isSameExpression(useArg, consumedArg)) {
+                    return false;
+                }
+            }
+            return hasAssignedArgument;
+        }
+        return false;
+    }
+
+    private boolean isAssignedName(Expression expression, String assignedName) {
+        return expression instanceof Name && assignedName.equals(((Name) expression).name);
     }
 
     private boolean hasGotoStatement(List<Statement> stmts, int start, int end) {

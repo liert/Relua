@@ -389,7 +389,9 @@ public class IRBuilder {
         SourcePos pos = new SourcePos(instruction.getPc(), -1);
         Expression left = rkExpression(chunk, currentState, b, pos);
         Expression right = rkExpression(chunk, currentState, c, pos);
-        currentState.setRegisterEntity(a, new BinaryOp(arithmeticOperator(instruction.getOpcode()), left, right, pos),
+        currentState.setRegisterEntity(a,
+                com.github.relua.decompiler.LuaExpressionFactory.arithmetic(
+                        arithmeticOperator(instruction.getOpcode()), left, right, pos),
                 ValueType.UNKNOWN, FromType.REGISTER);
     }
 
