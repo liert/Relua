@@ -115,6 +115,16 @@ class DecompilerTest {
         try (PrintWriter writer = new PrintWriter(new FileWriter("target/http_decompiled.lua"))) {
             writer.print(luaCode);
         }
+
+        // 验证 writeJsonNoLog 中没有重复的 write(string.format("\"%s\"", ...))
+        int count = 0;
+        int idx = 0;
+        String pattern = "write(string.format(\"\\\"%s\\\"\"";
+        while ((idx = luaCode.indexOf(pattern, idx)) != -1) {
+            count++;
+            idx += pattern.length();
+        }
+        assertEquals(1, count, "write(string.format) in writeJsonNoLog should only be emitted once (no double-emission)");
     }
 
     @Test

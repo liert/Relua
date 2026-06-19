@@ -27,6 +27,7 @@ public class InstructionHandler {
     private final DecompilerPipeline pipeline;
     private final SsaAstNameResolver ssaNameResolver = new SsaAstNameResolver();
     private Set<BasicBlock> reachableBlocks;
+    private final Set<BasicBlock> emittedBlocks = new HashSet<>();
 
     /**
      * 构造函数
@@ -583,6 +584,7 @@ public class InstructionHandler {
      * @return 生成的AST根节点
      */
     public AstNode generateAST(List<SESERegion> regions, Chunk chunk) {
+        emittedBlocks.clear();
         Block block = new Block(new SourcePos(0, -1));
 
         // 按入口块的起始索引排序区域
@@ -639,6 +641,7 @@ public class InstructionHandler {
      * @return 生成的AST根节点
      */
     public AstNode generateASTFromChunk(Chunk chunk) {
+        emittedBlocks.clear();
         StructuredPatternEmitter structuredEmitter = new StructuredPatternEmitter(pipeline);
         Block structuredBlock = structuredEmitter.emitIfStructured(chunk);
         if (structuredBlock != null) {
@@ -884,14 +887,15 @@ public class InstructionHandler {
         if (!reachableBlocks.contains(block)) {
             return null;
         }
-        // 如果块已经被访问过，则跳过
-        if (block.isVisited()) {
-            // System.out.println(" - 跳过已访问的基本块，范围: " + block.getStartIndex() + "-" +
+        // 如果块已经被访问过或已 emit，则跳过
+        if (block.isVisited() || emittedBlocks.contains(block)) {
+            // System.out.println(" - 跳过已访问或已 emit 的基本块，范围: " + block.getStartIndex() + "-" +
             // block.getEndIndex());
             return null;
         }
-        // 标记块为已访问
+        // 标记块为已访问和已 emit
         block.setVisited(true);
+        emittedBlocks.add(block);
         // System.out.println(" - 生成基本块AST，范围: " + block.getStartIndex() + "-" +
         // block.getEndIndex());
         Block blockNode = new Block(new SourcePos(block.getStartIndex(), -1));
@@ -960,6 +964,7 @@ public class InstructionHandler {
         }
 
         // System.out.println(" - 基本块AST生成完成，子节点数量: " + blockNode.statements.size());
+        emittedBlocks.add(block);
         return blockNode;
     }
 
@@ -1126,17 +1131,22 @@ public class InstructionHandler {
         // ========== 重构：当 then 块总是终止时，将 else 代码移到 if 之后 ==========
         // 模式: if cond then ...; return end else B end → if cond then ...; return end; B
         boolean restructured = false;
+        List<Statement> elseStatementsToAppend = null;
 
         if (elseBlock != null && !isEffectivelyEmpty(elseBlock)) {
             if (blockAlwaysTerminates(thenBlock)) {
                 // then 块总是终止 → else 代码是后续代码，移到 if 之后
-                blockNode.statements.addAll(elseBlock.statements);
+                elseStatementsToAppend = new ArrayList<>(elseBlock.statements);
                 elseBlock = null;
                 restructured = true;
             }
         }
 
         blockNode.statements.add(new IfStatement(pending.condition, thenBlock, elseBlock, pending.pos));
+
+        if (elseStatementsToAppend != null && !elseStatementsToAppend.isEmpty()) {
+            blockNode.statements.addAll(elseStatementsToAppend);
+        }
 
         // 处理 if 语句后多余的裸 return：
         // 当 if 所有分支都有 return 时，后面的裸 return（无返回值）是冗余的
@@ -1278,6 +1288,13 @@ public class InstructionHandler {
 
         for (int pc = start; pc <= end; pc++) {
             if (pc < instructions.size()) {
+                BasicBlock currentBlock = getBlockByInstructionIndex(chunk, pc);
+                if (currentBlock != null) {
+                    if (emittedBlocks.contains(currentBlock)) {
+                        pc = currentBlock.getEndIndex();
+                        continue;
+                    }
+                }
                 if (codeGenContext.isLabelPC(pc)) {
                     block.statements.add(new LabelStatement("L" + pc, new SourcePos(pc, -1)));
                 }
@@ -1325,6 +1342,12 @@ public class InstructionHandler {
             }
         }
 
+        List<BasicBlock> basicBlocks = pipeline.getBasicBlocks(chunk.getFunction());
+        for (BasicBlock b : basicBlocks) {
+            if (b.getStartIndex() >= start && b.getEndIndex() <= end) {
+                emittedBlocks.add(b);
+            }
+        }
         return block;
     }
 
