@@ -6,25 +6,19 @@ import java.util.List;
 
 import com.github.relua.ast.BinaryOp;
 import com.github.relua.ast.Block;
-import com.github.relua.ast.BooleanConst;
 import com.github.relua.ast.Expression;
 import com.github.relua.ast.ExpressionStatement;
 import com.github.relua.ast.FunctionCall;
 import com.github.relua.ast.IfStatement;
 import com.github.relua.ast.IndexExpr;
 import com.github.relua.ast.Name;
-import com.github.relua.ast.NilConst;
-import com.github.relua.ast.NumberConst;
 import com.github.relua.ast.SourcePos;
 import com.github.relua.ast.ReturnStatement;
 import com.github.relua.ast.Statement;
-import com.github.relua.ast.StringConst;
 import com.github.relua.model.Chunk;
-import com.github.relua.model.Constant;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Opcode;
 import com.github.relua.model.Register;
-import com.github.relua.util.TransformUtils;
 
 public class StructuredPatternEmitter {
     private final DecompilerPipeline pipeline;
@@ -134,36 +128,12 @@ public class StructuredPatternEmitter {
         }
     }
 
-    private Expression getTableExpression(Chunk chunk, Instruction instruction, int pc) {
+    private Expression getTableExpression(InstructionToASTConverter converter, Instruction instruction, int pc) {
         SourcePos pos = new SourcePos(pc, -1);
         Register register = pipeline.getRegisterByInstructionIndex(pc);
-        Expression table = new Name(TransformUtils.transformRegister(register.getRegisterEntity(instruction.getB())), pos);
-        Expression index = rkExpression(chunk, register, instruction.getC(), pos);
+        Expression table = converter.resolveRegisterExpression(instruction.getB(), pc, register);
+        Expression index = converter.resolveRkExpression(register, instruction.getC(), pos);
         return new IndexExpr(table, index, pos);
-    }
-
-    private Expression rkExpression(Chunk chunk, Register register, int rk, SourcePos pos) {
-        if (rk >= 256) {
-            Constant constant = chunk.getConstant(rk - 256);
-            Object value = constant != null ? constant.getValue() : null;
-            if (value == null) {
-                return new NilConst(pos);
-            } else if (value instanceof Double) {
-                return new NumberConst((Double) value, pos);
-            } else if (value instanceof Boolean) {
-                return new BooleanConst((Boolean) value, pos);
-            } else {
-                return new StringConst(value.toString(), pos);
-            }
-        }
-        com.github.relua.model.Register.RegisterEntity entity = register.getRegisterEntity(rk);
-        if (entity != null) {
-            if (entity.getFromType() == com.github.relua.model.FromType.CONSTANT && entity.getValue() instanceof String
-                    && !entity.getName().equals(entity.getValue().toString())) {
-                return new StringConst(entity.getValue().toString(), pos);
-            }
-        }
-        return TransformUtils.transformToAstNode(entity, pos.pc);
     }
 
     private class ShortCircuitAndIfPattern {
@@ -188,9 +158,9 @@ public class StructuredPatternEmitter {
             SourcePos pos = new SourcePos(startPc, -1);
             Register compareRegister = pipeline.getRegisterByInstructionIndex(startPc + 5);
 
-            Expression left = getTableExpression(chunk, firstGet, startPc);
-            Expression compareLeft = nestedCompareLeft(chunk);
-            Expression compareRight = rkExpression(chunk, compareRegister, compare.getC(), pos);
+            Expression left = getTableExpression(converter, firstGet, startPc);
+            Expression compareLeft = nestedCompareLeft(converter);
+            Expression compareRight = converter.resolveRkExpression(compareRegister, compare.getC(), pos);
             Expression right = new BinaryOp("==", compareLeft, compareRight, pos);
             Expression condition = new BinaryOp("and", left, right, pos);
 
@@ -223,12 +193,12 @@ public class StructuredPatternEmitter {
             return new IfStatement(condition, body, null, pos);
         }
 
-        private Expression nestedCompareLeft(Chunk chunk) {
+        private Expression nestedCompareLeft(InstructionToASTConverter converter) {
             SourcePos pos = new SourcePos(startPc + 4, -1);
             Register register = pipeline.getRegisterByInstructionIndex(startPc + 4);
             return new IndexExpr(
-                    getTableExpression(chunk, firstGet, startPc),
-                    rkExpression(chunk, register, secondGetField.getC(), pos),
+                    getTableExpression(converter, firstGet, startPc),
+                    converter.resolveRkExpression(register, secondGetField.getC(), pos),
                     pos);
         }
     }
@@ -250,8 +220,9 @@ public class StructuredPatternEmitter {
         }
 
         SourcePos pos = new SourcePos(pc, -1);
+        InstructionToASTConverter converter = new InstructionToASTConverter(chunk, pipeline);
         FunctionCall functionCall = new FunctionCall(
-                getTableExpression(chunk, get, pc),
+                getTableExpression(converter, get, pc),
                 Collections.emptyList(),
                 false,
                 pos);

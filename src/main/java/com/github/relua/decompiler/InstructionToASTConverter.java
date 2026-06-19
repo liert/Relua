@@ -682,6 +682,14 @@ public class InstructionToASTConverter {
         return resolveExpressionFromRegister(rkIndex, pos.pc, register, true);
     }
 
+    Expression resolveRkExpression(Register register, int rk, SourcePos pos) {
+        return rkExpression(register, rk, pos);
+    }
+
+    Expression resolveRegisterExpression(int registerIndex, int instructionIndex, Register registerState) {
+        return resolveExpressionFromRegister(registerIndex, instructionIndex, registerState);
+    }
+
     /**
      * 转换算术指令
      * 
