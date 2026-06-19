@@ -45,6 +45,9 @@ class SsaXiaomiFixtureTest {
                 assertFalse(lua.contains("R4 = \"/userdisk/upload.tmp\""),
                         "SSA def-use cleanup must delete substituted upload path temporaries in "
                                 + fixture.getName());
+                assertFalse(lua.contains("R5 = \"\\r\\n\"\n                R6 = \"\\n\"\n                R3 = R4:gsub"),
+                        "SSA/AST cleanup must delete constants whose call operands were substituted in "
+                                + fixture.getName());
             }
         }
     }
