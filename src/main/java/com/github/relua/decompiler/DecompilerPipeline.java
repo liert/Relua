@@ -196,11 +196,6 @@ public class DecompilerPipeline {
         return ssaFunctions.get(function);
     }
 
-    public SsaInstruction getSsaInstruction(String function, int pc) {
-        SsaFunction ssaFunction = ssaFunctions.get(function);
-        return ssaFunction != null ? ssaFunction.getInstruction(pc) : null;
-    }
-
     public SsaInstruction requireSsaInstruction(String function, int pc) {
         SsaFunction ssaFunction = ssaFunctions.get(function);
         if (ssaFunction == null) {
@@ -213,11 +208,6 @@ public class DecompilerPipeline {
         return instruction;
     }
 
-    public SsaValue getSsaDefinition(String function, int pc, int register) {
-        SsaInstruction instruction = getSsaInstruction(function, pc);
-        return instruction != null ? instruction.getFirstDefForRegister(register) : null;
-    }
-
     public SsaValue requireSsaDefinition(String function, int pc, int register) {
         SsaValue value = requireSsaInstruction(function, pc).getFirstDefForRegister(register);
         if (value == null) {
@@ -225,11 +215,6 @@ public class DecompilerPipeline {
                     + " pc=" + pc + " " + RegisterNamePolicy.physicalRegisterName(register));
         }
         return value;
-    }
-
-    public SsaValue getSsaUse(String function, int pc, int register) {
-        SsaInstruction instruction = getSsaInstruction(function, pc);
-        return instruction != null ? instruction.getFirstUseForRegister(register) : null;
     }
 
     public SsaValue requireSsaUse(String function, int pc, int register) {
@@ -253,10 +238,6 @@ public class DecompilerPipeline {
         }
         throw new IllegalStateException("Missing SSA value for " + function
                 + " pc=" + pc + " " + RegisterNamePolicy.physicalRegisterName(register));
-    }
-
-    public SsaExpressionAnalysis getSsaExpressionAnalysis(String function) {
-        return ssaExpressionAnalyses.get(function);
     }
 
     public SsaExpressionAnalysis requireSsaExpressionAnalysis(String function) {
