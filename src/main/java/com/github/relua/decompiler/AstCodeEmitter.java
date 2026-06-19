@@ -66,7 +66,8 @@ public class AstCodeEmitter {
         // 如果生成的是Block，直接设置为上下文的astBlock
         if (ast instanceof Block) {
             Block block = (Block) ast;
-            java.util.Set<String> declared = new AstCleanupPass().cleanup(block, context, parentDeclared, upvalueNames);
+            java.util.Set<String> declared = new AstCleanupPass().cleanup(block, context, parentDeclared, upvalueNames,
+                    handler.getPipeline());
             context.setDeclaredVariables(declared);
             context.setAstBlock(block);
         } else {
@@ -78,7 +79,8 @@ public class AstCodeEmitter {
                 Expression expr = (Expression) ast;
                 block.statements.add(new ExpressionStatement(expr, expr.pos));
             }
-            java.util.Set<String> declared = new AstCleanupPass().cleanup(block, context, parentDeclared, upvalueNames);
+            java.util.Set<String> declared = new AstCleanupPass().cleanup(block, context, parentDeclared, upvalueNames,
+                    handler.getPipeline());
             context.setDeclaredVariables(declared);
             context.setAstBlock(block);
         }

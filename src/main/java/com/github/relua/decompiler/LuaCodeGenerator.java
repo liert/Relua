@@ -183,7 +183,9 @@ public class LuaCodeGenerator {
                     continue;
                 } else {
                     // 对于被拉平输出的全局函数，因为它们已经不嵌套在父闭包内部，不需要防 shadowed，重新 cleanup
-                    new AstCleanupPass().cleanup(ctx.getAstBlock(), ctx, java.util.Collections.emptySet());
+                    InstructionHandler ctxHandler = handlers.get(ctxChunk.getFunction());
+                    new AstCleanupPass().cleanup(ctx.getAstBlock(), ctx, java.util.Collections.emptySet(),
+                            java.util.Collections.emptySet(), ctxHandler != null ? ctxHandler.getPipeline() : null);
                     
                     FunctionLiteral funcLit = createFunctionLiteral(ctx);
                     

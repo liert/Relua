@@ -639,6 +639,62 @@ class DecompilerTest {
     }
 
     @Test
+    void testDataFlowDeletesTemporariesAfterSsaOperandSubstitution() {
+        SourcePos pos = new SourcePos(0, 0);
+        Block root = new Block(pos);
+        root.statements.add(new Assign("R4", new StringConst("/userdisk/upload.tmp", pos), pos));
+        root.statements.add(new Assign("R3",
+                new FunctionCall(new MemberExpr(new Name("io", pos), "open", pos),
+                        java.util.Arrays.asList(new StringConst("/userdisk/upload.tmp", pos), new StringConst("w", pos)),
+                        false,
+                        pos),
+                pos));
+        root.statements.add(new Assign("R0", new Name("R3", pos), pos));
+        root.statements.add(new Assign("R4", new MemberExpr(new Name("a0", pos), "file", pos), pos));
+        root.statements.add(new Assign("R4", new Name("R4", pos), pos));
+        root.statements.add(new Assign("R3",
+                new FunctionCall(new MemberExpr(new Name("string", pos), "gsub", pos),
+                        java.util.Arrays.asList(new Name("R4", pos), new StringConst("+", pos), new StringConst(" ", pos)),
+                        false,
+                        pos),
+                pos));
+
+        new DataFlowAnalyzer().optimize(root);
+
+        String lua = root.accept(new AstPrinter());
+        assertFalse(lua.contains("R4 = \"/userdisk/upload.tmp\""),
+                "Dead LOADK temporary already substituted into call args should be deleted: \n" + lua);
+        assertFalse(lua.contains("R4 = R4"), "Self-copy temporary should be deleted: \n" + lua);
+        assertTrue(lua.contains("io.open(\"/userdisk/upload.tmp\", \"w\")"),
+                "Call with substituted constant must remain: \n" + lua);
+    }
+
+    @Test
+    void testDataFlowDeletesNestedTemporariesKilledBeforeBlockExit() {
+        SourcePos pos = new SourcePos(0, 0);
+        Block thenBlock = new Block(pos);
+        thenBlock.statements.add(new Assign("R4", new StringConst("/userdisk/upload.tmp", pos), pos));
+        thenBlock.statements.add(new Assign("R3",
+                new FunctionCall(new MemberExpr(new Name("io", pos), "open", pos),
+                        java.util.Arrays.asList(new StringConst("/userdisk/upload.tmp", pos), new StringConst("w", pos)),
+                        false,
+                        pos),
+                pos));
+        thenBlock.statements.add(new Assign("R0", new Name("R3", pos), pos));
+        thenBlock.statements.add(new Assign("R4", new MemberExpr(new Name("a0", pos), "file", pos), pos));
+
+        Block root = new Block(pos);
+        root.statements.add(new IfStatement(new Name("cond", pos), thenBlock, null, pos));
+
+        new DataFlowAnalyzer().optimize(root);
+
+        String lua = root.accept(new AstPrinter());
+        assertFalse(lua.contains("R4 = \"/userdisk/upload.tmp\""),
+                "Nested dead temporary killed before block exit should be deleted: \n" + lua);
+        assertTrue(lua.contains("R4 = a0.file"), "Later reaching definition must remain: \n" + lua);
+    }
+
+    @Test
     void testDataFlowKeepsDeadLookingDefinitionWhenLabelPrecedesKill() {
         SourcePos pos = new SourcePos(0, 0);
         Block root = new Block(pos);

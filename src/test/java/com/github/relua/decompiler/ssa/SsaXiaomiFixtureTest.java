@@ -35,6 +35,13 @@ class SsaXiaomiFixtureTest {
                     + fixture.getName());
             assertFalse(lua.contains("[nil]"), "unused SSA table reads must not leave nil-index artifacts in "
                     + fixture.getName());
+            if ("xqdatacenter.lua".equals(fixture.getName())) {
+                assertFalse(lua.contains("R4 = \"/userdisk/upload.tmp\""),
+                        "SSA def-use cleanup must delete substituted upload path temporaries in "
+                                + fixture.getName());
+                assertFalse(lua.contains("R4 = R4"),
+                        "SSA use-def cleanup must delete self-copy temporaries in " + fixture.getName());
+            }
         }
     }
 

@@ -31,6 +31,7 @@ import com.github.relua.ast.MemberExpr;
 import com.github.relua.ast.Name;
 import com.github.relua.ast.RepeatStatement;
 import com.github.relua.ast.ReturnStatement;
+import com.github.relua.ast.SourcePos;
 import com.github.relua.ast.Statement;
 import com.github.relua.ast.TableConstructor;
 import com.github.relua.ast.UnaryOp;
@@ -39,6 +40,11 @@ import com.github.relua.debug.DecompilerDebugger;
 import com.github.relua.decompiler.analysis.DataFlowAnalyzer;
 import com.github.relua.decompiler.analysis.StructureRestorer;
 import com.github.relua.decompiler.ssa.SsaAstNameResolver;
+import com.github.relua.decompiler.ssa.SsaExpressionAnalysis;
+import com.github.relua.decompiler.ssa.SsaInstruction;
+import com.github.relua.decompiler.ssa.SsaValue;
+import com.github.relua.decompiler.ssa.SsaValueKind;
+import com.github.relua.decompiler.ssa.SsaValueSummary;
 import com.github.relua.ast.NilConst;
 import com.github.relua.ast.BooleanConst;
 import com.github.relua.ast.NumberConst;
@@ -75,6 +81,11 @@ public class AstCleanupPass {
 
     public Set<String> cleanup(Block block, CodeGeneratorContext context, Set<String> parentDeclared,
             Set<String> upvalueNames) {
+        return cleanup(block, context, parentDeclared, upvalueNames, null);
+    }
+
+    public Set<String> cleanup(Block block, CodeGeneratorContext context, Set<String> parentDeclared,
+            Set<String> upvalueNames, DecompilerPipeline pipeline) {
         if (block == null) {
             return java.util.Collections.emptySet();
         }
@@ -153,6 +164,7 @@ public class AstCleanupPass {
 
         // 1. 数据流变量内联及点号/冒号语法糖还原
         new DataFlowAnalyzer().optimize(block, parentDeclared, optimizerUpvalues, capturedLocalDefinitionPcs);
+        removeSsaDeadTemporaryAssignments(block, context, pipeline, capturedLocalDefinitionPcs, true);
         DecompilerDebugger.dump("dataflow_opt_1_" + funcName, block);
 
         // 1.5 清理空的if块（nil-guard等模式产生的空条件分支）
@@ -173,6 +185,7 @@ public class AstCleanupPass {
 
         // 2.5.5 再次执行数据流变量内联（消解 GOTO/Label 之后，许多原本因跳转阻碍而无法安全内联的变量现在可以安全内联了）
         new DataFlowAnalyzer().optimize(block, parentDeclared, optimizerUpvalues, capturedLocalDefinitionPcs);
+        removeSsaDeadTemporaryAssignments(block, context, pipeline, capturedLocalDefinitionPcs, true);
         DecompilerDebugger.dump("dataflow_opt_2_" + funcName, block);
 
         // 2.6 移除 return 后的死代码
@@ -201,6 +214,7 @@ public class AstCleanupPass {
             params.addAll(ssaNameResolver.parameterNames(functionChunk.getNumParams()));
         }
         Set<String> declared = declareTopLevelLocals(block, params, parentDeclared, finalUpvalueNames);
+        removeSsaDeadTemporaryAssignments(block, context, pipeline, capturedLocalDefinitionPcs, true);
         DecompilerDebugger.dump("locals_declared_" + funcName, block);
         return declared;
     }
@@ -318,6 +332,222 @@ public class AstCleanupPass {
         }
         block.statements.clear();
         block.statements.addAll(rewritten);
+    }
+
+    private void removeSsaDeadTemporaryAssignments(Block block, CodeGeneratorContext context,
+            DecompilerPipeline pipeline, Map<String, Set<Integer>> protectedDefinitionPcs,
+            boolean deleteAtBlockExitWhenNoAstUse) {
+        if (block == null || block.statements == null || context == null || context.getChunk() == null
+                || pipeline == null) {
+            return;
+        }
+
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < block.statements.size(); i++) {
+                Statement statement = block.statements.get(i);
+                removeSsaDeadTemporaryAssignmentsInNested(statement, context, pipeline, protectedDefinitionPcs);
+
+                SsaTemporaryAssignment assignment = ssaTemporaryAssignment(statement, context, pipeline,
+                        protectedDefinitionPcs);
+                if (assignment == null) {
+                    continue;
+                }
+                if (isSelfCopy(assignment)
+                        || canDeleteSsaTemporaryDefinition(block.statements, i, assignment,
+                                deleteAtBlockExitWhenNoAstUse)) {
+                    block.statements.remove(i);
+                    changed = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    private void removeSsaDeadTemporaryAssignmentsInNested(Statement statement, CodeGeneratorContext context,
+            DecompilerPipeline pipeline, Map<String, Set<Integer>> protectedDefinitionPcs) {
+        if (statement instanceof IfStatement) {
+            IfStatement ifStatement = (IfStatement) statement;
+            for (Block nested : ifStatement.blocks) {
+                removeSsaDeadTemporaryAssignments(nested, context, pipeline, protectedDefinitionPcs, false);
+            }
+            removeSsaDeadTemporaryAssignments(ifStatement.elseBlock, context, pipeline, protectedDefinitionPcs, false);
+        } else if (statement instanceof WhileStatement) {
+            removeSsaDeadTemporaryAssignments(((WhileStatement) statement).body, context, pipeline,
+                    protectedDefinitionPcs, false);
+        } else if (statement instanceof RepeatStatement) {
+            removeSsaDeadTemporaryAssignments(((RepeatStatement) statement).body, context, pipeline,
+                    protectedDefinitionPcs, false);
+        } else if (statement instanceof ForNumeric) {
+            removeSsaDeadTemporaryAssignments(((ForNumeric) statement).body, context, pipeline,
+                    protectedDefinitionPcs, false);
+        } else if (statement instanceof ForIn) {
+            removeSsaDeadTemporaryAssignments(((ForIn) statement).body, context, pipeline, protectedDefinitionPcs,
+                    false);
+        } else if (statement instanceof FunctionDeclaration) {
+            removeSsaDeadTemporaryAssignments(((FunctionDeclaration) statement).func.body, context, pipeline,
+                    protectedDefinitionPcs, true);
+        }
+    }
+
+    private SsaTemporaryAssignment ssaTemporaryAssignment(Statement statement, CodeGeneratorContext context,
+            DecompilerPipeline pipeline, Map<String, Set<Integer>> protectedDefinitionPcs) {
+        String name;
+        Expression right;
+        SourcePos pos = statement.pos;
+        Assign assign = null;
+        if (statement instanceof Assign) {
+            assign = (Assign) statement;
+            if (assign.left.size() != 1 || assign.right.size() != 1 || !(assign.left.get(0) instanceof Name)) {
+                return null;
+            }
+            name = ((Name) assign.left.get(0)).name;
+            right = assign.right.get(0);
+        } else if (statement instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) statement;
+            if (local.names.size() != 1 || local.right == null || local.right.size() != 1) {
+                return null;
+            }
+            name = local.names.get(0);
+            right = local.right.get(0);
+        } else {
+            return null;
+        }
+        if (pos == null || pos.pc < 0) {
+            return null;
+        }
+        if (!RegisterNamePolicy.isTemporaryRegisterName(name)) {
+            return null;
+        }
+        int register = RegisterNamePolicy.temporaryRegisterIndex(name);
+        if (register < 0) {
+            return null;
+        }
+        SsaInstruction instruction = pipeline.requireSsaInstruction(context.getChunk().getFunction(), pos.pc);
+        SsaValue definition = instruction.getFirstDefForRegister(register);
+        if (definition == null) {
+            return null;
+        }
+        if (isProtectedTemporaryDefinition(name, pos.pc, protectedDefinitionPcs)) {
+            return null;
+        }
+        SsaExpressionAnalysis analysis = pipeline.requireSsaExpressionAnalysis(context.getChunk().getFunction());
+        SsaValueSummary summary = analysis.getSummary(definition);
+        if (summary == null || !isDiscardableSsaTemporarySummary(summary) || !isAstPureExpression(right)) {
+            return null;
+        }
+        return new SsaTemporaryAssignment(name, statement, right, definition, analysis);
+    }
+
+    private boolean isDiscardableSsaTemporarySummary(SsaValueSummary summary) {
+        return summary.isPure() || summary.getKind() == SsaValueKind.UPVALUE;
+    }
+
+    private boolean isProtectedTemporaryDefinition(String name, int pc, Map<String, Set<Integer>> protectedDefinitionPcs) {
+        if (protectedDefinitionPcs == null || name == null || pc < 0) {
+            return false;
+        }
+        Set<Integer> pcs = protectedDefinitionPcs.get(name);
+        return pcs != null && pcs.contains(pc);
+    }
+
+    private boolean canDeleteSsaTemporaryDefinition(List<Statement> statements, int index,
+            SsaTemporaryAssignment assignment, boolean deleteAtBlockExitWhenNoAstUse) {
+        for (int i = index + 1; i < statements.size(); i++) {
+            Statement next = statements.get(i);
+            if (countVariableReads(next, assignment.name) > 0) {
+                return false;
+            }
+            if (definesTemporary(next, assignment.name)) {
+                return true;
+            }
+            if (containsUnresolvedTransfer(next)) {
+                return false;
+            }
+        }
+        return deleteAtBlockExitWhenNoAstUse || assignment.analysis.getFunction().getUseCount(assignment.definition) == 0;
+    }
+
+    private boolean isSelfCopy(SsaTemporaryAssignment assignment) {
+        return assignment.right instanceof Name
+                && assignment.name.equals(((Name) assignment.right).name);
+    }
+
+    private boolean definesTemporary(Statement statement, String name) {
+        if (statement instanceof Assign) {
+            Assign assign = (Assign) statement;
+            return assign.left.size() == 1 && assign.left.get(0) instanceof Name
+                    && name.equals(((Name) assign.left.get(0)).name);
+        }
+        if (statement instanceof LocalAssign) {
+            return ((LocalAssign) statement).names.contains(name);
+        }
+        return false;
+    }
+
+    private boolean containsUnresolvedTransfer(AstNode node) {
+        if (node == null) {
+            return false;
+        }
+        if (node instanceof GotoStatement || node instanceof LabelStatement) {
+            return true;
+        }
+        if (node instanceof IfStatement) {
+            IfStatement ifStatement = (IfStatement) node;
+            for (Block nested : ifStatement.blocks) {
+                if (containsUnresolvedTransfer(nested)) {
+                    return true;
+                }
+            }
+            return containsUnresolvedTransfer(ifStatement.elseBlock);
+        }
+        if (node instanceof Block) {
+            for (Statement statement : ((Block) node).statements) {
+                if (containsUnresolvedTransfer(statement)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isAstPureExpression(Expression expression) {
+        if (expression == null) {
+            return true;
+        }
+        if (expression instanceof NilConst || expression instanceof BooleanConst || expression instanceof NumberConst
+                || expression instanceof StringConst || expression instanceof Name) {
+            return true;
+        }
+        if (expression instanceof UnaryOp) {
+            return isAstPureExpression(((UnaryOp) expression).expr);
+        }
+        if (expression instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) expression;
+            return isAstPureExpression(binary.left) && isAstPureExpression(binary.right);
+        }
+        if (expression instanceof TableConstructor) {
+            return ((TableConstructor) expression).isEmpty();
+        }
+        return false;
+    }
+
+    private static class SsaTemporaryAssignment {
+        final String name;
+        final Statement statement;
+        final Expression right;
+        final SsaValue definition;
+        final SsaExpressionAnalysis analysis;
+
+        SsaTemporaryAssignment(String name, Statement statement, Expression right, SsaValue definition,
+                SsaExpressionAnalysis analysis) {
+            this.name = name;
+            this.statement = statement;
+            this.right = right;
+            this.definition = definition;
+            this.analysis = analysis;
+        }
     }
 
     private boolean isEffectivelyEmpty(Block block) {
