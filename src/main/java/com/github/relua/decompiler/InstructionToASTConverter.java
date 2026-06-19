@@ -214,6 +214,10 @@ public class InstructionToASTConverter {
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
 
+        if (isUnusedSsaDefinition(a, instructionIndex)) {
+            return null;
+        }
+
         // 获取寄存器状态
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         RegisterEntity sourceEntity = registerState.getRegisterEntity(b);
@@ -278,6 +282,10 @@ public class InstructionToASTConverter {
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
 
+        if (isUnusedSsaDefinition(a, instructionIndex)) {
+            return null;
+        }
+
         // 目标变量名
         List<String> names = new ArrayList<>();
         names.add(getDefinedRegisterName(a, instructionIndex));
@@ -325,6 +333,10 @@ public class InstructionToASTConverter {
 
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
+
+        if (c == 0 && isUnusedSsaDefinition(a, instructionIndex)) {
+            return null;
+        }
 
         // 目标变量
         Expression target = new Name(getDefinedRegisterName(a, instructionIndex), new SourcePos(instructionIndex, -1));
@@ -382,6 +394,9 @@ public class InstructionToASTConverter {
             // 而不是额外输出：
             //   R8 = nil
             if (InstructionFlowAnalyzer.isRegisterConsumedByFollowingCallArgument(chunk.getInstructions(), i, instructionIndex)) {
+                continue;
+            }
+            if (isUnusedSsaDefinition(i, instructionIndex)) {
                 continue;
             }
             // 目标变量
@@ -585,6 +600,9 @@ public class InstructionToASTConverter {
         if (isArrayTableInitialization(instructionIndex, a)) {
             return null;
         }
+        if (isUnusedSsaDefinition(a, instructionIndex)) {
+            return null;
+        }
 
         SourcePos pos = new SourcePos(instructionIndex, -1);
 
@@ -688,6 +706,10 @@ public class InstructionToASTConverter {
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
 
+        if (isUnusedSsaDefinition(a, instructionIndex)) {
+            return null;
+        }
+
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         SourcePos pos = new SourcePos(instructionIndex, -1);
 
@@ -727,6 +749,10 @@ public class InstructionToASTConverter {
 
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
+
+        if (isUnusedSsaDefinition(a, instructionIndex)) {
+            return null;
+        }
 
         // 一元指令：R(a) := op R(b)
         // 目标变量
@@ -795,6 +821,10 @@ public class InstructionToASTConverter {
 
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
+
+        if (isUnusedSsaDefinition(a, instructionIndex)) {
+            return null;
+        }
 
         Register register = pipeline.getRegisterByInstructionIndex(instructionIndex);
 
