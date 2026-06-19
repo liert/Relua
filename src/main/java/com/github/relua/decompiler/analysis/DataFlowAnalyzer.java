@@ -185,6 +185,11 @@ public class DataFlowAnalyzer {
                     // 只有当该寄存器在当前作用域内仅被读取 1 次，且在此之前依赖未被破坏、没有进入复杂控制流、且非自引用/自依赖时，才允许内联
                     if (useCount == 1 && !dependencyBroken && !escaped && useIndex != -1 && !dependencies.contains(regName)) {
                         Statement useStmt = stmts.get(useIndex);
+                        if (countVariableUsesOutsideExpression(useStmt, regName, defExpr) == 0) {
+                            stmts.remove(i);
+                            changed = true;
+                            break;
+                        }
                         Statement newUseStmt = (Statement) replaceVariableWithExpression(useStmt, regName, defExpr);
                         newUseStmt = (Statement) rewriteNode(newUseStmt);
                         stmts.set(useIndex, newUseStmt);
@@ -1032,6 +1037,113 @@ public class DataFlowAnalyzer {
         return count;
     }
 
+    private int countVariableUsesOutsideExpression(AstNode node, String varName, Expression consumedExpression) {
+        if (node == null) return 0;
+        if (node instanceof Expression && isSameExpression((Expression) node, consumedExpression)) {
+            return 0;
+        }
+        int count = 0;
+
+        if (node instanceof Name) {
+            return ((Name) node).name.equals(varName) ? 1 : 0;
+        } else if (node instanceof Assign) {
+            Assign assign = (Assign) node;
+            for (Expression left : assign.left) {
+                if (!(left instanceof Name)) {
+                    count += countVariableUsesOutsideExpression(left, varName, consumedExpression);
+                }
+            }
+            for (Expression right : assign.right) {
+                count += countVariableUsesOutsideExpression(right, varName, consumedExpression);
+            }
+        } else if (node instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) node;
+            if (local.right != null) {
+                for (Expression right : local.right) {
+                    count += countVariableUsesOutsideExpression(right, varName, consumedExpression);
+                }
+            }
+        } else if (node instanceof GlobalAssign) {
+            GlobalAssign glob = (GlobalAssign) node;
+            for (Expression right : glob.right) {
+                count += countVariableUsesOutsideExpression(right, varName, consumedExpression);
+            }
+        } else if (node instanceof ExpressionStatement) {
+            count += countVariableUsesOutsideExpression(((ExpressionStatement) node).expression, varName,
+                    consumedExpression);
+        } else if (node instanceof ReturnStatement) {
+            for (Expression val : ((ReturnStatement) node).values) {
+                count += countVariableUsesOutsideExpression(val, varName, consumedExpression);
+            }
+        } else if (node instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) node;
+            for (Expression cond : ifStmt.conditions) {
+                count += countVariableUsesOutsideExpression(cond, varName, consumedExpression);
+            }
+            for (Block nested : ifStmt.blocks) {
+                count += countVariableUsesOutsideExpression(nested, varName, consumedExpression);
+            }
+            count += countVariableUsesOutsideExpression(ifStmt.elseBlock, varName, consumedExpression);
+        } else if (node instanceof WhileStatement) {
+            WhileStatement wh = (WhileStatement) node;
+            count += countVariableUsesOutsideExpression(wh.condition, varName, consumedExpression);
+            count += countVariableUsesOutsideExpression(wh.body, varName, consumedExpression);
+        } else if (node instanceof RepeatStatement) {
+            RepeatStatement rep = (RepeatStatement) node;
+            count += countVariableUsesOutsideExpression(rep.condition, varName, consumedExpression);
+            count += countVariableUsesOutsideExpression(rep.body, varName, consumedExpression);
+        } else if (node instanceof ForNumeric) {
+            ForNumeric fn = (ForNumeric) node;
+            count += countVariableUsesOutsideExpression(fn.start, varName, consumedExpression);
+            count += countVariableUsesOutsideExpression(fn.end, varName, consumedExpression);
+            count += countVariableUsesOutsideExpression(fn.step, varName, consumedExpression);
+            count += countVariableUsesOutsideExpression(fn.body, varName, consumedExpression);
+        } else if (node instanceof ForIn) {
+            ForIn fi = (ForIn) node;
+            for (Expression exp : fi.iterators) {
+                count += countVariableUsesOutsideExpression(exp, varName, consumedExpression);
+            }
+            count += countVariableUsesOutsideExpression(fi.body, varName, consumedExpression);
+        } else if (node instanceof FunctionDeclaration) {
+            count += countVariableUsesOutsideExpression(((FunctionDeclaration) node).func, varName,
+                    consumedExpression);
+        } else if (node instanceof Block) {
+            for (Statement stmt : ((Block) node).statements) {
+                count += countVariableUsesOutsideExpression(stmt, varName, consumedExpression);
+            }
+        } else if (node instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) node;
+            count += countVariableUsesOutsideExpression(binary.left, varName, consumedExpression);
+            count += countVariableUsesOutsideExpression(binary.right, varName, consumedExpression);
+        } else if (node instanceof UnaryOp) {
+            count += countVariableUsesOutsideExpression(((UnaryOp) node).expr, varName, consumedExpression);
+        } else if (node instanceof IndexExpr) {
+            IndexExpr idx = (IndexExpr) node;
+            count += countVariableUsesOutsideExpression(idx.table, varName, consumedExpression);
+            count += countVariableUsesOutsideExpression(idx.index, varName, consumedExpression);
+        } else if (node instanceof MemberExpr) {
+            count += countVariableUsesOutsideExpression(((MemberExpr) node).table, varName, consumedExpression);
+        } else if (node instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) node;
+            count += countVariableUsesOutsideExpression(call.callee, varName, consumedExpression);
+            for (Expression arg : call.args) {
+                count += countVariableUsesOutsideExpression(arg, varName, consumedExpression);
+            }
+        } else if (node instanceof TableConstructor) {
+            TableConstructor tc = (TableConstructor) node;
+            if (tc.fields != null) {
+                for (TableField field : tc.fields) {
+                    count += countVariableUsesOutsideExpression(field.key, varName, consumedExpression);
+                    count += countVariableUsesOutsideExpression(field.value, varName, consumedExpression);
+                }
+            }
+        } else if (node instanceof FunctionLiteral) {
+            count += countVariableUsesOutsideExpression(((FunctionLiteral) node).body, varName, consumedExpression);
+        }
+
+        return count;
+    }
+
     private AstNode replaceVariableWithExpression(AstNode root, String varName, Expression replacement) {
         if (root == null) return null;
 
@@ -1427,6 +1539,17 @@ public class DataFlowAnalyzer {
         }
         if (e1 instanceof NilConst) {
             return true;
+        }
+        if (e1 instanceof BinaryOp) {
+            BinaryOp b1 = (BinaryOp) e1;
+            BinaryOp b2 = (BinaryOp) e2;
+            return b1.op.equals(b2.op) && isSameExpression(b1.left, b2.left)
+                    && isSameExpression(b1.right, b2.right);
+        }
+        if (e1 instanceof UnaryOp) {
+            UnaryOp u1 = (UnaryOp) e1;
+            UnaryOp u2 = (UnaryOp) e2;
+            return u1.op.equals(u2.op) && isSameExpression(u1.expr, u2.expr);
         }
         if (e1 instanceof FunctionCall) {
             FunctionCall f1 = (FunctionCall) e1;

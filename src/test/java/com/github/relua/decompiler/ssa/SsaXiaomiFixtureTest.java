@@ -62,6 +62,12 @@ class SsaXiaomiFixtureTest {
                 assertFalse(lua.contains("gsub(\"[\\\"%z\\001-\\031]\", main_"),
                         "anonymous closure callbacks must be lowered as function expressions in "
                                 + fixture.getName());
+                assertFalse(lua.contains("jsonpHandler(\\\"%s\\\");\" % (\"jsonpHandler(\\\"%s\\\");\" % R3)"),
+                        "SSA temporary cleanup must not substitute a definition into an already-consumed "
+                                + "format expression in " + fixture.getName());
+                assertFalse(lua.contains("(\\\"%s\\\");\" % (\"(\\\"%s\\\");\" % R4)"),
+                        "SSA temporary cleanup must not duplicate nested format expressions in "
+                                + fixture.getName());
             }
         }
     }

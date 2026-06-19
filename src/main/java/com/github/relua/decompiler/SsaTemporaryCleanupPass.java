@@ -67,6 +67,12 @@ final class SsaTemporaryCleanupPass {
                 if (useIndex < 0 || !canInlineIntoStatement(block.statements.get(useIndex))) {
                     continue;
                 }
+                if (countVariableReadsOutsideExpression(block.statements.get(useIndex), assignment.name,
+                        assignment.right) == 0) {
+                    block.statements.remove(i);
+                    changed = true;
+                    break;
+                }
                 Statement rewritten = replaceVariableReadInStatement(block.statements.get(useIndex), assignment.name,
                         assignment.right);
                 block.statements.set(useIndex, rewritten);
@@ -781,6 +787,176 @@ final class SsaTemporaryCleanupPass {
             count += countVariableReads(((ExpressionStatement) node).expression, varName);
         }
         return count;
+    }
+
+    private int countVariableReadsOutsideExpression(AstNode node, String varName, Expression consumedExpression) {
+        if (node == null || varName == null) {
+            return 0;
+        }
+        if (node instanceof Expression && isSameExpression((Expression) node, consumedExpression)) {
+            return 0;
+        }
+        int count = 0;
+        if (node instanceof Name) {
+            return varName.equals(((Name) node).name) ? 1 : 0;
+        } else if (node instanceof Block) {
+            for (Statement stmt : ((Block) node).statements) {
+                count += countVariableReadsOutsideExpression(stmt, varName, consumedExpression);
+            }
+        } else if (node instanceof Assign) {
+            Assign assign = (Assign) node;
+            for (Expression left : assign.left) {
+                if (!(left instanceof Name)) {
+                    count += countVariableReadsOutsideExpression(left, varName, consumedExpression);
+                }
+            }
+            for (Expression right : assign.right) {
+                count += countVariableReadsOutsideExpression(right, varName, consumedExpression);
+            }
+        } else if (node instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) node;
+            if (local.right != null) {
+                for (Expression right : local.right) {
+                    count += countVariableReadsOutsideExpression(right, varName, consumedExpression);
+                }
+            }
+        } else if (node instanceof GlobalAssign) {
+            GlobalAssign global = (GlobalAssign) node;
+            if (global.right != null) {
+                for (Expression right : global.right) {
+                    count += countVariableReadsOutsideExpression(right, varName, consumedExpression);
+                }
+            }
+        } else if (node instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) node;
+            for (Expression condition : ifStmt.conditions) {
+                count += countVariableReadsOutsideExpression(condition, varName, consumedExpression);
+            }
+            for (Block nested : ifStmt.blocks) {
+                count += countVariableReadsOutsideExpression(nested, varName, consumedExpression);
+            }
+            count += countVariableReadsOutsideExpression(ifStmt.elseBlock, varName, consumedExpression);
+        } else if (node instanceof WhileStatement) {
+            WhileStatement whileStmt = (WhileStatement) node;
+            count += countVariableReadsOutsideExpression(whileStmt.condition, varName, consumedExpression);
+            count += countVariableReadsOutsideExpression(whileStmt.body, varName, consumedExpression);
+        } else if (node instanceof RepeatStatement) {
+            RepeatStatement repeat = (RepeatStatement) node;
+            count += countVariableReadsOutsideExpression(repeat.condition, varName, consumedExpression);
+            count += countVariableReadsOutsideExpression(repeat.body, varName, consumedExpression);
+        } else if (node instanceof ForNumeric) {
+            ForNumeric numeric = (ForNumeric) node;
+            count += countVariableReadsOutsideExpression(numeric.start, varName, consumedExpression);
+            count += countVariableReadsOutsideExpression(numeric.end, varName, consumedExpression);
+            count += countVariableReadsOutsideExpression(numeric.step, varName, consumedExpression);
+            count += countVariableReadsOutsideExpression(numeric.body, varName, consumedExpression);
+        } else if (node instanceof ForIn) {
+            ForIn forIn = (ForIn) node;
+            for (Expression iterator : forIn.iterators) {
+                count += countVariableReadsOutsideExpression(iterator, varName, consumedExpression);
+            }
+            count += countVariableReadsOutsideExpression(forIn.body, varName, consumedExpression);
+        } else if (node instanceof FunctionDeclaration) {
+            count += countVariableReadsOutsideExpression(((FunctionDeclaration) node).func.body, varName,
+                    consumedExpression);
+        } else if (node instanceof FunctionLiteral) {
+            count += countVariableReadsOutsideExpression(((FunctionLiteral) node).body, varName, consumedExpression);
+        } else if (node instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) node;
+            count += countVariableReadsOutsideExpression(binary.left, varName, consumedExpression);
+            count += countVariableReadsOutsideExpression(binary.right, varName, consumedExpression);
+        } else if (node instanceof UnaryOp) {
+            count += countVariableReadsOutsideExpression(((UnaryOp) node).expr, varName, consumedExpression);
+        } else if (node instanceof IndexExpr) {
+            IndexExpr index = (IndexExpr) node;
+            count += countVariableReadsOutsideExpression(index.table, varName, consumedExpression);
+            count += countVariableReadsOutsideExpression(index.index, varName, consumedExpression);
+        } else if (node instanceof MemberExpr) {
+            count += countVariableReadsOutsideExpression(((MemberExpr) node).table, varName, consumedExpression);
+        } else if (node instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) node;
+            count += countVariableReadsOutsideExpression(call.callee, varName, consumedExpression);
+            for (Expression arg : call.args) {
+                count += countVariableReadsOutsideExpression(arg, varName, consumedExpression);
+            }
+        } else if (node instanceof TableConstructor) {
+            TableConstructor table = (TableConstructor) node;
+            if (table.fields != null) {
+                for (TableField field : table.fields) {
+                    count += countVariableReadsOutsideExpression(field.key, varName, consumedExpression);
+                    count += countVariableReadsOutsideExpression(field.value, varName, consumedExpression);
+                }
+            }
+        } else if (node instanceof ReturnStatement) {
+            ReturnStatement ret = (ReturnStatement) node;
+            for (Expression value : ret.values) {
+                count += countVariableReadsOutsideExpression(value, varName, consumedExpression);
+            }
+        } else if (node instanceof ExpressionStatement) {
+            count += countVariableReadsOutsideExpression(((ExpressionStatement) node).expression, varName,
+                    consumedExpression);
+        }
+        return count;
+    }
+
+    private boolean isSameExpression(Expression first, Expression second) {
+        if (first == second) {
+            return true;
+        }
+        if (first == null || second == null || first.getClass() != second.getClass()) {
+            return false;
+        }
+        if (first instanceof Name) {
+            return ((Name) first).name.equals(((Name) second).name);
+        }
+        if (first instanceof StringConst) {
+            return ((StringConst) first).value.equals(((StringConst) second).value);
+        }
+        if (first instanceof NumberConst) {
+            return Double.compare(((NumberConst) first).value, ((NumberConst) second).value) == 0;
+        }
+        if (first instanceof BooleanConst) {
+            return ((BooleanConst) first).value == ((BooleanConst) second).value;
+        }
+        if (first instanceof NilConst) {
+            return true;
+        }
+        if (first instanceof BinaryOp) {
+            BinaryOp left = (BinaryOp) first;
+            BinaryOp right = (BinaryOp) second;
+            return left.op.equals(right.op) && isSameExpression(left.left, right.left)
+                    && isSameExpression(left.right, right.right);
+        }
+        if (first instanceof UnaryOp) {
+            UnaryOp left = (UnaryOp) first;
+            UnaryOp right = (UnaryOp) second;
+            return left.op.equals(right.op) && isSameExpression(left.expr, right.expr);
+        }
+        if (first instanceof IndexExpr) {
+            IndexExpr left = (IndexExpr) first;
+            IndexExpr right = (IndexExpr) second;
+            return isSameExpression(left.table, right.table) && isSameExpression(left.index, right.index);
+        }
+        if (first instanceof MemberExpr) {
+            MemberExpr left = (MemberExpr) first;
+            MemberExpr right = (MemberExpr) second;
+            return left.member.equals(right.member) && isSameExpression(left.table, right.table);
+        }
+        if (first instanceof FunctionCall) {
+            FunctionCall left = (FunctionCall) first;
+            FunctionCall right = (FunctionCall) second;
+            if (left.isMethodCall != right.isMethodCall || !isSameExpression(left.callee, right.callee)
+                    || left.args.size() != right.args.size()) {
+                return false;
+            }
+            for (int i = 0; i < left.args.size(); i++) {
+                if (!isSameExpression(left.args.get(i), right.args.get(i))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
     }
 
     private static final class AstTemporaryAssignment {
