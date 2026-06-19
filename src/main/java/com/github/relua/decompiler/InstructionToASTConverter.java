@@ -472,10 +472,7 @@ public class InstructionToASTConverter {
 
         // 源变量 - 使用寄存器的实际值
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
-        requireSsaUse(a, instructionIndex);
-        RegisterEntity sourceEntity = registerState.getRegisterEntity(a);
-
-        Expression source = TransformUtils.transformToAstNode(sourceEntity, instructionIndex);
+        Expression source = resolveExpressionFromRegister(a, instructionIndex, registerState);
 
         // 目标全局变量
         String name = "RK" + bx;
@@ -758,10 +755,8 @@ public class InstructionToASTConverter {
         // 目标变量
         Expression target = new Name(getDefinedRegisterName(a, instructionIndex, registerState), new SourcePos(instructionIndex, -1));
 
-        // 操作数：通过寄存器状态解析真实名称（如参数名、全局变量名等）
-        requireSsaUse(b, instructionIndex);
-        RegisterEntity operandEntity = registerState.getRegisterEntity(b);
-        Expression operand = TransformUtils.transformToAstNode(operandEntity, instructionIndex);
+        // 操作数：通过 SSA use 解析真实名称（如参数名、全局变量名等）
+        Expression operand = resolveExpressionFromRegister(b, instructionIndex, registerState);
 
         // 一元操作
         String opStr = unaryOperator(opcode, registerState.getRegisterEntity(b));
@@ -1406,9 +1401,8 @@ public class InstructionToASTConverter {
             return null;
         }
 
-        // 操作数。寄存器状态可能保存的是上一条 GETTABLE 产生的真实 AST 表达式，
-        // 必须保留该表达式结构，后续 use-def 分析才能看到其中的寄存器读取。
-        Expression operand = TransformUtils.transformToAstNode(RA, instructionIndex);
+        // 操作数通过 SSA use 解析，避免线性寄存器状态在回边或调用结果上退回旧值。
+        Expression operand = resolveExpressionFromRegister(a, instructionIndex, registerState);
         Expression condition;
 
         // 根据c的值构建条件表达式
@@ -1442,16 +1436,15 @@ public class InstructionToASTConverter {
         int c = instruction.getC();
 
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
-        RegisterEntity RA = registerState.getRegisterEntity(a);
-        RegisterEntity RB = registerState.getRegisterEntity(b);
-
         // 操作数 根据c的值构建条件表达式
-        Expression condition = TransformUtils.transformToAstNode(RB, instructionIndex);
+        Expression source = resolveExpressionFromRegister(b, instructionIndex, registerState);
+        Expression condition = source;
         if (c == 1) {
             condition = new UnaryOp("not", condition, new SourcePos(instructionIndex, -1));
         }
 
-        Assign assign = new Assign(TransformUtils.transformToAstNode(RA, instructionIndex), TransformUtils.transformToAstNode(RB, instructionIndex), new SourcePos(instructionIndex, -1));
+        Assign assign = new Assign(new Name(getDefinedRegisterName(a, instructionIndex, registerState),
+                new SourcePos(instructionIndex, -1)), source, new SourcePos(instructionIndex, -1));
         // 记录TEST信息，供后续JMP指令使用
         pendingTest = new PendingTest(condition, c == 0, instructionIndex, PendingTest.TestType.TESTSET, new SourcePos(instructionIndex, -1));
         pendingTest.addAstNode(assign);
@@ -1745,15 +1738,13 @@ public class InstructionToASTConverter {
         int b = instruction.getB();
 
         Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
-        RegisterEntity RA = registerState.getRegisterEntity(a);
-
         CodeGeneratorContext context = pipeline.getContext();
         UpValue upvalue = context.getUpvalue(b);
         String upvalueName = getResolvedUpvalueName(upvalue, b);
 
         SourcePos pos = new SourcePos(instructionIndex, -1);
         Expression left = new Name(upvalueName, pos);
-        Expression right = TransformUtils.transformToAstNode(RA, instructionIndex);
+        Expression right = resolveExpressionFromRegister(a, instructionIndex, registerState);
 
         return new Assign(left, right, pos);
     }
