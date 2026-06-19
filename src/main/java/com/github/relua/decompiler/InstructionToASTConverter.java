@@ -1060,10 +1060,6 @@ public class InstructionToASTConverter {
             }
             return (Expression) entity.getValue();
         }
-        String tableName = TransformUtils.transformRegister(entity);
-        if (tableName.equals("{}")) {
-            return new Name(entity.getName(), new SourcePos(instructionIndex, -1));
-        }
         try {
             // 根据实体类型创建不同的表达式
             switch (entity.getType()) {
