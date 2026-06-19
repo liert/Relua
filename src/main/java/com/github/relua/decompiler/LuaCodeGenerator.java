@@ -25,6 +25,7 @@ import com.github.relua.model.CodeLine;
 import com.github.relua.model.FromType;
 import com.github.relua.model.Register;
 import com.github.relua.model.ValueType;
+import com.github.relua.decompiler.ssa.SsaAstNameResolver;
 import com.github.relua.util.RegisterNamePolicy;
 
 /**
@@ -35,6 +36,7 @@ public class LuaCodeGenerator {
     private AstCodeEmitter astCodeEmitter;
     private List<CodeGeneratorContext> contexts = new ArrayList<>();
     private Map<String, InstructionHandler> handlers = new HashMap<>();
+    private final SsaAstNameResolver ssaNameResolver = new SsaAstNameResolver();
 
     /**
      * 构造函数
@@ -337,10 +339,7 @@ public class LuaCodeGenerator {
 
     private FunctionLiteral createFunctionLiteral(CodeGeneratorContext context) {
         Chunk functionChunk = context.getChunk();
-        List<String> params = new ArrayList<>();
-        for (int i = 0; i < functionChunk.getNumParams(); i++) {
-            params.add(com.github.relua.util.TransformUtils.transformRegister(context.getRegister().getRegisterEntity(i)));
-        }
+        List<String> params = ssaNameResolver.parameterNames(functionChunk.getNumParams());
         FunctionLiteral literal = new FunctionLiteral(params, functionChunk.getIsVararg() != 0, context.getAstBlock(), null);
         literal.setChunk(functionChunk);
         return literal;

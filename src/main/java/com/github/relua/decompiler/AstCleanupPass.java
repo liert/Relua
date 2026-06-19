@@ -38,6 +38,7 @@ import com.github.relua.ast.WhileStatement;
 import com.github.relua.debug.DecompilerDebugger;
 import com.github.relua.decompiler.analysis.DataFlowAnalyzer;
 import com.github.relua.decompiler.analysis.StructureRestorer;
+import com.github.relua.decompiler.ssa.SsaAstNameResolver;
 import com.github.relua.ast.NilConst;
 import com.github.relua.ast.BooleanConst;
 import com.github.relua.ast.NumberConst;
@@ -51,6 +52,8 @@ import com.github.relua.log.Logger;
 import com.github.relua.util.RegisterNamePolicy;
 
 public class AstCleanupPass {
+    private final SsaAstNameResolver ssaNameResolver = new SsaAstNameResolver();
+
     public void cleanup(Block block) {
         cleanup(block, null, java.util.Collections.emptySet(), java.util.Collections.emptySet());
     }
@@ -196,9 +199,7 @@ public class AstCleanupPass {
         List<String> params = new ArrayList<>();
         if (context != null && context.getChunk() != null && !"main".equals(context.getChunk().getFunction())) {
             Chunk functionChunk = context.getChunk();
-            for (int i = 0; i < functionChunk.getNumParams(); i++) {
-                params.add(TransformUtils.transformRegister(context.getRegister().getRegisterEntity(i)));
-            }
+            params.addAll(ssaNameResolver.parameterNames(functionChunk.getNumParams()));
         }
         Set<String> declared = declareTopLevelLocals(block, params, parentDeclared, finalUpvalueNames);
         DecompilerDebugger.dump("locals_declared_" + funcName, block);
