@@ -26,6 +26,11 @@ import com.github.relua.util.BytecodeFormatter;
 import com.github.relua.util.RegisterNamePolicy;
 import com.github.relua.model.ValueType;
 
+/**
+ * @deprecated Builds legacy linear register snapshots for compatibility. New
+ *             decompiler recovery should be implemented on SSA.
+ */
+@Deprecated
 public class IRBuilder {
     private final DecompilerPipeline pipeline;
 
@@ -42,6 +47,10 @@ public class IRBuilder {
      * @param currentState 当前寄存器状态
      * @return 下一条指令的索引
      */
+    /**
+     * @deprecated Legacy linear register-state transfer function.
+     */
+    @Deprecated
     public int processInstruction(Chunk chunk, Instruction instruction, int index, Register currentState) {
         Logger.debug(BytecodeFormatter.formatInstruction(chunk, instruction, index));
         Opcode opcode = instruction.getOpcode();

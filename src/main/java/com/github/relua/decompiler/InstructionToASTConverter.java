@@ -23,6 +23,8 @@ import com.github.relua.util.RegisterNamePolicy;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * 指令到AST节点的转换器
@@ -334,6 +336,10 @@ public class InstructionToASTConverter {
 
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
+
+        if (isComparisonBooleanLoadBool(instructionIndex)) {
+            return null;
+        }
 
         if (c == 0 && isUnusedDiscardableDefinition(a, instructionIndex)) {
             return null;
@@ -895,12 +901,7 @@ public class InstructionToASTConverter {
             int baseReg = pendingSelf.getBaseRegister();
             int baseInstructionIndex = pendingSelf.getInstructionIndex();
             Register baseRegisterState = pipeline.getRegisterByInstructionIndex(baseInstructionIndex);
-            if (baseReg == a) {
-                baseReg = a + 1;
-                baseInstructionIndex = instructionIndex;
-                baseRegisterState = registerState;
-            }
-            Expression obj = resolveExpressionFromRegister(baseReg, baseInstructionIndex, baseRegisterState);
+            Expression obj = resolveExpressionFromRegister(baseReg, baseInstructionIndex, baseRegisterState, true, true);
             
             // 创建成员访问表达式作为函数调用的callee
             func = new MemberExpr(obj, pendingSelf.getMethodName(), pos);
@@ -1038,7 +1039,16 @@ public class InstructionToASTConverter {
 
     private Expression resolveExpressionFromRegister(int registerIndex, int instructionIndex, Register registerState,
             boolean usePreviousWhenTarget) {
+        return resolveExpressionFromRegister(registerIndex, instructionIndex, registerState, usePreviousWhenTarget, false);
+    }
+
+    private Expression resolveExpressionFromRegister(int registerIndex, int instructionIndex, Register registerState,
+            boolean usePreviousWhenTarget, boolean preserveNilRegister) {
         SsaValue ssaUse = pipeline.requireSsaUse(chunk.getFunction(), instructionIndex, registerIndex);
+        SourcePos pos = new SourcePos(instructionIndex, -1);
+        if (preserveNilRegister && resolvesToSsaNilConstant(ssaUse)) {
+            return new Name(getSsaCompatibleUseName(registerIndex, registerState, ssaUse), pos);
+        }
         SsaExpressionAnalysis ssaAnalysis = pipeline.requireSsaExpressionAnalysis(chunk.getFunction());
         SsaValueSummary copySummary = ssaAnalysis.resolveCopySummary(ssaUse);
         if (copySummary != null) {
@@ -1054,19 +1064,15 @@ public class InstructionToASTConverter {
                 }
             }
         }
+        Expression ssaExpression = expressionFromSsaValue(ssaUse, instructionIndex, registerState, pos, new HashSet<SsaValue>());
+        if (ssaExpression != null) {
+            return ssaExpression;
+        }
         RegisterEntity entity = registerState.getRegisterEntity(registerIndex);
-        if (isSsaCallResult(ssaUse)) {
-            return new Name(getSsaCompatibleUseName(registerIndex, registerState, ssaUse),
-                    new SourcePos(instructionIndex, -1));
-        }
-        Expression ssaConstant = constantExpressionFromSsa(ssaUse, new SourcePos(instructionIndex, -1));
-        if (ssaConstant != null) {
-            return ssaConstant;
-        }
         if (entity.getValue() instanceof Expression) {
             if (entity.getValue() instanceof TableConstructor
                     && ((TableConstructor) entity.getValue()).isEmpty()) {
-                return new Name(getSsaCompatibleUseName(registerIndex, registerState, ssaUse), new SourcePos(instructionIndex, -1));
+                return new Name(getSsaCompatibleUseName(registerIndex, registerState, ssaUse), pos);
             }
             int defInstructionIndex = instructionIndex;
             SsaFunction ssaFunc = pipeline.getSsaFunction(chunk.getFunction());
@@ -1087,7 +1093,6 @@ public class InstructionToASTConverter {
                 case OBJECT:
                     // 全局变量、函数引用、表引用
                     String fallbackName = getFallbackName(registerIndex, registerState, ssaUse, entity);
-                    SourcePos pos = new SourcePos(instructionIndex, -1);
                     if (fallbackName.contains(".")) {
                         String[] parts = fallbackName.split("\\.");
                         Expression current = new Name(parts[0], pos);
@@ -1101,42 +1106,299 @@ public class InstructionToASTConverter {
                     // 只有当实体是常量（例如 FromType == CONSTANT）且其 value 不等于寄存器自身名称时才包装为 StringConst 
                     if (entity.getFromType() == FromType.CONSTANT && entity.getValue() != null 
                             && !entity.getName().equals(entity.getValue().toString())) {
-                        return new StringConst(entity.getValue().toString(), new SourcePos(instructionIndex, -1));
+                        return new StringConst(entity.getValue().toString(), pos);
                     }
-                    return new Name(getFallbackName(registerIndex, registerState, ssaUse, entity), new SourcePos(instructionIndex, -1));
+                    return new Name(getFallbackName(registerIndex, registerState, ssaUse, entity), pos);
                 case NUMBER:
                     // 数值常量
                     if (entity.getValue() instanceof Double) {
-                        return new NumberConst((Double) entity.getValue(), new SourcePos(instructionIndex, -1));
+                        return new NumberConst((Double) entity.getValue(), pos);
                     } else if (entity.getValue() instanceof Integer) {
-                        return new NumberConst(((Integer) entity.getValue()).doubleValue(), new SourcePos(instructionIndex, -1));
+                        return new NumberConst(((Integer) entity.getValue()).doubleValue(), pos);
                     } else {
-                        return new Name(getFallbackName(registerIndex, registerState, ssaUse, entity), new SourcePos(instructionIndex, -1));
+                        return new Name(getFallbackName(registerIndex, registerState, ssaUse, entity), pos);
                     }
                 case BOOLEAN:
                     // 布尔值常量
                     if (entity.getValue() instanceof Boolean) {
-                        return new BooleanConst((Boolean) entity.getValue(), new SourcePos(instructionIndex, -1));
+                        return new BooleanConst((Boolean) entity.getValue(), pos);
                     } else {
-                        return new Name(getFallbackName(registerIndex, registerState, ssaUse, entity), new SourcePos(instructionIndex, -1));
+                        return new Name(getFallbackName(registerIndex, registerState, ssaUse, entity), pos);
                     }
                 case NIL:
                     // nil值
                     if (!isSsaNilConstant(ssaUse)) {
                         return new Name(getSsaCompatibleUseName(registerIndex, registerState, ssaUse),
-                                new SourcePos(instructionIndex, -1));
+                                pos);
                     }
-                    return new NilConst(new SourcePos(instructionIndex, -1));
+                    return new NilConst(pos);
                 default:
                     // 未知类型，如果值不为 null 且不是 "nil"，使用值名，否则使用寄存器名作为占位符
                     if (entity.getValue() != null && entity.getValue().equals("nil")) {
-                        return new Name(getSsaCompatibleUseName(registerIndex, registerState, ssaUse), new SourcePos(instructionIndex, -1));
+                        return new Name(getSsaCompatibleUseName(registerIndex, registerState, ssaUse), pos);
                     }
-                    return new Name(getFallbackName(registerIndex, registerState, ssaUse, entity), new SourcePos(instructionIndex, -1));
+                    return new Name(getFallbackName(registerIndex, registerState, ssaUse, entity), pos);
             }
         } catch (Exception e) {
             // 处理异常，如果值不为空则返回值的名称，否则返回寄存器名作为占位符
-            return new Name(getFallbackName(registerIndex, registerState, ssaUse, entity), new SourcePos(instructionIndex, -1));
+            return new Name(getFallbackName(registerIndex, registerState, ssaUse, entity), pos);
+        }
+    }
+
+    private Expression expressionFromSsaValue(SsaValue value, int usePc, Register registerState, SourcePos pos,
+            Set<SsaValue> visiting) {
+        if (value == null) {
+            return null;
+        }
+        if (!visiting.add(value)) {
+            return new Name(getSsaCompatibleUseName(value.getRegister(), registerState, value), pos);
+        }
+        try {
+            SsaExpressionAnalysis analysis = pipeline.requireSsaExpressionAnalysis(chunk.getFunction());
+            SsaValueSummary summary = analysis.getSummary(value);
+            if (summary == null) {
+                return null;
+            }
+            switch (summary.getKind()) {
+                case CONSTANT:
+                    return constantExpressionFromSsa(value, pos);
+                case CALL_RESULT:
+                case PARAMETER:
+                case PHI:
+                case UNKNOWN:
+                case VARARG:
+                case CLOSURE:
+                case TABLE_NEW:
+                    return new Name(getSsaCompatibleUseName(value.getRegister(), registerState, value), pos);
+                case GLOBAL:
+                case TABLE_READ:
+                    Expression loweredRead = expressionFromSsaDefinition(value, registerState, pos, visiting);
+                    if (loweredRead != null) {
+                        return loweredRead;
+                    }
+                    return new Name(getSsaCompatibleUseName(value.getRegister(), registerState, value), pos);
+                case COPY:
+                    if (summary.getCopySource() != null) {
+                        Expression copy = expressionFromSsaValue(summary.getCopySource(), usePc, registerState, pos, visiting);
+                        if (copy != null) {
+                            return copy;
+                        }
+                    }
+                    return new Name(getSsaCompatibleUseName(value.getRegister(), registerState, value), pos);
+                case UPVALUE:
+                    return upvalueExpressionFromSsa(value, pos);
+                case ARITHMETIC:
+                case UNARY:
+                case CONCAT:
+                    Expression lowered = expressionFromSsaDefinition(value, registerState, pos, visiting);
+                    if (lowered != null) {
+                        return lowered;
+                    }
+                    return new Name(getSsaCompatibleUseName(value.getRegister(), registerState, value), pos);
+                default:
+                    return null;
+            }
+        } finally {
+            visiting.remove(value);
+        }
+    }
+
+    private Expression expressionFromSsaDefinition(SsaValue value, Register registerState, SourcePos pos,
+            Set<SsaValue> visiting) {
+        SsaFunction ssaFunc = pipeline.getSsaFunction(chunk.getFunction());
+        if (ssaFunc == null) {
+            return null;
+        }
+        SsaInstruction defInst = ssaFunc.getDefiningInstruction(value);
+        if (defInst == null) {
+            return null;
+        }
+        Instruction inst = defInst.getInstruction();
+        SourcePos defPos = new SourcePos(defInst.getPc(), -1);
+        switch (inst.getOpcode()) {
+            case GETGLOBAL:
+                Constant globalConstant = chunk.getConstant(inst.getBx());
+                Object globalValue = globalConstant != null ? globalConstant.getValue() : null;
+                return globalValue != null ? dottedNameExpression(globalValue.toString(), pos) : null;
+            case GETTABLE:
+                return tableAccessExpression(
+                        ssaRegisterExpression(defInst, inst.getB(), registerState, defPos, visiting, true),
+                        ssaRkExpression(defInst, inst.getC(), registerState, defPos, visiting),
+                        pos);
+            case SELF:
+                return tableAccessExpression(
+                        ssaRegisterExpression(defInst, inst.getB(), registerState, defPos, visiting, true),
+                        ssaRkExpression(defInst, inst.getC(), registerState, defPos, visiting),
+                        pos);
+            case ADD:
+            case SUB:
+            case MUL:
+            case DIV:
+            case MOD:
+            case POW:
+                return LuaExpressionFactory.arithmetic(arithmeticOperator(inst.getOpcode()),
+                        ssaRkExpression(defInst, inst.getB(), registerState, defPos, visiting),
+                        ssaRkExpression(defInst, inst.getC(), registerState, defPos, visiting),
+                        pos);
+            case UNM:
+            case NOT:
+            case LEN:
+                return new UnaryOp(ssaUnaryOperator(inst.getOpcode()),
+                        ssaRegisterExpression(defInst, inst.getB(), registerState, defPos, visiting),
+                        pos);
+            case CONCAT:
+                Expression concat = null;
+                for (int reg = inst.getB(); reg <= inst.getC(); reg++) {
+                    Expression part = ssaRegisterExpression(defInst, reg, registerState, defPos, visiting);
+                    concat = concat == null ? part : new BinaryOp("..", concat, part, pos);
+                }
+                return concat;
+            default:
+                return null;
+        }
+    }
+
+    private Expression tableAccessExpression(Expression table, Expression key, SourcePos pos) {
+        if (key instanceof StringConst) {
+            String member = ((StringConst) key).value;
+            if (member.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+                return new MemberExpr(table, member, pos);
+            }
+        }
+        return new IndexExpr(table, key, pos);
+    }
+
+    private Expression dottedNameExpression(String name, SourcePos pos) {
+        if (name == null || name.isEmpty()) {
+            return new Name("", pos);
+        }
+        if (!name.contains(".")) {
+            return new Name(name, pos);
+        }
+        String[] parts = name.split("\\.");
+        Expression current = new Name(parts[0], pos);
+        for (int i = 1; i < parts.length; i++) {
+            current = new MemberExpr(current, parts[i], pos);
+        }
+        return current;
+    }
+
+    private String ssaUnaryOperator(Opcode opcode) {
+        if (opcode == Opcode.NOT) {
+            return "not";
+        }
+        if (opcode == Opcode.UNM) {
+            return "-";
+        }
+        if (opcode == Opcode.LEN) {
+            return "#";
+        }
+        return opcode.toString().toLowerCase();
+    }
+
+    private Expression ssaRkExpression(SsaInstruction instruction, int rk, Register registerState, SourcePos pos,
+            Set<SsaValue> visiting) {
+        if (rk >= 256) {
+            Constant constant = chunk.getConstant(rk - 256);
+            Object value = constant != null ? constant.getValue() : null;
+            if (value == null) {
+                return new NilConst(pos);
+            }
+            if (value instanceof Boolean) {
+                return new BooleanConst((Boolean) value, pos);
+            }
+            if (value instanceof Number) {
+                return new NumberConst(((Number) value).doubleValue(), pos);
+            }
+            return new StringConst(value.toString(), pos);
+        }
+        return ssaRegisterExpression(instruction, rk, registerState, pos, visiting);
+    }
+
+    private Expression ssaRegisterExpression(SsaInstruction instruction, int registerIndex, Register registerState,
+            SourcePos pos, Set<SsaValue> visiting) {
+        return ssaRegisterExpression(instruction, registerIndex, registerState, pos, visiting, false);
+    }
+
+    private Expression ssaRegisterExpression(SsaInstruction instruction, int registerIndex, Register registerState,
+            SourcePos pos, Set<SsaValue> visiting, boolean preserveNilRegister) {
+        SsaValue use = instruction.getFirstUseForRegister(registerIndex);
+        if (use == null) {
+            return new Name(RegisterNamePolicy.physicalRegisterName(registerIndex), pos);
+        }
+        if (preserveNilRegister && resolvesToSsaNilConstant(use)) {
+            return new Name(getSsaCompatibleUseName(registerIndex, registerState, use), pos);
+        }
+        Expression expression = expressionFromSsaValue(use, instruction.getPc(), registerState, pos, visiting);
+        if (expression != null) {
+            return expression;
+        }
+        return new Name(getSsaCompatibleUseName(registerIndex, registerState, use), pos);
+    }
+
+    private Expression upvalueExpressionFromSsa(SsaValue value, SourcePos pos) {
+        if (value == null) {
+            return null;
+        }
+        SsaFunction ssaFunc = pipeline.getSsaFunction(chunk.getFunction());
+        if (ssaFunc == null) {
+            return null;
+        }
+        SsaInstruction defInst = ssaFunc.getDefiningInstruction(value);
+        if (defInst == null || defInst.getInstruction().getOpcode() != Opcode.GETUPVAL) {
+            return null;
+        }
+        int upvalueIndex = defInst.getInstruction().getB();
+        return upvalueExpression(pipeline.getContext().getUpvalue(upvalueIndex), upvalueIndex, pos);
+    }
+
+    private Expression upvalueExpression(UpValue upvalue, int b, SourcePos pos) {
+        if (upvalue != null && (upvalue.getFromType() == FromType.CONSTANT || upvalue.getFromType() == FromType.GLOBAL) && upvalue.getValue() != null) {
+            Object val = upvalue.getValue();
+            if (upvalue.getFromType() == FromType.GLOBAL) {
+                String globalName = val.toString();
+                if (!RegisterNamePolicy.isTemporaryRegisterName(globalName)) {
+                    if (globalName.contains(".")) {
+                        String[] parts = globalName.split("\\.");
+                        Expression current = new Name(parts[0], pos);
+                        for (int i = 1; i < parts.length; i++) {
+                            current = new MemberExpr(current, parts[i], pos);
+                        }
+                        return current;
+                    }
+                    return new Name(globalName, pos);
+                }
+            } else {
+                if (val instanceof Boolean) {
+                    return new BooleanConst((Boolean) val, pos);
+                }
+                if (val instanceof Number) {
+                    return new NumberConst(((Number) val).doubleValue(), pos);
+                }
+                if (val instanceof String) {
+                    if ("nil".equals(val.toString())) {
+                        return new NilConst(pos);
+                    }
+                    return new StringConst(val.toString(), pos);
+                }
+            }
+        }
+        return new Name(getResolvedUpvalueName(upvalue, b), pos);
+    }
+
+    private boolean shouldPreferSsaNameOverRegisterExpression(SsaValueSummary summary) {
+        if (summary == null) {
+            return false;
+        }
+        switch (summary.getKind()) {
+            case ARITHMETIC:
+            case UNARY:
+            case CONCAT:
+            case PHI:
+            case UNKNOWN:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -1154,10 +1416,11 @@ public class InstructionToASTConverter {
                 result = val;
             }
         }
-        if (chunk.getFunction().contains("write_jsonp")) {
-            System.out.println("FALLBACK log: chunk=" + chunk.getFunction() 
+        if (chunk.getFunction().contains("execute")) {
+            System.err.println("FALLBACK log: chunk=" + chunk.getFunction() 
                 + " reg=" + registerIndex 
                 + " entity.name=" + (entity != null ? entity.getName() : "null") 
+                + " entity.value=" + (entity != null ? entity.getValue() : "null")
                 + " ssaUse=" + ssaUse 
                 + " result=" + result);
         }
@@ -1168,6 +1431,14 @@ public class InstructionToASTConverter {
     private boolean isSsaNilConstant(SsaValue value) {
         SsaExpressionAnalysis analysis = pipeline.requireSsaExpressionAnalysis(chunk.getFunction());
         SsaValueSummary summary = analysis.getSummary(value);
+        return summary != null
+                && summary.getKind() == SsaValueKind.CONSTANT
+                && summary.getConstantValue() == null;
+    }
+
+    private boolean resolvesToSsaNilConstant(SsaValue value) {
+        SsaExpressionAnalysis analysis = pipeline.requireSsaExpressionAnalysis(chunk.getFunction());
+        SsaValueSummary summary = analysis.resolveCopySummary(value);
         return summary != null
                 && summary.getKind() == SsaValueKind.CONSTANT
                 && summary.getConstantValue() == null;
@@ -1272,7 +1543,7 @@ public class InstructionToASTConverter {
         Instruction selfInst = findSelfForCall(a, callPC);
         if (selfInst != null) {
             isMethodCall = true;
-            Expression obj = resolveExpressionFromRegister(a + 1, callPC, registerState, false);
+            Expression obj = resolveExpressionFromRegister(a + 1, callPC, registerState, false, true);
             String methodName = constantName(selfInst.getC());
             func = new MemberExpr(obj, methodName, pos);
         } else {
@@ -1385,6 +1656,120 @@ public class InstructionToASTConverter {
 
         pendingTest = new PendingTest(condition, true, instructionIndex, PendingTest.TestType.TEST, pos);
         return null;
+    }
+
+    private Assign tryBuildComparisonBooleanAssign(int jumpPc, int jumpTarget) {
+        if (pendingTest == null || pendingTest.type != PendingTest.TestType.TEST) {
+            return null;
+        }
+        int comparisonPc = pendingTest.pc;
+        if (comparisonPc < 0 || comparisonPc + 1 != jumpPc) {
+            return null;
+        }
+
+        List<Instruction> instructions = chunk.getInstructions();
+        int falsePc = jumpPc + 1;
+        int truePc = jumpTarget;
+        if (falsePc < 0 || truePc < 0 || falsePc >= instructions.size() || truePc >= instructions.size()) {
+            return null;
+        }
+        if (truePc != falsePc + 1) {
+            return null;
+        }
+
+        Instruction comparison = instructions.get(comparisonPc);
+        Instruction falseLoad = instructions.get(falsePc);
+        Instruction trueLoad = instructions.get(truePc);
+        if (!isComparisonInstruction(comparison)
+                || falseLoad.getOpcode() != Opcode.LOADBOOL
+                || trueLoad.getOpcode() != Opcode.LOADBOOL
+                || falseLoad.getA() != trueLoad.getA()
+                || falseLoad.getB() != 0
+                || trueLoad.getB() == 0
+                || falseLoad.getC() == 0
+                || trueLoad.getC() != 0) {
+            return null;
+        }
+
+        SourcePos pos = new SourcePos(comparisonPc, -1);
+        Register registerState = pipeline.getRegisterByInstructionIndex(comparisonPc);
+        Expression leftExpr = rkExpression(registerState, comparison.getB(), pos);
+        Expression rightExpr = rkExpression(registerState, comparison.getC(), pos);
+        Expression comparisonExpr = new BinaryOp(booleanComparisonOperator(comparison.getOpcode(), comparison.getA()),
+                leftExpr, rightExpr, pos);
+
+        int targetReg = falseLoad.getA();
+        String targetName = booleanComparisonTargetName(targetReg, truePc + 1, truePc);
+        return new Assign(new Name(targetName, pos), comparisonExpr, pos);
+    }
+
+    private String booleanComparisonTargetName(int targetReg, int usePc, int fallbackDefPc) {
+        try {
+            if (usePc >= 0 && usePc < chunk.getInstructions().size()) {
+                Register useState = pipeline.getRegisterByInstructionIndex(usePc);
+                return getUsedRegisterName(targetReg, usePc, useState);
+            }
+        } catch (RuntimeException ignored) {
+            // Fall back to the concrete LOADBOOL definition name below.
+        }
+        Register defState = pipeline.getRegisterByInstructionIndex(fallbackDefPc);
+        return getDefinedRegisterName(targetReg, fallbackDefPc, defState);
+    }
+
+    private String booleanComparisonOperator(Opcode opcode, int a) {
+        if (opcode == Opcode.EQ) {
+            return a == 0 ? "~=" : "==";
+        }
+        if (opcode == Opcode.LT) {
+            return a == 0 ? ">=" : "<";
+        }
+        if (opcode == Opcode.LE) {
+            return a == 0 ? ">" : "<=";
+        }
+        return opcode.toString().toLowerCase();
+    }
+
+    private boolean isComparisonBooleanLoadBool(int instructionIndex) {
+        List<Instruction> instructions = chunk.getInstructions();
+        if (instructionIndex < 2 || instructionIndex >= instructions.size()) {
+            return false;
+        }
+        Instruction load = instructions.get(instructionIndex);
+        if (load.getOpcode() != Opcode.LOADBOOL) {
+            return false;
+        }
+
+        Instruction prev = instructions.get(instructionIndex - 1);
+        Instruction maybeJump;
+        Instruction maybeComparison;
+        if (prev.getOpcode() == Opcode.JMP) {
+            maybeJump = prev;
+            maybeComparison = instructions.get(instructionIndex - 2);
+        } else if (prev.getOpcode() == Opcode.LOADBOOL && instructionIndex >= 3) {
+            maybeJump = instructions.get(instructionIndex - 2);
+            maybeComparison = instructions.get(instructionIndex - 3);
+        } else {
+            return false;
+        }
+
+        if (maybeJump.getOpcode() != Opcode.JMP || !isComparisonInstruction(maybeComparison)) {
+            return false;
+        }
+        int falsePc = maybeJump.getPc() + 1;
+        int truePc = maybeJump.getPc() + 1 + maybeJump.getSBx();
+        if (truePc != falsePc + 1 || falsePc < 0 || truePc < 0
+                || falsePc >= instructions.size() || truePc >= instructions.size()) {
+            return false;
+        }
+        Instruction falseLoad = instructions.get(falsePc);
+        Instruction trueLoad = instructions.get(truePc);
+        return falseLoad.getOpcode() == Opcode.LOADBOOL
+                && trueLoad.getOpcode() == Opcode.LOADBOOL
+                && falseLoad.getA() == trueLoad.getA()
+                && falseLoad.getB() == 0
+                && trueLoad.getB() != 0
+                && falseLoad.getC() != 0
+                && trueLoad.getC() == 0;
     }
 
     private String comparisonOperator(Opcode opcode, int a) {
@@ -1502,6 +1887,12 @@ public class InstructionToASTConverter {
 
         // ============= 识别 IF 结构：TEST + JMP =============
         if (pendingTest != null) {
+            Assign booleanAssign = tryBuildComparisonBooleanAssign(instructionIndex, jmpTarget);
+            if (booleanAssign != null) {
+                pendingTest = null;
+                return booleanAssign;
+            }
+
             // 向后跳转（循环条件）不生成 PendingIf，避免 buildBlock 范围回退导致无限递归
             if (jmpTarget <= instructionIndex) {
                 pendingTest = null;
@@ -1907,7 +2298,7 @@ public class InstructionToASTConverter {
         if (expr instanceof Name) {
             Name nameNode = (Name) expr;
             String name = nameNode.name;
-            if (RegisterNamePolicy.isPhysicalRegisterName(name)) {
+            if (isBarePhysicalRegisterName(name)) {
                 int regIndex = RegisterNamePolicy.temporaryRegisterIndex(name);
                 SsaValue use = null;
                 try {
@@ -1988,5 +2379,22 @@ public class InstructionToASTConverter {
             );
         }
         return expr;
+    }
+
+    private boolean isBarePhysicalRegisterName(String name) {
+        if (!RegisterNamePolicy.isPhysicalRegisterName(name)) {
+            return false;
+        }
+        int rIndex = name.indexOf('R');
+        if (rIndex < 0) {
+            return false;
+        }
+        String rest = name.substring(rIndex + 1);
+        for (int i = 0; i < rest.length(); i++) {
+            if (!Character.isDigit(rest.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 }

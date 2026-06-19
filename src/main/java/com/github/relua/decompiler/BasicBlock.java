@@ -17,7 +17,11 @@ public class BasicBlock {
     private boolean isElseBlock = false;
     private boolean visited = false;
     private int conditionRegister = -1;
+    /** @deprecated Legacy linear register input state; prefer SSA values. */
+    @Deprecated
     private Register inputState; // 块输入寄存器状态
+    /** @deprecated Legacy linear register output state; prefer SSA values. */
+    @Deprecated
     private Register outputState; // 块输出寄存器状态
     
     public BasicBlock(int startIndex) {
@@ -45,9 +49,17 @@ public class BasicBlock {
     public void setVisited(boolean visited) { this.visited = visited; }
     public int getConditionRegister() { return conditionRegister; }
     public void setConditionRegister(int conditionRegister) { this.conditionRegister = conditionRegister; }
+    /** @deprecated Legacy linear register state; prefer SSA values. */
+    @Deprecated
     public Register getInputState() { return inputState; }
+    /** @deprecated Legacy linear register state; prefer SSA values. */
+    @Deprecated
     public void setInputState(Register inputState) { this.inputState = inputState; }
+    /** @deprecated Legacy linear register state; prefer SSA values. */
+    @Deprecated
     public Register getOutputState() { return outputState; }
+    /** @deprecated Legacy linear register state; prefer SSA values. */
+    @Deprecated
     public void setOutputState(Register outputState) { this.outputState = outputState; }
     
     public void addSuccessor(BasicBlock block) {

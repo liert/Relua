@@ -9,6 +9,12 @@ import java.util.stream.Collectors;
 
 import com.github.relua.util.RegisterNamePolicy;
 
+/**
+ * @deprecated Linear register state is kept only as a compatibility layer while
+ *             SSA owns value identity and expression recovery. New code should
+ *             prefer SsaFunction/SsaValue/SsaExpressionAnalysis.
+ */
+@Deprecated
 public class Register {
     // 使用Map存储所有寄存器，支持任意数量的寄存器
     private Map<Integer, RegisterEntity> registers = new HashMap<>();
@@ -226,6 +232,11 @@ public class Register {
         return result;
     }
 
+    /**
+     * @deprecated Part of the legacy linear register-state compatibility layer.
+     *             Prefer SSA summaries and SSA value names for new recovery code.
+     */
+    @Deprecated
     public static class RegisterEntity {
         private int index;
         private Object value = "nil";

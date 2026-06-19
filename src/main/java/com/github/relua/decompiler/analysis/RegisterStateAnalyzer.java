@@ -11,6 +11,12 @@ import com.github.relua.model.Register;
 import com.github.relua.model.Register.RegisterEntity;
 import com.github.relua.util.RegisterUtils;
 
+/**
+ * @deprecated Legacy linear register data-flow analysis. It remains as a
+ *             compatibility source for parameter naming and fallback AST
+ *             recovery while SSA becomes the primary representation.
+ */
+@Deprecated
 public class RegisterStateAnalyzer {
     private final DecompilerPipeline pipeline;
     private final List<Register> inStates = new ArrayList<>(); // 每条指令执行前的寄存器状态
@@ -155,6 +161,10 @@ public class RegisterStateAnalyzer {
      * @param instructionIndex 指令索引
      * @return 该指令对应的寄存器
      */
+    /**
+     * @deprecated Prefer SSA use/definition lookup through DecompilerPipeline.
+     */
+    @Deprecated
     public Register getRegisterByInstructionIndex(int instructionIndex) {
         if (instructionIndex >= 0 && instructionIndex < inStates.size()) {
             return new Register(inStates.get(instructionIndex));

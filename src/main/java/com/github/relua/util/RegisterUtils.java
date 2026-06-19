@@ -8,6 +8,11 @@ import com.github.relua.model.Register;
 import com.github.relua.model.Register.RegisterEntity;
 import com.github.relua.model.ValueType;
 
+/**
+ * @deprecated Utilities for merging legacy linear register states. New analysis
+ *             should model value flow with SSA and phi nodes instead.
+ */
+@Deprecated
 public class RegisterUtils {
     public static Register mergePredecessors(BasicBlock block) {
         return mergePredecessors(block, "");

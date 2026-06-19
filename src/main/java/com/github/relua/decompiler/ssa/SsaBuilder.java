@@ -45,6 +45,24 @@ public final class SsaBuilder {
         }
 
         computeComponents();
+        if (chunk.getFunction().contains("execute")) {
+            System.err.println("CFG Blocks for chunk " + chunk.getFunction() + ":");
+            for (BasicBlock b : this.blocks) {
+                System.err.print("  Block " + b.getStartIndex() + ".." + b.getEndIndex() + " predecessors: ");
+                for (BasicBlock pred : b.getPredecessors()) {
+                    System.err.print(pred.getStartIndex() + " ");
+                }
+                System.err.print("successors: ");
+                for (BasicBlock succ : b.getSuccessors()) {
+                    System.err.print(succ.getStartIndex() + " ");
+                }
+                System.err.println();
+            }
+            System.err.println("Component roots:");
+            for (BasicBlock r : componentRoots) {
+                System.err.println("  Root " + r.getStartIndex() + ".." + r.getEndIndex());
+            }
+        }
         collectDefinitions();
 
         // Create synthetic entry root to unify multiple components / unreachable code

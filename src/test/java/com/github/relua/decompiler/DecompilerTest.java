@@ -93,6 +93,44 @@ class DecompilerTest {
     }
 
     @Test
+    void testDecompileCgi() throws IOException {
+        String filePath = "src/test/resources/xiaomi/cgi.lua";
+        File file = new File(filePath);
+        assertTrue(file.exists(), "cgi.lua file does not exist: " + file.getAbsolutePath());
+
+        LuacParser parser = new LuacParser();
+        Decompiler decompiler = new Decompiler();
+
+        LuacFile luacFile = parser.parse(filePath);
+        assertNotNull(luacFile, "Failed to parse cgi.lua");
+
+        com.github.relua.debug.DecompilerDebugger debugger = new com.github.relua.debug.DecompilerDebugger("target/debug_cgi", "cgi.lua");
+        com.github.relua.debug.DecompilerDebugger.set(debugger);
+
+        String luaCode = decompiler.decompile(luacFile);
+        assertNotNull(luaCode, "Failed to decompile");
+        assertFalse(luaCode.contains(":close:close"), "SELF call should not duplicate method name");
+        assertFalse(luaCode.contains(":read:read"), "SELF call should not duplicate method name");
+        assertFalse(luaCode.contains("256 * R2 + 127"), "Stopped execute status must use the waitExec status code result");
+        assertFalse(luaCode.contains("return a0 + 127"), "Stopped execute status must not use the command argument");
+        assertFalse(luaCode.contains("a1_2:close"), "SELF object should resolve to the captured file handle");
+        assertFalse(luaCode.contains("module_R"), "SSA-first lowering should preserve recoverable global names");
+        assertTrue(luaCode.contains("exectime = os.clock()"), "GETGLOBAL/GETTABLE should preserve global member access");
+        assertTrue(luaCode.contains("require(\"luci.ltn12\")"), "GETGLOBAL should preserve require calls");
+        assertTrue(luaCode.contains("xiaoqiang_common_XQFunction.waitExec"), "GETTABLE should preserve table member calls");
+        assertTrue(luaCode.contains("a0:close()"), "SELF close call should preserve the captured file handle");
+        assertTrue(luaCode.contains("a0:read("), "SELF read call should preserve the captured file handle");
+        assertTrue(luaCode.contains("256 * R2_2 + 127") || luaCode.contains("256 * R2_2") && luaCode.contains("+ 127"),
+                "Stopped execute status should preserve the waitExec status code result");
+
+        com.github.relua.debug.DecompilerDebugger.clear();
+
+        try (PrintWriter writer = new PrintWriter(new FileWriter("target/cgi_decompiled.lua"))) {
+            writer.print(luaCode);
+        }
+    }
+
+    @Test
     void testDecompileHttp() throws IOException {
         String filePath = "src/test/resources/xiaomi/http.lua";
         File file = new File(filePath);
@@ -186,11 +224,21 @@ class DecompilerTest {
 
         assertFalse(luaCode.contains("R3 = R2 + 3 .."), "Index arithmetic must not be merged into concat");
         assertFalse(luaCode.contains("R2 + 3 .."), "Arithmetic index expression must not be absorbed by concat");
-        assertTrue(luaCode.contains("R3 = R2 + 3")
-                        || luaCode.contains("if a0[R2 + 3] then"),
+        assertFalse(luaCode.matches("(?s).*if R2(?:_\\d+)? ~= \"string\" then\\s*end\\s*local R2(?:_\\d+)?\\s*_G\\.assert\\(R2(?:_\\d+)?\\).*"),
+                "sha1 type assert must not be emitted as an empty if plus unresolved boolean register");
+        assertFalse(luaCode.matches("(?s).*if # a0 >= 2147483647 then\\s*end\\s*local R2(?:_\\d+)?\\s*_G\\.assert\\(R2(?:_\\d+)?\\).*"),
+                "sha1 length assert must not be emitted as an empty if plus unresolved boolean register");
+        assertTrue(luaCode.matches("(?s).*local R2(?:_\\d+)? = R2(?:_\\d+)? == \"string\"\\s*_G\\.assert\\(R2(?:_\\d+)?\\).*"),
+                "sha1 type check should recover the comparison boolean passed to assert");
+        assertTrue(luaCode.matches("(?s).*local R2(?:_\\d+)? = # a0 < 2147483647\\s*_G\\.assert\\(R2(?:_\\d+)?\\).*"),
+                "sha1 length check should recover the comparison boolean passed to assert");
+        assertTrue(luaCode.matches("(?s).*R3(?:_\\d+)? = R2(?:_\\d+)? \\+ 3.*")
+                        || luaCode.matches("(?s).*if a0\\[R2(?:_\\d+)? \\+ 3\\] then.*"),
                 "asHEX must preserve or safely inline the R2 + 3 index definition");
-        if (luaCode.contains("if a0[R3] then")) {
-            assertTrue(luaCode.indexOf("R3 = R2 + 3") < luaCode.indexOf("if a0[R3] then"),
+        if (luaCode.matches("(?s).*if a0\\[R3(?:_\\d+)?\\] then.*")) {
+            int definitionIndex = indexOfPattern(luaCode, "R3(?:_\\d+)? = R2(?:_\\d+)? \\+ 3");
+            int useIndex = indexOfPattern(luaCode, "if a0\\[R3(?:_\\d+)?\\] then");
+            assertTrue(definitionIndex >= 0 && definitionIndex < useIndex,
                     "R3 must be assigned before it is used as a0 index");
         }
     }
@@ -757,5 +805,10 @@ class DecompilerTest {
             assertEquals(1, resultRet.values.size());
             assertTrue(expectedValueClass.isInstance(resultRet.values.get(0)));
         }
+    }
+
+    private int indexOfPattern(String lua, String regex) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(regex).matcher(lua);
+        return matcher.find() ? matcher.start() : -1;
     }
 }

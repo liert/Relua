@@ -170,6 +170,11 @@ public class DecompilerPipeline {
         return sb.toString();
     }
 
+    /**
+     * @deprecated Legacy bridge for RegisterStateAnalyzer/IRBuilder. New value
+     *             recovery should use SSA instructions and summaries.
+     */
+    @Deprecated
     public int processInstruction(Chunk chunk, Instruction instruction, int index, Register currentState) {
         return irBuilder.processInstruction(chunk, instruction, index, currentState);
     }
@@ -191,6 +196,11 @@ public class DecompilerPipeline {
         return basicBlockBuilders.get(function).getBlockByStartIndex(startIndex);
     }
 
+    /**
+     * @deprecated Linear register snapshots are compatibility fallback only.
+     *             Prefer requireSsaUse/requireSsaDefinition.
+     */
+    @Deprecated
     public Register getRegisterByInstructionIndex(int instructionIndex) {
         return registerStateAnalyzer.getRegisterByInstructionIndex(instructionIndex);
     }
