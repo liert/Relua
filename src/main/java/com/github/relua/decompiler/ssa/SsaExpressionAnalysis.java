@@ -1,8 +1,10 @@
 package com.github.relua.decompiler.ssa;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 public final class SsaExpressionAnalysis {
     private final SsaFunction function;
@@ -24,6 +26,18 @@ public final class SsaExpressionAnalysis {
 
     public SsaValueSummary getSummary(SsaValue value) {
         return summaries.get(value);
+    }
+
+    public SsaValueSummary resolveCopySummary(SsaValue value) {
+        Set<SsaValue> visited = new HashSet<>();
+        SsaValue current = value;
+        SsaValueSummary summary = summaries.get(current);
+        while (summary != null && summary.getKind() == SsaValueKind.COPY && summary.getCopySource() != null
+                && visited.add(current)) {
+            current = summary.getCopySource();
+            summary = summaries.get(current);
+        }
+        return summary;
     }
 
     public Map<SsaValue, SsaValueSummary> getSummaries() {

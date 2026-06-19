@@ -1155,19 +1155,20 @@ public class InstructionToASTConverter {
 
     private boolean isSsaCallResult(SsaValue value) {
         SsaExpressionAnalysis analysis = pipeline.requireSsaExpressionAnalysis(chunk.getFunction());
-        SsaValueSummary summary = analysis.getSummary(value);
+        SsaValueSummary summary = analysis.resolveCopySummary(value);
         return summary != null && summary.getKind() == SsaValueKind.CALL_RESULT;
     }
 
     private Expression constantExpressionFromSsa(SsaValue value, SourcePos pos) {
         SsaExpressionAnalysis analysis = pipeline.requireSsaExpressionAnalysis(chunk.getFunction());
-        SsaValueSummary summary = analysis.getSummary(value);
+        SsaValueSummary summary = analysis.resolveCopySummary(value);
         if (summary == null || summary.getKind() != SsaValueKind.CONSTANT) {
             return null;
         }
         Object constant = summary.getConstantValue();
         if (constant == null) {
-            return new NilConst(pos);
+            SsaValueSummary directSummary = analysis.getSummary(value);
+            return directSummary == summary ? new NilConst(pos) : null;
         }
         if (constant instanceof Boolean) {
             return new BooleanConst((Boolean) constant, pos);

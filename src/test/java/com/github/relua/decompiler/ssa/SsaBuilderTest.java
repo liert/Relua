@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
@@ -90,6 +92,30 @@ class SsaBuilderTest {
                 new SsaExpressionAnalyzer().analyze(function);
             }
         }
+    }
+
+    @Test
+    void expressionAnalysisResolvesCopySourceSummary() {
+        Chunk chunk = new Chunk();
+        chunk.setFunction("ssa_copy_summary");
+        SsaFunction function = new SsaFunction(chunk);
+        SsaValue constant = new SsaValue(0, 1, false);
+        SsaValue copy = new SsaValue(1, 1, false);
+
+        Map<SsaValue, SsaValueSummary> summaries = new LinkedHashMap<>();
+        SsaValueSummary constantSummary = new SsaValueSummary(constant);
+        constantSummary.setKind(SsaValueKind.CONSTANT);
+        constantSummary.setConstantValue("payload");
+        summaries.put(constant, constantSummary);
+
+        SsaValueSummary copySummary = new SsaValueSummary(copy);
+        copySummary.setKind(SsaValueKind.COPY);
+        copySummary.setCopySource(constant);
+        summaries.put(copy, copySummary);
+
+        SsaExpressionAnalysis analysis = new SsaExpressionAnalysis(function, summaries, 0, 0);
+
+        assertEquals(constantSummary, analysis.resolveCopySummary(copy));
     }
 
     private static BasicBlock block(int start, int end) {
