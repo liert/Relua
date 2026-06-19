@@ -1704,6 +1704,10 @@ public class InstructionToASTConverter {
     }
 
     private String booleanComparisonTargetName(int targetReg, int usePc, int fallbackDefPc) {
+        String scannedUse = scanForwardBooleanUseName(targetReg, usePc, fallbackDefPc);
+        if (scannedUse != null) {
+            return scannedUse;
+        }
         try {
             if (usePc >= 0 && usePc < chunk.getInstructions().size()) {
                 Register useState = pipeline.getRegisterByInstructionIndex(usePc);
@@ -1714,6 +1718,112 @@ public class InstructionToASTConverter {
         }
         Register defState = pipeline.getRegisterByInstructionIndex(fallbackDefPc);
         return getDefinedRegisterName(targetReg, fallbackDefPc, defState);
+    }
+
+    private String scanForwardBooleanUseName(int targetReg, int startPc, int fallbackDefPc) {
+        List<Instruction> instructions = chunk.getInstructions();
+        int maxPc = Math.min(instructions.size() - 1, startPc + 4);
+        for (int pc = startPc; pc <= maxPc; pc++) {
+            Instruction instruction = instructions.get(pc);
+            if (definesRegister(instruction, targetReg)) {
+                return null;
+            }
+            if (readsRegister(instruction, targetReg)) {
+                try {
+                    Register useState = pipeline.getRegisterByInstructionIndex(pc);
+                    return getUsedRegisterName(targetReg, pc, useState);
+                } catch (RuntimeException ignored) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean definesRegister(Instruction instruction, int register) {
+        Opcode opcode = instruction.getOpcode();
+        switch (opcode) {
+            case MOVE:
+            case LOADK:
+            case LOADBOOL:
+            case LOADNIL:
+            case GETUPVAL:
+            case GETGLOBAL:
+            case GETTABLE:
+            case NEWTABLE:
+            case SELF:
+            case ADD:
+            case SUB:
+            case MUL:
+            case DIV:
+            case MOD:
+            case POW:
+            case UNM:
+            case NOT:
+            case LEN:
+            case CONCAT:
+            case CLOSURE:
+            case VARARG:
+                return instruction.getA() == register;
+            case CALL:
+            case TAILCALL:
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    private boolean readsRegister(Instruction instruction, int register) {
+        Opcode opcode = instruction.getOpcode();
+        switch (opcode) {
+            case MOVE:
+            case UNM:
+            case NOT:
+            case LEN:
+            case SETGLOBAL:
+            case SETUPVAL:
+                return instruction.getB() == register;
+            case GETTABLE:
+            case SELF:
+            case ADD:
+            case SUB:
+            case MUL:
+            case DIV:
+            case MOD:
+            case POW:
+            case EQ:
+            case LT:
+            case LE:
+                return rkReadsRegister(instruction.getB(), register) || rkReadsRegister(instruction.getC(), register);
+            case SETTABLE:
+                return instruction.getA() == register || rkReadsRegister(instruction.getB(), register)
+                        || rkReadsRegister(instruction.getC(), register);
+            case TEST:
+                return instruction.getA() == register;
+            case TESTSET:
+                return instruction.getB() == register;
+            case CALL:
+            case TAILCALL:
+            case RETURN:
+                return callLikeReadsRegister(instruction, register);
+            case CONCAT:
+                return register >= instruction.getB() && register <= instruction.getC();
+            default:
+                return false;
+        }
+    }
+
+    private boolean rkReadsRegister(int rk, int register) {
+        return rk < 256 && rk == register;
+    }
+
+    private boolean callLikeReadsRegister(Instruction instruction, int register) {
+        int a = instruction.getA();
+        int b = instruction.getB();
+        if (b == 0) {
+            return register >= a;
+        }
+        return register >= a && register < a + b;
     }
 
     private String booleanComparisonOperator(Opcode opcode, int a) {

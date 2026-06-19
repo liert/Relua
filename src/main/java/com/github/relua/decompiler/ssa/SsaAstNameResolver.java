@@ -23,6 +23,9 @@ public final class SsaAstNameResolver {
 
     public String nameForDefinition(SsaValue value, int physicalRegister, Register registerState, int parameterCount) {
         String base = sourceName(physicalRegister, registerState, parameterCount);
+        if (physicalRegister >= 0 && physicalRegister < parameterCount) {
+            return base;
+        }
         if (value == null || value.isImplicit()) {
             return base;
         }
@@ -31,6 +34,9 @@ public final class SsaAstNameResolver {
 
     public String nameForUse(SsaValue value, int physicalRegister, Register registerState, int parameterCount) {
         String base = sourceName(physicalRegister, registerState, parameterCount);
+        if (physicalRegister >= 0 && physicalRegister < parameterCount) {
+            return base;
+        }
         if (value == null || value.isImplicit()) {
             return base;
         }

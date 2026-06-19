@@ -19,8 +19,10 @@ import com.github.relua.ast.FunctionDeclaration;
 import com.github.relua.ast.FunctionLiteral;
 import com.github.relua.ast.FunctionCall;
 import com.github.relua.ast.GlobalAssign;
+import com.github.relua.ast.GotoStatement;
 import com.github.relua.ast.IfStatement;
 import com.github.relua.ast.IndexExpr;
+import com.github.relua.ast.LabelStatement;
 import com.github.relua.ast.LocalAssign;
 import com.github.relua.ast.MemberExpr;
 import com.github.relua.ast.MultiVal;
@@ -51,6 +53,7 @@ public class LuaCodeGenerator {
     private List<CodeGeneratorContext> contexts = new ArrayList<>();
     private Map<String, InstructionHandler> handlers = new HashMap<>();
     private final SsaAstNameResolver ssaNameResolver = new SsaAstNameResolver();
+    private int extractedClosureCounter = 0;
 
     /**
      * 构造函数
@@ -258,18 +261,125 @@ public class LuaCodeGenerator {
         for (int i = 0; i < rewritten.size(); i++) {
             Statement statement = rewritten.get(i);
             ClosureBinding binding = asTemporaryClosureBinding(statement, contextByFunction);
-            if (binding != null && inlineSingleUseClosureBinding(rewritten, i, binding, contextByFunction,
-                    emittedFunctions)) {
+            if (binding != null) {
+                if (inlineSingleUseClosureBinding(rewritten, i, binding, contextByFunction, emittedFunctions)) {
+                    continue;
+                }
+                finalStatements.add(materializeTemporaryClosureBinding(statement, binding, contextByFunction,
+                        emittedFunctions));
                 continue;
             }
             if (isTemporaryRegisterClosureAssign(statement, emittedFunctions)) {
                 continue;
             }
-            finalStatements.add(rewriteAnonymousClosureUses(statement, contextByFunction, emittedFunctions));
+            Statement rewrittenStatement = rewriteAnonymousClosureUses(statement, contextByFunction, emittedFunctions);
+            finalStatements.addAll(extractIifeClosures(rewrittenStatement));
         }
 
         block.statements.clear();
         block.statements.addAll(finalStatements);
+    }
+
+    private List<Statement> extractIifeClosures(Statement statement) {
+        List<Statement> statements = new ArrayList<>();
+        statements.add(extractIifeClosuresInStatement(statement, statements));
+        return statements;
+    }
+
+    private Statement extractIifeClosuresInStatement(Statement statement, List<Statement> prelude) {
+        if (statement instanceof Assign) {
+            Assign assign = (Assign) statement;
+            return new Assign(assign.left, extractIifeClosuresInExpressions(assign.right, prelude), assign.pos);
+        }
+        if (statement instanceof GlobalAssign) {
+            GlobalAssign assign = (GlobalAssign) statement;
+            return new GlobalAssign(assign.names, extractIifeClosuresInExpressions(assign.right, prelude), assign.pos);
+        }
+        if (statement instanceof LocalAssign) {
+            LocalAssign assign = (LocalAssign) statement;
+            return new LocalAssign(assign.names, extractIifeClosuresInExpressions(assign.right, prelude), assign.pos);
+        }
+        if (statement instanceof ExpressionStatement) {
+            ExpressionStatement expr = (ExpressionStatement) statement;
+            return new ExpressionStatement(extractIifeClosuresInExpression(expr.expression, prelude, false), expr.pos);
+        }
+        if (statement instanceof ReturnStatement) {
+            ReturnStatement ret = (ReturnStatement) statement;
+            return new ReturnStatement(extractIifeClosuresInExpressions(ret.values, prelude), ret.pos);
+        }
+        return statement;
+    }
+
+    private List<Expression> extractIifeClosuresInExpressions(List<Expression> expressions, List<Statement> prelude) {
+        List<Expression> rewritten = new ArrayList<>();
+        for (Expression expression : expressions) {
+            rewritten.add(extractIifeClosuresInExpression(expression, prelude, false));
+        }
+        return rewritten;
+    }
+
+    private Expression extractIifeClosuresInExpression(Expression expression, List<Statement> prelude,
+            boolean callbackArgumentPosition) {
+        if (expression instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) expression;
+            Expression callee = extractIifeClosuresInExpression(call.callee, prelude, false);
+            boolean callbackCall = isKnownCallbackCall(call);
+            List<Expression> args = new ArrayList<>();
+            for (Expression arg : call.args) {
+                args.add(extractIifeClosuresInExpression(arg, prelude, callbackCall));
+            }
+            if (callee instanceof FunctionLiteral) {
+                callee = extractFunctionLiteral((FunctionLiteral) callee, prelude, call.pos);
+            }
+            return new FunctionCall(callee, args, call.isMethodCall, call.returns, call.pos);
+        }
+        if (expression instanceof FunctionLiteral) {
+            return expression;
+        }
+        if (expression instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) expression;
+            return new BinaryOp(binary.op, extractIifeClosuresInExpression(binary.left, prelude, false),
+                    extractIifeClosuresInExpression(binary.right, prelude, false), binary.pos);
+        }
+        if (expression instanceof UnaryOp) {
+            UnaryOp unary = (UnaryOp) expression;
+            return new UnaryOp(unary.op, extractIifeClosuresInExpression(unary.expr, prelude, false), unary.pos);
+        }
+        if (expression instanceof IndexExpr) {
+            IndexExpr index = (IndexExpr) expression;
+            return new IndexExpr(extractIifeClosuresInExpression(index.table, prelude, false),
+                    extractIifeClosuresInExpression(index.index, prelude, false), index.pos);
+        }
+        if (expression instanceof MemberExpr) {
+            MemberExpr member = (MemberExpr) expression;
+            return new MemberExpr(extractIifeClosuresInExpression(member.table, prelude, false), member.member,
+                    member.pos);
+        }
+        if (expression instanceof TableConstructor) {
+            TableConstructor table = (TableConstructor) expression;
+            List<TableField> fields = new ArrayList<>();
+            for (TableField field : table.fields) {
+                fields.add(new TableField(
+                        field.key == null ? null : extractIifeClosuresInExpression(field.key, prelude, false),
+                        extractIifeClosuresInExpression(field.value, prelude, false)));
+            }
+            return new TableConstructor(fields, table.pos);
+        }
+        if (expression instanceof MultiVal) {
+            MultiVal multi = (MultiVal) expression;
+            return new MultiVal(extractIifeClosuresInExpressions(multi.values, prelude), multi.pos);
+        }
+        return expression;
+    }
+
+    private Expression extractFunctionLiteral(FunctionLiteral literal, List<Statement> prelude, com.github.relua.ast.SourcePos pos) {
+        String name = "__relua_closure_" + (++extractedClosureCounter);
+        List<String> names = new ArrayList<>();
+        names.add(name);
+        List<Expression> right = new ArrayList<>();
+        right.add(literal);
+        prelude.add(new LocalAssign(names, right, pos));
+        return new Name(name, pos);
     }
 
     private boolean isTemporaryRegisterClosureAssign(Statement statement, Set<String> emittedFunctions) {
@@ -288,6 +398,20 @@ public class LuaCodeGenerator {
             }
         }
         return false;
+    }
+
+    private Statement materializeTemporaryClosureBinding(Statement statement, ClosureBinding binding,
+            Map<String, CodeGeneratorContext> contextByFunction, Set<String> emittedFunctions) {
+        CodeGeneratorContext closureContext = contextByFunction.get(binding.closureName);
+        if (closureContext == null) {
+            return statement;
+        }
+        emittedFunctions.add(binding.closureName);
+        List<String> names = new ArrayList<>();
+        names.add(binding.targetName);
+        List<Expression> right = new ArrayList<>();
+        right.add(createAnonymousFunctionLiteral(closureContext));
+        return new LocalAssign(names, right, statement.pos);
     }
 
     private FunctionDeclaration asClosureDeclaration(Statement statement,
@@ -342,12 +466,131 @@ public class LuaCodeGenerator {
             if (reads != 1) {
                 return false;
             }
+            CodeGeneratorContext closureContext = contextByFunction.get(binding.closureName);
+            if (!isInlineFriendlyClosure(closureContext) || !canInlineClosureRead(statement, binding.targetName)) {
+                return false;
+            }
             FunctionLiteral literal = createAnonymousFunctionLiteral(contextByFunction.get(binding.closureName));
             statements.set(i, replaceNameRead(statement, binding.targetName, literal));
             emittedFunctions.add(binding.closureName);
             return true;
         }
         return false;
+    }
+
+    private boolean isInlineFriendlyClosure(CodeGeneratorContext context) {
+        return context != null && isInlineFriendlyClosureBlock(context.getAstBlock());
+    }
+
+    private boolean isInlineFriendlyClosureBlock(Block block) {
+        if (block == null || block.statements == null) {
+            return true;
+        }
+        if (block.statements.size() > 3) {
+            return false;
+        }
+        for (Statement statement : block.statements) {
+            if (statement instanceof LabelStatement || statement instanceof GotoStatement
+                    || statement instanceof WhileStatement || statement instanceof RepeatStatement
+                    || statement instanceof ForIn || statement instanceof ForNumeric
+                    || statement instanceof FunctionDeclaration) {
+                return false;
+            }
+            if (statement instanceof IfStatement) {
+                IfStatement ifStatement = (IfStatement) statement;
+                for (Block nested : ifStatement.blocks) {
+                    if (!isInlineFriendlyClosureBlock(nested)) {
+                        return false;
+                    }
+                }
+                if (!isInlineFriendlyClosureBlock(ifStatement.elseBlock)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private boolean canInlineClosureRead(Statement statement, String name) {
+        if (statement instanceof Assign) {
+            return canInlineClosureRead(((Assign) statement).right, name);
+        }
+        if (statement instanceof GlobalAssign) {
+            return canInlineClosureRead(((GlobalAssign) statement).right, name);
+        }
+        if (statement instanceof LocalAssign) {
+            return canInlineClosureRead(((LocalAssign) statement).right, name);
+        }
+        if (statement instanceof ExpressionStatement) {
+            return canInlineClosureRead(((ExpressionStatement) statement).expression, name, false);
+        }
+        if (statement instanceof ReturnStatement) {
+            return canInlineClosureRead(((ReturnStatement) statement).values, name);
+        }
+        return false;
+    }
+
+    private boolean canInlineClosureRead(List<Expression> expressions, String name) {
+        for (Expression expression : expressions) {
+            if (canInlineClosureRead(expression, name, false)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean canInlineClosureRead(Expression expression, String name, boolean callbackArgumentPosition) {
+        if (expression instanceof Name) {
+            return callbackArgumentPosition && name.equals(((Name) expression).name);
+        }
+        if (expression instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) expression;
+            if (countNameReads(call.callee, name) > 0) {
+                return false;
+            }
+            for (Expression arg : call.args) {
+                if (countNameReads(arg, name) > 0) {
+                    return isKnownCallbackCall(call) && canInlineClosureRead(arg, name, true);
+                }
+            }
+            return false;
+        }
+        if (expression instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) expression;
+            return canInlineClosureRead(binary.left, name, callbackArgumentPosition)
+                    || canInlineClosureRead(binary.right, name, callbackArgumentPosition);
+        }
+        if (expression instanceof UnaryOp) {
+            return canInlineClosureRead(((UnaryOp) expression).expr, name, callbackArgumentPosition);
+        }
+        if (expression instanceof IndexExpr) {
+            IndexExpr index = (IndexExpr) expression;
+            return canInlineClosureRead(index.table, name, callbackArgumentPosition)
+                    || canInlineClosureRead(index.index, name, callbackArgumentPosition);
+        }
+        if (expression instanceof MemberExpr) {
+            return canInlineClosureRead(((MemberExpr) expression).table, name, callbackArgumentPosition);
+        }
+        if (expression instanceof TableConstructor) {
+            for (TableField field : ((TableConstructor) expression).fields) {
+                if ((field.key != null && canInlineClosureRead(field.key, name, callbackArgumentPosition))
+                        || canInlineClosureRead(field.value, name, callbackArgumentPosition)) {
+                    return true;
+                }
+            }
+        }
+        if (expression instanceof MultiVal) {
+            return canInlineClosureRead(((MultiVal) expression).values, name);
+        }
+        return false;
+    }
+
+    private boolean isKnownCallbackCall(FunctionCall call) {
+        if (call == null || call.isMethodCall || !(call.callee instanceof MemberExpr)) {
+            return false;
+        }
+        String member = ((MemberExpr) call.callee).member;
+        return "gsub".equals(member) || "gmatch".equals(member) || "match".equals(member);
     }
 
     private Statement rewriteAnonymousClosureUses(Statement statement,

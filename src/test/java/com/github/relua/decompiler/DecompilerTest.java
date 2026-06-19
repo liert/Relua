@@ -232,6 +232,16 @@ class DecompilerTest {
                 "sha1 type check should recover the comparison boolean passed to assert");
         assertTrue(luaCode.matches("(?s).*local R2(?:_\\d+)? = # a0 < 2147483647\\s*_G\\.assert\\(R2(?:_\\d+)?\\).*"),
                 "sha1 length check should recover the comparison boolean passed to assert");
+        assertFalse(luaCode.contains("end(function"),
+                "sha1 helper closures should be materialized before calls instead of nested as IIFEs");
+        assertFalse(luaCode.matches("(?s).*function\\([^\\n]*\\).*?end\\s*\\([^)]*\\).*"),
+                "sha1 helper closures should not be emitted as immediately invoked function expressions");
+        assertTrue(luaCode.matches("(?s).*local R3(?:_\\d+)? = R3(?:_\\d+)? == \"string\"\\s*_G\\.assert\\(R3(?:_\\d+)?, \"key passed to hmac_sha1 should be a string\"\\).*"),
+                "hmac_sha1 key type assert should recover the comparison boolean passed to assert");
+        assertTrue(luaCode.matches("(?s).*local R3(?:_\\d+)? = R3(?:_\\d+)? == \"string\"\\s*_G\\.assert\\(R3(?:_\\d+)?, \"text passed to hmac_sha1 should be a string\"\\).*"),
+                "hmac_sha1 text type assert should recover the comparison boolean passed to assert");
+        assertFalse(luaCode.matches("(?s).*function hmac_sha1\\(a0, a1\\).*a0_\\d+.*end.*"),
+                "hmac_sha1 should not reference unmaterialized SSA parameter versions");
         assertTrue(luaCode.matches("(?s).*R3(?:_\\d+)? = R2(?:_\\d+)? \\+ 3.*")
                         || luaCode.matches("(?s).*if a0\\[R2(?:_\\d+)? \\+ 3\\] then.*"),
                 "asHEX must preserve or safely inline the R2 + 3 index definition");
