@@ -158,11 +158,9 @@ public final class SsaExpressionAnalyzer {
                 effectOnly(summaries, ssaInstruction, SsaEffect.CLOSE_UPVALUES);
                 effectful = true;
                 break;
+            case UNKNOWN:
             default:
-                for (SsaValue def : ssaInstruction.getDefs()) {
-                    summaryFor(summaries, def).setKind(SsaValueKind.UNKNOWN);
-                }
-                break;
+                throw new IllegalArgumentException("Unhandled opcode in SSA expression analyzer: " + opcode);
         }
         return effectful || opcode == Opcode.CALL || opcode == Opcode.GETTABLE || opcode == Opcode.GETGLOBAL
                 || opcode == Opcode.GETUPVAL;

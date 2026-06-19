@@ -66,6 +66,32 @@ class SsaBuilderTest {
         }
     }
 
+    @Test
+    void expressionAnalyzerExplicitlyHandlesEveryKnownOpcode() {
+        for (Opcode opcode : Opcode.values()) {
+            Chunk chunk = new Chunk();
+            chunk.setFunction("ssa_expr_" + opcode.name());
+            Instruction instruction = abc(0, opcode, 0, 1, 0);
+            chunk.addInstruction(instruction);
+
+            SsaFunction function = new SsaFunction(chunk);
+            BasicBlock basicBlock = block(0, 0);
+            SsaBlock ssaBlock = function.getOrCreateBlock(basicBlock);
+            SsaInstruction ssaInstruction = new SsaInstruction(instruction, 0);
+            ssaInstruction.addUse(new SsaValue(0, 0, true));
+            ssaInstruction.addDef(new SsaValue(0, 1, false));
+            ssaBlock.addInstruction(ssaInstruction);
+            function.addInstruction(ssaInstruction);
+
+            if (opcode == Opcode.UNKNOWN) {
+                assertThrows(IllegalArgumentException.class, () -> new SsaExpressionAnalyzer().analyze(function),
+                        "UNKNOWN opcode must not silently bypass SSA expression analysis");
+            } else {
+                new SsaExpressionAnalyzer().analyze(function);
+            }
+        }
+    }
+
     private static BasicBlock block(int start, int end) {
         BasicBlock block = new BasicBlock(start);
         block.setEndIndex(end);
