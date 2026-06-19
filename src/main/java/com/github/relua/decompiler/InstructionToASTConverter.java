@@ -516,23 +516,21 @@ public class InstructionToASTConverter {
         List<String> names = new ArrayList<>();
         names.add(getDefinedRegisterName(a, instructionIndex, registerState));
 
-        RegisterEntity RB = registerState.getRegisterEntity(b);
         SourcePos pos = new SourcePos(instructionIndex, -1);
 
         // 表访问表达式
-        Expression table = new Name(getUsedRegisterName(b, instructionIndex, registerState), pos);
-        if (RB.getValue() instanceof Expression) {
-            table = (Expression) RB.getValue();
-        } else if ((RB.getType() == ValueType.GLOBAL || RB.getFromType() == FromType.GLOBAL) && RB.getValue() != null) {
-            table = new Name(RB.getValue().toString(), pos);
+        Expression table = resolveExpressionFromRegister(b, instructionIndex, registerState);
+        if (table instanceof TableConstructor && ((TableConstructor) table).isEmpty()) {
+            table = new Name(getUsedRegisterName(b, instructionIndex, registerState), pos);
         }
+        RegisterEntity baseEntity = registerState.getRegisterEntity(b);
 
         Expression index = rkExpression(registerState, c, pos);
         Expression tableAccess = new IndexExpr(table, index, pos);
 
         List<Expression> right = new ArrayList<>();
         right.add(tableAccess);
-        if (RB.getFromType() == FromType.GLOBAL) {
+        if (baseEntity.getFromType() == FromType.GLOBAL) {
             return null;
         }
         List<Expression> left = new ArrayList<>();
@@ -557,16 +555,13 @@ public class InstructionToASTConverter {
         int c = instruction.getC();
         Register register = pipeline.getRegisterByInstructionIndex(instructionIndex);
         requireSsaUse(a, instructionIndex);
-        RegisterEntity RA = register.getRegisterEntity(a);
-
         SourcePos pos = new SourcePos(instructionIndex, -1);
 
         // 表访问表达式（作为目标）
-        String tableName = TransformUtils.transformRegister(RA);
-        if (tableName.equals("{}")) {
-            tableName = RA.getName();
+        Expression table = resolveExpressionFromRegister(a, instructionIndex, register);
+        if (table instanceof TableConstructor && ((TableConstructor) table).isEmpty()) {
+            table = new Name(getUsedRegisterName(a, instructionIndex, register), pos);
         }
-        Expression table = new Name(tableName, pos);
         Expression index = rkExpression(register, b, pos);
         Expression tableAccess = new IndexExpr(table, index, pos);
 
@@ -831,40 +826,7 @@ public class InstructionToASTConverter {
 
         // 遍历从R(B)到R(C)的所有寄存器，连接它们的值
         for (int i = b; i <= c; i++) {
-            RegisterEntity currentEntity = register.getRegisterEntity(i);
-            Expression currentExpr;
-
-            // 根据寄存器类型创建相应的表达式
-            if (currentEntity.getValue() instanceof Expression) {
-                currentExpr = (Expression) currentEntity.getValue();
-            } else if (currentEntity.getType() == ValueType.STRING
-                    && currentEntity.getFromType() == FromType.CONSTANT
-                    && currentEntity.getValue() != null
-                    && !currentEntity.getName().equals(currentEntity.getValue().toString())) {
-                // 字符串常量
-                currentExpr = new StringConst(currentEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
-            } else if (currentEntity.getType() == ValueType.NUMBER
-                    && currentEntity.getValue() != null) {
-                // 数值常量，安全类型转换
-                Object numVal = currentEntity.getValue();
-                double dVal;
-                if (numVal instanceof Double) {
-                    dVal = (Double) numVal;
-                } else if (numVal instanceof Integer) {
-                    dVal = ((Integer) numVal).doubleValue();
-                } else {
-                    try { dVal = Double.parseDouble(numVal.toString()); }
-                    catch (NumberFormatException e) { dVal = 0.0; }
-                }
-                currentExpr = new NumberConst(dVal, new SourcePos(instructionIndex, -1));
-            } else if (currentEntity.getValue() != null
-                    && !currentEntity.getValue().toString().equals("nil")) {
-                // 有具体值（全局变量名、函数名、或寄存器引用如 "R4"）
-                currentExpr = new Name(currentEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
-            } else {
-                // UNKNOWN 类型或值为 nil/占位符，使用寄存器名避免输出 "nil"
-                currentExpr = new Name(getUsedRegisterName(i, instructionIndex, register), new SourcePos(instructionIndex, -1));
-            }
+            Expression currentExpr = resolveExpressionFromRegister(i, instructionIndex, register);
 
             if (concatOp == null) {
                 // 第一个寄存器，直接作为初始值
