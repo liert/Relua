@@ -214,7 +214,7 @@ public class InstructionToASTConverter {
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
 
-        if (isUnusedSsaDefinition(a, instructionIndex)) {
+        if (isUnusedDiscardableDefinition(a, instructionIndex)) {
             return null;
         }
 
@@ -282,7 +282,7 @@ public class InstructionToASTConverter {
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
 
-        if (isUnusedSsaDefinition(a, instructionIndex)) {
+        if (isUnusedDiscardableDefinition(a, instructionIndex)) {
             return null;
         }
 
@@ -334,7 +334,7 @@ public class InstructionToASTConverter {
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
 
-        if (c == 0 && isUnusedSsaDefinition(a, instructionIndex)) {
+        if (c == 0 && isUnusedDiscardableDefinition(a, instructionIndex)) {
             return null;
         }
 
@@ -396,7 +396,7 @@ public class InstructionToASTConverter {
             if (InstructionFlowAnalyzer.isRegisterConsumedByFollowingCallArgument(chunk.getInstructions(), i, instructionIndex)) {
                 continue;
             }
-            if (isUnusedSsaDefinition(i, instructionIndex)) {
+            if (isUnusedDiscardableDefinition(i, instructionIndex)) {
                 continue;
             }
             // 目标变量
@@ -537,7 +537,7 @@ public class InstructionToASTConverter {
         }
         List<Expression> left = new ArrayList<>();
         left.add(new Name(getDefinedRegisterName(a, instructionIndex, registerState), pos));
-        if (isUnusedSsaDefinition(a, instructionIndex)) {
+        if (isUnusedDiscardableDefinition(a, instructionIndex)) {
             return null;
         }
         return new Assign(left, right, pos);
@@ -597,7 +597,7 @@ public class InstructionToASTConverter {
         if (isArrayTableInitialization(instructionIndex, a)) {
             return null;
         }
-        if (isUnusedSsaDefinition(a, instructionIndex)) {
+        if (isUnusedDiscardableDefinition(a, instructionIndex)) {
             return null;
         }
 
@@ -703,7 +703,7 @@ public class InstructionToASTConverter {
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
 
-        if (isUnusedSsaDefinition(a, instructionIndex)) {
+        if (isUnusedDiscardableDefinition(a, instructionIndex)) {
             return null;
         }
 
@@ -747,7 +747,7 @@ public class InstructionToASTConverter {
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
 
-        if (isUnusedSsaDefinition(a, instructionIndex)) {
+        if (isUnusedDiscardableDefinition(a, instructionIndex)) {
             return null;
         }
 
@@ -817,7 +817,7 @@ public class InstructionToASTConverter {
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
 
-        if (isUnusedSsaDefinition(a, instructionIndex)) {
+        if (isUnusedDiscardableDefinition(a, instructionIndex)) {
             return null;
         }
 
@@ -1185,10 +1185,29 @@ public class InstructionToASTConverter {
         return summary != null && summary.getKind() == SsaValueKind.CALL_RESULT;
     }
 
-    private boolean isUnusedSsaDefinition(int registerIndex, int instructionIndex) {
+    private boolean isUnusedDiscardableDefinition(int registerIndex, int instructionIndex) {
         SsaExpressionAnalysis analysis = pipeline.requireSsaExpressionAnalysis(chunk.getFunction());
         SsaValue definition = pipeline.requireSsaDefinition(chunk.getFunction(), instructionIndex, registerIndex);
-        return analysis.getFunction().getUseCount(definition) == 0;
+        if (analysis.getFunction().getUseCount(definition) != 0) {
+            return false;
+        }
+        SsaValueSummary summary = analysis.getSummary(definition);
+        return summary != null && isDiscardableDefinitionKind(summary.getKind());
+    }
+
+    private boolean isDiscardableDefinitionKind(SsaValueKind kind) {
+        switch (kind) {
+            case CONSTANT:
+            case COPY:
+            case TABLE_READ:
+            case TABLE_NEW:
+            case ARITHMETIC:
+            case UNARY:
+            case CONCAT:
+                return true;
+            default:
+                return false;
+        }
     }
 
     /**
