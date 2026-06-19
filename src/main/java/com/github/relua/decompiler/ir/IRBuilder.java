@@ -6,6 +6,8 @@ import com.github.relua.ast.BinaryOp;
 import com.github.relua.ast.BooleanConst;
 import com.github.relua.ast.Expression;
 import com.github.relua.ast.IndexExpr;
+import com.github.relua.ast.MemberExpr;
+import com.github.relua.ast.Name;
 import com.github.relua.ast.NilConst;
 import com.github.relua.ast.NumberConst;
 import com.github.relua.ast.SourcePos;
@@ -22,7 +24,6 @@ import com.github.relua.model.Register.RegisterEntity;
 import com.github.relua.model.UpValue;
 import com.github.relua.util.BytecodeFormatter;
 import com.github.relua.util.RegisterNamePolicy;
-import com.github.relua.util.TransformUtils;
 import com.github.relua.model.ValueType;
 
 public class IRBuilder {
@@ -254,7 +255,7 @@ public class IRBuilder {
 
         RegisterEntity RB = currentState.getRegisterEntity(b);
         SourcePos pos = new SourcePos(instruction.getPc(), -1);
-        Expression table = TransformUtils.transformToAstNode(RB, instruction.getPc());
+        Expression table = registerExpression(RB, pos);
         Expression index = rkExpression(chunk, currentState, c, pos);
         currentState.setRegisterEntity(a, new IndexExpr(table, index, pos), ValueType.TABLE, FromType.REGISTER);
     }
@@ -274,7 +275,51 @@ public class IRBuilder {
             }
             return new StringConst(value.toString(), pos);
         }
-        return TransformUtils.transformToAstNode(register.getRegisterEntity(rk), pos.pc);
+        return registerExpression(register.getRegisterEntity(rk), pos);
+    }
+
+    private Expression registerExpression(RegisterEntity register, SourcePos pos) {
+        if (register == null) {
+            return new Name("", pos);
+        }
+        if (register.getValue() instanceof Expression) {
+            if (register.getValue() instanceof TableConstructor
+                    && ((TableConstructor) register.getValue()).isEmpty()) {
+                return new Name(register.getName(), pos);
+            }
+            return (Expression) register.getValue();
+        }
+
+        String name = registerDisplayName(register);
+        if (name != null && name.contains(".") && register.getFromType() != FromType.CONSTANT) {
+            String[] parts = name.split("\\.");
+            Expression current = new Name(parts[0], pos);
+            for (int i = 1; i < parts.length; i++) {
+                current = new MemberExpr(current, parts[i], pos);
+            }
+            return current;
+        }
+        if (register.getType() == ValueType.STRING
+                && register.getFromType() == FromType.CONSTANT
+                && register.getValue() != null
+                && !register.getName().equals(register.getValue().toString())) {
+            return new StringConst(name, pos);
+        }
+        return new Name(name, pos);
+    }
+
+    private String registerDisplayName(RegisterEntity register) {
+        if (register == null) {
+            return "";
+        }
+        if (register.getValue() instanceof Expression) {
+            return register.getName();
+        }
+        if ((register.getFromType() == FromType.CONSTANT || register.getFromType() == FromType.GLOBAL)
+                && register.getValue() != null) {
+            return register.getValue().toString();
+        }
+        return register.getName();
     }
 
     private void processSetTableInstruction(Chunk chunk, Instruction instruction, Register currentState) {
@@ -322,7 +367,7 @@ public class IRBuilder {
         RegisterEntity RB = currentState.getRegisterEntity(b);
         String RCValue = null;
         if (c < 256) {
-            RCValue = TransformUtils.transformRegister(currentState.getRegisterEntity(c));
+            RCValue = registerDisplayName(currentState.getRegisterEntity(c));
         } else {
             RCValue = chunk.getConstant(c - 256).getValue().toString();
         }
@@ -510,7 +555,7 @@ public class IRBuilder {
         TableConstructor table = (TableConstructor) tableEntity.getValue();
         for (int i = 1; i <= b; i++) {
             RegisterEntity valueEntity = currentState.getRegisterEntity(a + i);
-            Expression value = TransformUtils.transformToAstNode(valueEntity, instruction.getPc());
+            Expression value = registerExpression(valueEntity, new SourcePos(instruction.getPc(), -1));
             table.addArrayField(value);
         }
     }

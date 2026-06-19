@@ -45,7 +45,6 @@ import com.github.relua.ast.NumberConst;
 import com.github.relua.ast.StringConst;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Opcode;
-import com.github.relua.util.TransformUtils;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Constant;
 import com.github.relua.log.Logger;

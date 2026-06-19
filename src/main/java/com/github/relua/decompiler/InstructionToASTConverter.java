@@ -17,7 +17,6 @@ import com.github.relua.decompiler.ssa.SsaValue;
 import com.github.relua.decompiler.ssa.SsaValueKind;
 import com.github.relua.decompiler.ssa.SsaValueSummary;
 import com.github.relua.util.RegisterNamePolicy;
-import com.github.relua.util.TransformUtils;
 
 import java.util.List;
 import java.util.ArrayList;
