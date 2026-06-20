@@ -3,12 +3,12 @@ package com.github.relua.decompiler;
 import com.github.relua.ast.*;
 import com.github.relua.decompiler.ssa.SsaAstNameResolver;
 import com.github.relua.decompiler.ssa.SsaInstruction;
+import com.github.relua.decompiler.ssa.SsaRegisterSnapshot;
 import com.github.relua.decompiler.ssa.SsaValue;
 import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Opcode;
-import com.github.relua.model.Register;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -106,7 +106,7 @@ public class InstructionHandler {
     public String getRegisterName(int register, int instructionIndex) {
         Chunk chunk = codeGenContext.getChunk();
         String function = chunk.getFunction();
-        Register registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
+        SsaRegisterSnapshot registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
         SsaInstruction ssaInstruction = pipeline.requireSsaInstruction(function, instructionIndex);
         SsaValue definition = ssaInstruction.getFirstDefForRegister(register);
         if (definition != null) {
@@ -120,7 +120,7 @@ public class InstructionHandler {
         throw new IllegalStateException("Unreachable SSA lookup failure");
     }
 
-    private String registerPrefix(Register registerState) {
+    private String registerPrefix(SsaRegisterSnapshot registerState) {
         return registerState != null ? registerState.getVarPrefix() : "";
     }
 

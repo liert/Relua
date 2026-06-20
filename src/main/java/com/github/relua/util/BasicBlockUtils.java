@@ -5,7 +5,6 @@ import java.util.List;
 import com.github.relua.decompiler.BasicBlock;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
-import com.github.relua.model.Register;
 
 public class BasicBlockUtils {
     /**

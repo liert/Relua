@@ -18,7 +18,7 @@ import com.github.relua.ast.Statement;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Opcode;
-import com.github.relua.model.Register;
+import com.github.relua.decompiler.ssa.SsaRegisterSnapshot;
 
 public class StructuredPatternEmitter {
     private final DecompilerPipeline pipeline;
@@ -130,7 +130,7 @@ public class StructuredPatternEmitter {
 
     private Expression getTableExpression(InstructionToASTConverter converter, Instruction instruction, int pc) {
         SourcePos pos = new SourcePos(pc, -1);
-        Register register = pipeline.getRegisterByInstructionIndex(pc);
+        SsaRegisterSnapshot register = pipeline.getRegisterByInstructionIndex(pc);
         Expression table = converter.resolveRegisterExpression(instruction.getB(), pc, register);
         Expression index = converter.resolveRkExpression(register, instruction.getC(), pos);
         return new IndexExpr(table, index, pos);
@@ -156,7 +156,7 @@ public class StructuredPatternEmitter {
 
         private IfStatement toIfStatement(Chunk chunk, InstructionToASTConverter converter) {
             SourcePos pos = new SourcePos(startPc, -1);
-            Register compareRegister = pipeline.getRegisterByInstructionIndex(startPc + 5);
+            SsaRegisterSnapshot compareRegister = pipeline.getRegisterByInstructionIndex(startPc + 5);
 
             Expression left = getTableExpression(converter, firstGet, startPc);
             Expression compareLeft = nestedCompareLeft(converter);
@@ -195,7 +195,7 @@ public class StructuredPatternEmitter {
 
         private Expression nestedCompareLeft(InstructionToASTConverter converter) {
             SourcePos pos = new SourcePos(startPc + 4, -1);
-            Register register = pipeline.getRegisterByInstructionIndex(startPc + 4);
+            SsaRegisterSnapshot register = pipeline.getRegisterByInstructionIndex(startPc + 4);
             return new IndexExpr(
                     getTableExpression(converter, firstGet, startPc),
                     converter.resolveRkExpression(register, secondGetField.getC(), pos),

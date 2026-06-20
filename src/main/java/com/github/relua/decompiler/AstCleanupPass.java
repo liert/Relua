@@ -134,7 +134,8 @@ public class AstCleanupPass {
                                     if (upvalIns != null
                                             && upvalIns.getOpcode() == com.github.relua.model.Opcode.MOVE) {
                                         int b = upvalIns.getB();
-                                        String regName = context.getRegister().getRegisterEntity(b).getName();
+                                        String regName = RegisterNamePolicy.prefixedRegisterName(
+                                                context.getRegisterPrefix(), b);
                                         if (regName != null) {
                                             capturedLocals.add(regName);
                                             int reachingDefPc = findReachingRegisterDefinitionPc(insts, i, b);

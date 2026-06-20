@@ -89,7 +89,7 @@ public class ASTGraphConverter {
             // 创建代码生成上下文
             Chunk mainChunk = luacFile.getMainChunk();
             LuaCodeGenerator generator = new LuaCodeGenerator(mainChunk);
-            CodeGeneratorContext codeGenContext = new CodeGeneratorContext(mainChunk, null);
+            CodeGeneratorContext codeGenContext = new CodeGeneratorContext(mainChunk, "");
             
             // 创建指令处理器
             InstructionHandler instructionHandler = new InstructionHandler(generator, codeGenContext);

@@ -170,6 +170,10 @@ class DecompilerTest {
                 "Short-circuit phi from TEST/JMP/default assignment should lower to an or expression");
         assertFalse(luaCode.contains("urldecode_params(R6_3)"),
                 "Short-circuit phi values must not leak as unresolved SSA temporaries");
+        assertTrue(luaCode.matches("(?s).*function Request\\.getcookie\\(a0, a1\\).*local (R7_\\d+)\\s*if R6_3 then\\s*\\1 = urldecode\\(R6_3\\)\\s*end\\s*return \\1\\s*end.*"),
+                "Optional TESTSET/phi return should use the value assigned in the guarded branch");
+        assertFalse(luaCode.matches("(?s).*function Request\\.getcookie\\(a0, a1\\).*return R7_\\d+\\s*end\\s*function Request\\.getenv.*local R7_\\d+\\s*return R7_\\d+.*"),
+                "getcookie must not return an unassigned phi temporary");
 
         // 验证 writeJsonNoLog 中没有重复的 write(string.format("\"%s\"", ...))
         int count = 0;
@@ -443,8 +447,7 @@ class DecompilerTest {
             for (Instruction inst : insts) {
                 chunk.addInstruction(inst);
             }
-            Register register = new Register();
-            CodeGeneratorContext context = new CodeGeneratorContext(chunk, register);
+            CodeGeneratorContext context = new CodeGeneratorContext(chunk);
             context.addLabelPC(0); // 设置 assign 为 LabelPC
 
             new AstCleanupPass().optimizeReturnPatterns(block, context, Collections.emptySet());
@@ -472,9 +475,7 @@ class DecompilerTest {
             chunk.setFunction("peephole_constant_return");
             chunk.addInstruction(new Instruction(0, (4 << 6) | (4 << 23), Opcode.LOADNIL)); // A=4, B=4
             chunk.addInstruction(new Instruction(1, (4 << 6) | (2 << 23), Opcode.RETURN));  // A=4, B=2
-
-            Register register = new Register();
-            CodeGeneratorContext context = new CodeGeneratorContext(chunk, register);
+            CodeGeneratorContext context = new CodeGeneratorContext(chunk);
             // Mock a pipeline and converter
             LuaCodeGenerator generator = new LuaCodeGenerator(chunk);
             InstructionHandler handler = new InstructionHandler(generator, context);
@@ -511,9 +512,7 @@ class DecompilerTest {
             chunk.setFunction("peephole_label_return");
             chunk.addInstruction(new Instruction(0, (4 << 6) | (4 << 23), Opcode.LOADNIL)); // A=4, B=4
             chunk.addInstruction(new Instruction(1, (4 << 6) | (2 << 23), Opcode.RETURN));  // A=4, B=2
-
-            Register register = new Register();
-            CodeGeneratorContext context = new CodeGeneratorContext(chunk, register);
+            CodeGeneratorContext context = new CodeGeneratorContext(chunk);
             context.addLabelPC(0); // 设置 assign 为 LabelPC
             
             LuaCodeGenerator generator = new LuaCodeGenerator(chunk);
@@ -826,9 +825,7 @@ class DecompilerTest {
                 chunk.getConstants().add(c);
             }
         }
-
-        Register register = new Register();
-        CodeGeneratorContext context = new CodeGeneratorContext(chunk, register);
+        CodeGeneratorContext context = new CodeGeneratorContext(chunk);
 
         new AstCleanupPass().optimizeReturnPatterns(block, context, Collections.emptySet());
 
@@ -847,3 +844,4 @@ class DecompilerTest {
         return matcher.find() ? matcher.start() : -1;
     }
 }
+

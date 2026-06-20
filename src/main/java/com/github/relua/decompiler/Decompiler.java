@@ -56,7 +56,7 @@ public class Decompiler {
             return generateBytecode(mainChunk);
         } else {
             this.codeGenerator = new LuaCodeGenerator(mainChunk);
-            String rawCode = codeGenerator.generate(mainChunk, null);
+            String rawCode = codeGenerator.generate(mainChunk);
             return processChunkMarkers(rawCode);
         }
     }

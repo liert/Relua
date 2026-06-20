@@ -113,7 +113,6 @@ final class SsaInstructionSummarizer {
                 break;
             case TESTSET:
                 summary.use(b);
-                summary.def(a);
                 break;
             case CALL:
             case TAILCALL:

@@ -6,7 +6,6 @@ import com.github.relua.ast.Statement;
 import com.github.relua.ast.AstPrinter;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.CodeLine;
-import com.github.relua.model.Register;
 import com.github.relua.model.CodeLine.CodeType;
 import com.github.relua.model.UpValue;
 import com.github.relua.decompiler.ssa.SsaValue;
@@ -60,7 +59,7 @@ public class CodeGeneratorContext {
     private Set<Integer> tforRegionPCs = new HashSet<>(); // TFORLOOP 相关区域的PC值（TFORLOOP、backward JMP、target label）
     private int thenIndex = 0;
     private Map<Integer, BasicBlock> thenBlocks = new HashMap<>(); // 基本块映射
-    private Register register = new Register(); // 初始寄存器状态
+    private String registerPrefix = "";
     private List<UpValue> upvalues = new ArrayList<>(); // 上值存储，key为上值索引，value为上值对象
     private Map<SsaValue, String> preferredSsaValueNames = new HashMap<>();
     
@@ -115,9 +114,9 @@ public class CodeGeneratorContext {
     /**
      * 构造函数
      */
-    public CodeGeneratorContext(Chunk chunk, Register register) {
+    public CodeGeneratorContext(Chunk chunk, String registerPrefix) {
         this.chunk = chunk;
-        this.register = register;
+        this.registerPrefix = registerPrefix != null ? registerPrefix : "";
         this.codeLines = new ArrayList<>();
         this.astBlock = new Block(null);
         this.currentIndent = 0;
@@ -142,13 +141,12 @@ public class CodeGeneratorContext {
         return chunk;
     }
 
-    /**
-     * 获取当前寄存器状态
-     * 
-     * @return 寄存器状态
-     */
-    public Register getRegister() {
-        return register;
+    public String getRegisterPrefix() {
+        return registerPrefix;
+    }
+
+    public void setRegisterPrefix(String registerPrefix) {
+        this.registerPrefix = registerPrefix != null ? registerPrefix : "";
     }
 
     /**

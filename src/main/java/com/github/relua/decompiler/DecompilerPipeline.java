@@ -5,21 +5,19 @@ import java.util.List;
 import java.util.Map;
 
 import com.github.relua.decompiler.analysis.ControlFlowAnalyzer;
-import com.github.relua.decompiler.analysis.RegisterStateAnalyzer;
 import com.github.relua.decompiler.builder.BasicBlockBuilder;
 import com.github.relua.decompiler.cfg.ControlFlowGraphBuilder;
-import com.github.relua.decompiler.ir.IRBuilder;
 import com.github.relua.decompiler.ssa.SsaExpressionAnalysis;
 import com.github.relua.decompiler.ssa.SsaExpressionAnalyzer;
 import com.github.relua.decompiler.ssa.SsaBuilder;
 import com.github.relua.decompiler.ssa.SsaFunction;
 import com.github.relua.decompiler.ssa.SsaInstruction;
+import com.github.relua.decompiler.ssa.SsaRegisterSnapshot;
 import com.github.relua.decompiler.ssa.SsaValue;
 import com.github.relua.decompiler.ssa.SsaVerifier;
 import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
-import com.github.relua.model.Register;
 import com.github.relua.util.RegisterNamePolicy;
 
 public class DecompilerPipeline {
@@ -28,8 +26,6 @@ public class DecompilerPipeline {
     private final Map<String, BasicBlockBuilder> basicBlockBuilders = new HashMap<>();
     private final ControlFlowGraphBuilder cfgBuilder;
     private final ControlFlowAnalyzer controlFlowAnalyzer;
-    private final RegisterStateAnalyzer registerStateAnalyzer;
-    private final IRBuilder irBuilder;
     private final SsaBuilder ssaBuilder;
     private final SsaExpressionAnalyzer ssaExpressionAnalyzer;
     private final Map<String, SsaFunction> ssaFunctions = new HashMap<>();
@@ -41,8 +37,6 @@ public class DecompilerPipeline {
         // this.basicBlockBuilder = new BasicBlockBuilder(this);
         this.cfgBuilder = new ControlFlowGraphBuilder(this);
         this.controlFlowAnalyzer = new ControlFlowAnalyzer(this);
-        this.registerStateAnalyzer = new RegisterStateAnalyzer(this);
-        this.irBuilder = new IRBuilder(this);
         this.ssaBuilder = new SsaBuilder();
         this.ssaExpressionAnalyzer = new SsaExpressionAnalyzer();
     }
@@ -105,9 +99,6 @@ public class DecompilerPipeline {
             }
         }
 
-        // 执行迭代数据流分析
-        registerStateAnalyzer.analyze(chunk);
-
         SsaFunction ssaFunction = ssaBuilder.build(chunk, basicBlockBuilder.getBasicBlocks());
         ssaFunctions.put(chunk.getFunction(), ssaFunction);
         List<String> ssaErrors = SsaVerifier.verify(ssaFunction);
@@ -168,15 +159,6 @@ public class DecompilerPipeline {
     }
 
     /**
-     * @deprecated Legacy bridge for RegisterStateAnalyzer/IRBuilder. New value
-     *             recovery should use SSA instructions and summaries.
-     */
-    @Deprecated
-    public int processInstruction(Chunk chunk, Instruction instruction, int index, Register currentState) {
-        return irBuilder.processInstruction(chunk, instruction, index, currentState);
-    }
-
-    /**
      * 从指令行获取基本块
      * 
      * @return
@@ -193,13 +175,9 @@ public class DecompilerPipeline {
         return basicBlockBuilders.get(function).getBlockByStartIndex(startIndex);
     }
 
-    /**
-     * @deprecated Linear register snapshots are compatibility fallback only.
-     *             Prefer requireSsaUse/requireSsaDefinition.
-     */
-    @Deprecated
-    public Register getRegisterByInstructionIndex(int instructionIndex) {
-        return registerStateAnalyzer.getRegisterByInstructionIndex(instructionIndex);
+    public SsaRegisterSnapshot getRegisterByInstructionIndex(int instructionIndex) {
+        Chunk chunk = getContext().getChunk();
+        return new SsaRegisterSnapshot(this, chunk, instructionIndex, getContext().getRegisterPrefix());
     }
 
     public SsaFunction getSsaFunction(String function) {

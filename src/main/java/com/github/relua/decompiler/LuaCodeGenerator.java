@@ -38,9 +38,6 @@ import com.github.relua.ast.WhileStatement;
 import com.github.relua.log.Logger;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.CodeLine;
-import com.github.relua.model.FromType;
-import com.github.relua.model.Register;
-import com.github.relua.model.ValueType;
 import com.github.relua.decompiler.ssa.SsaAstNameResolver;
 import com.github.relua.util.RegisterNamePolicy;
 
@@ -75,23 +72,11 @@ public class LuaCodeGenerator {
      * @return
      */
     private void initializeContexts(Chunk chunk) {
-        Register register = new Register();
-        
         String prefix = "";
         if ("main".equals(chunk.getFunction())) {
             prefix = hasModuleCall(chunk) ? "module_" : "chunk_";
         }
-        register.setVarPrefix(prefix);
-
-        for (int i = 0; i < chunk.getNumParams(); i++) {
-            Register.RegisterEntity entity = register.getRegisterEntity(i);
-            String parameterName = RegisterNamePolicy.parameterName(i);
-            entity.setCustomName(parameterName);
-            entity.setValue(parameterName);
-            entity.setType(ValueType.OBJECT);
-            entity.setFromType(FromType.GLOBAL);
-        }
-        CodeGeneratorContext context = new CodeGeneratorContext(chunk, register);
+        CodeGeneratorContext context = new CodeGeneratorContext(chunk, prefix);
         contexts.add(context);
         handlers.put(chunk.getFunction(), new InstructionHandler(this, context));
         for (Chunk subChunk : chunk.getSubChunks()) {
@@ -124,11 +109,11 @@ public class LuaCodeGenerator {
      * @param chunk 代码块
      * @return 生成的Lua代码
      */
-    public String generate(Chunk chunk, Register register) {
-        return generate(chunk, register, java.util.Collections.emptySet());
+    public String generate(Chunk chunk) {
+        return generate(chunk, java.util.Collections.emptySet());
     }
 
-    public String generate(Chunk chunk, Register register, Set<String> parentDeclared) {
+    public String generate(Chunk chunk, Set<String> parentDeclared) {
         // 创建代码生成上下文
         Logger.debug("当前处理的Chunk函数名: " + chunk.getFunction());
         InstructionHandler handler = handlers.get(chunk.getFunction());
@@ -159,19 +144,10 @@ public class LuaCodeGenerator {
         // System.out.println("=== Chunk处理完成 ===");
 
         for (Chunk subChunk : chunk.getSubChunks()) {
-            Register temp = new Register();
-            for (int i = 0; i < subChunk.getNumParams(); i++) {
-                Register.RegisterEntity entity = temp.getRegisterEntity(i);
-                String parameterName = RegisterNamePolicy.parameterName(i);
-                entity.setCustomName(parameterName);
-                entity.setValue(parameterName);
-                entity.setType(ValueType.OBJECT);
-                entity.setFromType(FromType.GLOBAL);
-            }
             // 嵌套子闭包，合并当前的 parentDeclared 和本层 context 中新声明的变量，传给子闭包
             Set<String> mergedParentDeclared = new HashSet<>(parentDeclared);
             mergedParentDeclared.addAll(context.getDeclaredVariables());
-            generate(subChunk, temp, mergedParentDeclared);
+            generate(subChunk, mergedParentDeclared);
         }
 
         if (chunk.getFunction().equals("main")) {
