@@ -54,6 +54,8 @@ final class SsaTemporaryCleanupPass {
             return;
         }
 
+        inlineEntryArguments(block, context, pipeline);
+
         boolean changed = true;
         while (changed) {
             changed = false;
@@ -1150,5 +1152,171 @@ final class SsaTemporaryCleanupPass {
             this.definition = definition;
             this.analysis = analysis;
         }
+    }
+
+    private void inlineEntryArguments(Block block, CodeGeneratorContext context, DecompilerPipeline pipeline) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+
+        // 递归处理嵌套的 block
+        for (Statement statement : block.statements) {
+            if (statement instanceof IfStatement) {
+                IfStatement ifStatement = (IfStatement) statement;
+                for (Block nested : ifStatement.blocks) {
+                    inlineEntryArguments(nested, context, pipeline);
+                }
+                inlineEntryArguments(ifStatement.elseBlock, context, pipeline);
+            } else if (statement instanceof WhileStatement) {
+                inlineEntryArguments(((WhileStatement) statement).body, context, pipeline);
+            } else if (statement instanceof RepeatStatement) {
+                inlineEntryArguments(((RepeatStatement) statement).body, context, pipeline);
+            } else if (statement instanceof ForNumeric) {
+                inlineEntryArguments(((ForNumeric) statement).body, context, pipeline);
+            } else if (statement instanceof ForIn) {
+                inlineEntryArguments(((ForIn) statement).body, context, pipeline);
+            } else if (statement instanceof FunctionDeclaration) {
+                inlineEntryArguments(((FunctionDeclaration) statement).func.body, context, pipeline);
+            }
+        }
+
+        // 处理当前 block 中的 entry 语句
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < block.statements.size(); i++) {
+                Statement stmt = block.statements.get(i);
+                FunctionCall entryCall = getEntryFunctionCall(stmt, context, pipeline);
+                if (entryCall == null) {
+                    continue;
+                }
+
+                boolean localChanged = false;
+                for (int k = 0; k < entryCall.args.size(); k++) {
+                    Expression arg = entryCall.args.get(k);
+                    if (arg instanceof Name) {
+                        String regName = ((Name) arg).name;
+                        if (RegisterNamePolicy.isTemporaryRegisterName(regName)) {
+                            int defIndex = findDefinitionIndex(block.statements, regName);
+                            if (defIndex >= 0) {
+                                Statement defStmt = block.statements.get(defIndex);
+                                Expression defExpr = getDefinitionExpression(defStmt);
+                                if (defExpr != null) {
+                                    int totalReads = countReadsInStatementsExcept(block.statements, regName, stmt);
+                                    if (totalReads == 0) {
+                                        // 替换 entryCall 中对应的参数为定义表达式
+                                        entryCall.args.set(k, defExpr);
+                                        // 移除定义语句
+                                        block.statements.remove(defIndex);
+                                        localChanged = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (localChanged) {
+                    changed = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    private boolean isGlobalEntryCall(Statement stmt, CodeGeneratorContext context, DecompilerPipeline pipeline) {
+        if (stmt == null || context == null || context.getChunk() == null || pipeline == null) {
+            return false;
+        }
+        SourcePos pos = stmt.pos;
+        if (pos == null || pos.pc < 0) {
+            return false;
+        }
+        com.github.relua.decompiler.ssa.SsaFunction ssaFunction = pipeline.getSsaFunction(context.getChunk().getFunction());
+        if (ssaFunction == null) {
+            return false;
+        }
+        com.github.relua.decompiler.ssa.SsaInstruction ssaIns = ssaFunction.getInstruction(pos.pc);
+        if (ssaIns == null || ssaIns.getInstruction() == null || ssaIns.getInstruction().getOpcode() != com.github.relua.model.Opcode.CALL) {
+            return false;
+        }
+        List<com.github.relua.decompiler.ssa.SsaValue> uses = ssaIns.getUses();
+        if (uses == null || uses.isEmpty()) {
+            return false;
+        }
+        com.github.relua.decompiler.ssa.SsaValue calleeVal = uses.get(0);
+        com.github.relua.decompiler.ssa.SsaInstruction defInst = ssaFunction.getDefiningInstruction(calleeVal);
+        if (defInst == null || defInst.getInstruction() == null || defInst.getInstruction().getOpcode() != com.github.relua.model.Opcode.GETGLOBAL) {
+            return false;
+        }
+        int bx = defInst.getInstruction().getBx();
+        com.github.relua.model.Chunk chunk = context.getChunk();
+        if (chunk.getConstants() == null || bx < 0 || bx >= chunk.getConstants().size()) {
+            return false;
+        }
+        Object constVal = chunk.getConstants().get(bx).getValue();
+        String name = constVal != null ? constVal.toString() : "";
+        if (name.length() >= 2 && name.startsWith("\"") && name.endsWith("\"")) {
+            name = name.substring(1, name.length() - 1);
+        }
+        return "entry".equals(name);
+    }
+
+    private FunctionCall getEntryFunctionCall(Statement stmt, CodeGeneratorContext context, DecompilerPipeline pipeline) {
+        if (stmt instanceof ExpressionStatement) {
+            Expression expr = ((ExpressionStatement) stmt).expression;
+            if (expr instanceof FunctionCall) {
+                FunctionCall call = (FunctionCall) expr;
+                if (isGlobalEntryCall(stmt, context, pipeline)) {
+                    return call;
+                }
+            }
+        }
+        return null;
+    }
+
+    private int findDefinitionIndex(List<Statement> statements, String regName) {
+        for (int i = 0; i < statements.size(); i++) {
+            Statement stmt = statements.get(i);
+            if (stmt instanceof Assign) {
+                Assign assign = (Assign) stmt;
+                if (assign.left.size() == 1 && assign.left.get(0) instanceof Name 
+                        && regName.equals(((Name) assign.left.get(0)).name)) {
+                    return i;
+                }
+            } else if (stmt instanceof LocalAssign) {
+                LocalAssign local = (LocalAssign) stmt;
+                if (local.names.size() == 1 && regName.equals(local.names.get(0))) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    private Expression getDefinitionExpression(Statement stmt) {
+        if (stmt instanceof Assign) {
+            Assign assign = (Assign) stmt;
+            if (assign.right.size() == 1) {
+                return assign.right.get(0);
+            }
+        } else if (stmt instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) stmt;
+            if (local.right != null && local.right.size() == 1) {
+                return local.right.get(0);
+            }
+        }
+        return null;
+    }
+
+    private int countReadsInStatementsExcept(List<Statement> statements, String regName, Statement exceptStmt) {
+        int count = 0;
+        for (Statement stmt : statements) {
+            if (stmt == exceptStmt) {
+                continue;
+            }
+            count += countVariableReads(stmt, regName);
+        }
+        return count;
     }
 }
