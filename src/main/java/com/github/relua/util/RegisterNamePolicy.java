@@ -1,8 +1,5 @@
 package com.github.relua.util;
 
-import com.github.relua.model.Chunk;
-import com.github.relua.model.Register;
-
 public final class RegisterNamePolicy {
 
     private RegisterNamePolicy() {
@@ -21,30 +18,16 @@ public final class RegisterNamePolicy {
     }
 
     public static boolean isTemporaryRegisterName(String name) {
-        return isTemporaryRegisterName(name, null, null);
-    }
-
-    public static boolean isTemporaryRegisterName(String name, Chunk chunk, Register registerState) {
         if (name == null) {
             return false;
         }
-        String prefix = registerState != null ? registerState.getVarPrefix() : "";
-        if (!prefix.isEmpty() && !name.startsWith(prefix)) {
-            if (name.startsWith("chunk_") || name.startsWith("module_")) {
-                // Keep compatibility with standard prefixes
-            } else if (!name.startsWith("R")) {
-                return false;
-            }
-        }
-
         int rIndex = name.indexOf('R');
         if (rIndex == -1) {
             return false;
         }
 
         String prefixPart = name.substring(0, rIndex);
-        if (!prefixPart.isEmpty() && !prefixPart.equals("chunk_") && !prefixPart.equals("module_")
-                && (registerState == null || !prefixPart.equals(registerState.getVarPrefix()))) {
+        if (!prefixPart.isEmpty() && !prefixPart.equals("chunk_") && !prefixPart.equals("module_")) {
             return false;
         }
 
@@ -65,10 +48,6 @@ public final class RegisterNamePolicy {
             return false;
         }
 
-        if (chunk != null && regNum >= chunk.getMaxStackSize()) {
-            return false;
-        }
-
         if (index < rest.length()) {
             if (rest.charAt(index) != '_') {
                 return false;
@@ -82,25 +61,10 @@ public final class RegisterNamePolicy {
             }
         }
 
-        // Logical check: not a parameter and not a custom-named register
-        if (chunk != null && regNum < chunk.getNumParams()) {
-            return false;
-        }
-        if (registerState != null) {
-            Register.RegisterEntity entity = registerState.getRegisterEntity(regNum);
-            if (entity != null && entity.getCustomName() != null) {
-                return false;
-            }
-        }
-
         return true;
     }
 
     public static boolean isPhysicalRegisterName(String name) {
-        return isPhysicalRegisterName(name, null, null);
-    }
-
-    public static boolean isPhysicalRegisterName(String name, Chunk chunk, Register registerState) {
         if (name == null) {
             return false;
         }
@@ -124,10 +88,6 @@ public final class RegisterNamePolicy {
             return false;
         }
 
-        if (chunk != null && regNum >= chunk.getMaxStackSize()) {
-            return false;
-        }
-
         if (index < rest.length()) {
             if (rest.charAt(index) != '_') {
                 return false;
@@ -137,16 +97,6 @@ public final class RegisterNamePolicy {
                 vIndex++;
             }
             if (vIndex != rest.length()) {
-                return false;
-            }
-        }
-
-        if (chunk != null && regNum < chunk.getNumParams()) {
-            return false;
-        }
-        if (registerState != null) {
-            Register.RegisterEntity entity = registerState.getRegisterEntity(regNum);
-            if (entity != null && entity.getCustomName() != null) {
                 return false;
             }
         }

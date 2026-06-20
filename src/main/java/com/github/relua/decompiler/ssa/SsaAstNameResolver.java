@@ -3,7 +3,6 @@ package com.github.relua.decompiler.ssa;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.github.relua.model.Register;
 import com.github.relua.util.RegisterNamePolicy;
 
 /**
@@ -21,8 +20,8 @@ public final class SsaAstNameResolver {
         return names;
     }
 
-    public String nameForDefinition(SsaValue value, int physicalRegister, Register registerState, int parameterCount) {
-        String base = sourceName(physicalRegister, registerState, parameterCount);
+    public String nameForDefinition(SsaValue value, int physicalRegister, String registerPrefix, int parameterCount) {
+        String base = sourceName(physicalRegister, registerPrefix, parameterCount);
         if (physicalRegister >= 0 && physicalRegister < parameterCount) {
             return base;
         }
@@ -32,8 +31,8 @@ public final class SsaAstNameResolver {
         return base + "_" + value.getVersion();
     }
 
-    public String nameForUse(SsaValue value, int physicalRegister, Register registerState, int parameterCount) {
-        String base = sourceName(physicalRegister, registerState, parameterCount);
+    public String nameForUse(SsaValue value, int physicalRegister, String registerPrefix, int parameterCount) {
+        String base = sourceName(physicalRegister, registerPrefix, parameterCount);
         if (physicalRegister >= 0 && physicalRegister < parameterCount) {
             return base;
         }
@@ -43,13 +42,10 @@ public final class SsaAstNameResolver {
         return base + "_" + value.getVersion();
     }
 
-    private String sourceName(int physicalRegister, Register registerState, int parameterCount) {
+    private String sourceName(int physicalRegister, String registerPrefix, int parameterCount) {
         if (physicalRegister >= 0 && physicalRegister < parameterCount) {
             return RegisterNamePolicy.parameterName(physicalRegister);
         }
-        if (registerState != null) {
-            return registerState.getRegisterEntity(physicalRegister).getName();
-        }
-        return RegisterNamePolicy.physicalRegisterName(physicalRegister);
+        return RegisterNamePolicy.prefixedRegisterName(registerPrefix, physicalRegister);
     }
 }

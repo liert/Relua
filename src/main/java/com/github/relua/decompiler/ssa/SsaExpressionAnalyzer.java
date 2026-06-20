@@ -233,23 +233,19 @@ public final class SsaExpressionAnalyzer {
             if (inst.getOpcode() == Opcode.CLOSURE) {
                 int bx = inst.getBx();
                 Chunk subChunk = chunk.getSubChunk(bx);
-                System.out.println("DEBUG CLOSURE: chunk=" + chunk.getFunction() + " bx=" + bx + " subChunk=" + (subChunk != null ? subChunk.getFunction() : "null"));
                 if (subChunk != null) {
                     java.util.Set<Integer> writtenUpvalues = new java.util.HashSet<>();
                     for (Instruction subInst : subChunk.getInstructions()) {
                         if (subInst.getOpcode() == Opcode.SETUPVAL) {
                             writtenUpvalues.add(subInst.getB());
-                            System.out.println("DEBUG SETUPVAL in subChunk: upvalIndex=" + subInst.getB());
                         }
                     }
                     for (int upvalIndex : writtenUpvalues) {
                         int upvalInstIndex = i + 1 + upvalIndex;
                         if (upvalInstIndex < instructions.size()) {
                             Instruction upvalInst = instructions.get(upvalInstIndex);
-                            System.out.println("DEBUG UpvalueDecl: upvalIndex=" + upvalIndex + " inst=" + upvalInst.getOpcode() + " A=" + upvalInst.getA() + " B=" + upvalInst.getB());
                             if (upvalInst.getOpcode() == Opcode.MOVE) {
                                 modifiedRegs.add(upvalInst.getB());
-                                System.out.println("DEBUG ADDED modified register: " + upvalInst.getB());
                             }
                         }
                     }

@@ -126,7 +126,6 @@ public final class SsaFunction {
     }
 
     public String format() {
-        System.out.println("TESTING SSA FORMAT FUNCTION");
         StringBuilder sb = new StringBuilder();
         sb.append("SSA Chunk: ").append(chunk.getFunction()).append('\n');
         for (SsaBlock block : blocks.values()) {

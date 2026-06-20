@@ -110,14 +110,18 @@ public class InstructionHandler {
         SsaInstruction ssaInstruction = pipeline.requireSsaInstruction(function, instructionIndex);
         SsaValue definition = ssaInstruction.getFirstDefForRegister(register);
         if (definition != null) {
-            return ssaNameResolver.nameForDefinition(definition, register, registerState, chunk.getNumParams());
+            return ssaNameResolver.nameForDefinition(definition, register, registerPrefix(registerState), chunk.getNumParams());
         }
         SsaValue use = ssaInstruction.getFirstUseForRegister(register);
         if (use != null) {
-            return ssaNameResolver.nameForUse(use, register, registerState, chunk.getNumParams());
+            return ssaNameResolver.nameForUse(use, register, registerPrefix(registerState), chunk.getNumParams());
         }
         pipeline.requireSsaValue(function, instructionIndex, register);
         throw new IllegalStateException("Unreachable SSA lookup failure");
+    }
+
+    private String registerPrefix(Register registerState) {
+        return registerState != null ? registerState.getVarPrefix() : "";
     }
 
     /**

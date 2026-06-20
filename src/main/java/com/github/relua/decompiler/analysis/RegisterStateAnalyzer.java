@@ -12,9 +12,10 @@ import com.github.relua.model.Register.RegisterEntity;
 import com.github.relua.util.RegisterUtils;
 
 /**
- * @deprecated Legacy linear register data-flow analysis. It remains as a
- *             compatibility source for parameter naming and fallback AST
- *             recovery while SSA becomes the primary representation.
+ * @deprecated Linear register snapshots are maintained as a compatibility
+ *             fallback for legacy expression recovery and parameter bootstrap.
+ *             New analysis should use SsaFunction/SsaValue/SsaExpressionAnalysis
+ *             instead.
  */
 @Deprecated
 public class RegisterStateAnalyzer {

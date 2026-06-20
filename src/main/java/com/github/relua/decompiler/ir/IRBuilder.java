@@ -27,8 +27,8 @@ import com.github.relua.util.RegisterNamePolicy;
 import com.github.relua.model.ValueType;
 
 /**
- * @deprecated Builds legacy linear register snapshots for compatibility. New
- *             decompiler recovery should be implemented on SSA.
+ * @deprecated Legacy linear-register IR builder used only to populate
+ *             compatibility snapshots. New value recovery should be SSA-backed.
  */
 @Deprecated
 public class IRBuilder {

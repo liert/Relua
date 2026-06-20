@@ -2366,12 +2366,16 @@ public class InstructionToASTConverter {
 
     private String getSsaCompatibleRegisterName(int regIndex, Register registerState, SsaValue value) {
         int actualReg = value != null ? value.getRegister() : regIndex;
-        return ssaNameResolver.nameForDefinition(value, actualReg, registerState, chunk.getNumParams());
+        return ssaNameResolver.nameForDefinition(value, actualReg, registerPrefix(registerState), chunk.getNumParams());
     }
 
     private String getSsaCompatibleUseName(int regIndex, Register registerState, SsaValue value) {
         int actualReg = value != null ? value.getRegister() : regIndex;
-        return ssaNameResolver.nameForUse(value, actualReg, registerState, chunk.getNumParams());
+        return ssaNameResolver.nameForUse(value, actualReg, registerPrefix(registerState), chunk.getNumParams());
+    }
+
+    private String registerPrefix(Register registerState) {
+        return registerState != null ? registerState.getVarPrefix() : "";
     }
 
     private boolean isModuleScenario() {
