@@ -9,6 +9,7 @@ import java.util.Set;
 
 import com.github.relua.ast.*;
 import com.github.relua.model.Chunk;
+import com.github.relua.model.Constant;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Opcode;
 import com.github.relua.util.RegisterNamePolicy;
@@ -53,6 +54,37 @@ public class StructureRestorer {
 
         // 4. 重组当前 Block 层的条件分支与消解其余简单的 goto
         eliminateDanglingGotos(block);
+    }
+
+    public void restoreNumericForLoops(Block block) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+        for (Statement stmt : block.statements) {
+            restoreNumericForLoopsInNestedBlocks(stmt);
+        }
+        restoreForNumericLoops(block);
+    }
+
+    private void restoreNumericForLoopsInNestedBlocks(Statement statement) {
+        if (statement instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) statement;
+            for (Block nested : ifStmt.blocks) {
+                restoreNumericForLoops(nested);
+            }
+            restoreNumericForLoops(ifStmt.elseBlock);
+        } else if (statement instanceof FunctionDeclaration) {
+            Chunk subChunk = ((FunctionDeclaration) statement).func.getChunk();
+            new StructureRestorer(subChunk).restoreNumericForLoops(((FunctionDeclaration) statement).func.body);
+        } else if (statement instanceof WhileStatement) {
+            restoreNumericForLoops(((WhileStatement) statement).body);
+        } else if (statement instanceof RepeatStatement) {
+            restoreNumericForLoops(((RepeatStatement) statement).body);
+        } else if (statement instanceof ForNumeric) {
+            restoreNumericForLoops(((ForNumeric) statement).body);
+        } else if (statement instanceof ForIn) {
+            restoreNumericForLoops(((ForIn) statement).body);
+        }
     }
 
     private void restructureNestedBlocks(Statement statement) {
@@ -1053,6 +1085,10 @@ public class StructureRestorer {
         
         while (changed) {
             changed = false;
+            if (restoreForNumericLoopFromBytecodeShape(block)) {
+                changed = true;
+                continue;
+            }
             for (int i = 0; i < stmts.size(); i++) {
                 if (i + 4 >= stmts.size()) {
                     break;
@@ -1125,6 +1161,306 @@ public class StructureRestorer {
                 }
             }
         }
+    }
+
+    private boolean restoreForNumericLoopFromBytecodeShape(Block block) {
+        if (chunk == null || block == null || block.statements == null) {
+            return false;
+        }
+
+        List<Statement> stmts = block.statements;
+        for (int i = 0; i < stmts.size(); i++) {
+            Statement stmt = stmts.get(i);
+            if (!(stmt instanceof GotoStatement) || stmt.pos == null) {
+                continue;
+            }
+
+            int prepPc = stmt.pos.pc;
+            String loopLabel = ((GotoStatement) stmt).label;
+            Instruction prep = chunk.getInstruction(prepPc);
+            if (prep == null || prep.getOpcode() != Opcode.FORPREP) {
+                prepPc = findForPrepPcForLoopLabel(loopLabel);
+                prep = chunk.getInstruction(prepPc);
+                if (prep == null || prep.getOpcode() != Opcode.FORPREP) {
+                    continue;
+                }
+            }
+
+            int loopPc = parseLabelPc(loopLabel);
+            Instruction loop = loopPc >= 0 ? chunk.getInstruction(loopPc) : null;
+            if (loop == null || loop.getOpcode() != Opcode.FORLOOP || loop.getA() != prep.getA()) {
+                continue;
+            }
+
+            String bodyLabel = "L" + (prepPc + 1);
+            int bodyLabelIndex = findLabelIndex(stmts, i + 1, bodyLabel);
+            if (bodyLabelIndex == -1) {
+                continue;
+            }
+
+            int tailIndex = findStatementContainingLabel(stmts, bodyLabelIndex + 1, loopLabel);
+            if (tailIndex == -1) {
+                continue;
+            }
+
+            int a = prep.getA();
+            Expression startExpr = expressionForLoopRegister(stmts, i, prepPc, a);
+            Expression limitExpr = expressionForLoopRegister(stmts, i, prepPc, a + 1);
+            Expression stepExpr = expressionForLoopRegister(stmts, i, prepPc, a + 2);
+            if (startExpr == null || limitExpr == null || stepExpr == null) {
+                continue;
+            }
+            if (isNumberOne(stepExpr)) {
+                stepExpr = null;
+            }
+
+            Block bodyBlock = new Block(new SourcePos(bodyLabelIndex + 1, -1));
+            for (int k = bodyLabelIndex + 1; k <= tailIndex; k++) {
+                Statement bodyStmt = stmts.get(k);
+                if (k == tailIndex) {
+                    bodyStmt = stripNumericForLoopTail(bodyStmt, loopLabel, bodyLabel);
+                    if (bodyStmt == null) {
+                        continue;
+                    }
+                }
+                bodyBlock.statements.add(bodyStmt);
+            }
+
+            String exitLabel = "L" + (loopPc + 1);
+            rewriteGotosToBreak(bodyBlock, exitLabel);
+            stripTrailingDanglingGotos(bodyBlock);
+
+            String loopVarName = firstRegisterNameInBlock(bodyBlock, a + 3);
+            if (loopVarName == null) {
+                loopVarName = RegisterNamePolicy.physicalRegisterName(a + 3);
+            }
+
+            ForNumeric forNum = new ForNumeric(loopVarName, startExpr, limitExpr, stepExpr, bodyBlock, stmt.pos);
+            stmts.set(i, forNum);
+            for (int k = tailIndex; k > i; k--) {
+                stmts.remove(k);
+            }
+
+            removeAdjacentLoopControlAssignments(stmts, i, a);
+            restructure(bodyBlock);
+            return true;
+        }
+        return false;
+    }
+
+    private int findForPrepPcForLoopLabel(String loopLabel) {
+        int loopPc = parseLabelPc(loopLabel);
+        if (loopPc < 0 || chunk == null) {
+            return -1;
+        }
+        Instruction loop = chunk.getInstruction(loopPc);
+        if (loop == null || loop.getOpcode() != Opcode.FORLOOP) {
+            return -1;
+        }
+        for (int pc = loopPc - 1; pc >= 0; pc--) {
+            Instruction inst = chunk.getInstruction(pc);
+            if (inst != null && inst.getOpcode() == Opcode.FORPREP && inst.getA() == loop.getA()) {
+                return pc;
+            }
+        }
+        return -1;
+    }
+
+    private int parseLabelPc(String label) {
+        if (label == null || !label.startsWith("L")) {
+            return -1;
+        }
+        try {
+            return Integer.parseInt(label.substring(1));
+        } catch (NumberFormatException ex) {
+            return -1;
+        }
+    }
+
+    private int findStatementContainingLabel(List<Statement> stmts, int start, String label) {
+        for (int i = start; i < stmts.size(); i++) {
+            if (containsLabel(stmts.get(i), label)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private boolean containsLabel(AstNode node, String label) {
+        if (node == null) {
+            return false;
+        }
+        if (node instanceof LabelStatement) {
+            return ((LabelStatement) node).label.equals(label);
+        }
+        if (node instanceof Block) {
+            for (Statement stmt : ((Block) node).statements) {
+                if (containsLabel(stmt, label)) {
+                    return true;
+                }
+            }
+        } else if (node instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) node;
+            for (Block nested : ifStmt.blocks) {
+                if (containsLabel(nested, label)) {
+                    return true;
+                }
+            }
+            return containsLabel(ifStmt.elseBlock, label);
+        } else if (node instanceof WhileStatement) {
+            return containsLabel(((WhileStatement) node).body, label);
+        } else if (node instanceof RepeatStatement) {
+            return containsLabel(((RepeatStatement) node).body, label);
+        } else if (node instanceof ForNumeric) {
+            return containsLabel(((ForNumeric) node).body, label);
+        } else if (node instanceof ForIn) {
+            return containsLabel(((ForIn) node).body, label);
+        }
+        return false;
+    }
+
+    private Statement stripNumericForLoopTail(Statement statement, String loopLabel, String bodyLabel) {
+        if (statement instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) statement;
+            if (containsLabel(ifStmt.elseBlock, loopLabel) && hasGotoTarget(ifStmt.elseBlock, bodyLabel)) {
+                return new IfStatement(new ArrayList<>(ifStmt.conditions), new ArrayList<>(ifStmt.blocks), null, ifStmt.pos);
+            }
+        }
+        return statement;
+    }
+
+    private Expression expressionForLoopRegister(List<Statement> stmts, int beforeIndex, int prepPc, int register) {
+        for (int i = beforeIndex - 1; i >= 0; i--) {
+            Statement stmt = stmts.get(i);
+            if (getAssignRegisterIndex(stmt) == register) {
+                return getAssignRightExpr(stmt);
+            }
+        }
+        return expressionFromLastDefinition(prepPc, register);
+    }
+
+    private Expression expressionFromLastDefinition(int beforePc, int register) {
+        if (chunk == null) {
+            return null;
+        }
+        for (int pc = beforePc - 1; pc >= 0; pc--) {
+            Instruction inst = chunk.getInstruction(pc);
+            if (inst == null || inst.getA() != register) {
+                continue;
+            }
+            if (inst.getOpcode() == Opcode.LOADK) {
+                return constantExpression(inst.getBx(), new SourcePos(pc, -1));
+            }
+            break;
+        }
+        return null;
+    }
+
+    private Expression constantExpression(int constantIndex, SourcePos pos) {
+        if (chunk == null || constantIndex < 0 || constantIndex >= chunk.getConstants().size()) {
+            return null;
+        }
+        Constant constant = chunk.getConstant(constantIndex);
+        Object value = constant != null ? constant.getValue() : null;
+        if (value == null) {
+            return new NilConst(pos);
+        }
+        if (value instanceof Number) {
+            return new NumberConst(((Number) value).doubleValue(), pos);
+        }
+        if (value instanceof Boolean) {
+            return new BooleanConst((Boolean) value, pos);
+        }
+        return new StringConst(value.toString(), pos);
+    }
+
+    private void removeAdjacentLoopControlAssignments(List<Statement> stmts, int forIndex, int registerA) {
+        for (int i = forIndex - 1; i >= 0; i--) {
+            int register = getAssignRegisterIndex(stmts.get(i));
+            if (register >= registerA && register <= registerA + 2) {
+                stmts.remove(i);
+                forIndex--;
+            } else if (register != -1) {
+                break;
+            }
+        }
+    }
+
+    private String firstRegisterNameInBlock(Block block, int register) {
+        if (block == null) {
+            return null;
+        }
+        for (Statement stmt : block.statements) {
+            String name = firstRegisterName(stmt, register);
+            if (name != null) {
+                return name;
+            }
+        }
+        return null;
+    }
+
+    private String firstRegisterName(AstNode node, int register) {
+        if (node == null) {
+            return null;
+        }
+        if (node instanceof Name) {
+            String name = ((Name) node).name;
+            return getRegisterIndex(name) == register ? name : null;
+        }
+        if (node instanceof Assign) {
+            Assign assign = (Assign) node;
+            for (Expression expr : assign.left) {
+                String name = firstRegisterName(expr, register);
+                if (name != null) return name;
+            }
+            for (Expression expr : assign.right) {
+                String name = firstRegisterName(expr, register);
+                if (name != null) return name;
+            }
+        } else if (node instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) node;
+            for (String name : local.names) {
+                if (getRegisterIndex(name) == register) return name;
+            }
+            for (Expression expr : local.right) {
+                String found = firstRegisterName(expr, register);
+                if (found != null) return found;
+            }
+        } else if (node instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) node;
+            for (Expression condition : ifStmt.conditions) {
+                String name = firstRegisterName(condition, register);
+                if (name != null) return name;
+            }
+            for (Block nested : ifStmt.blocks) {
+                String name = firstRegisterNameInBlock(nested, register);
+                if (name != null) return name;
+            }
+            return firstRegisterNameInBlock(ifStmt.elseBlock, register);
+        } else if (node instanceof Block) {
+            return firstRegisterNameInBlock((Block) node, register);
+        } else if (node instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) node;
+            String name = firstRegisterName(binary.left, register);
+            return name != null ? name : firstRegisterName(binary.right, register);
+        } else if (node instanceof UnaryOp) {
+            return firstRegisterName(((UnaryOp) node).expr, register);
+        } else if (node instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) node;
+            String name = firstRegisterName(call.callee, register);
+            if (name != null) return name;
+            for (Expression arg : call.args) {
+                name = firstRegisterName(arg, register);
+                if (name != null) return name;
+            }
+        } else if (node instanceof MemberExpr) {
+            return firstRegisterName(((MemberExpr) node).table, register);
+        } else if (node instanceof IndexExpr) {
+            IndexExpr index = (IndexExpr) node;
+            String name = firstRegisterName(index.table, register);
+            return name != null ? name : firstRegisterName(index.index, register);
+        }
+        return null;
     }
 
     private int getAssignRegisterIndex(Statement stmt) {

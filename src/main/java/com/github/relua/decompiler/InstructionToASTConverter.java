@@ -37,6 +37,7 @@ public class InstructionToASTConverter {
     private DecompilerPipeline pipeline;
     private final SsaAstNameResolver ssaNameResolver = new SsaAstNameResolver();
     private PendingTest pendingTest = null;
+    private final Set<Integer> emittedComparisonBooleanFalsePcs = new HashSet<>();
 
     /**
      * 清除残留的 pendingTest 状态。
@@ -233,7 +234,11 @@ public class InstructionToASTConverter {
 
         // 源值
         Expression source;
-        if (sourceEntity.getType() == ValueType.STRING && sourceEntity.getFromType() == FromType.CONSTANT && sourceEntity.getValue() != null && !sourceEntity.getName().equals(sourceEntity.getValue().toString())) {
+        SsaValue sourceUse = pipeline.requireSsaUse(chunk.getFunction(), instructionIndex, b);
+        Expression moveAliasSource = moveAliasSourceExpression(sourceUse, registerState, new SourcePos(instructionIndex, -1));
+        if (moveAliasSource != null) {
+            source = moveAliasSource;
+        } else if (sourceEntity.getType() == ValueType.STRING && sourceEntity.getFromType() == FromType.CONSTANT && sourceEntity.getValue() != null && !sourceEntity.getName().equals(sourceEntity.getValue().toString())) {
             source = new StringConst(sourceEntity.getValue().toString(), new SourcePos(instructionIndex, -1));
         } else if (sourceEntity.getType() == ValueType.NUMBER && sourceEntity.getValue() != null) {
             Object value = sourceEntity.getValue();
@@ -253,8 +258,10 @@ public class InstructionToASTConverter {
         } else if (sourceEntity.getType() == ValueType.BOOLEAN && sourceEntity.getValue() != null) {
             source = new BooleanConst((Boolean) sourceEntity.getValue(), new SourcePos(instructionIndex, -1));
         } else if (sourceEntity.getType() == ValueType.NIL) {
-            SsaValue sourceUse = pipeline.requireSsaUse(chunk.getFunction(), instructionIndex, b);
-            if (isSsaNilConstant(sourceUse)) {
+            if (isCapturedByChildClosure(sourceUse)) {
+                source = new Name(getSsaCompatibleUseName(b, registerState, sourceUse),
+                        new SourcePos(instructionIndex, -1));
+            } else if (isSsaNilConstant(sourceUse)) {
                 source = new NilConst(new SourcePos(instructionIndex, -1));
             } else {
                 source = new Name(getSsaCompatibleUseName(b, registerState, sourceUse),
@@ -271,6 +278,53 @@ public class InstructionToASTConverter {
         List<Expression> right = new ArrayList<>();
         right.add(source);
         return new Assign(left, right, new SourcePos(instructionIndex, -1));
+    }
+
+    private boolean isCapturedByChildClosure(SsaValue value) {
+        if (value == null) {
+            return false;
+        }
+        List<Instruction> instructions = chunk.getInstructions();
+        for (int pc = 0; pc < instructions.size(); pc++) {
+            Instruction inst = instructions.get(pc);
+            if (inst == null || inst.getOpcode() != Opcode.CLOSURE) {
+                continue;
+            }
+            Chunk child = chunk.getSubChunk(inst.getBx());
+            int nups = child != null ? child.getNup() : 0;
+            for (int k = 1; k <= nups && pc + k < instructions.size(); k++) {
+                Instruction bind = instructions.get(pc + k);
+                if (bind != null && bind.getOpcode() == Opcode.MOVE) {
+                    SsaValue bound = pipeline.requireSsaUse(chunk.getFunction(), pc + k, bind.getB());
+                    if (value.equals(bound)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private Expression moveAliasSourceExpression(SsaValue sourceUse, SsaRegisterSnapshot registerState, SourcePos pos) {
+        if (sourceUse == null) {
+            return null;
+        }
+        SsaExpressionAnalysis analysis = pipeline.requireSsaExpressionAnalysis(chunk.getFunction());
+        SsaValueSummary summary = analysis.getSummary(sourceUse);
+        if (summary != null && summary.getKind() == SsaValueKind.PHI) {
+            Expression expression = expressionFromSsaValue(sourceUse, pos.pc, registerState, pos, new HashSet<SsaValue>());
+            if (expression != null) {
+                return expression;
+            }
+        }
+        SsaFunction ssaFunc = pipeline.getSsaFunction(chunk.getFunction());
+        if (ssaFunc != null) {
+            SsaValue alias = phiSlotAliasValue(sourceUse, ssaFunc, new HashSet<SsaValue>());
+            if (alias != null && !alias.equals(sourceUse)) {
+                return new Name(getSsaCompatibleUseName(alias.getRegister(), registerState, alias), pos);
+            }
+        }
+        return null;
     }
 
     /**
@@ -341,6 +395,14 @@ public class InstructionToASTConverter {
         pipeline.getContext().removePendingSelf(a);
 
         if (isComparisonBooleanLoadBool(instructionIndex)) {
+            if (emittedComparisonBooleanFalsePcs.contains(instructionIndex)) {
+                return null;
+            }
+            Assign comparisonAssign = tryBuildComparisonBooleanAssignFromLoadBool(instructionIndex);
+            if (comparisonAssign != null) {
+                emittedComparisonBooleanFalsePcs.add(instructionIndex);
+                return comparisonAssign;
+            }
             return null;
         }
 
@@ -410,7 +472,12 @@ public class InstructionToASTConverter {
                 continue;
             }
             // 目标变量
-            Expression target = new Name(getDefinedRegisterName(i, instructionIndex), new SourcePos(instructionIndex, -1));
+            SsaRegisterSnapshot registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
+            String targetName = nilPhiSlotAliasName(i, instructionIndex, registerState);
+            if (targetName == null) {
+                targetName = getDefinedRegisterName(i, instructionIndex);
+            }
+            Expression target = new Name(targetName, new SourcePos(instructionIndex, -1));
 
             // nil值
             Expression source = new NilConst(new SourcePos(instructionIndex, -1));
@@ -480,9 +547,8 @@ public class InstructionToASTConverter {
         int a = instruction.getA();
         int bx = instruction.getBx();
 
-        // 源变量 - 使用寄存器的实际值
         SsaRegisterSnapshot registerState = pipeline.getRegisterByInstructionIndex(instructionIndex);
-        Expression source = resolveExpressionFromRegister(a, instructionIndex, registerState);
+        Expression source = setGlobalSourceExpression(a, instructionIndex, registerState);
 
         // 目标全局变量
         String name = "RK" + bx;
@@ -503,6 +569,17 @@ public class InstructionToASTConverter {
         }
 
         return null;
+    }
+
+    private Expression setGlobalSourceExpression(int registerIndex, int instructionIndex,
+            SsaRegisterSnapshot registerState) {
+        SsaValue sourceUse = pipeline.requireSsaUse(chunk.getFunction(), instructionIndex, registerIndex);
+        SsaFunction ssaFunction = pipeline.getSsaFunction(chunk.getFunction());
+        SsaInstruction definition = ssaFunction != null ? ssaFunction.getDefiningInstruction(sourceUse) : null;
+        if (definition != null && definition.getInstruction().getOpcode() == Opcode.CALL) {
+            return buildCallExpressionAt(definition.getPc());
+        }
+        return resolveExpressionFromRegister(registerIndex, instructionIndex, registerState);
     }
 
     /**
@@ -987,6 +1064,13 @@ public class InstructionToASTConverter {
 
         // 情况 1：C == 1 → 没有返回值（语句形式）
         if (c == 1) {
+            Assign comparisonArgAssign = comparisonBooleanAssignForCallArgument(a, b, instructionIndex, args);
+            if (comparisonArgAssign != null) {
+                Block block = new Block(pos);
+                block.statements.add(comparisonArgAssign);
+                block.statements.add(new ExpressionStatement(call, pos));
+                return block;
+            }
             return new ExpressionStatement(call, pos);
         }
 
@@ -1015,6 +1099,9 @@ public class InstructionToASTConverter {
 
             registerState.setRegisterEntity(a, call, ValueType.OBJECT, FromType.REGISTER);
             rememberCallResultNames(a, instructionIndex, targets);
+            if (isCallResultStoredByFollowingSetGlobal(a, instructionIndex)) {
+                return null;
+            }
             return new Assign(targets, Collections.singletonList(call), pos);
         }
 
@@ -1038,12 +1125,28 @@ public class InstructionToASTConverter {
             returns.add(returnName);
             registerState.setRegisterEntity(a, call, ValueType.OBJECT, FromType.REGISTER);
             rememberCallResultNames(a, instructionIndex, targets);
+            if (isCallResultStoredByFollowingSetGlobal(a, instructionIndex)) {
+                return null;
+            }
 
             return new Assign(targets, Collections.singletonList(call), pos);
         }
 
         // fallback
         return new ExpressionStatement(call, pos);
+    }
+
+    private boolean isCallResultStoredByFollowingSetGlobal(int registerIndex, int instructionIndex) {
+        if (instructionIndex + 1 >= chunk.getInstructions().size()) {
+            return false;
+        }
+        Instruction next = chunk.getInstruction(instructionIndex + 1);
+        if (next == null || next.getOpcode() != Opcode.SETGLOBAL || next.getA() != registerIndex) {
+            return false;
+        }
+        SsaValue definition = pipeline.requireSsaDefinition(chunk.getFunction(), instructionIndex, registerIndex);
+        SsaValue use = pipeline.requireSsaUse(chunk.getFunction(), instructionIndex + 1, registerIndex);
+        return definition != null && definition.equals(use);
     }
 
     private void rememberCallResultNames(int firstRegister, int instructionIndex, List<Expression> targets) {
@@ -1108,6 +1211,9 @@ public class InstructionToASTConverter {
         if (copySummary != null) {
             ssaUse = copySummary.getValue();
             registerIndex = ssaUse.getRegister();
+        }
+        if (isCapturedByChildClosure(ssaUse)) {
+            return new Name(getSsaCompatibleUseName(registerIndex, registerState, ssaUse), pos);
         }
         if (usePreviousWhenTarget && instructionIndex > 0) {
             Instruction curInst = chunk.getInstruction(instructionIndex);
@@ -1208,6 +1314,9 @@ public class InstructionToASTConverter {
             return new Name(getSsaCompatibleUseName(value.getRegister(), registerState, value), pos);
         }
         try {
+            if (isCapturedByChildClosure(value)) {
+                return new Name(getSsaCompatibleUseName(value.getRegister(), registerState, value), pos);
+            }
             SsaExpressionAnalysis analysis = pipeline.requireSsaExpressionAnalysis(chunk.getFunction());
             SsaValueSummary summary = analysis.getSummary(value);
             if (summary == null) {
@@ -1233,13 +1342,17 @@ public class InstructionToASTConverter {
                     }
                     return new Name(getSsaCompatibleUseName(value.getRegister(), registerState, value), pos);
                 case PHI:
-                    Expression optionalPhi = optionalPhiExpression(value, registerState, pos);
-                    if (optionalPhi != null) {
-                        return optionalPhi;
-                    }
                     Expression shortCircuitPhi = shortCircuitPhiExpression(value, usePc, registerState, pos, visiting);
                     if (shortCircuitPhi != null) {
                         return shortCircuitPhi;
+                    }
+                    Expression mutableSlotPhi = mutableSlotPhiExpression(value, registerState, pos);
+                    if (mutableSlotPhi != null) {
+                        return mutableSlotPhi;
+                    }
+                    Expression optionalPhi = optionalPhiExpression(value, registerState, pos);
+                    if (optionalPhi != null) {
+                        return optionalPhi;
                     }
                     return new Name(getSsaCompatibleUseName(value.getRegister(), registerState, value), pos);
                 case GLOBAL:
@@ -1273,6 +1386,56 @@ public class InstructionToASTConverter {
         } finally {
             visiting.remove(value);
         }
+    }
+
+    private String nilPhiSlotAliasName(int registerIndex, int instructionIndex, SsaRegisterSnapshot registerState) {
+        SsaFunction ssaFunc = pipeline.getSsaFunction(chunk.getFunction());
+        if (ssaFunc == null) {
+            return null;
+        }
+        SsaValue nilDef = pipeline.requireSsaDefinition(chunk.getFunction(), instructionIndex, registerIndex);
+        if (!resolvesToSsaNilConstant(nilDef)) {
+            return null;
+        }
+        for (SsaPhi phi : ssaFunc.getPhiUses(nilDef)) {
+            SsaValue alias = mutableSlotPhiConcreteValue(phi);
+            if (alias != null && alias.getRegister() == registerIndex) {
+                return getSsaCompatibleUseName(registerIndex, registerState, alias);
+            }
+        }
+        return null;
+    }
+
+    private Expression mutableSlotPhiExpression(SsaValue phiValue, SsaRegisterSnapshot registerState, SourcePos pos) {
+        SsaFunction ssaFunc = pipeline.getSsaFunction(chunk.getFunction());
+        if (ssaFunc == null) {
+            return null;
+        }
+        SsaPhi phi = ssaFunc.getDefiningPhi(phiValue);
+        SsaValue concrete = mutableSlotPhiConcreteValue(phi);
+        if (concrete == null) {
+            return null;
+        }
+        return new Name(getSsaCompatibleUseName(concrete.getRegister(), registerState, concrete), pos);
+    }
+
+    private SsaValue mutableSlotPhiConcreteValue(SsaPhi phi) {
+        if (phi == null || phi.getIncoming().isEmpty()) {
+            return null;
+        }
+        SsaValue concrete = null;
+        for (SsaValue incoming : phi.getIncoming().values()) {
+            if (incoming == null || incoming.isImplicit()) {
+                continue;
+            }
+            if (incoming.getRegister() != phi.getRegister()) {
+                return null;
+            }
+            if (concrete == null) {
+                concrete = incoming;
+            }
+        }
+        return concrete;
     }
 
     private Expression optionalPhiExpression(SsaValue phiValue, SsaRegisterSnapshot registerState, SourcePos pos) {
@@ -1501,6 +1664,9 @@ public class InstructionToASTConverter {
         if (preserveNilRegister && resolvesToSsaNilConstant(use)) {
             return new Name(getSsaCompatibleUseName(registerIndex, registerState, use), pos);
         }
+        if (isCapturedByChildClosure(use)) {
+            return new Name(getSsaCompatibleUseName(registerIndex, registerState, use), pos);
+        }
         Expression expression = expressionFromSsaValue(use, instruction.getPc(), registerState, pos, visiting);
         if (expression != null) {
             return expression;
@@ -1696,6 +1862,38 @@ public class InstructionToASTConverter {
         return args;
     }
 
+    private Assign comparisonBooleanAssignForCallArgument(int callRegister, int b, int callPc, List<Expression> args) {
+        if (b <= 1) {
+            return null;
+        }
+        int argRegister = callRegister + 1;
+        int minPc = Math.max(0, callPc - 8);
+        for (int pc = callPc - 1; pc >= minPc; pc--) {
+            Instruction inst = chunk.getInstruction(pc);
+            if (inst == null || inst.getOpcode() != Opcode.LOADBOOL || inst.getA() != argRegister) {
+                continue;
+            }
+            int falsePc = inst.getB() == 0 ? pc : pc - 1;
+            if (emittedComparisonBooleanFalsePcs.contains(falsePc)) {
+                return null;
+            }
+            String targetName = null;
+            if (args != null && !args.isEmpty() && args.get(0) instanceof Name) {
+                targetName = ((Name) args.get(0)).name;
+            }
+            if (targetName == null) {
+                SsaRegisterSnapshot callState = pipeline.getRegisterByInstructionIndex(callPc);
+                targetName = getUsedRegisterName(argRegister, callPc, callState);
+            }
+            Assign assign = tryBuildComparisonBooleanAssignFromLoadBool(falsePc, targetName);
+            if (assign != null) {
+                emittedComparisonBooleanFalsePcs.add(falsePc);
+                return assign;
+            }
+        }
+        return null;
+    }
+
     private Expression buildMultiValueExpressionAt(int pc) {
         Instruction inst = chunk.getInstruction(pc);
         if (inst != null && inst.getOpcode() == Opcode.VARARG) {
@@ -1875,6 +2073,48 @@ public class InstructionToASTConverter {
         return new Assign(new Name(targetName, pos), comparisonExpr, pos);
     }
 
+    private Assign tryBuildComparisonBooleanAssignFromLoadBool(int falsePc) {
+        return tryBuildComparisonBooleanAssignFromLoadBool(falsePc, null);
+    }
+
+    private Assign tryBuildComparisonBooleanAssignFromLoadBool(int falsePc, String targetNameOverride) {
+        List<Instruction> instructions = chunk.getInstructions();
+        if (falsePc < 2 || falsePc >= instructions.size()) {
+            return null;
+        }
+        Instruction falseLoad = instructions.get(falsePc);
+        Instruction jump = instructions.get(falsePc - 1);
+        Instruction comparison = instructions.get(falsePc - 2);
+        if (falseLoad.getOpcode() != Opcode.LOADBOOL || jump.getOpcode() != Opcode.JMP
+                || !isComparisonInstruction(comparison)) {
+            return null;
+        }
+        int truePc = (falsePc - 1) + 1 + jump.getSBx();
+        if (truePc != falsePc + 1 || truePc < 0 || truePc >= instructions.size()) {
+            return null;
+        }
+        Instruction trueLoad = instructions.get(truePc);
+        if (trueLoad.getOpcode() != Opcode.LOADBOOL
+                || falseLoad.getA() != trueLoad.getA()
+                || falseLoad.getB() != 0
+                || trueLoad.getB() == 0
+                || falseLoad.getC() == 0
+                || trueLoad.getC() != 0) {
+            return null;
+        }
+
+        SourcePos pos = new SourcePos(comparison.getPc(), -1);
+        SsaRegisterSnapshot registerState = pipeline.getRegisterByInstructionIndex(comparison.getPc());
+        Expression leftExpr = rkExpression(registerState, comparison.getB(), pos);
+        Expression rightExpr = rkExpression(registerState, comparison.getC(), pos);
+        Expression comparisonExpr = new BinaryOp(booleanComparisonOperator(comparison.getOpcode(), comparison.getA()),
+                leftExpr, rightExpr, pos);
+        String targetName = targetNameOverride != null
+                ? targetNameOverride
+                : booleanComparisonTargetName(falseLoad.getA(), truePc + 1, truePc);
+        return new Assign(new Name(targetName, pos), comparisonExpr, pos);
+    }
+
     private String booleanComparisonTargetName(int targetReg, int usePc, int fallbackDefPc) {
         String scannedUse = scanForwardBooleanUseName(targetReg, usePc, fallbackDefPc);
         if (scannedUse != null) {
@@ -1889,7 +2129,8 @@ public class InstructionToASTConverter {
             // Fall back to the concrete LOADBOOL definition name below.
         }
         SsaRegisterSnapshot defState = pipeline.getRegisterByInstructionIndex(fallbackDefPc);
-        return getDefinedRegisterName(targetReg, fallbackDefPc, defState);
+        SsaValue value = pipeline.requireSsaDefinition(chunk.getFunction(), fallbackDefPc, targetReg);
+        return getSsaCompatibleRegisterName(targetReg, defState, value);
     }
 
     private String scanForwardBooleanUseName(int targetReg, int startPc, int fallbackDefPc) {
@@ -2037,8 +2278,9 @@ public class InstructionToASTConverter {
         if (maybeJump.getOpcode() != Opcode.JMP || !isComparisonInstruction(maybeComparison)) {
             return false;
         }
-        int falsePc = maybeJump.getPc() + 1;
-        int truePc = maybeJump.getPc() + 1 + maybeJump.getSBx();
+        int jumpPc = prev.getOpcode() == Opcode.JMP ? instructionIndex - 1 : instructionIndex - 2;
+        int falsePc = jumpPc + 1;
+        int truePc = jumpPc + 1 + maybeJump.getSBx();
         if (truePc != falsePc + 1 || falsePc < 0 || truePc < 0
                 || falsePc >= instructions.size() || truePc >= instructions.size()) {
             return false;
@@ -2171,6 +2413,7 @@ public class InstructionToASTConverter {
         if (pendingTest != null) {
             Assign booleanAssign = tryBuildComparisonBooleanAssign(instructionIndex, jmpTarget);
             if (booleanAssign != null) {
+                emittedComparisonBooleanFalsePcs.add(instructionIndex + 1);
                 pendingTest = null;
                 return booleanAssign;
             }
@@ -2523,7 +2766,56 @@ public class InstructionToASTConverter {
 
     private String getDefinedRegisterName(int regIndex, int instructionIndex, SsaRegisterSnapshot registerState) {
         SsaValue value = pipeline.requireSsaDefinition(chunk.getFunction(), instructionIndex, regIndex);
+        String phiAlias = phiSlotAliasName(regIndex, instructionIndex, registerState, value);
+        if (phiAlias != null) {
+            return phiAlias;
+        }
         return getSsaCompatibleRegisterName(regIndex, registerState, value);
+    }
+
+    private String phiSlotAliasName(int regIndex, int instructionIndex, SsaRegisterSnapshot registerState, SsaValue value) {
+        if (value == null) {
+            return null;
+        }
+        SsaFunction ssaFunc = pipeline.getSsaFunction(chunk.getFunction());
+        if (ssaFunc == null) {
+            return null;
+        }
+        SsaValue alias = phiSlotAliasValue(value, ssaFunc, new HashSet<SsaValue>());
+        if (alias != null) {
+            return getSsaCompatibleUseName(alias.getRegister(), registerState, alias);
+        }
+        return null;
+    }
+
+    private SsaValue phiSlotAliasValue(SsaValue value, SsaFunction ssaFunc, Set<SsaValue> visiting) {
+        if (value == null || !visiting.add(value)) {
+            return null;
+        }
+        List<SsaInstruction> uses = ssaFunc.getInstructionUses(value);
+        if (uses.size() == 1) {
+            SsaInstruction use = uses.get(0);
+            if (use.getInstruction().getOpcode() == Opcode.MOVE && use.getUses().size() == 1 && use.getDefs().size() == 1) {
+                SsaValue moveDef = use.getDefs().get(0);
+                SsaValue alias = phiSlotAliasValue(moveDef, ssaFunc, visiting);
+                if (alias != null) {
+                    return alias;
+                }
+            }
+        }
+        for (SsaPhi phi : ssaFunc.getPhiUses(value)) {
+            if (phi.getRegister() != value.getRegister()) {
+                continue;
+            }
+            if (phi.getTarget() == null || ssaFunc.getUseCount(phi.getTarget()) == 0) {
+                continue;
+            }
+            SsaValue alias = mutableSlotPhiConcreteValue(phi);
+            if (alias != null && alias.getRegister() == phi.getRegister()) {
+                return alias;
+            }
+        }
+        return null;
     }
 
     private String getUsedRegisterName(int regIndex, int instructionIndex, SsaRegisterSnapshot registerState) {

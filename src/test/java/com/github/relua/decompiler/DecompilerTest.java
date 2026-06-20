@@ -73,6 +73,37 @@ class DecompilerTest {
         // 验证 peephole 优化
         assertTrue(luaCode.contains("return false"), "Should contain direct 'return false'");
         assertTrue(luaCode.contains("return true"), "Should contain direct 'return true'");
+        assertFalse(luaCode.contains("lcurl = lcurl"),
+                "SETGLOBAL of a same-named require result should not be emitted as a self-assignment");
+        assertTrue(luaCode.contains("lcurl = require(\"lcurl\")"),
+                "pathEncode should preserve the SETGLOBAL require binding for lcurl");
+        assertTrue(luaCode.contains("lcurl.easy()"),
+                "pathEncode should continue using the recovered lcurl binding");
+        assertFalse(luaCode.contains("goto L87"),
+                "upload should not contain the orphan goto that used to target a removed label");
+
+        Set<String> labels = new HashSet<>();
+        java.util.regex.Matcher labelMatcher = java.util.regex.Pattern.compile("::(L\\d+)::").matcher(luaCode);
+        while (labelMatcher.find()) {
+            labels.add(labelMatcher.group(1));
+        }
+        java.util.regex.Matcher gotoMatcher = java.util.regex.Pattern.compile("\\bgoto\\s+(L\\d+)\\b").matcher(luaCode);
+        while (gotoMatcher.find()) {
+            assertTrue(labels.contains(gotoMatcher.group(1)),
+                    "Every emitted goto should have a matching label: " + gotoMatcher.group(1));
+        }
+        String uploadFunction = luaCode.substring(luaCode.indexOf("function upload()"),
+                luaCode.indexOf("function getThumb()"));
+        assertTrue(uploadFunction.matches("(?s).*for\\s+R13_\\d+\\s*=\\s*1,\\s*100\\s+do.*break.*"),
+                "upload should restore the numeric FORPREP/FORLOOP collision loop");
+        assertFalse(uploadFunction.contains("goto L87"),
+                "upload should not leave the FORLOOP target as a raw goto");
+        assertFalse(uploadFunction.contains(".. nil"),
+                "upload should preserve the captured upload filename instead of folding it to nil");
+        assertFalse(uploadFunction.contains("R5_10"),
+                "upload should not emit unresolved target-path phi temporaries");
+        assertFalse(uploadFunction.contains("R14_5"),
+                "upload should not emit unresolved candidate-name phi temporaries");
 
         // 打印 tunnelRequest 函数内容用于验证
         System.out.println("=== tunnelRequest 函数 ===");
@@ -174,6 +205,12 @@ class DecompilerTest {
                 "Optional TESTSET/phi return should use the value assigned in the guarded branch");
         assertFalse(luaCode.matches("(?s).*function Request\\.getcookie\\(a0, a1\\).*return R7_\\d+\\s*end\\s*function Request\\.getenv.*local R7_\\d+\\s*return R7_\\d+.*"),
                 "getcookie must not return an unassigned phi temporary");
+        assertTrue(luaCode.matches("(?s).*function formvalue\\(a0, a1, a2\\).*local (R3_\\d+) = context\\.request:formvalue\\(a0, a1\\).*\\1 = nil\\s*end\\s*return \\1\\s*end\\s*return xiaoqiang_util_XQSecureUtil\\.hackCheck\\(a0, \\1\\).*"),
+                "Nil-assignment phi destruction should keep the mutable slot write and return the same slot");
+        assertFalse(luaCode.contains("local R3_6"),
+                "formvalue must not declare the unresolved SSA phi temporary");
+        assertFalse(luaCode.contains("return R3_6"),
+                "formvalue must not return the unresolved SSA phi temporary");
 
         // 验证 writeJsonNoLog 中没有重复的 write(string.format("\"%s\"", ...))
         int count = 0;

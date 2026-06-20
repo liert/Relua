@@ -124,24 +124,52 @@ final class SsaTemporaryCleanupPass {
                         protectedDefinitionPcs);
                 if (assignment == null) {
                     AstTemporaryAssignment ast = astTemporaryAssignment(statement);
-                    if (canDeleteAstDeadTemporaryDefinition(block.statements, i, ast)) {
+                    if (!feedsLivePhi(statement, context, pipeline, livePhis)
+                            && canDeleteAstDeadTemporaryDefinition(block.statements, i, ast)) {
                         block.statements.remove(i);
                         changed = true;
                         break;
                     }
                     continue;
                 }
+                boolean astDead = !feedsLivePhi(statement, context, pipeline, livePhis)
+                        && canDeleteAstDeadTemporaryDefinition(block.statements, i,
+                                new AstTemporaryAssignment(assignment.name, assignment.right));
                 if (isSelfCopy(assignment)
                         || canDeleteSsaTemporaryDefinition(block.statements, i, assignment,
                                 deleteAtBlockExitWhenNoAstUse, livePhis)
-                        || canDeleteAstDeadTemporaryDefinition(block.statements, i,
-                                new AstTemporaryAssignment(assignment.name, assignment.right))) {
+                        || astDead) {
                     block.statements.remove(i);
                     changed = true;
                     break;
                 }
             }
         }
+    }
+
+    private boolean feedsLivePhi(Statement statement, CodeGeneratorContext context, DecompilerPipeline pipeline,
+            Set<SsaValue> livePhis) {
+        if (statement == null || statement.pos == null || statement.pos.pc < 0
+                || context == null || context.getChunk() == null || pipeline == null || livePhis == null
+                || livePhis.isEmpty()) {
+            return false;
+        }
+        SsaFunction function = pipeline.getSsaFunction(context.getChunk().getFunction());
+        if (function == null) {
+            return false;
+        }
+        SsaInstruction instruction = function.getInstruction(statement.pos.pc);
+        if (instruction == null) {
+            return false;
+        }
+        for (SsaValue def : instruction.getDefs()) {
+            for (SsaPhi phi : function.getPhiUses(def)) {
+                if (livePhis.contains(phi.getTarget())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private boolean hasSsaContext(Block block, CodeGeneratorContext context, DecompilerPipeline pipeline) {

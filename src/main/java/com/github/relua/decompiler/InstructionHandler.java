@@ -1075,10 +1075,19 @@ public class InstructionHandler {
             List<Instruction> instrs = chunk.getInstructions();
             int gapStart = thenEnd + 1;
             if (gapStart < elseStart && gapStart < instrs.size()) {
-                Instruction gapInst = instrs.get(gapStart);
-                boolean isReturn = gapInst.getOpcode() == Opcode.RETURN;
-                boolean isTailcall = gapInst.getOpcode() == Opcode.TAILCALL;
-                if (isReturn || isTailcall) {
+                int gapControlPc = -1;
+                Instruction gapInst = null;
+                for (int scanPc = gapStart; scanPc < elseStart && scanPc < instrs.size(); scanPc++) {
+                    Instruction scanInst = instrs.get(scanPc);
+                    if (scanInst.getOpcode() == Opcode.RETURN || scanInst.getOpcode() == Opcode.TAILCALL) {
+                        gapControlPc = scanPc;
+                        gapInst = scanInst;
+                        break;
+                    }
+                }
+                if (gapControlPc != -1) {
+                    BasicBlock gapBlock = getBlockByInstructionIndex(chunk, gapControlPc);
+                    boolean isJoinBlock = gapBlock != null && gapBlock.getPredecessors().size() > 1;
                     List<Statement> ts = thenBlock.statements;
                     Statement lastNonLabel = null;
                     for (int k = ts.size() - 1; k >= 0; k--) {
@@ -1092,10 +1101,14 @@ public class InstructionHandler {
                         if (innerIf.elseBlock == null && !innerIf.blocks.isEmpty()) {
                             // Convert the return/tailcall instruction
                             InstructionToASTConverter tempConv = new InstructionToASTConverter(chunk, pipeline);
-                            Object retNode = tempConv.convertInstructionToAST(gapInst, gapStart);
+                            Object retNode = tempConv.convertInstructionToAST(gapInst, gapControlPc);
                             if (retNode instanceof Statement) {
-                                innerIf.blocks.get(0).statements.add((Statement) retNode);
-                                markBlocksAsVisited(chunk, gapStart, gapStart);
+                                if (isJoinBlock) {
+                                    thenBlock.statements.add((Statement) retNode);
+                                } else {
+                                    innerIf.blocks.get(0).statements.add((Statement) retNode);
+                                }
+                                markBlocksAsVisited(chunk, gapControlPc, gapControlPc);
                             }
                         }
                     }

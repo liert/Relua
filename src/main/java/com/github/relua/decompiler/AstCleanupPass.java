@@ -136,6 +136,14 @@ public class AstCleanupPass {
                                         int b = upvalIns.getB();
                                         String regName = RegisterNamePolicy.prefixedRegisterName(
                                                 context.getRegisterPrefix(), b);
+                                        if (pipeline != null) {
+                                            com.github.relua.decompiler.ssa.SsaValue boundValue =
+                                                    pipeline.requireSsaUse(chunk.getFunction(), nextIdx, b);
+                                            if (boundValue != null) {
+                                                regName = ssaNameResolver.nameForUse(boundValue, b,
+                                                        context.getRegisterPrefix(), chunk.getNumParams());
+                                            }
+                                        }
                                         if (regName != null) {
                                             capturedLocals.add(regName);
                                             int reachingDefPc = findReachingRegisterDefinitionPc(insts, i, b);
@@ -159,11 +167,20 @@ public class AstCleanupPass {
 
         DecompilerDebugger.dump("dataflow_opt_0_" + funcName, block);
 
+        // 0.9 先恢复 FORPREP/FORLOOP，让后续数据流在结构化循环上判断活性。
+        new StructureRestorer(context != null ? context.getChunk() : null).restoreNumericForLoops(block);
+        DecompilerDebugger.dump("numeric_for_restored_0_" + funcName, block);
+
         // 1. 数据流变量内联及点号/冒号语法糖还原
         new DataFlowAnalyzer().optimize(block, parentDeclared, optimizerUpvalues, capturedLocalDefinitionPcs);
         ssaTemporaryCleanup.inlineSingleUse(block, context, pipeline, capturedLocalDefinitionPcs);
         ssaTemporaryCleanup.deleteDead(block, context, pipeline, capturedLocalDefinitionPcs, true);
         DecompilerDebugger.dump("dataflow_opt_1_" + funcName, block);
+
+        // 1.4 在空 if 清理前恢复 FORPREP/FORLOOP。FORLOOP 的标签常位于空 else
+        // 分支里，过早删除会把数值 for 的拓扑打散。
+        new StructureRestorer(context != null ? context.getChunk() : null).restoreNumericForLoops(block);
+        DecompilerDebugger.dump("numeric_for_restored_1_" + funcName, block);
 
         // 1.5 清理空的if块（nil-guard等模式产生的空条件分支）
         removeEmptyIfBlocks(block);
@@ -667,6 +684,7 @@ public class AstCleanupPass {
         }
 
         removeUnreferencedLabels(block);
+        removeGotosWithoutLabels(block);
     }
 
     private void removeJoinGotosFromNestedBlocks(Statement statement) {
@@ -731,6 +749,70 @@ public class AstCleanupPass {
                 collectReferencedLabels(ifStatement.elseBlock, referencedLabels);
             } else if (statement instanceof FunctionDeclaration) {
                 collectReferencedLabels(((FunctionDeclaration) statement).func.body, referencedLabels);
+            } else if (statement instanceof WhileStatement) {
+                collectReferencedLabels(((WhileStatement) statement).body, referencedLabels);
+            } else if (statement instanceof RepeatStatement) {
+                collectReferencedLabels(((RepeatStatement) statement).body, referencedLabels);
+            } else if (statement instanceof ForNumeric) {
+                collectReferencedLabels(((ForNumeric) statement).body, referencedLabels);
+            } else if (statement instanceof ForIn) {
+                collectReferencedLabels(((ForIn) statement).body, referencedLabels);
+            }
+        }
+    }
+
+    private void removeGotosWithoutLabels(Block block) {
+        Set<String> definedLabels = new HashSet<>();
+        collectDefinedLabels(block, definedLabels);
+        removeGotosWithoutLabels(block, definedLabels);
+    }
+
+    private void collectDefinedLabels(Block block, Set<String> definedLabels) {
+        if (block == null) {
+            return;
+        }
+        for (Statement statement : block.statements) {
+            if (statement instanceof LabelStatement) {
+                definedLabels.add(((LabelStatement) statement).label);
+            } else if (statement instanceof IfStatement) {
+                IfStatement ifStatement = (IfStatement) statement;
+                for (Block nested : ifStatement.blocks) {
+                    collectDefinedLabels(nested, definedLabels);
+                }
+                collectDefinedLabels(ifStatement.elseBlock, definedLabels);
+            } else if (statement instanceof WhileStatement) {
+                collectDefinedLabels(((WhileStatement) statement).body, definedLabels);
+            } else if (statement instanceof RepeatStatement) {
+                collectDefinedLabels(((RepeatStatement) statement).body, definedLabels);
+            } else if (statement instanceof ForNumeric) {
+                collectDefinedLabels(((ForNumeric) statement).body, definedLabels);
+            } else if (statement instanceof ForIn) {
+                collectDefinedLabels(((ForIn) statement).body, definedLabels);
+            }
+        }
+    }
+
+    private void removeGotosWithoutLabels(Block block, Set<String> definedLabels) {
+        if (block == null) {
+            return;
+        }
+        block.statements.removeIf(statement -> statement instanceof GotoStatement
+                && !definedLabels.contains(((GotoStatement) statement).label));
+        for (Statement statement : block.statements) {
+            if (statement instanceof IfStatement) {
+                IfStatement ifStatement = (IfStatement) statement;
+                for (Block nested : ifStatement.blocks) {
+                    removeGotosWithoutLabels(nested, definedLabels);
+                }
+                removeGotosWithoutLabels(ifStatement.elseBlock, definedLabels);
+            } else if (statement instanceof WhileStatement) {
+                removeGotosWithoutLabels(((WhileStatement) statement).body, definedLabels);
+            } else if (statement instanceof RepeatStatement) {
+                removeGotosWithoutLabels(((RepeatStatement) statement).body, definedLabels);
+            } else if (statement instanceof ForNumeric) {
+                removeGotosWithoutLabels(((ForNumeric) statement).body, definedLabels);
+            } else if (statement instanceof ForIn) {
+                removeGotosWithoutLabels(((ForIn) statement).body, definedLabels);
             }
         }
     }

@@ -3,1036 +3,1959 @@
 
 -- Chunk: lineDefined=0, lastLineDefined=0, numParams=0, isVararg=2, maxStackSize=18
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000026 opcodeNum=38 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00004046 opcodeNum=6 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=02 raw=0x01008010 opcodeNum=16 A=0 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=03 raw=0x00000066 opcodeNum=38 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x00008086 opcodeNum=6 A=2 B=0 C=2 Bx=2 sBx=-131069
+-- pc=05 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=06 raw=0x000000A6 opcodeNum=38 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x0000C0C6 opcodeNum=6 A=3 B=0 C=3 Bx=3 sBx=-131068
+-- pc=08 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=09 raw=0x000000E6 opcodeNum=38 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=10 raw=0x00010106 opcodeNum=6 A=4 B=0 C=4 Bx=4 sBx=-131067
+-- pc=11 raw=0x010080D0 opcodeNum=16 A=3 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=12 raw=0x00000126 opcodeNum=38 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=13 raw=0x00014146 opcodeNum=6 A=5 B=0 C=5 Bx=5 sBx=-131066
+-- pc=14 raw=0x01008110 opcodeNum=16 A=4 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=15 raw=0x00000166 opcodeNum=38 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=16 raw=0x00018186 opcodeNum=6 A=6 B=0 C=6 Bx=6 sBx=-131065
+-- pc=17 raw=0x01008150 opcodeNum=16 A=5 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=18 raw=0x000001A6 opcodeNum=38 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=19 raw=0x0001C1C6 opcodeNum=6 A=7 B=0 C=7 Bx=7 sBx=-131064
+-- pc=20 raw=0x01008190 opcodeNum=16 A=6 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=21 raw=0x000001E6 opcodeNum=38 A=7 B=0 C=0 Bx=0 sBx=-131071
+-- pc=22 raw=0x00020206 opcodeNum=6 A=8 B=0 C=8 Bx=8 sBx=-131063
+-- pc=23 raw=0x010081D0 opcodeNum=16 A=7 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=24 raw=0x00000226 opcodeNum=38 A=8 B=0 C=0 Bx=0 sBx=-131071
+-- pc=25 raw=0x00024246 opcodeNum=6 A=9 B=0 C=9 Bx=9 sBx=-131062
+-- pc=26 raw=0x01008210 opcodeNum=16 A=8 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=27 raw=0x00028266 opcodeNum=38 A=9 B=0 C=10 Bx=10 sBx=-131061
+-- pc=28 raw=0x0002C2A6 opcodeNum=38 A=10 B=0 C=11 Bx=11 sBx=-131060
+-- pc=29 raw=0x000302E6 opcodeNum=38 A=11 B=0 C=12 Bx=12 sBx=-131059
+-- pc=30 raw=0x00034326 opcodeNum=38 A=12 B=0 C=13 Bx=13 sBx=-131058
+-- pc=31 raw=0x00038366 opcodeNum=38 A=13 B=0 C=14 Bx=14 sBx=-131057
+-- pc=32 raw=0x0003C3A6 opcodeNum=38 A=14 B=0 C=15 Bx=15 sBx=-131056
+-- pc=33 raw=0x000403E6 opcodeNum=38 A=15 B=0 C=16 Bx=16 sBx=-131055
+-- pc=34 raw=0x00044406 opcodeNum=6 A=16 B=0 C=17 Bx=17 sBx=-131054
+-- pc=35 raw=0x00048466 opcodeNum=38 A=17 B=0 C=18 Bx=18 sBx=-131053
+-- pc=36 raw=0x08C4C45B opcodeNum=27 A=17 B=17 C=275 Bx=8979 sBx=-122092
+-- pc=37 raw=0x018043D0 opcodeNum=16 A=15 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=38 raw=0x014543DB opcodeNum=27 A=15 B=2 C=277 Bx=1301 sBx=-129770
+-- pc=39 raw=0x008083D0 opcodeNum=16 A=15 B=1 C=2 Bx=514 sBx=-130557
+-- pc=40 raw=0x000503E8 opcodeNum=40 A=15 B=0 C=20 Bx=20 sBx=-131051
+-- pc=41 raw=0x0145C3DB opcodeNum=27 A=15 B=2 C=279 Bx=1303 sBx=-129768
+-- pc=42 raw=0x008083D0 opcodeNum=16 A=15 B=1 C=2 Bx=514 sBx=-130557
+-- pc=43 raw=0x000583E8 opcodeNum=40 A=15 B=0 C=22 Bx=22 sBx=-131049
+-- pc=44 raw=0x000583E6 opcodeNum=38 A=15 B=0 C=22 Bx=22 sBx=-131049
+-- pc=45 raw=0x00000401 opcodeNum=1 A=16 B=0 C=0 Bx=0 sBx=-131071
+-- pc=46 raw=0x00800024 opcodeNum=36 A=0 B=1 C=0 Bx=512 sBx=-130559
+-- pc=47 raw=0x8C0403D1 opcodeNum=17 A=15 B=280 C=16 Bx=143376 sBx=12305
+-- pc=48 raw=0x000583E6 opcodeNum=38 A=15 B=0 C=22 Bx=22 sBx=-131049
+-- pc=49 raw=0x00004401 opcodeNum=1 A=16 B=0 C=1 Bx=1 sBx=-131070
+-- pc=50 raw=0x8C8403D1 opcodeNum=17 A=15 B=281 C=16 Bx=143888 sBx=12817
+-- pc=51 raw=0x000583E6 opcodeNum=38 A=15 B=0 C=22 Bx=22 sBx=-131049
+-- pc=52 raw=0x00008401 opcodeNum=1 A=16 B=0 C=2 Bx=2 sBx=-131069
+-- pc=53 raw=0x05000024 opcodeNum=36 A=0 B=10 C=0 Bx=5120 sBx=-125951
+-- pc=54 raw=0x06800024 opcodeNum=36 A=0 B=13 C=0 Bx=6656 sBx=-124415
+-- pc=55 raw=0x8D0403D1 opcodeNum=17 A=15 B=282 C=16 Bx=144400 sBx=13329
+-- pc=56 raw=0x000583E6 opcodeNum=38 A=15 B=0 C=22 Bx=22 sBx=-131049
+-- pc=57 raw=0x0000C401 opcodeNum=1 A=16 B=0 C=3 Bx=3 sBx=-131068
+-- pc=58 raw=0x8D8403D1 opcodeNum=17 A=15 B=283 C=16 Bx=144912 sBx=13841
+-- pc=59 raw=0x000583E6 opcodeNum=38 A=15 B=0 C=22 Bx=22 sBx=-131049
+-- pc=60 raw=0x00010401 opcodeNum=1 A=16 B=0 C=4 Bx=4 sBx=-131067
+-- pc=61 raw=0x01800024 opcodeNum=36 A=0 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=62 raw=0x8E0403D1 opcodeNum=17 A=15 B=284 C=16 Bx=145424 sBx=14353
+-- pc=63 raw=0x000583E6 opcodeNum=38 A=15 B=0 C=22 Bx=22 sBx=-131049
+-- pc=64 raw=0x00014401 opcodeNum=1 A=16 B=0 C=5 Bx=5 sBx=-131066
+-- pc=65 raw=0x8E8403D1 opcodeNum=17 A=15 B=285 C=16 Bx=145936 sBx=14865
+-- pc=66 raw=0x000583E6 opcodeNum=38 A=15 B=0 C=22 Bx=22 sBx=-131049
+-- pc=67 raw=0x00018401 opcodeNum=1 A=16 B=0 C=6 Bx=6 sBx=-131065
+-- pc=68 raw=0x8F0403D1 opcodeNum=17 A=15 B=286 C=16 Bx=146448 sBx=15377
+-- pc=69 raw=0x000583E6 opcodeNum=38 A=15 B=0 C=22 Bx=22 sBx=-131049
+-- pc=70 raw=0x0001C401 opcodeNum=1 A=16 B=0 C=7 Bx=7 sBx=-131064
+-- pc=71 raw=0x00800024 opcodeNum=36 A=0 B=1 C=0 Bx=512 sBx=-130559
+-- pc=72 raw=0x8F8403D1 opcodeNum=17 A=15 B=287 C=16 Bx=146960 sBx=15889
+-- pc=73 raw=0x000203C1 opcodeNum=1 A=15 B=0 C=8 Bx=8 sBx=-131063
+-- pc=74 raw=0x02000024 opcodeNum=36 A=0 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=75 raw=0x000803E8 opcodeNum=40 A=15 B=0 C=32 Bx=32 sBx=-131039
+-- pc=76 raw=0x000243C1 opcodeNum=1 A=15 B=0 C=9 Bx=9 sBx=-131062
+-- pc=77 raw=0x0006C3E8 opcodeNum=40 A=15 B=0 C=27 Bx=27 sBx=-131044
+-- pc=78 raw=0x000283C1 opcodeNum=1 A=15 B=0 C=10 Bx=10 sBx=-131061
+-- pc=79 raw=0x000843E8 opcodeNum=40 A=15 B=0 C=33 Bx=33 sBx=-131038
+-- pc=80 raw=0x0002C3C1 opcodeNum=1 A=15 B=0 C=11 Bx=11 sBx=-131060
+-- pc=81 raw=0x03800024 opcodeNum=36 A=0 B=7 C=0 Bx=3584 sBx=-127487
+-- pc=82 raw=0x04000024 opcodeNum=36 A=0 B=8 C=0 Bx=4096 sBx=-126975
+-- pc=83 raw=0x03000024 opcodeNum=36 A=0 B=6 C=0 Bx=3072 sBx=-127999
+-- pc=84 raw=0x000643E8 opcodeNum=40 A=15 B=0 C=25 Bx=25 sBx=-131046
+-- pc=85 raw=0x000303C1 opcodeNum=1 A=15 B=0 C=12 Bx=12 sBx=-131059
+-- pc=86 raw=0x03000024 opcodeNum=36 A=0 B=6 C=0 Bx=3072 sBx=-127999
+-- pc=87 raw=0x000883E8 opcodeNum=40 A=15 B=0 C=34 Bx=34 sBx=-131037
+-- pc=88 raw=0x000343C1 opcodeNum=1 A=15 B=0 C=13 Bx=13 sBx=-131058
+-- pc=89 raw=0x000683E8 opcodeNum=40 A=15 B=0 C=26 Bx=26 sBx=-131045
+-- pc=90 raw=0x000383C1 opcodeNum=1 A=15 B=0 C=14 Bx=14 sBx=-131057
+-- pc=91 raw=0x000703E8 opcodeNum=40 A=15 B=0 C=28 Bx=28 sBx=-131043
+-- pc=92 raw=0x0003C3C1 opcodeNum=1 A=15 B=0 C=15 Bx=15 sBx=-131056
+-- pc=93 raw=0x000743E8 opcodeNum=40 A=15 B=0 C=29 Bx=29 sBx=-131042
+-- pc=94 raw=0x000403C1 opcodeNum=1 A=15 B=0 C=16 Bx=16 sBx=-131055
+-- pc=95 raw=0x000783E8 opcodeNum=40 A=15 B=0 C=30 Bx=30 sBx=-131041
+-- pc=96 raw=0x000443C1 opcodeNum=1 A=15 B=0 C=17 Bx=17 sBx=-131054
+-- pc=97 raw=0x02000024 opcodeNum=36 A=0 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=98 raw=0x0008C3E8 opcodeNum=40 A=15 B=0 C=35 Bx=35 sBx=-131036
+-- pc=99 raw=0x000483C1 opcodeNum=1 A=15 B=0 C=18 Bx=18 sBx=-131053
+-- pc=100 raw=0x000903E8 opcodeNum=40 A=15 B=0 C=36 Bx=36 sBx=-131035
+-- pc=101 raw=0x0004C3C1 opcodeNum=1 A=15 B=0 C=19 Bx=19 sBx=-131052
+-- pc=102 raw=0x000943E8 opcodeNum=40 A=15 B=0 C=37 Bx=37 sBx=-131034
+-- pc=103 raw=0x000503C1 opcodeNum=1 A=15 B=0 C=20 Bx=20 sBx=-131051
+-- pc=104 raw=0x02000024 opcodeNum=36 A=0 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=105 raw=0x000983E8 opcodeNum=40 A=15 B=0 C=38 Bx=38 sBx=-131033
+-- pc=106 raw=0x000543C1 opcodeNum=1 A=15 B=0 C=21 Bx=21 sBx=-131050
+-- pc=107 raw=0x07000024 opcodeNum=36 A=0 B=14 C=0 Bx=7168 sBx=-123903
+-- pc=108 raw=0x06800024 opcodeNum=36 A=0 B=13 C=0 Bx=6656 sBx=-124415
+-- pc=109 raw=0x01800024 opcodeNum=36 A=0 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=110 raw=0x02000024 opcodeNum=36 A=0 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=111 raw=0x0009C3E8 opcodeNum=40 A=15 B=0 C=39 Bx=39 sBx=-131032
+-- pc=112 raw=0x000583C1 opcodeNum=1 A=15 B=0 C=22 Bx=22 sBx=-131049
+-- pc=113 raw=0x06800024 opcodeNum=36 A=0 B=13 C=0 Bx=6656 sBx=-124415
+-- pc=114 raw=0x02000024 opcodeNum=36 A=0 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=115 raw=0x000A03E8 opcodeNum=40 A=15 B=0 C=40 Bx=40 sBx=-131031
+-- pc=116 raw=0x0005C3C1 opcodeNum=1 A=15 B=0 C=23 Bx=23 sBx=-131048
+-- pc=117 raw=0x02000024 opcodeNum=36 A=0 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=118 raw=0x000A43E8 opcodeNum=40 A=15 B=0 C=41 Bx=41 sBx=-131030
+-- pc=119 raw=0x000603C1 opcodeNum=1 A=15 B=0 C=24 Bx=24 sBx=-131047
+-- pc=120 raw=0x000A83E8 opcodeNum=40 A=15 B=0 C=42 Bx=42 sBx=-131029
+-- pc=121 raw=0x000643C1 opcodeNum=1 A=15 B=0 C=25 Bx=25 sBx=-131046
+-- pc=122 raw=0x05000024 opcodeNum=36 A=0 B=10 C=0 Bx=5120 sBx=-125951
+-- pc=123 raw=0x02800024 opcodeNum=36 A=0 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=124 raw=0x000AC3E8 opcodeNum=40 A=15 B=0 C=43 Bx=43 sBx=-131028
+-- pc=125 raw=0x00CB03DB opcodeNum=27 A=15 B=1 C=300 Bx=812 sBx=-130259
+-- pc=126 raw=0x000B03E8 opcodeNum=40 A=15 B=0 C=44 Bx=44 sBx=-131027
+-- pc=127 raw=0x00CB43DB opcodeNum=27 A=15 B=1 C=301 Bx=813 sBx=-130258
+-- pc=128 raw=0x000B43E8 opcodeNum=40 A=15 B=0 C=45 Bx=45 sBx=-131026
+-- pc=129 raw=0x000683C1 opcodeNum=1 A=15 B=0 C=26 Bx=26 sBx=-131045
+-- pc=130 raw=0x06000024 opcodeNum=36 A=0 B=12 C=0 Bx=6144 sBx=-124927
+-- pc=131 raw=0x06800024 opcodeNum=36 A=0 B=13 C=0 Bx=6656 sBx=-124415
+-- pc=132 raw=0x000B83E8 opcodeNum=40 A=15 B=0 C=46 Bx=46 sBx=-131025
+-- pc=133 raw=0x0006C3C1 opcodeNum=1 A=15 B=0 C=27 Bx=27 sBx=-131044
+-- pc=134 raw=0x000BC3E8 opcodeNum=40 A=15 B=0 C=47 Bx=47 sBx=-131024
+-- pc=135 raw=0x000703C1 opcodeNum=1 A=15 B=0 C=28 Bx=28 sBx=-131043
+-- pc=136 raw=0x06000024 opcodeNum=36 A=0 B=12 C=0 Bx=6144 sBx=-124927
+-- pc=137 raw=0x06800024 opcodeNum=36 A=0 B=13 C=0 Bx=6656 sBx=-124415
+-- pc=138 raw=0x000C03E8 opcodeNum=40 A=15 B=0 C=48 Bx=48 sBx=-131023
+-- pc=139 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETGLOBAL	R0 K0         ; R0 := require
-   1: LOADK	R1 K1             ; R1 := "luci.ltn12"
-   2: CALL	R0 2 2             ; R0 := R0(...) -- b=2, c=2
-   3: GETGLOBAL	R1 K0         ; R1 := require
-   4: LOADK	R2 K2             ; R2 := "luci.http.protocol"
-   5: CALL	R1 2 2             ; R1 := R1(...) -- b=2, c=2
-   6: GETGLOBAL	R2 K0         ; R2 := require
-   7: LOADK	R3 K3             ; R3 := "luci.util"
-   8: CALL	R2 2 2             ; R2 := R2(...) -- b=2, c=2
-   9: GETGLOBAL	R3 K0         ; R3 := require
-  10: LOADK	R4 K4             ; R4 := "string"
-  11: CALL	R3 2 2             ; R3 := R3(...) -- b=2, c=2
-  12: GETGLOBAL	R4 K0         ; R4 := require
-  13: LOADK	R5 K5             ; R5 := "coroutine"
-  14: CALL	R4 2 2             ; R4 := R4(...) -- b=2, c=2
-  15: GETGLOBAL	R5 K0         ; R5 := require
-  16: LOADK	R6 K6             ; R6 := "table"
-  17: CALL	R5 2 2             ; R5 := R5(...) -- b=2, c=2
-  18: GETGLOBAL	R6 K0         ; R6 := require
-  19: LOADK	R7 K7             ; R7 := "xiaoqiang.util.XQSecureUtil"
-  20: CALL	R6 2 2             ; R6 := R6(...) -- b=2, c=2
-  21: GETGLOBAL	R7 K0         ; R7 := require
-  22: LOADK	R8 K8             ; R8 := "xiaoqiang.util.XQParam"
-  23: CALL	R7 2 2             ; R7 := R7(...) -- b=2, c=2
-  24: GETGLOBAL	R8 K0         ; R8 := require
-  25: LOADK	R9 K9             ; R9 := "xiaoqiang.XQLog"
-  26: CALL	R8 2 2             ; R8 := R8(...) -- b=2, c=2
-  27: GETGLOBAL	R9 K10        ; R9 := ipairs
-  28: GETGLOBAL	R10 K11       ; R10 := pairs
-  29: GETGLOBAL	R11 K12       ; R11 := next
-  30: GETGLOBAL	R12 K13       ; R12 := type
-  31: GETGLOBAL	R13 K14       ; R13 := tostring
-  32: GETGLOBAL	R14 K15       ; R14 := error
-  33: GETGLOBAL	R15 K16       ; R15 := module
-  34: LOADK	R16 K17           ; R16 := "luci.http"
-  35: GETGLOBAL	R17 K18       ; R17 := package
-  36: GETTABLE	R17 R17 RK275  ; R17 := R17["seeall"]
-  37: CALL	R15 3 1            ; R15 := R15(...) -- b=3, c=1
-  38: GETTABLE	R15 R2 RK277   ; R15 := R2["threadlocal"]
-  39: CALL	R15 1 2            ; R15 := R15(...) -- b=1, c=2
-  40: SETGLOBAL	R15 K20       ; context := R15
-  41: GETTABLE	R15 R2 RK279   ; R15 := R2["class"]
-  42: CALL	R15 1 2            ; R15 := R15(...) -- b=1, c=2
-  43: SETGLOBAL	R15 K22       ; Request := R15
-  44: GETGLOBAL	R15 K22       ; R15 := Request
-  45: CLOSURE	R16 0           ; R16 := closure(0)
-  46: MOVE	R0 R1              ; R0 := R1
-  47: SETTABLE	R15 RK280 R16  ; R15["__init__"] := R16
-  48: GETGLOBAL	R15 K22       ; R15 := Request
-  49: CLOSURE	R16 1           ; R16 := closure(1)
-  50: SETTABLE	R15 RK281 R16  ; R15["formvalue"] := R16
-  51: GETGLOBAL	R15 K22       ; R15 := Request
-  52: CLOSURE	R16 2           ; R16 := closure(2)
-  53: MOVE	R0 R10             ; R0 := R10
-  54: MOVE	R0 R13             ; R0 := R13
-  55: SETTABLE	R15 RK282 R16  ; R15["formvaluetable"] := R16
-  56: GETGLOBAL	R15 K22       ; R15 := Request
-  57: CLOSURE	R16 3           ; R16 := closure(3)
-  58: SETTABLE	R15 RK283 R16  ; R15["content"] := R16
-  59: GETGLOBAL	R15 K22       ; R15 := Request
-  60: CLOSURE	R16 4           ; R16 := closure(4)
-  61: MOVE	R0 R3              ; R0 := R3
-  62: SETTABLE	R15 RK284 R16  ; R15["getcookie"] := R16
-  63: GETGLOBAL	R15 K22       ; R15 := Request
-  64: CLOSURE	R16 5           ; R16 := closure(5)
-  65: SETTABLE	R15 RK285 R16  ; R15["getenv"] := R16
-  66: GETGLOBAL	R15 K22       ; R15 := Request
-  67: CLOSURE	R16 6           ; R16 := closure(6)
-  68: SETTABLE	R15 RK286 R16  ; R15["setfilehandler"] := R16
-  69: GETGLOBAL	R15 K22       ; R15 := Request
-  70: CLOSURE	R16 7           ; R16 := closure(7)
-  71: MOVE	R0 R1              ; R0 := R1
-  72: SETTABLE	R15 RK287 R16  ; R15["_parse_input"] := R16
-  73: CLOSURE	R15 8           ; R15 := closure(8)
-  74: MOVE	R0 R4              ; R0 := R4
-  75: SETGLOBAL	R15 K32       ; close := R15
-  76: CLOSURE	R15 9           ; R15 := closure(9)
-  77: SETGLOBAL	R15 K27       ; content := R15
-  78: CLOSURE	R15 10          ; R15 := closure(10)
-  79: SETGLOBAL	R15 K33       ; formvalue_unsafe := R15
-  80: CLOSURE	R15 11          ; R15 := closure(11)
-  81: MOVE	R0 R7              ; R0 := R7
-  82: MOVE	R0 R8              ; R0 := R8
-  83: MOVE	R0 R6              ; R0 := R6
-  84: SETGLOBAL	R15 K25       ; formvalue := R15
-  85: CLOSURE	R15 12          ; R15 := closure(12)
-  86: MOVE	R0 R6              ; R0 := R6
-  87: SETGLOBAL	R15 K34       ; xqformvalue := R15
-  88: CLOSURE	R15 13          ; R15 := closure(13)
-  89: SETGLOBAL	R15 K26       ; formvaluetable := R15
-  90: CLOSURE	R15 14          ; R15 := closure(14)
-  91: SETGLOBAL	R15 K28       ; getcookie := R15
-  92: CLOSURE	R15 15          ; R15 := closure(15)
-  93: SETGLOBAL	R15 K29       ; getenv := R15
-  94: CLOSURE	R15 16          ; R15 := closure(16)
-  95: SETGLOBAL	R15 K30       ; setfilehandler := R15
-  96: CLOSURE	R15 17          ; R15 := closure(17)
-  97: MOVE	R0 R4              ; R0 := R4
-  98: SETGLOBAL	R15 K35       ; header := R15
-  99: CLOSURE	R15 18          ; R15 := closure(18)
- 100: SETGLOBAL	R15 K36       ; prepare_content := R15
- 101: CLOSURE	R15 19          ; R15 := closure(19)
- 102: SETGLOBAL	R15 K37       ; source := R15
- 103: CLOSURE	R15 20          ; R15 := closure(20)
- 104: MOVE	R0 R4              ; R0 := R4
- 105: SETGLOBAL	R15 K38       ; status := R15
- 106: CLOSURE	R15 21          ; R15 := closure(21)
- 107: MOVE	R0 R14             ; R0 := R14
- 108: MOVE	R0 R13             ; R0 := R13
- 109: MOVE	R0 R3              ; R0 := R3
- 110: MOVE	R0 R4              ; R0 := R4
- 111: SETGLOBAL	R15 K39       ; write := R15
- 112: CLOSURE	R15 22          ; R15 := closure(22)
- 113: MOVE	R0 R13             ; R0 := R13
- 114: MOVE	R0 R4              ; R0 := R4
- 115: SETGLOBAL	R15 K40       ; write_file := R15
- 116: CLOSURE	R15 23          ; R15 := closure(23)
- 117: MOVE	R0 R4              ; R0 := R4
- 118: SETGLOBAL	R15 K41       ; splice := R15
- 119: CLOSURE	R15 24          ; R15 := closure(24)
- 120: SETGLOBAL	R15 K42       ; redirect := R15
- 121: CLOSURE	R15 25          ; R15 := closure(25)
- 122: MOVE	R0 R10             ; R0 := R10
- 123: MOVE	R0 R5              ; R0 := R5
- 124: SETGLOBAL	R15 K43       ; build_querystring := R15
- 125: GETTABLE	R15 R1 RK300   ; R15 := R1["urldecode"]
- 126: SETGLOBAL	R15 K44       ; urldecode := R15
- 127: GETTABLE	R15 R1 RK301   ; R15 := R1["urlencode"]
- 128: SETGLOBAL	R15 K45       ; urlencode := R15
- 129: CLOSURE	R15 26          ; R15 := closure(26)
- 130: MOVE	R0 R12             ; R0 := R12
- 131: MOVE	R0 R13             ; R0 := R13
- 132: SETGLOBAL	R15 K46       ; writeJsonNoLog := R15
- 133: CLOSURE	R15 27          ; R15 := closure(27)
- 134: SETGLOBAL	R15 K47       ; write_json := R15
- 135: CLOSURE	R15 28          ; R15 := closure(28)
- 136: MOVE	R0 R12             ; R0 := R12
- 137: MOVE	R0 R13             ; R0 := R13
- 138: SETGLOBAL	R15 K48       ; write_jsonp := R15
- 139: RETURN	R0 1             ; return R0
+   0: GETGLOBAL	R0 K0              ; R0 := require
+   1: LOADK	R1 K1                  ; R1 := "luci.ltn12"
+   2: CALL	R0 2 2                  ; R0 := R0(R1)
+   3: GETGLOBAL	R1 K0              ; R1 := require
+   4: LOADK	R2 K2                  ; R2 := "luci.http.protocol"
+   5: CALL	R1 2 2                  ; R1 := R1(R2)
+   6: GETGLOBAL	R2 K0              ; R2 := require
+   7: LOADK	R3 K3                  ; R3 := "luci.util"
+   8: CALL	R2 2 2                  ; R2 := R2(R3)
+   9: GETGLOBAL	R3 K0              ; R3 := require
+  10: LOADK	R4 K4                  ; R4 := "string"
+  11: CALL	R3 2 2                  ; R3 := R3(R4)
+  12: GETGLOBAL	R4 K0              ; R4 := require
+  13: LOADK	R5 K5                  ; R5 := "coroutine"
+  14: CALL	R4 2 2                  ; R4 := R4(R5)
+  15: GETGLOBAL	R5 K0              ; R5 := require
+  16: LOADK	R6 K6                  ; R6 := "table"
+  17: CALL	R5 2 2                  ; R5 := R5(R6)
+  18: GETGLOBAL	R6 K0              ; R6 := require
+  19: LOADK	R7 K7                  ; R7 := "xiaoqiang.util.XQSecureUtil"
+  20: CALL	R6 2 2                  ; R6 := R6(R7)
+  21: GETGLOBAL	R7 K0              ; R7 := require
+  22: LOADK	R8 K8                  ; R8 := "xiaoqiang.util.XQParam"
+  23: CALL	R7 2 2                  ; R7 := R7(R8)
+  24: GETGLOBAL	R8 K0              ; R8 := require
+  25: LOADK	R9 K9                  ; R9 := "xiaoqiang.XQLog"
+  26: CALL	R8 2 2                  ; R8 := R8(R9)
+  27: GETGLOBAL	R9 K10             ; R9 := ipairs
+  28: GETGLOBAL	R10 K11            ; R10 := pairs
+  29: GETGLOBAL	R11 K12            ; R11 := next
+  30: GETGLOBAL	R12 K13            ; R12 := type
+  31: GETGLOBAL	R13 K14            ; R13 := tostring
+  32: GETGLOBAL	R14 K15            ; R14 := error
+  33: GETGLOBAL	R15 K16            ; R15 := module
+  34: LOADK	R16 K17                ; R16 := "luci.http"
+  35: GETGLOBAL	R17 K18            ; R17 := package
+  36: GETTABLE	R17 R17 K19         ; R17 := R17["seeall"]
+  37: CALL	R15 3 1                 ; R15(R16, R17)
+  38: GETTABLE	R15 R2 K21          ; R15 := R2["threadlocal"]
+  39: CALL	R15 1 2                 ; R15 := R15()
+  40: SETGLOBAL	R15 K20            ; context := R15
+  41: GETTABLE	R15 R2 K23          ; R15 := R2["class"]
+  42: CALL	R15 1 2                 ; R15 := R15()
+  43: SETGLOBAL	R15 K22            ; Request := R15
+  44: GETGLOBAL	R15 K22            ; R15 := Request
+  45: CLOSURE	R16 0                ; R16 := closure(0)
+  46: MOVE	R0 R1                   ; R0 := R1
+  47: SETTABLE	R15 K24 R16         ; R15["__init__"] := R16
+  48: GETGLOBAL	R15 K22            ; R15 := Request
+  49: CLOSURE	R16 1                ; R16 := closure(1)
+  50: SETTABLE	R15 K25 R16         ; R15["formvalue"] := R16
+  51: GETGLOBAL	R15 K22            ; R15 := Request
+  52: CLOSURE	R16 2                ; R16 := closure(2)
+  53: MOVE	R0 R10                  ; R0 := R10
+  54: MOVE	R0 R13                  ; R0 := R13
+  55: SETTABLE	R15 K26 R16         ; R15["formvaluetable"] := R16
+  56: GETGLOBAL	R15 K22            ; R15 := Request
+  57: CLOSURE	R16 3                ; R16 := closure(3)
+  58: SETTABLE	R15 K27 R16         ; R15["content"] := R16
+  59: GETGLOBAL	R15 K22            ; R15 := Request
+  60: CLOSURE	R16 4                ; R16 := closure(4)
+  61: MOVE	R0 R3                   ; R0 := R3
+  62: SETTABLE	R15 K28 R16         ; R15["getcookie"] := R16
+  63: GETGLOBAL	R15 K22            ; R15 := Request
+  64: CLOSURE	R16 5                ; R16 := closure(5)
+  65: SETTABLE	R15 K29 R16         ; R15["getenv"] := R16
+  66: GETGLOBAL	R15 K22            ; R15 := Request
+  67: CLOSURE	R16 6                ; R16 := closure(6)
+  68: SETTABLE	R15 K30 R16         ; R15["setfilehandler"] := R16
+  69: GETGLOBAL	R15 K22            ; R15 := Request
+  70: CLOSURE	R16 7                ; R16 := closure(7)
+  71: MOVE	R0 R1                   ; R0 := R1
+  72: SETTABLE	R15 K31 R16         ; R15["_parse_input"] := R16
+  73: CLOSURE	R15 8                ; R15 := closure(8)
+  74: MOVE	R0 R4                   ; R0 := R4
+  75: SETGLOBAL	R15 K32            ; close := R15
+  76: CLOSURE	R15 9                ; R15 := closure(9)
+  77: SETGLOBAL	R15 K27            ; content := R15
+  78: CLOSURE	R15 10               ; R15 := closure(10)
+  79: SETGLOBAL	R15 K33            ; formvalue_unsafe := R15
+  80: CLOSURE	R15 11               ; R15 := closure(11)
+  81: MOVE	R0 R7                   ; R0 := R7
+  82: MOVE	R0 R8                   ; R0 := R8
+  83: MOVE	R0 R6                   ; R0 := R6
+  84: SETGLOBAL	R15 K25            ; formvalue := R15
+  85: CLOSURE	R15 12               ; R15 := closure(12)
+  86: MOVE	R0 R6                   ; R0 := R6
+  87: SETGLOBAL	R15 K34            ; xqformvalue := R15
+  88: CLOSURE	R15 13               ; R15 := closure(13)
+  89: SETGLOBAL	R15 K26            ; formvaluetable := R15
+  90: CLOSURE	R15 14               ; R15 := closure(14)
+  91: SETGLOBAL	R15 K28            ; getcookie := R15
+  92: CLOSURE	R15 15               ; R15 := closure(15)
+  93: SETGLOBAL	R15 K29            ; getenv := R15
+  94: CLOSURE	R15 16               ; R15 := closure(16)
+  95: SETGLOBAL	R15 K30            ; setfilehandler := R15
+  96: CLOSURE	R15 17               ; R15 := closure(17)
+  97: MOVE	R0 R4                   ; R0 := R4
+  98: SETGLOBAL	R15 K35            ; header := R15
+  99: CLOSURE	R15 18               ; R15 := closure(18)
+ 100: SETGLOBAL	R15 K36            ; prepare_content := R15
+ 101: CLOSURE	R15 19               ; R15 := closure(19)
+ 102: SETGLOBAL	R15 K37            ; source := R15
+ 103: CLOSURE	R15 20               ; R15 := closure(20)
+ 104: MOVE	R0 R4                   ; R0 := R4
+ 105: SETGLOBAL	R15 K38            ; status := R15
+ 106: CLOSURE	R15 21               ; R15 := closure(21)
+ 107: MOVE	R0 R14                  ; R0 := R14
+ 108: MOVE	R0 R13                  ; R0 := R13
+ 109: MOVE	R0 R3                   ; R0 := R3
+ 110: MOVE	R0 R4                   ; R0 := R4
+ 111: SETGLOBAL	R15 K39            ; write := R15
+ 112: CLOSURE	R15 22               ; R15 := closure(22)
+ 113: MOVE	R0 R13                  ; R0 := R13
+ 114: MOVE	R0 R4                   ; R0 := R4
+ 115: SETGLOBAL	R15 K40            ; write_file := R15
+ 116: CLOSURE	R15 23               ; R15 := closure(23)
+ 117: MOVE	R0 R4                   ; R0 := R4
+ 118: SETGLOBAL	R15 K41            ; splice := R15
+ 119: CLOSURE	R15 24               ; R15 := closure(24)
+ 120: SETGLOBAL	R15 K42            ; redirect := R15
+ 121: CLOSURE	R15 25               ; R15 := closure(25)
+ 122: MOVE	R0 R10                  ; R0 := R10
+ 123: MOVE	R0 R5                   ; R0 := R5
+ 124: SETGLOBAL	R15 K43            ; build_querystring := R15
+ 125: GETTABLE	R15 R1 K44          ; R15 := R1["urldecode"]
+ 126: SETGLOBAL	R15 K44            ; urldecode := R15
+ 127: GETTABLE	R15 R1 K45          ; R15 := R1["urlencode"]
+ 128: SETGLOBAL	R15 K45            ; urlencode := R15
+ 129: CLOSURE	R15 26               ; R15 := closure(26)
+ 130: MOVE	R0 R12                  ; R0 := R12
+ 131: MOVE	R0 R13                  ; R0 := R13
+ 132: SETGLOBAL	R15 K46            ; writeJsonNoLog := R15
+ 133: CLOSURE	R15 27               ; R15 := closure(27)
+ 134: SETGLOBAL	R15 K47            ; write_json := R15
+ 135: CLOSURE	R15 28               ; R15 := closure(28)
+ 136: MOVE	R0 R12                  ; R0 := R12
+ 137: MOVE	R0 R13                  ; R0 := R13
+ 138: SETGLOBAL	R15 K48            ; write_jsonp := R15
+ 139: RETURN	R0 1                  ; return
 
 -- SubChunks:
 
 -- SubChunk 1:
 -- SubChunk: lineDefined=43, lastLineDefined=59, numParams=4, isVararg=0, maxStackSize=7
 
+-- Raw Instructions:
+-- pc=00 raw=0x80008011 opcodeNum=17 A=0 B=256 C=2 Bx=131074 sBx=3
+-- pc=01 raw=0x8080C011 opcodeNum=17 A=0 B=257 C=3 Bx=131587 sBx=516
+-- pc=02 raw=0x00000101 opcodeNum=1 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=03 raw=0x81010011 opcodeNum=17 A=0 B=258 C=4 Bx=132100 sBx=1029
+-- pc=04 raw=0x0000C11C opcodeNum=28 A=4 B=0 C=3 Bx=3 sBx=-131068
+-- pc=05 raw=0x82004111 opcodeNum=17 A=4 B=260 C=1 Bx=133121 sBx=2050
+-- pc=06 raw=0x0000015C opcodeNum=28 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x82814111 opcodeNum=17 A=4 B=261 C=5 Bx=133637 sBx=2566
+-- pc=08 raw=0x00000152 opcodeNum=18 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=09 raw=0x02C1C15B opcodeNum=27 A=5 B=5 C=263 Bx=2823 sBx=-128248
+-- pc=10 raw=0x00C2019B opcodeNum=27 A=6 B=1 C=264 Bx=776 sBx=-130295
+-- pc=11 raw=0x00004189 opcodeNum=9 A=6 B=0 C=1 Bx=1 sBx=-131070
+-- pc=12 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=13 raw=0x00024186 opcodeNum=6 A=6 B=0 C=9 Bx=9 sBx=-131062
+-- pc=14 raw=0x01008150 opcodeNum=16 A=5 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=15 raw=0x83014111 opcodeNum=17 A=4 B=262 C=5 Bx=134149 sBx=3078
+-- pc=16 raw=0x81810011 opcodeNum=17 A=0 B=259 C=4 Bx=132612 sBx=1541
+-- pc=17 raw=0x8542C011 opcodeNum=17 A=0 B=266 C=267 Bx=136459 sBx=5388
+-- pc=18 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: SETTABLE	R0 RK256 R2    ; R0["input"] := R2
-   1: SETTABLE	R0 RK257 R3    ; R0["error"] := R3
-   2: CLOSURE	R4 0            ; R4 := closure(0)
-   3: SETTABLE	R0 RK258 R4    ; R0["filehandler"] := R4
-   4: NEWTABLE	R4             ; R4 := {}
-   5: SETTABLE	R4 RK260 R1    ; R4["env"] := R1
-   6: NEWTABLE	R5             ; R5 := {}
-   7: SETTABLE	R4 RK261 R5    ; R4["headers"] := R5
-   8: GETUPVAL	R5 0           ; R5 := UpValue[0]
-   9: GETTABLE	R5 R5 RK263    ; R5 := R5["urldecode_params"]
-  10: GETTABLE	R6 R1 RK264    ; R6 := R1["QUERY_STRING"]
-  11: TEST	R6 1 0             ; if not R6 then goto 0
-  12: JMP	1                   ; goto 1
-  13: LOADK	R6 K9             ; R6 := ""
-  14: CALL	R5 2 2             ; R5 := R5(...) -- b=2, c=2
-  15: SETTABLE	R4 RK262 R5    ; R4["params"] := R5
-  16: SETTABLE	R0 RK259 R4    ; R0["message"] := R4
-  17: SETTABLE	R0 RK266 R267  ; R0["parsed_input"] := false
-  18: RETURN	R0 1             ; return R0
+   0: SETTABLE	R0 K0 R2            ; R0["input"] := R2
+   1: SETTABLE	R0 K1 R3            ; R0["error"] := R3
+   2: CLOSURE	R4 0                 ; R4 := closure(0)
+   3: SETTABLE	R0 K2 R4            ; R0["filehandler"] := R4
+   4: NEWTABLE	R4 0 3              ; R4 := {} (size = 0,3)
+   5: SETTABLE	R4 K4 R1            ; R4["env"] := R1
+   6: NEWTABLE	R5 0 0              ; R5 := {} (size = 0,0)
+   7: SETTABLE	R4 K5 R5            ; R4["headers"] := R5
+   8: GETUPVAL	R5 0                ; R5 := UpValue[0]
+   9: GETTABLE	R5 R5 K7            ; R5 := R5["urldecode_params"]
+  10: GETTABLE	R6 R1 K8            ; R6 := R1["QUERY_STRING"]
+  11: TEST	R6 1                    ; if R6 then goto 14
+  12: JMP	1                        ; goto 14
+  13: LOADK	R6 K9                  ; R6 := ""
+  14: CALL	R5 2 2                  ; R5 := R5(R6)
+  15: SETTABLE	R4 K6 R5            ; R4["params"] := R5
+  16: SETTABLE	R0 K3 R4            ; R0["message"] := R4
+  17: SETTABLE	R0 K10 K11          ; R0["parsed_input"] := false
+  18: RETURN	R0 1                  ; return
 
 -- SubChunks:
 
 -- SubChunk 1:
 -- SubChunk: lineDefined=49, lastLineDefined=49, numParams=0, isVararg=0, maxStackSize=2
 
+-- Raw Instructions:
+-- pc=00 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: RETURN	R0 1             ; return R0
+   0: RETURN	R0 1                  ; return
 
 
 -- SubChunk 2:
 -- SubChunk: lineDefined=61, lastLineDefined=71, numParams=3, isVararg=0, maxStackSize=5
 
+-- Raw Instructions:
+-- pc=00 raw=0x00004089 opcodeNum=9 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=01 raw=0x8001001F opcodeNum=31 A=0 B=256 C=4 Bx=131076 sBx=5
+-- pc=02 raw=0x004000DB opcodeNum=27 A=3 B=0 C=256 Bx=256 sBx=-130815
+-- pc=03 raw=0x000040C9 opcodeNum=9 A=3 B=0 C=1 Bx=1 sBx=-131070
+-- pc=04 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=05 raw=0x004040CF opcodeNum=15 A=3 B=0 C=257 Bx=257 sBx=-130814
+-- pc=06 raw=0x010040D0 opcodeNum=16 A=3 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=07 raw=0x00000049 opcodeNum=9 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=08 raw=0x8001001F opcodeNum=31 A=0 B=256 C=4 Bx=131076 sBx=5
+-- pc=09 raw=0x004080DB opcodeNum=27 A=3 B=0 C=258 Bx=258 sBx=-130813
+-- pc=10 raw=0x01C0C0DB opcodeNum=27 A=3 B=3 C=259 Bx=1795 sBx=-129276
+-- pc=11 raw=0x018040DB opcodeNum=27 A=3 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=12 raw=0x010000C8 opcodeNum=8 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=13 raw=0x8000801F opcodeNum=31 A=0 B=256 C=2 Bx=131074 sBx=3
+-- pc=14 raw=0x004080DB opcodeNum=27 A=3 B=0 C=258 Bx=258 sBx=-130813
+-- pc=15 raw=0x01C0C0DB opcodeNum=27 A=3 B=3 C=259 Bx=1795 sBx=-129276
+-- pc=16 raw=0x010000C8 opcodeNum=8 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=17 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: TEST	R2 1 0             ; if not R2 then goto 0
-   1: JMP	5                   ; goto 5
-   2: GETTABLE	R3 R0 RK256    ; R3 := R0["parsed_input"]
-   3: TEST	R3 1 0             ; if not R3 then goto 0
-   4: JMP	2                   ; goto 2
-   5: SELF	R3 R0 R257         ; R3, R4 := R0, R257
-   6: CALL	R3 2 1             ; R3 := R3(...) -- b=2, c=1
-   7: TEST	R1 0 0             ; if  R1 then goto 0
-   8: JMP	5                   ; goto 5
-   9: GETTABLE	R3 R0 RK258    ; R3 := R0["message"]
-  10: GETTABLE	R3 R3 RK259    ; R3 := R3["params"]
-  11: GETTABLE	R3 R3 RK1      ; R3 := R3[R1]
-  12: RETURN	R3 2             ; return R3, R4
-  13: JMP	3                   ; goto 3
-  14: GETTABLE	R3 R0 RK258    ; R3 := R0["message"]
-  15: GETTABLE	R3 R3 RK259    ; R3 := R3["params"]
-  16: RETURN	R3 2             ; return R3, R4
-  17: RETURN	R0 1             ; return R0
+   0: TEST	R2 1                    ; if R2 then goto 7
+   1: JMP	5                        ; goto 7
+   2: GETTABLE	R3 R0 K0            ; R3 := R0["parsed_input"]
+   3: TEST	R3 1                    ; if R3 then goto 7
+   4: JMP	2                        ; goto 7
+   5: SELF	R3 R0 K1                ; R4 := R0; R3 := R0["_parse_input"]
+   6: CALL	R3 2 1                  ; R3(R4)
+   7: TEST	R1 0                    ; if not R1 then goto 14
+   8: JMP	5                        ; goto 14
+   9: GETTABLE	R3 R0 K2            ; R3 := R0["message"]
+  10: GETTABLE	R3 R3 K3            ; R3 := R3["params"]
+  11: GETTABLE	R3 R3 R1            ; R3 := R3[R1]
+  12: RETURN	R3 2                  ; return R3
+  13: JMP	3                        ; goto 17
+  14: GETTABLE	R3 R0 K2            ; R3 := R0["message"]
+  15: GETTABLE	R3 R3 K3            ; R3 := R3["params"]
+  16: RETURN	R3 2                  ; return R3
+  17: RETURN	R0 1                  ; return
 
 -- SubChunk 3:
 -- SubChunk: lineDefined=73, lastLineDefined=89, numParams=2, isVararg=0, maxStackSize=14
 
+-- Raw Instructions:
+-- pc=00 raw=0x0000009C opcodeNum=28 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00000049 opcodeNum=9 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=02 raw=0x8001001F opcodeNum=31 A=0 B=256 C=4 Bx=131076 sBx=5
+-- pc=03 raw=0x008000E4 opcodeNum=36 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=04 raw=0x00000106 opcodeNum=6 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=05 raw=0x018100D5 opcodeNum=21 A=3 B=3 C=4 Bx=1540 sBx=-129531
+-- pc=06 raw=0x01804063 opcodeNum=35 A=1 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=07 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=08 raw=0x00000046 opcodeNum=6 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=09 raw=0x004040DB opcodeNum=27 A=3 B=0 C=257 Bx=257 sBx=-130814
+-- pc=10 raw=0x000040C9 opcodeNum=9 A=3 B=0 C=1 Bx=1 sBx=-131070
+-- pc=11 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=12 raw=0x004080CF opcodeNum=15 A=3 B=0 C=258 Bx=258 sBx=-130813
+-- pc=13 raw=0x010040D0 opcodeNum=16 A=3 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=14 raw=0x0040C0DB opcodeNum=27 A=3 B=0 C=259 Bx=259 sBx=-130812
+-- pc=15 raw=0x01C100DB opcodeNum=27 A=3 B=3 C=260 Bx=1796 sBx=-129275
+-- pc=16 raw=0x01C140DB opcodeNum=27 A=3 B=3 C=261 Bx=1797 sBx=-129274
+-- pc=17 raw=0x00000112 opcodeNum=18 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=18 raw=0x0040C15B opcodeNum=27 A=5 B=0 C=259 Bx=259 sBx=-130812
+-- pc=19 raw=0x02C1015B opcodeNum=27 A=5 B=5 C=260 Bx=2820 sBx=-128251
+-- pc=20 raw=0x01010110 opcodeNum=16 A=4 B=2 C=4 Bx=1028 sBx=-130043
+-- pc=21 raw=0x8003801F opcodeNum=31 A=0 B=256 C=14 Bx=131086 sBx=15
+-- pc=22 raw=0x03C1824F opcodeNum=15 A=9 B=7 C=262 Bx=3846 sBx=-127225
+-- pc=23 raw=0x008002E4 opcodeNum=36 A=11 B=1 C=0 Bx=512 sBx=-130559
+-- pc=24 raw=0x0001C306 opcodeNum=6 A=12 B=0 C=7 Bx=7 sBx=-131064
+-- pc=25 raw=0x00800358 opcodeNum=24 A=13 B=1 C=0 Bx=512 sBx=-130559
+-- pc=26 raw=0x02808250 opcodeNum=16 A=9 B=5 C=2 Bx=2562 sBx=-128509
+-- pc=27 raw=0x04C1C013 opcodeNum=19 A=0 B=9 C=263 Bx=4871 sBx=-126200
+-- pc=28 raw=0x8001C01F opcodeNum=31 A=0 B=256 C=7 Bx=131079 sBx=8
+-- pc=29 raw=0x03C2024F opcodeNum=15 A=9 B=7 C=264 Bx=3848 sBx=-127223
+-- pc=30 raw=0x008042C2 opcodeNum=2 A=11 B=1 C=1 Bx=513 sBx=-130558
+-- pc=31 raw=0x05C1C2E5 opcodeNum=37 A=11 B=11 C=263 Bx=5895 sBx=-125176
+-- pc=32 raw=0x01808250 opcodeNum=16 A=9 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=33 raw=0x00800292 opcodeNum=18 A=10 B=1 C=0 Bx=512 sBx=-130559
+-- pc=34 raw=0x040002E4 opcodeNum=36 A=11 B=8 C=0 Bx=4096 sBx=-126975
+-- pc=35 raw=0x01008290 opcodeNum=16 A=10 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=36 raw=0x04828091 opcodeNum=17 A=2 B=9 C=10 Bx=4618 sBx=-126453
+-- pc=37 raw=0x0000810A opcodeNum=10 A=4 B=0 C=2 Bx=2 sBx=-131069
+-- pc=38 raw=0x7FFB801F opcodeNum=31 A=0 B=255 C=494 Bx=131054 sBx=-17
+-- pc=39 raw=0x01000088 opcodeNum=8 A=2 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=40 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: NEWTABLE	R2             ; R2 := {}
-   1: TEST	R1 0 0             ; if  R1 then goto 0
-   2: JMP	5                   ; goto 5
-   3: MOVE	R3 R1              ; R3 := R1
-   4: LOADK	R4 K0             ; R4 := "."
-   5: CONCAT	R3 R3 R4         ; R3 := R3 .. R4
-   6: TESTSET	R1 R1 3 0       ; if R1 == true then R1 := R1; goto 0
-   7: JMP	1                   ; goto 1
-   8: LOADK	R1 K0             ; R1 := "."
-   9: GETTABLE	R3 R0 RK257    ; R3 := R0["parsed_input"]
-  10: TEST	R3 1 0             ; if not R3 then goto 0
-  11: JMP	2                   ; goto 2
-  12: SELF	R3 R0 R258         ; R3, R4 := R0, R258
-  13: CALL	R3 2 1             ; R3 := R3(...) -- b=2, c=1
-  14: GETTABLE	R3 R0 RK259    ; R3 := R0["message"]
-  15: GETTABLE	R3 R3 RK260    ; R3 := R3["params"]
-  16: GETTABLE	R3 R3 RK261    ; R3 := R3[nil]
-  17: GETUPVAL	R4 0           ; R4 := UpValue[0]
-  18: GETTABLE	R5 R0 RK259    ; R5 := R0["message"]
-  19: GETTABLE	R5 R5 RK260    ; R5 := R5["params"]
-  20: CALL	R4 2 4             ; R4 := R4(...) -- b=2, c=4
-  21: JMP	15                  ; goto 15
-  22: SELF	R9 R7 R262         ; R9, R10 := R7, R262
-  23: MOVE	R11 R1             ; R11 := R1
-  24: LOADK	R12 K7            ; R12 := 1
-  25: LOADBOOL	R13 1 0        ; R13 := true
-  26: CALL	R9 5 2             ; R9 := R9(...) -- b=5, c=2
-  27: EQ	R9 R263 0            ; if R9 == 1 then goto 0
-  28: JMP	8                   ; goto 8
-  29: SELF	R9 R7 R264         ; R9, R10 := R7, R264
-  30: LEN	R11 R1              ; R11 := #R1
-  31: ADD	R11 R11 R263        ; R11 := R11 + R263
-  32: CALL	R9 3 2             ; R9 := R9(...) -- b=3, c=2
-  33: GETUPVAL	R10 1          ; R10 := UpValue[1]
-  34: MOVE	R11 R8             ; R11 := R8
-  35: CALL	R10 2 2            ; R10 := R10(...) -- b=2, c=2
-  36: SETTABLE	R2 RK9 R10     ; R2[R9] := R10
-  37: TFORLOOP	R4 0 2         ; tforloop R4, R5 -- b=0, c=2
-  38: JMP	-17                 ; goto -17
-  39: RETURN	R2 2             ; return R2, R3
-  40: RETURN	R0 1             ; return R0
+   0: NEWTABLE	R2 0 0              ; R2 := {} (size = 0,0)
+   1: TEST	R1 0                    ; if not R1 then goto 8
+   2: JMP	5                        ; goto 8
+   3: MOVE	R3 R1                   ; R3 := R1
+   4: LOADK	R4 K0                  ; R4 := "."
+   5: CONCAT	R3 R3 R4              ; R3 := R3 .. R4
+   6: TESTSET	R1 R3 1              ; if R3 then R1 := R3; goto 9
+   7: JMP	1                        ; goto 9
+   8: LOADK	R1 K0                  ; R1 := "."
+   9: GETTABLE	R3 R0 K1            ; R3 := R0["parsed_input"]
+  10: TEST	R3 1                    ; if R3 then goto 14
+  11: JMP	2                        ; goto 14
+  12: SELF	R3 R0 K2                ; R4 := R0; R3 := R0["_parse_input"]
+  13: CALL	R3 2 1                  ; R3(R4)
+  14: GETTABLE	R3 R0 K3            ; R3 := R0["message"]
+  15: GETTABLE	R3 R3 K4            ; R3 := R3["params"]
+  16: GETTABLE	R3 R3 K5            ; R3 := R3[nil]
+  17: GETUPVAL	R4 0                ; R4 := UpValue[0]
+  18: GETTABLE	R5 R0 K3            ; R5 := R0["message"]
+  19: GETTABLE	R5 R5 K4            ; R5 := R5["params"]
+  20: CALL	R4 2 4                  ; R4, R5, R6 := R4(R5)
+  21: JMP	15                       ; goto 37
+  22: SELF	R9 R7 K6                ; R10 := R7; R9 := R7["find"]
+  23: MOVE	R11 R1                  ; R11 := R1
+  24: LOADK	R12 K7                 ; R12 := 1
+  25: LOADBOOL	R13 1 0             ; R13 := true
+  26: CALL	R9 5 2                  ; R9 := R9(R10, R11, R12, R13)
+  27: EQ	0 R9 K7                   ; if R9 ~= 1 then goto 37
+  28: JMP	8                        ; goto 37
+  29: SELF	R9 R7 K8                ; R10 := R7; R9 := R7["sub"]
+  30: LEN	R11 R1                   ; R11 := #R1
+  31: ADD	R11 R11 K7               ; R11 := R11 + 1
+  32: CALL	R9 3 2                  ; R9 := R9(R10, R11)
+  33: GETUPVAL	R10 1               ; R10 := UpValue[1]
+  34: MOVE	R11 R8                  ; R11 := R8
+  35: CALL	R10 2 2                 ; R10 := R10(R11)
+  36: SETTABLE	R2 R9 R10           ; R2[R9] := R10
+  37: TFORLOOP	R4 0 2              ; R7, ..., R8 := R4(R5, R6); if R7 ~= nil then { R6 := R7; goto 22 }
+  38: JMP	-17                      ; goto 22
+  39: RETURN	R2 2                  ; return R2
+  40: RETURN	R0 1                  ; return
 
 -- SubChunk 4:
 -- SubChunk: lineDefined=91, lastLineDefined=97, numParams=1, isVararg=0, maxStackSize=3
 
+-- Raw Instructions:
+-- pc=00 raw=0x0040005B opcodeNum=27 A=1 B=0 C=256 Bx=256 sBx=-130815
+-- pc=01 raw=0x00004049 opcodeNum=9 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=02 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=03 raw=0x0040404F opcodeNum=15 A=1 B=0 C=257 Bx=257 sBx=-130814
+-- pc=04 raw=0x01004050 opcodeNum=16 A=1 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=05 raw=0x0040805B opcodeNum=27 A=1 B=0 C=258 Bx=258 sBx=-130813
+-- pc=06 raw=0x00C0C05B opcodeNum=27 A=1 B=1 C=259 Bx=771 sBx=-130300
+-- pc=07 raw=0x0040809B opcodeNum=27 A=2 B=0 C=258 Bx=258 sBx=-130813
+-- pc=08 raw=0x0141009B opcodeNum=27 A=2 B=2 C=260 Bx=1284 sBx=-129787
+-- pc=09 raw=0x01800048 opcodeNum=8 A=1 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=10 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETTABLE	R1 R0 RK256    ; R1 := R0["parsed_input"]
-   1: TEST	R1 1 0             ; if not R1 then goto 0
-   2: JMP	2                   ; goto 2
-   3: SELF	R1 R0 R257         ; R1, R2 := R0, R257
-   4: CALL	R1 2 1             ; R1 := R1(...) -- b=2, c=1
-   5: GETTABLE	R1 R0 RK258    ; R1 := R0["message"]
-   6: GETTABLE	R1 R1 RK259    ; R1 := R1["content"]
-   7: GETTABLE	R2 R0 RK258    ; R2 := R0["message"]
-   8: GETTABLE	R2 R2 RK260    ; R2 := R2["content_length"]
-   9: RETURN	R1 3             ; return R1, R2, R3
-  10: RETURN	R0 1             ; return R0
+   0: GETTABLE	R1 R0 K0            ; R1 := R0["parsed_input"]
+   1: TEST	R1 1                    ; if R1 then goto 5
+   2: JMP	2                        ; goto 5
+   3: SELF	R1 R0 K1                ; R2 := R0; R1 := R0["_parse_input"]
+   4: CALL	R1 2 1                  ; R1(R2)
+   5: GETTABLE	R1 R0 K2            ; R1 := R0["message"]
+   6: GETTABLE	R1 R1 K3            ; R1 := R1["content"]
+   7: GETTABLE	R2 R0 K2            ; R2 := R0["message"]
+   8: GETTABLE	R2 R2 K4            ; R2 := R2["content_length"]
+   9: RETURN	R1 3                  ; return R1, R2
+  10: RETURN	R0 1                  ; return
 
 -- SubChunk 5:
 -- SubChunk: lineDefined=99, lastLineDefined=104, numParams=2, isVararg=0, maxStackSize=9
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x0140009B opcodeNum=27 A=2 B=2 C=256 Bx=1280 sBx=-129791
+-- pc=02 raw=0x000040C6 opcodeNum=6 A=3 B=0 C=1 Bx=1 sBx=-131070
+-- pc=03 raw=0x0040810F opcodeNum=15 A=4 B=0 C=258 Bx=258 sBx=-130813
+-- pc=04 raw=0x0000C186 opcodeNum=6 A=6 B=0 C=3 Bx=3 sBx=-131068
+-- pc=05 raw=0x01808110 opcodeNum=16 A=4 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=06 raw=0x00004109 opcodeNum=9 A=4 B=0 C=1 Bx=1 sBx=-131070
+-- pc=07 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=08 raw=0x00010106 opcodeNum=6 A=4 B=0 C=4 Bx=4 sBx=-131067
+-- pc=09 raw=0x00004146 opcodeNum=6 A=5 B=0 C=1 Bx=1 sBx=-131070
+-- pc=10 raw=0x018140D5 opcodeNum=21 A=3 B=3 C=5 Bx=1541 sBx=-129530
+-- pc=11 raw=0x00014106 opcodeNum=6 A=4 B=0 C=5 Bx=5 sBx=-131066
+-- pc=12 raw=0x00004146 opcodeNum=6 A=5 B=0 C=1 Bx=1 sBx=-131070
+-- pc=13 raw=0x02008090 opcodeNum=16 A=2 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=14 raw=0x000040C6 opcodeNum=6 A=3 B=0 C=1 Bx=1 sBx=-131070
+-- pc=15 raw=0x00800124 opcodeNum=36 A=4 B=1 C=0 Bx=512 sBx=-130559
+-- pc=16 raw=0x00018146 opcodeNum=6 A=5 B=0 C=6 Bx=6 sBx=-131065
+-- pc=17 raw=0x018140D5 opcodeNum=21 A=3 B=3 C=5 Bx=1541 sBx=-129530
+-- pc=18 raw=0x0141C10F opcodeNum=15 A=4 B=2 C=263 Bx=1287 sBx=-129784
+-- pc=19 raw=0x018001A4 opcodeNum=36 A=6 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=20 raw=0x01810110 opcodeNum=16 A=4 B=3 C=4 Bx=1540 sBx=-129531
+-- pc=21 raw=0x030001E3 opcodeNum=35 A=7 B=6 C=0 Bx=3072 sBx=-127999
+-- pc=22 raw=0x8000801F opcodeNum=31 A=0 B=256 C=2 Bx=131074 sBx=3
+-- pc=23 raw=0x000201E6 opcodeNum=38 A=7 B=0 C=8 Bx=8 sBx=-131063
+-- pc=24 raw=0x03000224 opcodeNum=36 A=8 B=6 C=0 Bx=3072 sBx=-127999
+-- pc=25 raw=0x010081D0 opcodeNum=16 A=7 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=26 raw=0x010001C8 opcodeNum=8 A=7 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=27 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETUPVAL	R2 0           ; R2 := UpValue[0]
-   1: GETTABLE	R2 R2 RK256    ; R2 := R2["gsub"]
-   2: LOADK	R3 K1             ; R3 := ";"
-   3: SELF	R4 R0 R258         ; R4, R5 := R0, R258
-   4: LOADK	R6 K3             ; R6 := "HTTP_COOKIE"
-   5: CALL	R4 3 2             ; R4 := R4(...) -- b=3, c=2
-   6: TEST	R4 1 0             ; if not R4 then goto 0
-   7: JMP	1                   ; goto 1
-   8: LOADK	R4 K4             ; R4 := ""
-   9: LOADK	R5 K1             ; R5 := ";"
-  10: CONCAT	R3 R3 R5         ; R3 := R3 .. R5
-  11: LOADK	R4 K5             ; R4 := "%s*;%s*"
-  12: LOADK	R5 K1             ; R5 := ";"
-  13: CALL	R2 4 2             ; R2 := R2(...) -- b=4, c=2
-  14: LOADK	R3 K1             ; R3 := ";"
-  15: MOVE	R4 R1              ; R4 := R1
-  16: LOADK	R5 K6             ; R5 := "=(.-);"
-  17: CONCAT	R3 R3 R5         ; R3 := R3 .. R5
-  18: SELF	R4 R2 R263         ; R4, R5 := R2, R263
-  19: MOVE	R6 R3              ; R6 := R3
-  20: CALL	R4 3 4             ; R4 := R4(...) -- b=3, c=4
-  21: TESTSET	R7 R0 6 0       ; if R0 == true then R7 := R0; goto 0
-  22: JMP	3                   ; goto 3
-  23: GETGLOBAL	R7 K8         ; R7 := urldecode
-  24: MOVE	R8 R6              ; R8 := R6
-  25: CALL	R7 2 2             ; R7 := R7(...) -- b=2, c=2
-  26: RETURN	R7 2             ; return R7, R8
-  27: RETURN	R0 1             ; return R0
+   0: GETUPVAL	R2 0                ; R2 := UpValue[0]
+   1: GETTABLE	R2 R2 K0            ; R2 := R2["gsub"]
+   2: LOADK	R3 K1                  ; R3 := ";"
+   3: SELF	R4 R0 K2                ; R5 := R0; R4 := R0["getenv"]
+   4: LOADK	R6 K3                  ; R6 := "HTTP_COOKIE"
+   5: CALL	R4 3 2                  ; R4 := R4(R5, R6)
+   6: TEST	R4 1                    ; if R4 then goto 9
+   7: JMP	1                        ; goto 9
+   8: LOADK	R4 K4                  ; R4 := ""
+   9: LOADK	R5 K1                  ; R5 := ";"
+  10: CONCAT	R3 R3 R5              ; R3 := R3 .. R5
+  11: LOADK	R4 K5                  ; R4 := "%s*;%s*"
+  12: LOADK	R5 K1                  ; R5 := ";"
+  13: CALL	R2 4 2                  ; R2 := R2(R3, R4, R5)
+  14: LOADK	R3 K1                  ; R3 := ";"
+  15: MOVE	R4 R1                   ; R4 := R1
+  16: LOADK	R5 K6                  ; R5 := "=(.-);"
+  17: CONCAT	R3 R3 R5              ; R3 := R3 .. R5
+  18: SELF	R4 R2 K7                ; R5 := R2; R4 := R2["find"]
+  19: MOVE	R6 R3                   ; R6 := R3
+  20: CALL	R4 3 4                  ; R4, R5, R6 := R4(R5, R6)
+  21: TESTSET	R7 R6 0              ; if not R6 then R7 := R6; goto 26
+  22: JMP	3                        ; goto 26
+  23: GETGLOBAL	R7 K8              ; R7 := urldecode
+  24: MOVE	R8 R6                   ; R8 := R6
+  25: CALL	R7 2 2                  ; R7 := R7(R8)
+  26: RETURN	R7 2                  ; return R7
+  27: RETURN	R0 1                  ; return
 
 -- SubChunk 6:
 -- SubChunk: lineDefined=106, lastLineDefined=112, numParams=2, isVararg=0, maxStackSize=3
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000049 opcodeNum=9 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x8001001F opcodeNum=31 A=0 B=256 C=4 Bx=131076 sBx=5
+-- pc=02 raw=0x0040009B opcodeNum=27 A=2 B=0 C=256 Bx=256 sBx=-130815
+-- pc=03 raw=0x0140409B opcodeNum=27 A=2 B=2 C=257 Bx=1281 sBx=-129790
+-- pc=04 raw=0x0100409B opcodeNum=27 A=2 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=05 raw=0x01000088 opcodeNum=8 A=2 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=06 raw=0x8000801F opcodeNum=31 A=0 B=256 C=2 Bx=131074 sBx=3
+-- pc=07 raw=0x0040009B opcodeNum=27 A=2 B=0 C=256 Bx=256 sBx=-130815
+-- pc=08 raw=0x0140409B opcodeNum=27 A=2 B=2 C=257 Bx=1281 sBx=-129790
+-- pc=09 raw=0x01000088 opcodeNum=8 A=2 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=10 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: TEST	R1 0 0             ; if  R1 then goto 0
-   1: JMP	5                   ; goto 5
-   2: GETTABLE	R2 R0 RK256    ; R2 := R0["message"]
-   3: GETTABLE	R2 R2 RK257    ; R2 := R2["env"]
-   4: GETTABLE	R2 R2 RK1      ; R2 := R2[R1]
-   5: RETURN	R2 2             ; return R2, R3
-   6: JMP	3                   ; goto 3
-   7: GETTABLE	R2 R0 RK256    ; R2 := R0["message"]
-   8: GETTABLE	R2 R2 RK257    ; R2 := R2["env"]
-   9: RETURN	R2 2             ; return R2, R3
-  10: RETURN	R0 1             ; return R0
+   0: TEST	R1 0                    ; if not R1 then goto 7
+   1: JMP	5                        ; goto 7
+   2: GETTABLE	R2 R0 K0            ; R2 := R0["message"]
+   3: GETTABLE	R2 R2 K1            ; R2 := R2["env"]
+   4: GETTABLE	R2 R2 R1            ; R2 := R2[R1]
+   5: RETURN	R2 2                  ; return R2
+   6: JMP	3                        ; goto 10
+   7: GETTABLE	R2 R0 K0            ; R2 := R0["message"]
+   8: GETTABLE	R2 R2 K1            ; R2 := R2["env"]
+   9: RETURN	R2 2                  ; return R2
+  10: RETURN	R0 1                  ; return
 
 -- SubChunk 7:
 -- SubChunk: lineDefined=114, lastLineDefined=116, numParams=2, isVararg=0, maxStackSize=2
 
+-- Raw Instructions:
+-- pc=00 raw=0x80004011 opcodeNum=17 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=01 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: SETTABLE	R0 RK256 R1    ; R0["filehandler"] := R1
-   1: RETURN	R0 1             ; return R0
+   0: SETTABLE	R0 K0 R1            ; R0["filehandler"] := R1
+   1: RETURN	R0 1                  ; return
 
 -- SubChunk 8:
 -- SubChunk: lineDefined=118, lastLineDefined=125, numParams=1, isVararg=0, maxStackSize=5
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000052 opcodeNum=18 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00C0005B opcodeNum=27 A=1 B=1 C=256 Bx=768 sBx=-130303
+-- pc=02 raw=0x0040409B opcodeNum=27 A=2 B=0 C=257 Bx=257 sBx=-130814
+-- pc=03 raw=0x004080DB opcodeNum=27 A=3 B=0 C=258 Bx=258 sBx=-130813
+-- pc=04 raw=0x0040C11B opcodeNum=27 A=4 B=0 C=259 Bx=259 sBx=-130812
+-- pc=05 raw=0x02004050 opcodeNum=16 A=1 B=4 C=1 Bx=2049 sBx=-129022
+-- pc=06 raw=0x82414011 opcodeNum=17 A=0 B=260 C=261 Bx=133381 sBx=2310
+-- pc=07 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETUPVAL	R1 0           ; R1 := UpValue[0]
-   1: GETTABLE	R1 R1 RK256    ; R1 := R1["parse_message_body"]
-   2: GETTABLE	R2 R0 RK257    ; R2 := R0["input"]
-   3: GETTABLE	R3 R0 RK258    ; R3 := R0["message"]
-   4: GETTABLE	R4 R0 RK259    ; R4 := R0["filehandler"]
-   5: CALL	R1 4 1             ; R1 := R1(...) -- b=4, c=1
-   6: SETTABLE	R0 RK260 R261  ; R0["parsed_input"] := true
-   7: RETURN	R0 1             ; return R0
+   0: GETUPVAL	R1 0                ; R1 := UpValue[0]
+   1: GETTABLE	R1 R1 K0            ; R1 := R1["parse_message_body"]
+   2: GETTABLE	R2 R0 K1            ; R2 := R0["input"]
+   3: GETTABLE	R3 R0 K2            ; R3 := R0["message"]
+   4: GETTABLE	R4 R0 K3            ; R4 := R0["filehandler"]
+   5: CALL	R1 4 1                  ; R1(R2, R3, R4)
+   6: SETTABLE	R0 K4 K5            ; R0["parsed_input"] := true
+   7: RETURN	R0 1                  ; return
 
 -- SubChunk 9:
 -- SubChunk: lineDefined=128, lastLineDefined=138, numParams=0, isVararg=0, maxStackSize=2
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000026 opcodeNum=38 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x0040401B opcodeNum=27 A=0 B=0 C=257 Bx=257 sBx=-130814
+-- pc=02 raw=0x00004009 opcodeNum=9 A=0 B=0 C=1 Bx=1 sBx=-131070
+-- pc=03 raw=0x8001401F opcodeNum=31 A=0 B=256 C=5 Bx=131077 sBx=6
+-- pc=04 raw=0x00000026 opcodeNum=38 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=05 raw=0x80C08011 opcodeNum=17 A=0 B=257 C=258 Bx=131842 sBx=771
+-- pc=06 raw=0x00000012 opcodeNum=18 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x0040C01B opcodeNum=27 A=0 B=0 C=259 Bx=259 sBx=-130812
+-- pc=08 raw=0x00010046 opcodeNum=6 A=1 B=0 C=4 Bx=4 sBx=-131067
+-- pc=09 raw=0x01004010 opcodeNum=16 A=0 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=10 raw=0x00000026 opcodeNum=38 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=11 raw=0x0041401B opcodeNum=27 A=0 B=0 C=261 Bx=261 sBx=-130810
+-- pc=12 raw=0x00004009 opcodeNum=9 A=0 B=0 C=1 Bx=1 sBx=-131070
+-- pc=13 raw=0x8001401F opcodeNum=31 A=0 B=256 C=5 Bx=131077 sBx=6
+-- pc=14 raw=0x00000026 opcodeNum=38 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=15 raw=0x82C08011 opcodeNum=17 A=0 B=261 C=258 Bx=133890 sBx=2819
+-- pc=16 raw=0x00000012 opcodeNum=18 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=17 raw=0x0040C01B opcodeNum=27 A=0 B=0 C=259 Bx=259 sBx=-130812
+-- pc=18 raw=0x00018046 opcodeNum=6 A=1 B=0 C=6 Bx=6 sBx=-131065
+-- pc=19 raw=0x01004010 opcodeNum=16 A=0 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=20 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETGLOBAL	R0 K0         ; R0 := context
-   1: GETTABLE	R0 R0 RK257    ; R0 := R0["eoh"]
-   2: TEST	R0 1 0             ; if not R0 then goto 0
-   3: JMP	6                   ; goto 6
-   4: GETGLOBAL	R0 K0         ; R0 := context
-   5: SETTABLE	R0 RK257 R258  ; R0["eoh"] := true
-   6: GETUPVAL	R0 0           ; R0 := UpValue[0]
-   7: GETTABLE	R0 R0 RK259    ; R0 := R0["yield"]
-   8: LOADK	R1 K4             ; R1 := 3
-   9: CALL	R0 2 1             ; R0 := R0(...) -- b=2, c=1
-  10: GETGLOBAL	R0 K0         ; R0 := context
-  11: GETTABLE	R0 R0 RK261    ; R0 := R0["closed"]
-  12: TEST	R0 1 0             ; if not R0 then goto 0
-  13: JMP	6                   ; goto 6
-  14: GETGLOBAL	R0 K0         ; R0 := context
-  15: SETTABLE	R0 RK261 R258  ; R0["closed"] := true
-  16: GETUPVAL	R0 0           ; R0 := UpValue[0]
-  17: GETTABLE	R0 R0 RK259    ; R0 := R0["yield"]
-  18: LOADK	R1 K6             ; R1 := 5
-  19: CALL	R0 2 1             ; R0 := R0(...) -- b=2, c=1
-  20: RETURN	R0 1             ; return R0
+   0: GETGLOBAL	R0 K0              ; R0 := context
+   1: GETTABLE	R0 R0 K1            ; R0 := R0["eoh"]
+   2: TEST	R0 1                    ; if R0 then goto 10
+   3: JMP	6                        ; goto 10
+   4: GETGLOBAL	R0 K0              ; R0 := context
+   5: SETTABLE	R0 K1 K2            ; R0["eoh"] := true
+   6: GETUPVAL	R0 0                ; R0 := UpValue[0]
+   7: GETTABLE	R0 R0 K3            ; R0 := R0["yield"]
+   8: LOADK	R1 K4                  ; R1 := 3
+   9: CALL	R0 2 1                  ; R0(R1)
+  10: GETGLOBAL	R0 K0              ; R0 := context
+  11: GETTABLE	R0 R0 K5            ; R0 := R0["closed"]
+  12: TEST	R0 1                    ; if R0 then goto 20
+  13: JMP	6                        ; goto 20
+  14: GETGLOBAL	R0 K0              ; R0 := context
+  15: SETTABLE	R0 K5 K2            ; R0["closed"] := true
+  16: GETUPVAL	R0 0                ; R0 := UpValue[0]
+  17: GETTABLE	R0 R0 K3            ; R0 := R0["yield"]
+  18: LOADK	R1 K6                  ; R1 := 5
+  19: CALL	R0 2 1                  ; R0(R1)
+  20: RETURN	R0 1                  ; return
 
 -- SubChunk 10:
 -- SubChunk: lineDefined=143, lastLineDefined=145, numParams=0, isVararg=0, maxStackSize=2
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000026 opcodeNum=38 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x0040401B opcodeNum=27 A=0 B=0 C=257 Bx=257 sBx=-130814
+-- pc=02 raw=0x0040800F opcodeNum=15 A=0 B=0 C=258 Bx=258 sBx=-130813
+-- pc=03 raw=0x0100000D opcodeNum=13 A=0 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=04 raw=0x00000008 opcodeNum=8 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=05 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETGLOBAL	R0 K0         ; R0 := context
-   1: GETTABLE	R0 R0 RK257    ; R0 := R0["request"]
-   2: SELF	R0 R0 R258         ; R0, R1 := R0, R258
-   3: TAILCALL	R0 2 0         ; tailcall R0(...) -- b=2, c=0
-   4: RETURN	R0 0             ; return
-   5: RETURN	R0 1             ; return R0
+   0: GETGLOBAL	R0 K0              ; R0 := context
+   1: GETTABLE	R0 R0 K1            ; R0 := R0["request"]
+   2: SELF	R0 R0 K2                ; R1 := R0; R0 := R0["content"]
+   3: TAILCALL	R0 2 0              ; return R0(R1)
+   4: RETURN	R0 0                  ; return R0...
+   5: RETURN	R0 1                  ; return
 
 -- SubChunk 11:
 -- SubChunk: lineDefined=151, lastLineDefined=153, numParams=2, isVararg=0, maxStackSize=6
 
+-- Raw Instructions:
+-- pc=00 raw=0x000000A6 opcodeNum=38 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x0140409B opcodeNum=27 A=2 B=2 C=257 Bx=1281 sBx=-129790
+-- pc=02 raw=0x0140808F opcodeNum=15 A=2 B=2 C=258 Bx=1282 sBx=-129789
+-- pc=03 raw=0x00000124 opcodeNum=36 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x00800164 opcodeNum=36 A=5 B=1 C=0 Bx=512 sBx=-130559
+-- pc=05 raw=0x0200008D opcodeNum=13 A=2 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=06 raw=0x00000088 opcodeNum=8 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETGLOBAL	R2 K0         ; R2 := context
-   1: GETTABLE	R2 R2 RK257    ; R2 := R2["request"]
-   2: SELF	R2 R2 R258         ; R2, R3 := R2, R258
-   3: MOVE	R4 R0              ; R4 := R0
-   4: MOVE	R5 R1              ; R5 := R1
-   5: TAILCALL	R2 4 0         ; tailcall R2(...) -- b=4, c=0
-   6: RETURN	R2 0             ; return
-   7: RETURN	R0 1             ; return R0
+   0: GETGLOBAL	R2 K0              ; R2 := context
+   1: GETTABLE	R2 R2 K1            ; R2 := R2["request"]
+   2: SELF	R2 R2 K2                ; R3 := R2; R2 := R2["formvalue"]
+   3: MOVE	R4 R0                   ; R4 := R0
+   4: MOVE	R5 R1                   ; R5 := R1
+   5: TAILCALL	R2 4 0              ; return R2(R3, R4, R5)
+   6: RETURN	R2 0                  ; return R2...
+   7: RETURN	R0 1                  ; return
 
 -- SubChunk 12:
 -- SubChunk: lineDefined=160, lastLineDefined=172, numParams=3, isVararg=0, maxStackSize=9
 
+-- Raw Instructions:
+-- pc=00 raw=0x000000E6 opcodeNum=38 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x01C040DB opcodeNum=27 A=3 B=3 C=257 Bx=1793 sBx=-129278
+-- pc=02 raw=0x01C080CF opcodeNum=15 A=3 B=3 C=258 Bx=1794 sBx=-129277
+-- pc=03 raw=0x00000164 opcodeNum=36 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x008001A4 opcodeNum=36 A=6 B=1 C=0 Bx=512 sBx=-130559
+-- pc=05 raw=0x020080D0 opcodeNum=16 A=3 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=06 raw=0x00000089 opcodeNum=9 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x8004801F opcodeNum=31 A=0 B=256 C=18 Bx=131090 sBx=19
+-- pc=08 raw=0x00000112 opcodeNum=18 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=09 raw=0x0240C11B opcodeNum=27 A=4 B=4 C=259 Bx=2307 sBx=-128764
+-- pc=10 raw=0x01800164 opcodeNum=36 A=5 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=11 raw=0x010001A4 opcodeNum=36 A=6 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=12 raw=0x01808110 opcodeNum=16 A=4 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=13 raw=0x02410013 opcodeNum=19 A=0 B=4 C=260 Bx=2308 sBx=-128763
+-- pc=14 raw=0x8002401F opcodeNum=31 A=0 B=256 C=9 Bx=131081 sBx=10
+-- pc=15 raw=0x00800112 opcodeNum=18 A=4 B=1 C=0 Bx=512 sBx=-130559
+-- pc=16 raw=0x0241411B opcodeNum=27 A=4 B=4 C=261 Bx=2309 sBx=-128762
+-- pc=17 raw=0x00018146 opcodeNum=6 A=5 B=0 C=6 Bx=6 sBx=-131065
+-- pc=18 raw=0x0001C186 opcodeNum=6 A=6 B=0 C=7 Bx=7 sBx=-131064
+-- pc=19 raw=0x000001E4 opcodeNum=36 A=7 B=0 C=0 Bx=0 sBx=-131071
+-- pc=20 raw=0x00020206 opcodeNum=6 A=8 B=0 C=8 Bx=8 sBx=-131063
+-- pc=21 raw=0x03020195 opcodeNum=21 A=6 B=6 C=8 Bx=3080 sBx=-127991
+-- pc=22 raw=0x018001E4 opcodeNum=36 A=7 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=23 raw=0x02004110 opcodeNum=16 A=4 B=4 C=1 Bx=2049 sBx=-129022
+-- pc=24 raw=0x018000E9 opcodeNum=41 A=3 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=25 raw=0x010000C8 opcodeNum=8 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=26 raw=0x8001401F opcodeNum=31 A=0 B=256 C=5 Bx=131077 sBx=6
+-- pc=27 raw=0x01000112 opcodeNum=18 A=4 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=28 raw=0x0242411B opcodeNum=27 A=4 B=4 C=265 Bx=2313 sBx=-128758
+-- pc=29 raw=0x00000164 opcodeNum=36 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=30 raw=0x018001A4 opcodeNum=36 A=6 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=31 raw=0x0180010D opcodeNum=13 A=4 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=32 raw=0x00000108 opcodeNum=8 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=33 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETGLOBAL	R3 K0         ; R3 := context
-   1: GETTABLE	R3 R3 RK257    ; R3 := R3["request"]
-   2: SELF	R3 R3 R258         ; R3, R4 := R3, R258
-   3: MOVE	R5 R0              ; R5 := R0
-   4: MOVE	R6 R1              ; R6 := R1
-   5: CALL	R3 4 2             ; R3 := R3(...) -- b=4, c=2
-   6: TEST	R2 0 0             ; if  R2 then goto 0
-   7: JMP	19                  ; goto 19
-   8: GETUPVAL	R4 0           ; R4 := UpValue[0]
-   9: GETTABLE	R4 R4 RK259    ; R4 := R4["verify"]
-  10: MOVE	R5 R3              ; R5 := R3
-  11: MOVE	R6 R2              ; R6 := R2
-  12: CALL	R4 3 2             ; R4 := R4(...) -- b=3, c=2
-  13: EQ	R4 R260 0            ; if R4 == false then goto 0
-  14: JMP	10                  ; goto 10
-  15: GETUPVAL	R4 1           ; R4 := UpValue[1]
-  16: GETTABLE	R4 R4 RK261    ; R4 := R4["log"]
-  17: LOADK	R5 K6             ; R5 := 3
-  18: LOADK	R6 K7             ; R6 := "verify false key:"
-  19: MOVE	R7 R0              ; R7 := R0
-  20: LOADK	R8 K8             ; R8 := " val:"
-  21: CONCAT	R6 R6 R8         ; R6 := R6 .. R8
-  22: MOVE	R7 R3              ; R7 := R3
-  23: CALL	R4 4 1             ; R4 := R4(...) -- b=4, c=1
-  24: LOADNIL	R3 R3           ; R3 := nil
-  25: RETURN	R3 2             ; return R3, R4
-  26: JMP	6                   ; goto 6
-  27: GETUPVAL	R4 2           ; R4 := UpValue[2]
-  28: GETTABLE	R4 R4 RK265    ; R4 := R4["hackCheck"]
-  29: MOVE	R5 R0              ; R5 := R0
-  30: MOVE	R6 R3              ; R6 := R3
-  31: TAILCALL	R4 3 0         ; tailcall R4(...) -- b=3, c=0
-  32: RETURN	R4 0             ; return
-  33: RETURN	R0 1             ; return R0
+   0: GETGLOBAL	R3 K0              ; R3 := context
+   1: GETTABLE	R3 R3 K1            ; R3 := R3["request"]
+   2: SELF	R3 R3 K2                ; R4 := R3; R3 := R3["formvalue"]
+   3: MOVE	R5 R0                   ; R5 := R0
+   4: MOVE	R6 R1                   ; R6 := R1
+   5: CALL	R3 4 2                  ; R3 := R3(R4, R5, R6)
+   6: TEST	R2 0                    ; if not R2 then goto 27
+   7: JMP	19                       ; goto 27
+   8: GETUPVAL	R4 0                ; R4 := UpValue[0]
+   9: GETTABLE	R4 R4 K3            ; R4 := R4["verify"]
+  10: MOVE	R5 R3                   ; R5 := R3
+  11: MOVE	R6 R2                   ; R6 := R2
+  12: CALL	R4 3 2                  ; R4 := R4(R5, R6)
+  13: EQ	0 R4 K4                   ; if R4 ~= false then goto 25
+  14: JMP	10                       ; goto 25
+  15: GETUPVAL	R4 1                ; R4 := UpValue[1]
+  16: GETTABLE	R4 R4 K5            ; R4 := R4["log"]
+  17: LOADK	R5 K6                  ; R5 := 3
+  18: LOADK	R6 K7                  ; R6 := "verify false key:"
+  19: MOVE	R7 R0                   ; R7 := R0
+  20: LOADK	R8 K8                  ; R8 := " val:"
+  21: CONCAT	R6 R6 R8              ; R6 := R6 .. R8
+  22: MOVE	R7 R3                   ; R7 := R3
+  23: CALL	R4 4 1                  ; R4(R5, R6, R7)
+  24: LOADNIL	R3 R3                ; R3 := nil
+  25: RETURN	R3 2                  ; return R3
+  26: JMP	6                        ; goto 33
+  27: GETUPVAL	R4 2                ; R4 := UpValue[2]
+  28: GETTABLE	R4 R4 K9            ; R4 := R4["hackCheck"]
+  29: MOVE	R5 R0                   ; R5 := R0
+  30: MOVE	R6 R3                   ; R6 := R3
+  31: TAILCALL	R4 3 0              ; return R4(R5, R6)
+  32: RETURN	R4 0                  ; return R4...
+  33: RETURN	R0 1                  ; return
 
 -- SubChunk 13:
 -- SubChunk: lineDefined=174, lastLineDefined=177, numParams=2, isVararg=0, maxStackSize=6
 
+-- Raw Instructions:
+-- pc=00 raw=0x000000A6 opcodeNum=38 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x0140409B opcodeNum=27 A=2 B=2 C=257 Bx=1281 sBx=-129790
+-- pc=02 raw=0x0140808F opcodeNum=15 A=2 B=2 C=258 Bx=1282 sBx=-129789
+-- pc=03 raw=0x00000124 opcodeNum=36 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x00800164 opcodeNum=36 A=5 B=1 C=0 Bx=512 sBx=-130559
+-- pc=05 raw=0x02008090 opcodeNum=16 A=2 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=06 raw=0x000000D2 opcodeNum=18 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x01C0C0DB opcodeNum=27 A=3 B=3 C=259 Bx=1795 sBx=-129276
+-- pc=08 raw=0x01000124 opcodeNum=36 A=4 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=09 raw=0x010000CD opcodeNum=13 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=10 raw=0x000000C8 opcodeNum=8 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=11 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETGLOBAL	R2 K0         ; R2 := context
-   1: GETTABLE	R2 R2 RK257    ; R2 := R2["request"]
-   2: SELF	R2 R2 R258         ; R2, R3 := R2, R258
-   3: MOVE	R4 R0              ; R4 := R0
-   4: MOVE	R5 R1              ; R5 := R1
-   5: CALL	R2 4 2             ; R2 := R2(...) -- b=4, c=2
-   6: GETUPVAL	R3 0           ; R3 := UpValue[0]
-   7: GETTABLE	R3 R3 RK259    ; R3 := R3["xssCheck"]
-   8: MOVE	R4 R2              ; R4 := R2
-   9: TAILCALL	R3 2 0         ; tailcall R3(...) -- b=2, c=0
-  10: RETURN	R3 0             ; return
-  11: RETURN	R0 1             ; return R0
+   0: GETGLOBAL	R2 K0              ; R2 := context
+   1: GETTABLE	R2 R2 K1            ; R2 := R2["request"]
+   2: SELF	R2 R2 K2                ; R3 := R2; R2 := R2["formvalue"]
+   3: MOVE	R4 R0                   ; R4 := R0
+   4: MOVE	R5 R1                   ; R5 := R1
+   5: CALL	R2 4 2                  ; R2 := R2(R3, R4, R5)
+   6: GETUPVAL	R3 0                ; R3 := UpValue[0]
+   7: GETTABLE	R3 R3 K3            ; R3 := R3["xssCheck"]
+   8: MOVE	R4 R2                   ; R4 := R2
+   9: TAILCALL	R3 2 0              ; return R3(R4)
+  10: RETURN	R3 0                  ; return R3...
+  11: RETURN	R0 1                  ; return
 
 -- SubChunk 14:
 -- SubChunk: lineDefined=182, lastLineDefined=184, numParams=1, isVararg=0, maxStackSize=4
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000066 opcodeNum=38 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00C0405B opcodeNum=27 A=1 B=1 C=257 Bx=769 sBx=-130302
+-- pc=02 raw=0x00C0804F opcodeNum=15 A=1 B=1 C=258 Bx=770 sBx=-130301
+-- pc=03 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x0180004D opcodeNum=13 A=1 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=05 raw=0x00000048 opcodeNum=8 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=06 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETGLOBAL	R1 K0         ; R1 := context
-   1: GETTABLE	R1 R1 RK257    ; R1 := R1["request"]
-   2: SELF	R1 R1 R258         ; R1, R2 := R1, R258
-   3: MOVE	R3 R0              ; R3 := R0
-   4: TAILCALL	R1 3 0         ; tailcall R1(...) -- b=3, c=0
-   5: RETURN	R1 0             ; return
-   6: RETURN	R0 1             ; return R0
+   0: GETGLOBAL	R1 K0              ; R1 := context
+   1: GETTABLE	R1 R1 K1            ; R1 := R1["request"]
+   2: SELF	R1 R1 K2                ; R2 := R1; R1 := R1["formvaluetable"]
+   3: MOVE	R3 R0                   ; R3 := R0
+   4: TAILCALL	R1 3 0              ; return R1(R2, R3)
+   5: RETURN	R1 0                  ; return R1...
+   6: RETURN	R0 1                  ; return
 
 -- SubChunk 15:
 -- SubChunk: lineDefined=189, lastLineDefined=191, numParams=1, isVararg=0, maxStackSize=4
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000066 opcodeNum=38 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00C0405B opcodeNum=27 A=1 B=1 C=257 Bx=769 sBx=-130302
+-- pc=02 raw=0x00C0804F opcodeNum=15 A=1 B=1 C=258 Bx=770 sBx=-130301
+-- pc=03 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x0180004D opcodeNum=13 A=1 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=05 raw=0x00000048 opcodeNum=8 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=06 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETGLOBAL	R1 K0         ; R1 := context
-   1: GETTABLE	R1 R1 RK257    ; R1 := R1["request"]
-   2: SELF	R1 R1 R258         ; R1, R2 := R1, R258
-   3: MOVE	R3 R0              ; R3 := R0
-   4: TAILCALL	R1 3 0         ; tailcall R1(...) -- b=3, c=0
-   5: RETURN	R1 0             ; return
-   6: RETURN	R0 1             ; return R0
+   0: GETGLOBAL	R1 K0              ; R1 := context
+   1: GETTABLE	R1 R1 K1            ; R1 := R1["request"]
+   2: SELF	R1 R1 K2                ; R2 := R1; R1 := R1["getcookie"]
+   3: MOVE	R3 R0                   ; R3 := R0
+   4: TAILCALL	R1 3 0              ; return R1(R2, R3)
+   5: RETURN	R1 0                  ; return R1...
+   6: RETURN	R0 1                  ; return
 
 -- SubChunk 16:
 -- SubChunk: lineDefined=197, lastLineDefined=199, numParams=1, isVararg=0, maxStackSize=4
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000066 opcodeNum=38 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00C0405B opcodeNum=27 A=1 B=1 C=257 Bx=769 sBx=-130302
+-- pc=02 raw=0x00C0804F opcodeNum=15 A=1 B=1 C=258 Bx=770 sBx=-130301
+-- pc=03 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x0180004D opcodeNum=13 A=1 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=05 raw=0x00000048 opcodeNum=8 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=06 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETGLOBAL	R1 K0         ; R1 := context
-   1: GETTABLE	R1 R1 RK257    ; R1 := R1["request"]
-   2: SELF	R1 R1 R258         ; R1, R2 := R1, R258
-   3: MOVE	R3 R0              ; R3 := R0
-   4: TAILCALL	R1 3 0         ; tailcall R1(...) -- b=3, c=0
-   5: RETURN	R1 0             ; return
-   6: RETURN	R0 1             ; return R0
+   0: GETGLOBAL	R1 K0              ; R1 := context
+   1: GETTABLE	R1 R1 K1            ; R1 := R1["request"]
+   2: SELF	R1 R1 K2                ; R2 := R1; R1 := R1["getenv"]
+   3: MOVE	R3 R0                   ; R3 := R0
+   4: TAILCALL	R1 3 0              ; return R1(R2, R3)
+   5: RETURN	R1 0                  ; return R1...
+   6: RETURN	R0 1                  ; return
 
 -- SubChunk 17:
 -- SubChunk: lineDefined=203, lastLineDefined=205, numParams=1, isVararg=0, maxStackSize=4
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000066 opcodeNum=38 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00C0405B opcodeNum=27 A=1 B=1 C=257 Bx=769 sBx=-130302
+-- pc=02 raw=0x00C0804F opcodeNum=15 A=1 B=1 C=258 Bx=770 sBx=-130301
+-- pc=03 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x0180004D opcodeNum=13 A=1 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=05 raw=0x00000048 opcodeNum=8 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=06 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETGLOBAL	R1 K0         ; R1 := context
-   1: GETTABLE	R1 R1 RK257    ; R1 := R1["request"]
-   2: SELF	R1 R1 R258         ; R1, R2 := R1, R258
-   3: MOVE	R3 R0              ; R3 := R0
-   4: TAILCALL	R1 3 0         ; tailcall R1(...) -- b=3, c=0
-   5: RETURN	R1 0             ; return
-   6: RETURN	R0 1             ; return R0
+   0: GETGLOBAL	R1 K0              ; R1 := context
+   1: GETTABLE	R1 R1 K1            ; R1 := R1["request"]
+   2: SELF	R1 R1 K2                ; R2 := R1; R1 := R1["setfilehandler"]
+   3: MOVE	R3 R0                   ; R3 := R0
+   4: TAILCALL	R1 3 0              ; return R1(R2, R3)
+   5: RETURN	R1 0                  ; return R1...
+   6: RETURN	R0 1                  ; return
 
 -- SubChunk 18:
 -- SubChunk: lineDefined=210, lastLineDefined=216, numParams=2, isVararg=0, maxStackSize=6
 
+-- Raw Instructions:
+-- pc=00 raw=0x000000A6 opcodeNum=38 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x0140409B opcodeNum=27 A=2 B=2 C=257 Bx=1281 sBx=-129790
+-- pc=02 raw=0x00004089 opcodeNum=9 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=03 raw=0x8000801F opcodeNum=31 A=0 B=256 C=2 Bx=131074 sBx=3
+-- pc=04 raw=0x000000A6 opcodeNum=38 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=05 raw=0x000000DC opcodeNum=28 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=06 raw=0x8080C091 opcodeNum=17 A=2 B=257 C=3 Bx=131587 sBx=516
+-- pc=07 raw=0x000000A6 opcodeNum=38 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=08 raw=0x0140409B opcodeNum=27 A=2 B=2 C=257 Bx=1281 sBx=-129790
+-- pc=09 raw=0x004080CF opcodeNum=15 A=3 B=0 C=258 Bx=258 sBx=-130813
+-- pc=10 raw=0x010080D0 opcodeNum=16 A=3 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=11 raw=0x01804091 opcodeNum=17 A=2 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=12 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=13 raw=0x0140C09B opcodeNum=27 A=2 B=2 C=259 Bx=1283 sBx=-129788
+-- pc=14 raw=0x000100C6 opcodeNum=6 A=3 B=0 C=4 Bx=4 sBx=-131067
+-- pc=15 raw=0x00000124 opcodeNum=36 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=16 raw=0x00800164 opcodeNum=36 A=5 B=1 C=0 Bx=512 sBx=-130559
+-- pc=17 raw=0x02004090 opcodeNum=16 A=2 B=4 C=1 Bx=2049 sBx=-129022
+-- pc=18 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETGLOBAL	R2 K0         ; R2 := context
-   1: GETTABLE	R2 R2 RK257    ; R2 := R2["headers"]
-   2: TEST	R2 1 0             ; if not R2 then goto 0
-   3: JMP	3                   ; goto 3
-   4: GETGLOBAL	R2 K0         ; R2 := context
-   5: NEWTABLE	R3             ; R3 := {}
-   6: SETTABLE	R2 RK257 R3    ; R2["headers"] := R3
-   7: GETGLOBAL	R2 K0         ; R2 := context
-   8: GETTABLE	R2 R2 RK257    ; R2 := R2["headers"]
-   9: SELF	R3 R0 R258         ; R3, R4 := R0, R258
-  10: CALL	R3 2 2             ; R3 := R3(...) -- b=2, c=2
-  11: SETTABLE	R2 RK3 R1      ; R2[R3] := R1
-  12: GETUPVAL	R2 0           ; R2 := UpValue[0]
-  13: GETTABLE	R2 R2 RK259    ; R2 := R2["yield"]
-  14: LOADK	R3 K4             ; R3 := 2
-  15: MOVE	R4 R0              ; R4 := R0
-  16: MOVE	R5 R1              ; R5 := R1
-  17: CALL	R2 4 1             ; R2 := R2(...) -- b=4, c=1
-  18: RETURN	R0 1             ; return R0
+   0: GETGLOBAL	R2 K0              ; R2 := context
+   1: GETTABLE	R2 R2 K1            ; R2 := R2["headers"]
+   2: TEST	R2 1                    ; if R2 then goto 7
+   3: JMP	3                        ; goto 7
+   4: GETGLOBAL	R2 K0              ; R2 := context
+   5: NEWTABLE	R3 0 0              ; R3 := {} (size = 0,0)
+   6: SETTABLE	R2 K1 R3            ; R2["headers"] := R3
+   7: GETGLOBAL	R2 K0              ; R2 := context
+   8: GETTABLE	R2 R2 K1            ; R2 := R2["headers"]
+   9: SELF	R3 R0 K2                ; R4 := R0; R3 := R0["lower"]
+  10: CALL	R3 2 2                  ; R3 := R3(R4)
+  11: SETTABLE	R2 R3 R1            ; R2[R3] := R1
+  12: GETUPVAL	R2 0                ; R2 := UpValue[0]
+  13: GETTABLE	R2 R2 K3            ; R2 := R2["yield"]
+  14: LOADK	R3 K4                  ; R3 := 2
+  15: MOVE	R4 R0                   ; R4 := R0
+  16: MOVE	R5 R1                   ; R5 := R1
+  17: CALL	R2 4 1                  ; R2(R3, R4, R5)
+  18: RETURN	R0 1                  ; return
 
 -- SubChunk 19:
 -- SubChunk: lineDefined=220, lastLineDefined=231, numParams=1, isVararg=0, maxStackSize=6
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000066 opcodeNum=38 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00C0405B opcodeNum=27 A=1 B=1 C=257 Bx=769 sBx=-130302
+-- pc=02 raw=0x00000049 opcodeNum=9 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=03 raw=0x8001001F opcodeNum=31 A=0 B=256 C=4 Bx=131076 sBx=5
+-- pc=04 raw=0x00000066 opcodeNum=38 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=05 raw=0x00C0405B opcodeNum=27 A=1 B=1 C=257 Bx=769 sBx=-130302
+-- pc=06 raw=0x00C0805B opcodeNum=27 A=1 B=1 C=258 Bx=770 sBx=-130301
+-- pc=07 raw=0x00004049 opcodeNum=9 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=08 raw=0x8006401F opcodeNum=31 A=0 B=256 C=25 Bx=131097 sBx=26
+-- pc=09 raw=0x0040C013 opcodeNum=19 A=0 B=0 C=259 Bx=259 sBx=-130812
+-- pc=10 raw=0x8004C01F opcodeNum=31 A=0 B=256 C=19 Bx=131091 sBx=20
+-- pc=11 raw=0x00010066 opcodeNum=38 A=1 B=0 C=4 Bx=4 sBx=-131067
+-- pc=12 raw=0x00014086 opcodeNum=6 A=2 B=0 C=5 Bx=5 sBx=-131066
+-- pc=13 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=14 raw=0x00000049 opcodeNum=9 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=15 raw=0x8002401F opcodeNum=31 A=0 B=256 C=9 Bx=131081 sBx=10
+-- pc=16 raw=0x00010066 opcodeNum=38 A=1 B=0 C=4 Bx=4 sBx=-131067
+-- pc=17 raw=0x00014086 opcodeNum=6 A=2 B=0 C=5 Bx=5 sBx=-131066
+-- pc=18 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=19 raw=0x00C1804F opcodeNum=15 A=1 B=1 C=262 Bx=774 sBx=-130297
+-- pc=20 raw=0x0000C0C6 opcodeNum=6 A=3 B=0 C=3 Bx=3 sBx=-131068
+-- pc=21 raw=0x02000129 opcodeNum=41 A=4 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=22 raw=0x00800158 opcodeNum=24 A=5 B=1 C=0 Bx=512 sBx=-130559
+-- pc=23 raw=0x02808050 opcodeNum=16 A=1 B=5 C=2 Bx=2562 sBx=-128509
+-- pc=24 raw=0x00004049 opcodeNum=9 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=25 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=26 raw=0x0001C006 opcodeNum=6 A=0 B=0 C=7 Bx=7 sBx=-131064
+-- pc=27 raw=0x00020066 opcodeNum=38 A=1 B=0 C=8 Bx=8 sBx=-131063
+-- pc=28 raw=0x00024086 opcodeNum=6 A=2 B=0 C=9 Bx=9 sBx=-131062
+-- pc=29 raw=0x000280C6 opcodeNum=6 A=3 B=0 C=10 Bx=10 sBx=-131061
+-- pc=30 raw=0x01804050 opcodeNum=16 A=1 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=31 raw=0x00020066 opcodeNum=38 A=1 B=0 C=8 Bx=8 sBx=-131063
+-- pc=32 raw=0x0002C086 opcodeNum=6 A=2 B=0 C=11 Bx=11 sBx=-131060
+-- pc=33 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=34 raw=0x01804050 opcodeNum=16 A=1 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=35 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETGLOBAL	R1 K0         ; R1 := context
-   1: GETTABLE	R1 R1 RK257    ; R1 := R1["headers"]
-   2: TEST	R1 0 0             ; if  R1 then goto 0
-   3: JMP	5                   ; goto 5
-   4: GETGLOBAL	R1 K0         ; R1 := context
-   5: GETTABLE	R1 R1 RK257    ; R1 := R1["headers"]
-   6: GETTABLE	R1 R1 RK258    ; R1 := R1["content-type"]
-   7: TEST	R1 1 0             ; if not R1 then goto 0
-   8: JMP	26                  ; goto 26
-   9: EQ	R0 R259 0            ; if R0 == "application/xhtml+xml" then goto 0
-  10: JMP	20                  ; goto 20
-  11: GETGLOBAL	R1 K4         ; R1 := getenv
-  12: LOADK	R2 K5             ; R2 := "HTTP_ACCEPT"
-  13: CALL	R1 2 2             ; R1 := R1(...) -- b=2, c=2
-  14: TEST	R1 0 0             ; if  R1 then goto 0
-  15: JMP	10                  ; goto 10
-  16: GETGLOBAL	R1 K4         ; R1 := getenv
-  17: LOADK	R2 K5             ; R2 := "HTTP_ACCEPT"
-  18: CALL	R1 2 2             ; R1 := R1(...) -- b=2, c=2
-  19: SELF	R1 R1 R262         ; R1, R2 := R1, R262
-  20: LOADK	R3 K3             ; R3 := "application/xhtml+xml"
-  21: LOADNIL	R4 R4           ; R4 := nil
-  22: LOADBOOL	R5 1 0         ; R5 := true
-  23: CALL	R1 5 2             ; R1 := R1(...) -- b=5, c=2
-  24: TEST	R1 1 0             ; if not R1 then goto 0
-  25: JMP	1                   ; goto 1
-  26: LOADK	R0 K7             ; R0 := "text/html; charset=UTF-8"
-  27: GETGLOBAL	R1 K8         ; R1 := header
-  28: LOADK	R2 K9             ; R2 := "Vary"
-  29: LOADK	R3 K10            ; R3 := "Accept"
-  30: CALL	R1 3 1             ; R1 := R1(...) -- b=3, c=1
-  31: GETGLOBAL	R1 K8         ; R1 := header
-  32: LOADK	R2 K11            ; R2 := "Content-Type"
-  33: MOVE	R3 R0              ; R3 := R0
-  34: CALL	R1 3 1             ; R1 := R1(...) -- b=3, c=1
-  35: RETURN	R0 1             ; return R0
+   0: GETGLOBAL	R1 K0              ; R1 := context
+   1: GETTABLE	R1 R1 K1            ; R1 := R1["headers"]
+   2: TEST	R1 0                    ; if not R1 then goto 9
+   3: JMP	5                        ; goto 9
+   4: GETGLOBAL	R1 K0              ; R1 := context
+   5: GETTABLE	R1 R1 K1            ; R1 := R1["headers"]
+   6: GETTABLE	R1 R1 K2            ; R1 := R1["content-type"]
+   7: TEST	R1 1                    ; if R1 then goto 35
+   8: JMP	26                       ; goto 35
+   9: EQ	0 R0 K3                   ; if R0 ~= "application/xhtml+xml" then goto 31
+  10: JMP	20                       ; goto 31
+  11: GETGLOBAL	R1 K4              ; R1 := getenv
+  12: LOADK	R2 K5                  ; R2 := "HTTP_ACCEPT"
+  13: CALL	R1 2 2                  ; R1 := R1(R2)
+  14: TEST	R1 0                    ; if not R1 then goto 26
+  15: JMP	10                       ; goto 26
+  16: GETGLOBAL	R1 K4              ; R1 := getenv
+  17: LOADK	R2 K5                  ; R2 := "HTTP_ACCEPT"
+  18: CALL	R1 2 2                  ; R1 := R1(R2)
+  19: SELF	R1 R1 K6                ; R2 := R1; R1 := R1["find"]
+  20: LOADK	R3 K3                  ; R3 := "application/xhtml+xml"
+  21: LOADNIL	R4 R4                ; R4 := nil
+  22: LOADBOOL	R5 1 0              ; R5 := true
+  23: CALL	R1 5 2                  ; R1 := R1(R2, R3, R4, R5)
+  24: TEST	R1 1                    ; if R1 then goto 27
+  25: JMP	1                        ; goto 27
+  26: LOADK	R0 K7                  ; R0 := "text/html; charset=UTF-8"
+  27: GETGLOBAL	R1 K8              ; R1 := header
+  28: LOADK	R2 K9                  ; R2 := "Vary"
+  29: LOADK	R3 K10                 ; R3 := "Accept"
+  30: CALL	R1 3 1                  ; R1(R2, R3)
+  31: GETGLOBAL	R1 K8              ; R1 := header
+  32: LOADK	R2 K11                 ; R2 := "Content-Type"
+  33: MOVE	R3 R0                   ; R3 := R0
+  34: CALL	R1 3 1                  ; R1(R2, R3)
+  35: RETURN	R0 1                  ; return
 
 -- SubChunk 20:
 -- SubChunk: lineDefined=235, lastLineDefined=237, numParams=0, isVararg=0, maxStackSize=2
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000026 opcodeNum=38 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x0040401B opcodeNum=27 A=0 B=0 C=257 Bx=257 sBx=-130814
+-- pc=02 raw=0x0040801B opcodeNum=27 A=0 B=0 C=258 Bx=258 sBx=-130813
+-- pc=03 raw=0x01000008 opcodeNum=8 A=0 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=04 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETGLOBAL	R0 K0         ; R0 := context
-   1: GETTABLE	R0 R0 RK257    ; R0 := R0["request"]
-   2: GETTABLE	R0 R0 RK258    ; R0 := R0["input"]
-   3: RETURN	R0 2             ; return R0, R1
-   4: RETURN	R0 1             ; return R0
+   0: GETGLOBAL	R0 K0              ; R0 := context
+   1: GETTABLE	R0 R0 K1            ; R0 := R0["request"]
+   2: GETTABLE	R0 R0 K2            ; R0 := R0["input"]
+   3: RETURN	R0 2                  ; return R0
+   4: RETURN	R0 1                  ; return
 
 -- SubChunk 21:
 -- SubChunk: lineDefined=242, lastLineDefined=247, numParams=2, isVararg=0, maxStackSize=6
 
+-- Raw Instructions:
+-- pc=00 raw=0x00004009 opcodeNum=9 A=0 B=0 C=1 Bx=1 sBx=-131070
+-- pc=01 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=02 raw=0x00000006 opcodeNum=6 A=0 B=0 C=0 Bx=0 sBx=-131071
+-- pc=03 raw=0x00004049 opcodeNum=9 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=04 raw=0x8000001F opcodeNum=31 A=0 B=256 C=0 Bx=131072 sBx=1
+-- pc=05 raw=0x00004046 opcodeNum=6 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=06 raw=0x000080A6 opcodeNum=38 A=2 B=0 C=2 Bx=2 sBx=-131069
+-- pc=07 raw=0x81800091 opcodeNum=17 A=2 B=259 C=0 Bx=132608 sBx=1537
+-- pc=08 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=09 raw=0x0141009B opcodeNum=27 A=2 B=2 C=260 Bx=1284 sBx=-129787
+-- pc=10 raw=0x000140C6 opcodeNum=6 A=3 B=0 C=5 Bx=5 sBx=-131066
+-- pc=11 raw=0x00000124 opcodeNum=36 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=12 raw=0x00800164 opcodeNum=36 A=5 B=1 C=0 Bx=512 sBx=-130559
+-- pc=13 raw=0x02004090 opcodeNum=16 A=2 B=4 C=1 Bx=2049 sBx=-129022
+-- pc=14 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: TEST	R0 1 0             ; if not R0 then goto 0
-   1: JMP	1                   ; goto 1
-   2: LOADK	R0 K0             ; R0 := 200
-   3: TEST	R1 1 0             ; if not R1 then goto 0
-   4: JMP	1                   ; goto 1
-   5: LOADK	R1 K1             ; R1 := "OK"
-   6: GETGLOBAL	R2 K2         ; R2 := context
-   7: SETTABLE	R2 RK259 R0    ; R2["status"] := R0
-   8: GETUPVAL	R2 0           ; R2 := UpValue[0]
-   9: GETTABLE	R2 R2 RK260    ; R2 := R2["yield"]
-  10: LOADK	R3 K5             ; R3 := 1
-  11: MOVE	R4 R0              ; R4 := R0
-  12: MOVE	R5 R1              ; R5 := R1
-  13: CALL	R2 4 1             ; R2 := R2(...) -- b=4, c=1
-  14: RETURN	R0 1             ; return R0
+   0: TEST	R0 1                    ; if R0 then goto 3
+   1: JMP	1                        ; goto 3
+   2: LOADK	R0 K0                  ; R0 := 200
+   3: TEST	R1 1                    ; if R1 then goto 6
+   4: JMP	1                        ; goto 6
+   5: LOADK	R1 K1                  ; R1 := "OK"
+   6: GETGLOBAL	R2 K2              ; R2 := context
+   7: SETTABLE	R2 K3 R0            ; R2["status"] := R0
+   8: GETUPVAL	R2 0                ; R2 := UpValue[0]
+   9: GETTABLE	R2 R2 K4            ; R2 := R2["yield"]
+  10: LOADK	R3 K5                  ; R3 := 1
+  11: MOVE	R4 R0                   ; R4 := R0
+  12: MOVE	R5 R1                   ; R5 := R1
+  13: CALL	R2 4 1                  ; R2(R3, R4, R5)
+  14: RETURN	R0 1                  ; return
 
 -- SubChunk 22:
 -- SubChunk: lineDefined=255, lastLineDefined=291, numParams=4, isVararg=0, maxStackSize=9
 
+-- Raw Instructions:
+-- pc=00 raw=0x00004009 opcodeNum=9 A=0 B=0 C=1 Bx=1 sBx=-131070
+-- pc=01 raw=0x8002801F opcodeNum=31 A=0 B=256 C=10 Bx=131082 sBx=11
+-- pc=02 raw=0x00000049 opcodeNum=9 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=03 raw=0x8000C01F opcodeNum=31 A=0 B=256 C=3 Bx=131075 sBx=4
+-- pc=04 raw=0x00000112 opcodeNum=18 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=05 raw=0x00800164 opcodeNum=36 A=5 B=1 C=0 Bx=512 sBx=-130559
+-- pc=06 raw=0x01004110 opcodeNum=16 A=4 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=07 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=08 raw=0x00000126 opcodeNum=38 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=09 raw=0x00804110 opcodeNum=16 A=4 B=1 C=1 Bx=513 sBx=-130558
+-- pc=10 raw=0x00800118 opcodeNum=24 A=4 B=1 C=0 Bx=512 sBx=-130559
+-- pc=11 raw=0x01000108 opcodeNum=8 A=4 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=12 raw=0x8013401F opcodeNum=31 A=0 B=256 C=77 Bx=131149 sBx=78
+-- pc=13 raw=0x00004102 opcodeNum=2 A=4 B=0 C=1 Bx=1 sBx=-131070
+-- pc=14 raw=0x02404013 opcodeNum=19 A=0 B=4 C=257 Bx=2305 sBx=-128766
+-- pc=15 raw=0x8000801F opcodeNum=31 A=0 B=256 C=2 Bx=131074 sBx=3
+-- pc=16 raw=0x00800118 opcodeNum=24 A=4 B=1 C=0 Bx=512 sBx=-130559
+-- pc=17 raw=0x01000108 opcodeNum=8 A=4 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=18 raw=0x8011C01F opcodeNum=31 A=0 B=256 C=71 Bx=131143 sBx=72
+-- pc=19 raw=0x00008126 opcodeNum=38 A=4 B=0 C=2 Bx=2 sBx=-131069
+-- pc=20 raw=0x0240C11B opcodeNum=27 A=4 B=4 C=259 Bx=2307 sBx=-128764
+-- pc=21 raw=0x00004109 opcodeNum=9 A=4 B=0 C=1 Bx=1 sBx=-131070
+-- pc=22 raw=0x800F001F opcodeNum=31 A=0 B=256 C=60 Bx=131132 sBx=61
+-- pc=23 raw=0x00008126 opcodeNum=38 A=4 B=0 C=2 Bx=2 sBx=-131069
+-- pc=24 raw=0x0241011B opcodeNum=27 A=4 B=4 C=260 Bx=2308 sBx=-128763
+-- pc=25 raw=0x00004109 opcodeNum=9 A=4 B=0 C=1 Bx=1 sBx=-131070
+-- pc=26 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=27 raw=0x00010126 opcodeNum=38 A=4 B=0 C=4 Bx=4 sBx=-131067
+-- pc=28 raw=0x00804110 opcodeNum=16 A=4 B=1 C=1 Bx=513 sBx=-130558
+-- pc=29 raw=0x00008126 opcodeNum=38 A=4 B=0 C=2 Bx=2 sBx=-131069
+-- pc=30 raw=0x0241411B opcodeNum=27 A=4 B=4 C=261 Bx=2309 sBx=-128762
+-- pc=31 raw=0x00000109 opcodeNum=9 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=32 raw=0x8001001F opcodeNum=31 A=0 B=256 C=4 Bx=131076 sBx=5
+-- pc=33 raw=0x00008126 opcodeNum=38 A=4 B=0 C=2 Bx=2 sBx=-131069
+-- pc=34 raw=0x0241411B opcodeNum=27 A=4 B=4 C=261 Bx=2309 sBx=-128762
+-- pc=35 raw=0x0241811B opcodeNum=27 A=4 B=4 C=262 Bx=2310 sBx=-128761
+-- pc=36 raw=0x00004109 opcodeNum=9 A=4 B=0 C=1 Bx=1 sBx=-131070
+-- pc=37 raw=0x8002801F opcodeNum=31 A=0 B=256 C=10 Bx=131082 sBx=11
+-- pc=38 raw=0x00000089 opcodeNum=9 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=39 raw=0x8001001F opcodeNum=31 A=0 B=256 C=4 Bx=131076 sBx=5
+-- pc=40 raw=0x0001C126 opcodeNum=38 A=4 B=0 C=7 Bx=7 sBx=-131064
+-- pc=41 raw=0x00020146 opcodeNum=6 A=5 B=0 C=8 Bx=8 sBx=-131063
+-- pc=42 raw=0x00024186 opcodeNum=6 A=6 B=0 C=9 Bx=9 sBx=-131062
+-- pc=43 raw=0x01804110 opcodeNum=16 A=4 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=44 raw=0x8000C01F opcodeNum=31 A=0 B=256 C=3 Bx=131075 sBx=4
+-- pc=45 raw=0x0001C126 opcodeNum=38 A=4 B=0 C=7 Bx=7 sBx=-131064
+-- pc=46 raw=0x00020146 opcodeNum=6 A=5 B=0 C=8 Bx=8 sBx=-131063
+-- pc=47 raw=0x00028186 opcodeNum=6 A=6 B=0 C=10 Bx=10 sBx=-131061
+-- pc=48 raw=0x01804110 opcodeNum=16 A=4 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=49 raw=0x00008126 opcodeNum=38 A=4 B=0 C=2 Bx=2 sBx=-131069
+-- pc=50 raw=0x0241411B opcodeNum=27 A=4 B=4 C=261 Bx=2309 sBx=-128762
+-- pc=51 raw=0x0242C11B opcodeNum=27 A=4 B=4 C=267 Bx=2315 sBx=-128756
+-- pc=52 raw=0x00004109 opcodeNum=9 A=4 B=0 C=1 Bx=1 sBx=-131070
+-- pc=53 raw=0x8001C01F opcodeNum=31 A=0 B=256 C=7 Bx=131079 sBx=8
+-- pc=54 raw=0x0001C126 opcodeNum=38 A=4 B=0 C=7 Bx=7 sBx=-131064
+-- pc=55 raw=0x00030146 opcodeNum=6 A=5 B=0 C=12 Bx=12 sBx=-131059
+-- pc=56 raw=0x00034186 opcodeNum=6 A=6 B=0 C=13 Bx=13 sBx=-131058
+-- pc=57 raw=0x01804110 opcodeNum=16 A=4 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=58 raw=0x0001C126 opcodeNum=38 A=4 B=0 C=7 Bx=7 sBx=-131064
+-- pc=59 raw=0x00038146 opcodeNum=6 A=5 B=0 C=14 Bx=14 sBx=-131057
+-- pc=60 raw=0x0003C186 opcodeNum=6 A=6 B=0 C=15 Bx=15 sBx=-131056
+-- pc=61 raw=0x01804110 opcodeNum=16 A=4 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=62 raw=0x000000C9 opcodeNum=9 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=63 raw=0x8003401F opcodeNum=31 A=0 B=256 C=13 Bx=131085 sBx=14
+-- pc=64 raw=0x00008126 opcodeNum=38 A=4 B=0 C=2 Bx=2 sBx=-131069
+-- pc=65 raw=0x0241411B opcodeNum=27 A=4 B=4 C=261 Bx=2309 sBx=-128762
+-- pc=66 raw=0x0244011B opcodeNum=27 A=4 B=4 C=272 Bx=2320 sBx=-128751
+-- pc=67 raw=0x00004109 opcodeNum=9 A=4 B=0 C=1 Bx=1 sBx=-131070
+-- pc=68 raw=0x8002001F opcodeNum=31 A=0 B=256 C=8 Bx=131080 sBx=9
+-- pc=69 raw=0x0001C126 opcodeNum=38 A=4 B=0 C=7 Bx=7 sBx=-131064
+-- pc=70 raw=0x00040146 opcodeNum=6 A=5 B=0 C=16 Bx=16 sBx=-131055
+-- pc=71 raw=0x00800192 opcodeNum=18 A=6 B=1 C=0 Bx=512 sBx=-130559
+-- pc=72 raw=0x010001D2 opcodeNum=18 A=7 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=73 raw=0x03C441DB opcodeNum=27 A=7 B=7 C=273 Bx=3857 sBx=-127214
+-- pc=74 raw=0x00000224 opcodeNum=36 A=8 B=0 C=0 Bx=0 sBx=-131071
+-- pc=75 raw=0x010001D0 opcodeNum=16 A=7 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=76 raw=0x00000190 opcodeNum=16 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=77 raw=0x00004110 opcodeNum=16 A=4 B=0 C=1 Bx=1 sBx=-131070
+-- pc=78 raw=0x00008126 opcodeNum=38 A=4 B=0 C=2 Bx=2 sBx=-131069
+-- pc=79 raw=0x81C48111 opcodeNum=17 A=4 B=259 C=274 Bx=132882 sBx=1811
+-- pc=80 raw=0x01800112 opcodeNum=18 A=4 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=81 raw=0x0244C11B opcodeNum=27 A=4 B=4 C=275 Bx=2323 sBx=-128748
+-- pc=82 raw=0x00050146 opcodeNum=6 A=5 B=0 C=20 Bx=20 sBx=-131051
+-- pc=83 raw=0x01004110 opcodeNum=16 A=4 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=84 raw=0x01800112 opcodeNum=18 A=4 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=85 raw=0x0244C11B opcodeNum=27 A=4 B=4 C=275 Bx=2323 sBx=-128748
+-- pc=86 raw=0x00054146 opcodeNum=6 A=5 B=0 C=21 Bx=21 sBx=-131050
+-- pc=87 raw=0x000001A4 opcodeNum=36 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=88 raw=0x01804110 opcodeNum=16 A=4 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=89 raw=0x00800118 opcodeNum=24 A=4 B=1 C=0 Bx=512 sBx=-130559
+-- pc=90 raw=0x01000108 opcodeNum=8 A=4 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=91 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: TEST	R0 1 0             ; if not R0 then goto 0
-   1: JMP	11                  ; goto 11
-   2: TEST	R1 0 0             ; if  R1 then goto 0
-   3: JMP	4                   ; goto 4
-   4: GETUPVAL	R4 0           ; R4 := UpValue[0]
-   5: MOVE	R5 R1              ; R5 := R1
-   6: CALL	R4 2 1             ; R4 := R4(...) -- b=2, c=1
-   7: JMP	2                   ; goto 2
-   8: GETGLOBAL	R4 K0         ; R4 := close
-   9: CALL	R4 1 1             ; R4 := R4(...) -- b=1, c=1
-  10: LOADBOOL	R4 1 0         ; R4 := true
-  11: RETURN	R4 2             ; return R4, R5
-  12: JMP	78                  ; goto 78
-  13: LEN	R4 R0               ; R4 := #R0
-  14: EQ	R4 R257 0            ; if R4 == 0 then goto 0
-  15: JMP	3                   ; goto 3
-  16: LOADBOOL	R4 1 0         ; R4 := true
-  17: RETURN	R4 2             ; return R4, R5
-  18: JMP	72                  ; goto 72
-  19: GETGLOBAL	R4 K2         ; R4 := context
-  20: GETTABLE	R4 R4 RK259    ; R4 := R4["eoh"]
-  21: TEST	R4 1 0             ; if not R4 then goto 0
-  22: JMP	61                  ; goto 61
-  23: GETGLOBAL	R4 K2         ; R4 := context
-  24: GETTABLE	R4 R4 RK260    ; R4 := R4["status"]
-  25: TEST	R4 1 0             ; if not R4 then goto 0
-  26: JMP	2                   ; goto 2
-  27: GETGLOBAL	R4 K4         ; R4 := status
-  28: CALL	R4 1 1             ; R4 := R4(...) -- b=1, c=1
-  29: GETGLOBAL	R4 K2         ; R4 := context
-  30: GETTABLE	R4 R4 RK261    ; R4 := R4["headers"]
-  31: TEST	R4 0 0             ; if  R4 then goto 0
-  32: JMP	5                   ; goto 5
-  33: GETGLOBAL	R4 K2         ; R4 := context
-  34: GETTABLE	R4 R4 RK261    ; R4 := R4["headers"]
-  35: GETTABLE	R4 R4 RK262    ; R4 := R4["content-type"]
-  36: TEST	R4 1 0             ; if not R4 then goto 0
-  37: JMP	11                  ; goto 11
-  38: TEST	R2 0 0             ; if  R2 then goto 0
-  39: JMP	5                   ; goto 5
-  40: GETGLOBAL	R4 K7         ; R4 := header
-  41: LOADK	R5 K8             ; R5 := "Content-Type"
-  42: LOADK	R6 K9             ; R6 := "text/javascript; charset=utf-8"
-  43: CALL	R4 3 1             ; R4 := R4(...) -- b=3, c=1
-  44: JMP	4                   ; goto 4
-  45: GETGLOBAL	R4 K7         ; R4 := header
-  46: LOADK	R5 K8             ; R5 := "Content-Type"
-  47: LOADK	R6 K10            ; R6 := "text/html; charset=utf-8"
-  48: CALL	R4 3 1             ; R4 := R4(...) -- b=3, c=1
-  49: GETGLOBAL	R4 K2         ; R4 := context
-  50: GETTABLE	R4 R4 RK261    ; R4 := R4["headers"]
-  51: GETTABLE	R4 R4 RK267    ; R4 := R4["cache-control"]
-  52: TEST	R4 1 0             ; if not R4 then goto 0
-  53: JMP	8                   ; goto 8
-  54: GETGLOBAL	R4 K7         ; R4 := header
-  55: LOADK	R5 K12            ; R5 := "Cache-Control"
-  56: LOADK	R6 K13            ; R6 := "no-cache"
-  57: CALL	R4 3 1             ; R4 := R4(...) -- b=3, c=1
-  58: GETGLOBAL	R4 K7         ; R4 := header
-  59: LOADK	R5 K14            ; R5 := "Expires"
-  60: LOADK	R6 K15            ; R6 := "0"
-  61: CALL	R4 3 1             ; R4 := R4(...) -- b=3, c=1
-  62: TEST	R3 0 0             ; if  R3 then goto 0
-  63: JMP	14                  ; goto 14
-  64: GETGLOBAL	R4 K2         ; R4 := context
-  65: GETTABLE	R4 R4 RK261    ; R4 := R4["headers"]
-  66: GETTABLE	R4 R4 RK272    ; R4 := R4["Content-Length"]
-  67: TEST	R4 1 0             ; if not R4 then goto 0
-  68: JMP	9                   ; goto 9
-  69: GETGLOBAL	R4 K7         ; R4 := header
-  70: LOADK	R5 K16            ; R5 := "Content-Length"
-  71: GETUPVAL	R6 1           ; R6 := UpValue[1]
-  72: GETUPVAL	R7 2           ; R7 := UpValue[2]
-  73: GETTABLE	R7 R7 RK273    ; R7 := R7["len"]
-  74: MOVE	R8 R0              ; R8 := R0
-  75: CALL	R7 2 0             ; R7 := R7(...) -- b=2, c=0
-  76: CALL	R6 0 0             ; R6 := R6(...) -- b=0, c=0
-  77: CALL	R4 0 1             ; R4 := R4(...) -- b=0, c=1
-  78: GETGLOBAL	R4 K2         ; R4 := context
-  79: SETTABLE	R4 RK259 R274  ; R4["eoh"] := true
-  80: GETUPVAL	R4 3           ; R4 := UpValue[3]
-  81: GETTABLE	R4 R4 RK275    ; R4 := R4["yield"]
-  82: LOADK	R5 K20            ; R5 := 3
-  83: CALL	R4 2 1             ; R4 := R4(...) -- b=2, c=1
-  84: GETUPVAL	R4 3           ; R4 := UpValue[3]
-  85: GETTABLE	R4 R4 RK275    ; R4 := R4["yield"]
-  86: LOADK	R5 K21            ; R5 := 4
-  87: MOVE	R6 R0              ; R6 := R0
-  88: CALL	R4 3 1             ; R4 := R4(...) -- b=3, c=1
-  89: LOADBOOL	R4 1 0         ; R4 := true
-  90: RETURN	R4 2             ; return R4, R5
-  91: RETURN	R0 1             ; return R0
+   0: TEST	R0 1                    ; if R0 then goto 13
+   1: JMP	11                       ; goto 13
+   2: TEST	R1 0                    ; if not R1 then goto 8
+   3: JMP	4                        ; goto 8
+   4: GETUPVAL	R4 0                ; R4 := UpValue[0]
+   5: MOVE	R5 R1                   ; R5 := R1
+   6: CALL	R4 2 1                  ; R4(R5)
+   7: JMP	2                        ; goto 10
+   8: GETGLOBAL	R4 K0              ; R4 := close
+   9: CALL	R4 1 1                  ; R4()
+  10: LOADBOOL	R4 1 0              ; R4 := true
+  11: RETURN	R4 2                  ; return R4
+  12: JMP	78                       ; goto 91
+  13: LEN	R4 R0                    ; R4 := #R0
+  14: EQ	0 R4 K1                   ; if R4 ~= 0 then goto 19
+  15: JMP	3                        ; goto 19
+  16: LOADBOOL	R4 1 0              ; R4 := true
+  17: RETURN	R4 2                  ; return R4
+  18: JMP	72                       ; goto 91
+  19: GETGLOBAL	R4 K2              ; R4 := context
+  20: GETTABLE	R4 R4 K3            ; R4 := R4["eoh"]
+  21: TEST	R4 1                    ; if R4 then goto 84
+  22: JMP	61                       ; goto 84
+  23: GETGLOBAL	R4 K2              ; R4 := context
+  24: GETTABLE	R4 R4 K4            ; R4 := R4["status"]
+  25: TEST	R4 1                    ; if R4 then goto 29
+  26: JMP	2                        ; goto 29
+  27: GETGLOBAL	R4 K4              ; R4 := status
+  28: CALL	R4 1 1                  ; R4()
+  29: GETGLOBAL	R4 K2              ; R4 := context
+  30: GETTABLE	R4 R4 K5            ; R4 := R4["headers"]
+  31: TEST	R4 0                    ; if not R4 then goto 38
+  32: JMP	5                        ; goto 38
+  33: GETGLOBAL	R4 K2              ; R4 := context
+  34: GETTABLE	R4 R4 K5            ; R4 := R4["headers"]
+  35: GETTABLE	R4 R4 K6            ; R4 := R4["content-type"]
+  36: TEST	R4 1                    ; if R4 then goto 49
+  37: JMP	11                       ; goto 49
+  38: TEST	R2 0                    ; if not R2 then goto 45
+  39: JMP	5                        ; goto 45
+  40: GETGLOBAL	R4 K7              ; R4 := header
+  41: LOADK	R5 K8                  ; R5 := "Content-Type"
+  42: LOADK	R6 K9                  ; R6 := "text/javascript; charset=utf-8"
+  43: CALL	R4 3 1                  ; R4(R5, R6)
+  44: JMP	4                        ; goto 49
+  45: GETGLOBAL	R4 K7              ; R4 := header
+  46: LOADK	R5 K8                  ; R5 := "Content-Type"
+  47: LOADK	R6 K10                 ; R6 := "text/html; charset=utf-8"
+  48: CALL	R4 3 1                  ; R4(R5, R6)
+  49: GETGLOBAL	R4 K2              ; R4 := context
+  50: GETTABLE	R4 R4 K5            ; R4 := R4["headers"]
+  51: GETTABLE	R4 R4 K11           ; R4 := R4["cache-control"]
+  52: TEST	R4 1                    ; if R4 then goto 62
+  53: JMP	8                        ; goto 62
+  54: GETGLOBAL	R4 K7              ; R4 := header
+  55: LOADK	R5 K12                 ; R5 := "Cache-Control"
+  56: LOADK	R6 K13                 ; R6 := "no-cache"
+  57: CALL	R4 3 1                  ; R4(R5, R6)
+  58: GETGLOBAL	R4 K7              ; R4 := header
+  59: LOADK	R5 K14                 ; R5 := "Expires"
+  60: LOADK	R6 K15                 ; R6 := "0"
+  61: CALL	R4 3 1                  ; R4(R5, R6)
+  62: TEST	R3 0                    ; if not R3 then goto 78
+  63: JMP	14                       ; goto 78
+  64: GETGLOBAL	R4 K2              ; R4 := context
+  65: GETTABLE	R4 R4 K5            ; R4 := R4["headers"]
+  66: GETTABLE	R4 R4 K16           ; R4 := R4["Content-Length"]
+  67: TEST	R4 1                    ; if R4 then goto 78
+  68: JMP	9                        ; goto 78
+  69: GETGLOBAL	R4 K7              ; R4 := header
+  70: LOADK	R5 K16                 ; R5 := "Content-Length"
+  71: GETUPVAL	R6 1                ; R6 := UpValue[1]
+  72: GETUPVAL	R7 2                ; R7 := UpValue[2]
+  73: GETTABLE	R7 R7 K17           ; R7 := R7["len"]
+  74: MOVE	R8 R0                   ; R8 := R0
+  75: CALL	R7 2 0                  ; R7... := R7(R8)
+  76: CALL	R6 0 0                  ; R6... := R6(R7...)
+  77: CALL	R4 0 1                  ; R4(R5...)
+  78: GETGLOBAL	R4 K2              ; R4 := context
+  79: SETTABLE	R4 K3 K18           ; R4["eoh"] := true
+  80: GETUPVAL	R4 3                ; R4 := UpValue[3]
+  81: GETTABLE	R4 R4 K19           ; R4 := R4["yield"]
+  82: LOADK	R5 K20                 ; R5 := 3
+  83: CALL	R4 2 1                  ; R4(R5)
+  84: GETUPVAL	R4 3                ; R4 := UpValue[3]
+  85: GETTABLE	R4 R4 K19           ; R4 := R4["yield"]
+  86: LOADK	R5 K21                 ; R5 := 4
+  87: MOVE	R6 R0                   ; R6 := R0
+  88: CALL	R4 3 1                  ; R4(R5, R6)
+  89: LOADBOOL	R4 1 0              ; R4 := true
+  90: RETURN	R4 2                  ; return R4
+  91: RETURN	R0 1                  ; return
 
 -- SubChunk 23:
 -- SubChunk: lineDefined=293, lastLineDefined=320, numParams=1, isVararg=0, maxStackSize=9
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000046 opcodeNum=6 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x000040A6 opcodeNum=38 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=02 raw=0x0140809B opcodeNum=27 A=2 B=2 C=258 Bx=1282 sBx=-129789
+-- pc=03 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x0000C106 opcodeNum=6 A=4 B=0 C=3 Bx=3 sBx=-131068
+-- pc=05 raw=0x01808090 opcodeNum=16 A=2 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=06 raw=0x00004089 opcodeNum=9 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=07 raw=0x8001801F opcodeNum=31 A=0 B=256 C=6 Bx=131078 sBx=7
+-- pc=08 raw=0x000100E6 opcodeNum=38 A=3 B=0 C=4 Bx=4 sBx=-131067
+-- pc=09 raw=0x00014106 opcodeNum=6 A=4 B=0 C=5 Bx=5 sBx=-131066
+-- pc=10 raw=0x00018146 opcodeNum=6 A=5 B=0 C=6 Bx=6 sBx=-131065
+-- pc=11 raw=0x018040D0 opcodeNum=16 A=3 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=12 raw=0x0001C0E6 opcodeNum=38 A=3 B=0 C=7 Bx=7 sBx=-131064
+-- pc=13 raw=0x008040D0 opcodeNum=16 A=3 B=1 C=1 Bx=513 sBx=-130558
+-- pc=14 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+-- pc=15 raw=0x014200CF opcodeNum=15 A=3 B=2 C=264 Bx=1288 sBx=-129783
+-- pc=16 raw=0x00024146 opcodeNum=6 A=5 B=0 C=9 Bx=9 sBx=-131062
+-- pc=17 raw=0x018080D0 opcodeNum=16 A=3 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=18 raw=0x0142010F opcodeNum=15 A=4 B=2 C=264 Bx=1288 sBx=-129783
+-- pc=19 raw=0x00028186 opcodeNum=6 A=6 B=0 C=10 Bx=10 sBx=-131061
+-- pc=20 raw=0x01804110 opcodeNum=16 A=4 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=21 raw=0x0002C126 opcodeNum=38 A=4 B=0 C=11 Bx=11 sBx=-131060
+-- pc=22 raw=0x0241011B opcodeNum=27 A=4 B=4 C=260 Bx=2308 sBx=-128763
+-- pc=23 raw=0x00004109 opcodeNum=9 A=4 B=0 C=1 Bx=1 sBx=-131070
+-- pc=24 raw=0x8000401F opcodeNum=31 A=0 B=256 C=1 Bx=131073 sBx=2
+-- pc=25 raw=0x00010126 opcodeNum=38 A=4 B=0 C=4 Bx=4 sBx=-131067
+-- pc=26 raw=0x00804110 opcodeNum=16 A=4 B=1 C=1 Bx=513 sBx=-130558
+-- pc=27 raw=0x00030126 opcodeNum=38 A=4 B=0 C=12 Bx=12 sBx=-131059
+-- pc=28 raw=0x00034146 opcodeNum=6 A=5 B=0 C=13 Bx=13 sBx=-131058
+-- pc=29 raw=0x00038186 opcodeNum=6 A=6 B=0 C=14 Bx=14 sBx=-131057
+-- pc=30 raw=0x01804110 opcodeNum=16 A=4 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=31 raw=0x00030126 opcodeNum=38 A=4 B=0 C=12 Bx=12 sBx=-131059
+-- pc=32 raw=0x0003C146 opcodeNum=6 A=5 B=0 C=15 Bx=15 sBx=-131056
+-- pc=33 raw=0x00000192 opcodeNum=18 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=34 raw=0x018001E4 opcodeNum=36 A=7 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=35 raw=0x01000190 opcodeNum=16 A=6 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=36 raw=0x00004110 opcodeNum=16 A=4 B=0 C=1 Bx=1 sBx=-131070
+-- pc=37 raw=0x00030126 opcodeNum=38 A=4 B=0 C=12 Bx=12 sBx=-131059
+-- pc=38 raw=0x00040146 opcodeNum=6 A=5 B=0 C=16 Bx=16 sBx=-131055
+-- pc=39 raw=0x00044186 opcodeNum=6 A=6 B=0 C=17 Bx=17 sBx=-131054
+-- pc=40 raw=0x01804110 opcodeNum=16 A=4 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=41 raw=0x00030126 opcodeNum=38 A=4 B=0 C=12 Bx=12 sBx=-131059
+-- pc=42 raw=0x00048146 opcodeNum=6 A=5 B=0 C=18 Bx=18 sBx=-131053
+-- pc=43 raw=0x0004C186 opcodeNum=6 A=6 B=0 C=19 Bx=19 sBx=-131052
+-- pc=44 raw=0x01804110 opcodeNum=16 A=4 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=45 raw=0x0002C126 opcodeNum=38 A=4 B=0 C=11 Bx=11 sBx=-131060
+-- pc=46 raw=0x8A454111 opcodeNum=17 A=4 B=276 C=277 Bx=141589 sBx=10518
+-- pc=47 raw=0x00800112 opcodeNum=18 A=4 B=1 C=0 Bx=512 sBx=-130559
+-- pc=48 raw=0x0245811B opcodeNum=27 A=4 B=4 C=278 Bx=2326 sBx=-128745
+-- pc=49 raw=0x0005C146 opcodeNum=6 A=5 B=0 C=23 Bx=23 sBx=-131048
+-- pc=50 raw=0x01004110 opcodeNum=16 A=4 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=51 raw=0x0146010F opcodeNum=15 A=4 B=2 C=280 Bx=1304 sBx=-129767
+-- pc=52 raw=0x00064186 opcodeNum=6 A=6 B=0 C=25 Bx=25 sBx=-131046
+-- pc=53 raw=0x01808110 opcodeNum=16 A=4 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=54 raw=0x00000109 opcodeNum=9 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=55 raw=0x8001C01F opcodeNum=31 A=0 B=256 C=7 Bx=131079 sBx=8
+-- pc=56 raw=0x00800112 opcodeNum=18 A=4 B=1 C=0 Bx=512 sBx=-130559
+-- pc=57 raw=0x0245811B opcodeNum=27 A=4 B=4 C=278 Bx=2326 sBx=-128745
+-- pc=58 raw=0x00068146 opcodeNum=6 A=5 B=0 C=26 Bx=26 sBx=-131045
+-- pc=59 raw=0x0146018F opcodeNum=15 A=6 B=2 C=280 Bx=1304 sBx=-129767
+-- pc=60 raw=0x00800224 opcodeNum=36 A=8 B=1 C=0 Bx=512 sBx=-130559
+-- pc=61 raw=0x01800190 opcodeNum=16 A=6 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=62 raw=0x00004110 opcodeNum=16 A=4 B=0 C=1 Bx=1 sBx=-131070
+-- pc=63 raw=0x7FFC801F opcodeNum=31 A=0 B=255 C=498 Bx=131058 sBx=-13
+-- pc=64 raw=0x0141C10F opcodeNum=15 A=4 B=2 C=263 Bx=1287 sBx=-129784
+-- pc=65 raw=0x01004110 opcodeNum=16 A=4 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=66 raw=0x0001C126 opcodeNum=38 A=4 B=0 C=7 Bx=7 sBx=-131064
+-- pc=67 raw=0x00804110 opcodeNum=16 A=4 B=1 C=1 Bx=513 sBx=-130558
+-- pc=68 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: LOADK	R1 K0             ; R1 := 4194304
-   1: GETGLOBAL	R2 K1         ; R2 := io
-   2: GETTABLE	R2 R2 RK258    ; R2 := R2["open"]
-   3: MOVE	R3 R0              ; R3 := R0
-   4: LOADK	R4 K3             ; R4 := "r"
-   5: CALL	R2 3 2             ; R2 := R2(...) -- b=3, c=2
-   6: TEST	R2 1 0             ; if not R2 then goto 0
-   7: JMP	7                   ; goto 7
-   8: GETGLOBAL	R3 K4         ; R3 := status
-   9: LOADK	R4 K5             ; R4 := 404
-  10: LOADK	R5 K6             ; R5 := "Not Found"
-  11: CALL	R3 3 1             ; R3 := R3(...) -- b=3, c=1
-  12: GETGLOBAL	R3 K7         ; R3 := close
-  13: CALL	R3 1 1             ; R3 := R3(...) -- b=1, c=1
-  14: RETURN	R0 1             ; return R0
-  15: SELF	R3 R2 R264         ; R3, R4 := R2, R264
-  16: LOADK	R5 K9             ; R5 := "end"
-  17: CALL	R3 3 2             ; R3 := R3(...) -- b=3, c=2
-  18: SELF	R4 R2 R264         ; R4, R5 := R2, R264
-  19: LOADK	R6 K10            ; R6 := "set"
-  20: CALL	R4 3 1             ; R4 := R4(...) -- b=3, c=1
-  21: GETGLOBAL	R4 K11        ; R4 := context
-  22: GETTABLE	R4 R4 RK260    ; R4 := R4["status"]
-  23: TEST	R4 1 0             ; if not R4 then goto 0
-  24: JMP	2                   ; goto 2
-  25: GETGLOBAL	R4 K4         ; R4 := status
-  26: CALL	R4 1 1             ; R4 := R4(...) -- b=1, c=1
-  27: GETGLOBAL	R4 K12        ; R4 := header
-  28: LOADK	R5 K13            ; R5 := "Content-Type"
-  29: LOADK	R6 K14            ; R6 := "text/plain; charset=utf-8"
-  30: CALL	R4 3 1             ; R4 := R4(...) -- b=3, c=1
-  31: GETGLOBAL	R4 K12        ; R4 := header
-  32: LOADK	R5 K15            ; R5 := "Content-Length"
-  33: GETUPVAL	R6 0           ; R6 := UpValue[0]
-  34: MOVE	R7 R3              ; R7 := R3
-  35: CALL	R6 2 0             ; R6 := R6(...) -- b=2, c=0
-  36: CALL	R4 0 1             ; R4 := R4(...) -- b=0, c=1
-  37: GETGLOBAL	R4 K12        ; R4 := header
-  38: LOADK	R5 K16            ; R5 := "Cache-Control"
-  39: LOADK	R6 K17            ; R6 := "no-cache"
-  40: CALL	R4 3 1             ; R4 := R4(...) -- b=3, c=1
-  41: GETGLOBAL	R4 K12        ; R4 := header
-  42: LOADK	R5 K18            ; R5 := "Expires"
-  43: LOADK	R6 K19            ; R6 := "0"
-  44: CALL	R4 3 1             ; R4 := R4(...) -- b=3, c=1
-  45: GETGLOBAL	R4 K11        ; R4 := context
-  46: SETTABLE	R4 RK276 R277  ; R4["eoh"] := true
-  47: GETUPVAL	R4 1           ; R4 := UpValue[1]
-  48: GETTABLE	R4 R4 RK278    ; R4 := R4["yield"]
-  49: LOADK	R5 K23            ; R5 := 3
-  50: CALL	R4 2 1             ; R4 := R4(...) -- b=2, c=1
-  51: SELF	R4 R2 R280         ; R4, R5 := R2, R280
-  52: LOADK	R6 K25            ; R6 := 0
-  53: CALL	R4 3 2             ; R4 := R4(...) -- b=3, c=2
-  54: TEST	R4 0 0             ; if  R4 then goto 0
-  55: JMP	8                   ; goto 8
-  56: GETUPVAL	R4 1           ; R4 := UpValue[1]
-  57: GETTABLE	R4 R4 RK278    ; R4 := R4["yield"]
-  58: LOADK	R5 K26            ; R5 := 4
-  59: SELF	R6 R2 R280         ; R6, R7 := R2, R280
-  60: MOVE	R8 R1              ; R8 := R1
-  61: CALL	R6 3 0             ; R6 := R6(...) -- b=3, c=0
-  62: CALL	R4 0 1             ; R4 := R4(...) -- b=0, c=1
-  63: JMP	-13                 ; goto -13
-  64: SELF	R4 R2 R263         ; R4, R5 := R2, R263
-  65: CALL	R4 2 1             ; R4 := R4(...) -- b=2, c=1
-  66: GETGLOBAL	R4 K7         ; R4 := close
-  67: CALL	R4 1 1             ; R4 := R4(...) -- b=1, c=1
-  68: RETURN	R0 1             ; return R0
+   0: LOADK	R1 K0                  ; R1 := 4194304
+   1: GETGLOBAL	R2 K1              ; R2 := io
+   2: GETTABLE	R2 R2 K2            ; R2 := R2["open"]
+   3: MOVE	R3 R0                   ; R3 := R0
+   4: LOADK	R4 K3                  ; R4 := "r"
+   5: CALL	R2 3 2                  ; R2 := R2(R3, R4)
+   6: TEST	R2 1                    ; if R2 then goto 15
+   7: JMP	7                        ; goto 15
+   8: GETGLOBAL	R3 K4              ; R3 := status
+   9: LOADK	R4 K5                  ; R4 := 404
+  10: LOADK	R5 K6                  ; R5 := "Not Found"
+  11: CALL	R3 3 1                  ; R3(R4, R5)
+  12: GETGLOBAL	R3 K7              ; R3 := close
+  13: CALL	R3 1 1                  ; R3()
+  14: RETURN	R0 1                  ; return
+  15: SELF	R3 R2 K8                ; R4 := R2; R3 := R2["seek"]
+  16: LOADK	R5 K9                  ; R5 := "end"
+  17: CALL	R3 3 2                  ; R3 := R3(R4, R5)
+  18: SELF	R4 R2 K8                ; R5 := R2; R4 := R2["seek"]
+  19: LOADK	R6 K10                 ; R6 := "set"
+  20: CALL	R4 3 1                  ; R4(R5, R6)
+  21: GETGLOBAL	R4 K11             ; R4 := context
+  22: GETTABLE	R4 R4 K4            ; R4 := R4["status"]
+  23: TEST	R4 1                    ; if R4 then goto 27
+  24: JMP	2                        ; goto 27
+  25: GETGLOBAL	R4 K4              ; R4 := status
+  26: CALL	R4 1 1                  ; R4()
+  27: GETGLOBAL	R4 K12             ; R4 := header
+  28: LOADK	R5 K13                 ; R5 := "Content-Type"
+  29: LOADK	R6 K14                 ; R6 := "text/plain; charset=utf-8"
+  30: CALL	R4 3 1                  ; R4(R5, R6)
+  31: GETGLOBAL	R4 K12             ; R4 := header
+  32: LOADK	R5 K15                 ; R5 := "Content-Length"
+  33: GETUPVAL	R6 0                ; R6 := UpValue[0]
+  34: MOVE	R7 R3                   ; R7 := R3
+  35: CALL	R6 2 0                  ; R6... := R6(R7)
+  36: CALL	R4 0 1                  ; R4(R5...)
+  37: GETGLOBAL	R4 K12             ; R4 := header
+  38: LOADK	R5 K16                 ; R5 := "Cache-Control"
+  39: LOADK	R6 K17                 ; R6 := "no-cache"
+  40: CALL	R4 3 1                  ; R4(R5, R6)
+  41: GETGLOBAL	R4 K12             ; R4 := header
+  42: LOADK	R5 K18                 ; R5 := "Expires"
+  43: LOADK	R6 K19                 ; R6 := "0"
+  44: CALL	R4 3 1                  ; R4(R5, R6)
+  45: GETGLOBAL	R4 K11             ; R4 := context
+  46: SETTABLE	R4 K20 K21          ; R4["eoh"] := true
+  47: GETUPVAL	R4 1                ; R4 := UpValue[1]
+  48: GETTABLE	R4 R4 K22           ; R4 := R4["yield"]
+  49: LOADK	R5 K23                 ; R5 := 3
+  50: CALL	R4 2 1                  ; R4(R5)
+  51: SELF	R4 R2 K24               ; R5 := R2; R4 := R2["read"]
+  52: LOADK	R6 K25                 ; R6 := 0
+  53: CALL	R4 3 2                  ; R4 := R4(R5, R6)
+  54: TEST	R4 0                    ; if not R4 then goto 64
+  55: JMP	8                        ; goto 64
+  56: GETUPVAL	R4 1                ; R4 := UpValue[1]
+  57: GETTABLE	R4 R4 K22           ; R4 := R4["yield"]
+  58: LOADK	R5 K26                 ; R5 := 4
+  59: SELF	R6 R2 K24               ; R7 := R2; R6 := R2["read"]
+  60: MOVE	R8 R1                   ; R8 := R1
+  61: CALL	R6 3 0                  ; R6... := R6(R7, R8)
+  62: CALL	R4 0 1                  ; R4(R5...)
+  63: JMP	-13                      ; goto 51
+  64: SELF	R4 R2 K7                ; R5 := R2; R4 := R2["close"]
+  65: CALL	R4 2 1                  ; R4(R5)
+  66: GETGLOBAL	R4 K7              ; R4 := close
+  67: CALL	R4 1 1                  ; R4()
+  68: RETURN	R0 1                  ; return
 
 -- SubChunk 24:
 -- SubChunk: lineDefined=325, lastLineDefined=327, numParams=2, isVararg=0, maxStackSize=6
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x0140009B opcodeNum=27 A=2 B=2 C=256 Bx=1280 sBx=-129791
+-- pc=02 raw=0x000040C6 opcodeNum=6 A=3 B=0 C=1 Bx=1 sBx=-131070
+-- pc=03 raw=0x00000124 opcodeNum=36 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x00800164 opcodeNum=36 A=5 B=1 C=0 Bx=512 sBx=-130559
+-- pc=05 raw=0x02004090 opcodeNum=16 A=2 B=4 C=1 Bx=2049 sBx=-129022
+-- pc=06 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETUPVAL	R2 0           ; R2 := UpValue[0]
-   1: GETTABLE	R2 R2 RK256    ; R2 := R2["yield"]
-   2: LOADK	R3 K1             ; R3 := 6
-   3: MOVE	R4 R0              ; R4 := R0
-   4: MOVE	R5 R1              ; R5 := R1
-   5: CALL	R2 4 1             ; R2 := R2(...) -- b=4, c=1
-   6: RETURN	R0 1             ; return R0
+   0: GETUPVAL	R2 0                ; R2 := UpValue[0]
+   1: GETTABLE	R2 R2 K0            ; R2 := R2["yield"]
+   2: LOADK	R3 K1                  ; R3 := 6
+   3: MOVE	R4 R0                   ; R4 := R0
+   4: MOVE	R5 R1                   ; R5 := R1
+   5: CALL	R2 4 1                  ; R2(R3, R4, R5)
+   6: RETURN	R0 1                  ; return
 
 -- SubChunk 25:
 -- SubChunk: lineDefined=331, lastLineDefined=335, numParams=1, isVararg=0, maxStackSize=4
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000066 opcodeNum=38 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00004086 opcodeNum=6 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=02 raw=0x000080C6 opcodeNum=6 A=3 B=0 C=2 Bx=2 sBx=-131069
+-- pc=03 raw=0x01804050 opcodeNum=16 A=1 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=04 raw=0x0000C066 opcodeNum=38 A=1 B=0 C=3 Bx=3 sBx=-131068
+-- pc=05 raw=0x00010086 opcodeNum=6 A=2 B=0 C=4 Bx=4 sBx=-131067
+-- pc=06 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x01804050 opcodeNum=16 A=1 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=08 raw=0x00014066 opcodeNum=38 A=1 B=0 C=5 Bx=5 sBx=-131066
+-- pc=09 raw=0x00804050 opcodeNum=16 A=1 B=1 C=1 Bx=513 sBx=-130558
+-- pc=10 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETGLOBAL	R1 K0         ; R1 := status
-   1: LOADK	R2 K1             ; R2 := 302
-   2: LOADK	R3 K2             ; R3 := "Found"
-   3: CALL	R1 3 1             ; R1 := R1(...) -- b=3, c=1
-   4: GETGLOBAL	R1 K3         ; R1 := header
-   5: LOADK	R2 K4             ; R2 := "Location"
-   6: MOVE	R3 R0              ; R3 := R0
-   7: CALL	R1 3 1             ; R1 := R1(...) -- b=3, c=1
-   8: GETGLOBAL	R1 K5         ; R1 := close
-   9: CALL	R1 1 1             ; R1 := R1(...) -- b=1, c=1
-  10: RETURN	R0 1             ; return R0
+   0: GETGLOBAL	R1 K0              ; R1 := status
+   1: LOADK	R2 K1                  ; R2 := 302
+   2: LOADK	R3 K2                  ; R3 := "Found"
+   3: CALL	R1 3 1                  ; R1(R2, R3)
+   4: GETGLOBAL	R1 K3              ; R1 := header
+   5: LOADK	R2 K4                  ; R2 := "Location"
+   6: MOVE	R3 R0                   ; R3 := R0
+   7: CALL	R1 3 1                  ; R1(R2, R3)
+   8: GETGLOBAL	R1 K5              ; R1 := close
+   9: CALL	R1 1 1                  ; R1()
+  10: RETURN	R0 1                  ; return
 
 -- SubChunk 26:
 -- SubChunk: lineDefined=340, lastLineDefined=352, numParams=1, isVararg=0, maxStackSize=10
 
+-- Raw Instructions:
+-- pc=00 raw=0x0080005C opcodeNum=28 A=1 B=1 C=0 Bx=512 sBx=-130559
+-- pc=01 raw=0x00000086 opcodeNum=6 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=02 raw=0x00804047 opcodeNum=7 A=1 B=1 C=1 Bx=513 sBx=-130558
+-- pc=03 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=04 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=05 raw=0x01010090 opcodeNum=16 A=2 B=2 C=4 Bx=1028 sBx=-130043
+-- pc=06 raw=0x8005001F opcodeNum=31 A=0 B=256 C=20 Bx=131092 sBx=21
+-- pc=07 raw=0x008041C2 opcodeNum=2 A=7 B=1 C=1 Bx=513 sBx=-130558
+-- pc=08 raw=0x8081C005 opcodeNum=5 A=0 B=257 C=7 Bx=131591 sBx=520
+-- pc=09 raw=0x8000801F opcodeNum=31 A=0 B=256 C=2 Bx=131074 sBx=3
+-- pc=10 raw=0x008041C2 opcodeNum=2 A=7 B=1 C=1 Bx=513 sBx=-130558
+-- pc=11 raw=0x03C041E5 opcodeNum=37 A=7 B=7 C=257 Bx=3841 sBx=-127230
+-- pc=12 raw=0x03C08051 opcodeNum=17 A=1 B=7 C=258 Bx=3842 sBx=-127229
+-- pc=13 raw=0x008041C2 opcodeNum=2 A=7 B=1 C=1 Bx=513 sBx=-130558
+-- pc=14 raw=0x03C041E5 opcodeNum=37 A=7 B=7 C=257 Bx=3841 sBx=-127230
+-- pc=15 raw=0x0000C226 opcodeNum=38 A=8 B=0 C=3 Bx=3 sBx=-131068
+-- pc=16 raw=0x02800264 opcodeNum=36 A=9 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=17 raw=0x01008210 opcodeNum=16 A=8 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=18 raw=0x03820051 opcodeNum=17 A=1 B=7 C=8 Bx=3592 sBx=-127479
+-- pc=19 raw=0x008041C2 opcodeNum=2 A=7 B=1 C=1 Bx=513 sBx=-130558
+-- pc=20 raw=0x03C041E5 opcodeNum=37 A=7 B=7 C=257 Bx=3841 sBx=-127230
+-- pc=21 raw=0x03C10051 opcodeNum=17 A=1 B=7 C=260 Bx=3844 sBx=-127227
+-- pc=22 raw=0x008041C2 opcodeNum=2 A=7 B=1 C=1 Bx=513 sBx=-130558
+-- pc=23 raw=0x03C041E5 opcodeNum=37 A=7 B=7 C=257 Bx=3841 sBx=-127230
+-- pc=24 raw=0x0000C226 opcodeNum=38 A=8 B=0 C=3 Bx=3 sBx=-131068
+-- pc=25 raw=0x03000264 opcodeNum=36 A=9 B=6 C=0 Bx=3072 sBx=-127999
+-- pc=26 raw=0x01008210 opcodeNum=16 A=8 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=27 raw=0x03820051 opcodeNum=17 A=1 B=7 C=8 Bx=3592 sBx=-127479
+-- pc=28 raw=0x0000808A opcodeNum=10 A=2 B=0 C=2 Bx=2 sBx=-131069
+-- pc=29 raw=0x7FFA001F opcodeNum=31 A=0 B=255 C=488 Bx=131048 sBx=-23
+-- pc=30 raw=0x00800092 opcodeNum=18 A=2 B=1 C=0 Bx=512 sBx=-130559
+-- pc=31 raw=0x0141409B opcodeNum=27 A=2 B=2 C=261 Bx=1285 sBx=-129786
+-- pc=32 raw=0x008000E4 opcodeNum=36 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=33 raw=0x00018106 opcodeNum=6 A=4 B=0 C=6 Bx=6 sBx=-131065
+-- pc=34 raw=0x0180008D opcodeNum=13 A=2 B=3 C=0 Bx=1536 sBx=-129535
+-- pc=35 raw=0x00000088 opcodeNum=8 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=36 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: NEWTABLE	R1             ; R1 := {}
-   1: LOADK	R2 K0             ; R2 := "?"
-   2: SETLIST	R1 1 1          ; setlist R1, R1 -- b=1, c=1
-   3: GETUPVAL	R2 0           ; R2 := UpValue[0]
-   4: MOVE	R3 R0              ; R3 := R0
-   5: CALL	R2 2 4             ; R2 := R2(...) -- b=2, c=4
-   6: JMP	21                  ; goto 21
-   7: LEN	R7 R1               ; R7 := #R1
-   8: LT	R257 R7 0            ; if 1 < R7 then goto 0
-   9: JMP	3                   ; goto 3
-  10: LEN	R7 R1               ; R7 := #R1
-  11: ADD	R7 R7 R257          ; R7 := R7 + R257
-  12: SETTABLE	R1 RK7 R258    ; R1[R7] := "&"
-  13: LEN	R7 R1               ; R7 := #R1
-  14: ADD	R7 R7 R257          ; R7 := R7 + R257
-  15: GETGLOBAL	R8 K3         ; R8 := urldecode
-  16: MOVE	R9 R5              ; R9 := R5
-  17: CALL	R8 2 2             ; R8 := R8(...) -- b=2, c=2
-  18: SETTABLE	R1 RK7 R8      ; R1[R7] := R8
-  19: LEN	R7 R1               ; R7 := #R1
-  20: ADD	R7 R7 R257          ; R7 := R7 + R257
-  21: SETTABLE	R1 RK7 R260    ; R1[R7] := "="
-  22: LEN	R7 R1               ; R7 := #R1
-  23: ADD	R7 R7 R257          ; R7 := R7 + R257
-  24: GETGLOBAL	R8 K3         ; R8 := urldecode
-  25: MOVE	R9 R6              ; R9 := R6
-  26: CALL	R8 2 2             ; R8 := R8(...) -- b=2, c=2
-  27: SETTABLE	R1 RK7 R8      ; R1[R7] := R8
-  28: TFORLOOP	R2 0 2         ; tforloop R2, R3 -- b=0, c=2
-  29: JMP	-23                 ; goto -23
-  30: GETUPVAL	R2 1           ; R2 := UpValue[1]
-  31: GETTABLE	R2 R2 RK261    ; R2 := R2["concat"]
-  32: MOVE	R3 R1              ; R3 := R1
-  33: LOADK	R4 K6             ; R4 := ""
-  34: TAILCALL	R2 3 0         ; tailcall R2(...) -- b=3, c=0
-  35: RETURN	R2 0             ; return
-  36: RETURN	R0 1             ; return R0
+   0: NEWTABLE	R1 1 0              ; R1 := {} (size = 1,0)
+   1: LOADK	R2 K0                  ; R2 := "?"
+   2: SETLIST	R1 1 1               ; R1[(1-1)*50+i] := R1+i, 1 <= i <= 1
+   3: GETUPVAL	R2 0                ; R2 := UpValue[0]
+   4: MOVE	R3 R0                   ; R3 := R0
+   5: CALL	R2 2 4                  ; R2, R3, R4 := R2(R3)
+   6: JMP	21                       ; goto 28
+   7: LEN	R7 R1                    ; R7 := #R1
+   8: LT	0 K1 R7                   ; if 1 >= R7 then goto 13
+   9: JMP	3                        ; goto 13
+  10: LEN	R7 R1                    ; R7 := #R1
+  11: ADD	R7 R7 K1                 ; R7 := R7 + 1
+  12: SETTABLE	R1 R7 K2            ; R1[R7] := "&"
+  13: LEN	R7 R1                    ; R7 := #R1
+  14: ADD	R7 R7 K1                 ; R7 := R7 + 1
+  15: GETGLOBAL	R8 K3              ; R8 := urldecode
+  16: MOVE	R9 R5                   ; R9 := R5
+  17: CALL	R8 2 2                  ; R8 := R8(R9)
+  18: SETTABLE	R1 R7 R8            ; R1[R7] := R8
+  19: LEN	R7 R1                    ; R7 := #R1
+  20: ADD	R7 R7 K1                 ; R7 := R7 + 1
+  21: SETTABLE	R1 R7 K4            ; R1[R7] := "="
+  22: LEN	R7 R1                    ; R7 := #R1
+  23: ADD	R7 R7 K1                 ; R7 := R7 + 1
+  24: GETGLOBAL	R8 K3              ; R8 := urldecode
+  25: MOVE	R9 R6                   ; R9 := R6
+  26: CALL	R8 2 2                  ; R8 := R8(R9)
+  27: SETTABLE	R1 R7 R8            ; R1[R7] := R8
+  28: TFORLOOP	R2 0 2              ; R5, ..., R6 := R2(R3, R4); if R5 ~= nil then { R4 := R5; goto 7 }
+  29: JMP	-23                      ; goto 7
+  30: GETUPVAL	R2 1                ; R2 := UpValue[1]
+  31: GETTABLE	R2 R2 K5            ; R2 := R2["concat"]
+  32: MOVE	R3 R1                   ; R3 := R1
+  33: LOADK	R4 K6                  ; R4 := ""
+  34: TAILCALL	R2 3 0              ; return R2(R3, R4)
+  35: RETURN	R2 0                  ; return R2...
+  36: RETURN	R0 1                  ; return
 
 -- SubChunk 27:
 -- SubChunk: lineDefined=367, lastLineDefined=385, numParams=1, isVararg=0, maxStackSize=7
 
+-- Raw Instructions:
+-- pc=00 raw=0x00400013 opcodeNum=19 A=0 B=0 C=256 Bx=256 sBx=-130815
+-- pc=01 raw=0x8000C01F opcodeNum=31 A=0 B=256 C=3 Bx=131075 sBx=4
+-- pc=02 raw=0x00004066 opcodeNum=38 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=03 raw=0x00008086 opcodeNum=6 A=2 B=0 C=2 Bx=2 sBx=-131069
+-- pc=04 raw=0x01004050 opcodeNum=16 A=1 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=05 raw=0x800C001F opcodeNum=31 A=0 B=256 C=48 Bx=131120 sBx=49
+-- pc=06 raw=0x00000052 opcodeNum=18 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x000000A4 opcodeNum=36 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=08 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=09 raw=0x00C0C013 opcodeNum=19 A=0 B=1 C=259 Bx=771 sBx=-130300
+-- pc=10 raw=0x8002C01F opcodeNum=31 A=0 B=256 C=11 Bx=131083 sBx=12
+-- pc=11 raw=0x00010066 opcodeNum=38 A=1 B=0 C=4 Bx=4 sBx=-131067
+-- pc=12 raw=0x00014086 opcodeNum=6 A=2 B=0 C=5 Bx=5 sBx=-131066
+-- pc=13 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=14 raw=0x000040A6 opcodeNum=38 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=15 raw=0x00C180DB opcodeNum=27 A=3 B=1 C=262 Bx=774 sBx=-130297
+-- pc=16 raw=0x00000124 opcodeNum=36 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=17 raw=0x010080D0 opcodeNum=16 A=3 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=18 raw=0x02000129 opcodeNum=41 A=4 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=19 raw=0x00000158 opcodeNum=24 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=20 raw=0x00800198 opcodeNum=24 A=6 B=1 C=0 Bx=512 sBx=-130559
+-- pc=21 raw=0x02804090 opcodeNum=16 A=2 B=5 C=1 Bx=2561 sBx=-128510
+-- pc=22 raw=0x8007C01F opcodeNum=31 A=0 B=256 C=31 Bx=131103 sBx=32
+-- pc=23 raw=0x00000052 opcodeNum=18 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=24 raw=0x000000A4 opcodeNum=36 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=25 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=26 raw=0x00C1C053 opcodeNum=19 A=1 B=1 C=263 Bx=775 sBx=-130296
+-- pc=27 raw=0x8001001F opcodeNum=31 A=0 B=256 C=4 Bx=131076 sBx=5
+-- pc=28 raw=0x00000052 opcodeNum=18 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=29 raw=0x000000A4 opcodeNum=36 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=30 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=31 raw=0x00C20013 opcodeNum=19 A=0 B=1 C=264 Bx=776 sBx=-130295
+-- pc=32 raw=0x8002C01F opcodeNum=31 A=0 B=256 C=11 Bx=131083 sBx=12
+-- pc=33 raw=0x00000054 opcodeNum=20 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=34 raw=0x8000C01F opcodeNum=31 A=0 B=256 C=3 Bx=131075 sBx=4
+-- pc=35 raw=0x00004066 opcodeNum=38 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=36 raw=0x00024086 opcodeNum=6 A=2 B=0 C=9 Bx=9 sBx=-131062
+-- pc=37 raw=0x01004050 opcodeNum=16 A=1 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=38 raw=0x8003C01F opcodeNum=31 A=0 B=256 C=15 Bx=131087 sBx=16
+-- pc=39 raw=0x00004066 opcodeNum=38 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=40 raw=0x00800092 opcodeNum=18 A=2 B=1 C=0 Bx=512 sBx=-130559
+-- pc=41 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=42 raw=0x01000090 opcodeNum=16 A=2 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=43 raw=0x00004050 opcodeNum=16 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=44 raw=0x8002401F opcodeNum=31 A=0 B=256 C=9 Bx=131081 sBx=10
+-- pc=45 raw=0x00004066 opcodeNum=38 A=1 B=0 C=1 Bx=1 sBx=-131070
+-- pc=46 raw=0x00800092 opcodeNum=18 A=2 B=1 C=0 Bx=512 sBx=-130559
+-- pc=47 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=48 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=49 raw=0x0142C08F opcodeNum=15 A=2 B=2 C=267 Bx=1291 sBx=-129780
+-- pc=50 raw=0x00030106 opcodeNum=6 A=4 B=0 C=12 Bx=12 sBx=-131059
+-- pc=51 raw=0x00000141 opcodeNum=1 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=52 raw=0x02008090 opcodeNum=16 A=2 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=53 raw=0x85008099 opcodeNum=25 A=2 B=266 C=2 Bx=136194 sBx=5123
+-- pc=54 raw=0x01004050 opcodeNum=16 A=1 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=55 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: EQ	R0 R256 0            ; if R0 == nil then goto 0
-   1: JMP	4                   ; goto 4
-   2: GETGLOBAL	R1 K1         ; R1 := write
-   3: LOADK	R2 K2             ; R2 := "null"
-   4: CALL	R1 2 1             ; R1 := R1(...) -- b=2, c=1
-   5: JMP	49                  ; goto 49
-   6: GETUPVAL	R1 0           ; R1 := UpValue[0]
-   7: MOVE	R2 R0              ; R2 := R0
-   8: CALL	R1 2 2             ; R1 := R1(...) -- b=2, c=2
-   9: EQ	R1 R259 0            ; if R1 == "table" then goto 0
-  10: JMP	12                  ; goto 12
-  11: GETGLOBAL	R1 K4         ; R1 := require
-  12: LOADK	R2 K5             ; R2 := "luci.json"
-  13: CALL	R1 2 2             ; R1 := R1(...) -- b=2, c=2
-  14: GETGLOBAL	R2 K1         ; R2 := write
-  15: GETTABLE	R3 R1 RK262    ; R3 := R1["encode"]
-  16: MOVE	R4 R0              ; R4 := R0
-  17: CALL	R3 2 2             ; R3 := R3(...) -- b=2, c=2
-  18: LOADNIL	R4 R4           ; R4 := nil
-  19: LOADBOOL	R5 0 0         ; R5 := false
-  20: LOADBOOL	R6 1 0         ; R6 := true
-  21: CALL	R2 5 1             ; R2 := R2(...) -- b=5, c=1
-  22: JMP	32                  ; goto 32
-  23: GETUPVAL	R1 0           ; R1 := UpValue[0]
-  24: MOVE	R2 R0              ; R2 := R0
-  25: CALL	R1 2 2             ; R1 := R1(...) -- b=2, c=2
-  26: EQ	R1 R263 0            ; if R1 == "number" then goto 0
-  27: JMP	5                   ; goto 5
-  28: GETUPVAL	R1 0           ; R1 := UpValue[0]
-  29: MOVE	R2 R0              ; R2 := R0
-  30: CALL	R1 2 2             ; R1 := R1(...) -- b=2, c=2
-  31: EQ	R1 R264 0            ; if R1 == "boolean" then goto 0
-  32: JMP	12                  ; goto 12
-  33: EQ	R0 R0 0              ; if R0 == R0 then goto 0
-  34: JMP	4                   ; goto 4
-  35: GETGLOBAL	R1 K1         ; R1 := write
-  36: LOADK	R2 K9             ; R2 := "Number.NaN"
-  37: CALL	R1 2 1             ; R1 := R1(...) -- b=2, c=1
-  38: JMP	16                  ; goto 16
-  39: GETGLOBAL	R1 K1         ; R1 := write
-  40: GETUPVAL	R2 1           ; R2 := UpValue[1]
-  41: MOVE	R3 R0              ; R3 := R0
-  42: CALL	R2 2 0             ; R2 := R2(...) -- b=2, c=0
-  43: CALL	R1 0 1             ; R1 := R1(...) -- b=0, c=1
-  44: JMP	10                  ; goto 10
-  45: GETGLOBAL	R1 K1         ; R1 := write
-  46: GETUPVAL	R2 1           ; R2 := UpValue[1]
-  47: MOVE	R3 R0              ; R3 := R0
-  48: CALL	R2 2 2             ; R2 := R2(...) -- b=2, c=2
-  49: SELF	R2 R2 R267         ; R2, R3 := R2, R267
-  50: LOADK	R4 K12            ; R4 := "["%z-]"
-  51: CLOSURE	R5 0            ; R5 := closure(0)
-  52: CALL	R2 4 2             ; R2 := R2(...) -- b=4, c=2
-  53: MOD	R2 R266 R2          ; R2 := R266 % R2
-  54: CALL	R1 2 1             ; R1 := R1(...) -- b=2, c=1
-  55: RETURN	R0 1             ; return R0
+   0: EQ	0 R0 K0                   ; if R0 ~= nil then goto 6
+   1: JMP	4                        ; goto 6
+   2: GETGLOBAL	R1 K1              ; R1 := write
+   3: LOADK	R2 K2                  ; R2 := "null"
+   4: CALL	R1 2 1                  ; R1(R2)
+   5: JMP	49                       ; goto 55
+   6: GETUPVAL	R1 0                ; R1 := UpValue[0]
+   7: MOVE	R2 R0                   ; R2 := R0
+   8: CALL	R1 2 2                  ; R1 := R1(R2)
+   9: EQ	0 R1 K3                   ; if R1 ~= "table" then goto 23
+  10: JMP	12                       ; goto 23
+  11: GETGLOBAL	R1 K4              ; R1 := require
+  12: LOADK	R2 K5                  ; R2 := "luci.json"
+  13: CALL	R1 2 2                  ; R1 := R1(R2)
+  14: GETGLOBAL	R2 K1              ; R2 := write
+  15: GETTABLE	R3 R1 K6            ; R3 := R1["encode"]
+  16: MOVE	R4 R0                   ; R4 := R0
+  17: CALL	R3 2 2                  ; R3 := R3(R4)
+  18: LOADNIL	R4 R4                ; R4 := nil
+  19: LOADBOOL	R5 0 0              ; R5 := false
+  20: LOADBOOL	R6 1 0              ; R6 := true
+  21: CALL	R2 5 1                  ; R2(R3, R4, R5, R6)
+  22: JMP	32                       ; goto 55
+  23: GETUPVAL	R1 0                ; R1 := UpValue[0]
+  24: MOVE	R2 R0                   ; R2 := R0
+  25: CALL	R1 2 2                  ; R1 := R1(R2)
+  26: EQ	1 R1 K7                   ; if R1 == "number" then goto 33
+  27: JMP	5                        ; goto 33
+  28: GETUPVAL	R1 0                ; R1 := UpValue[0]
+  29: MOVE	R2 R0                   ; R2 := R0
+  30: CALL	R1 2 2                  ; R1 := R1(R2)
+  31: EQ	0 R1 K8                   ; if R1 ~= "boolean" then goto 45
+  32: JMP	12                       ; goto 45
+  33: EQ	1 R0 R0                   ; if R0 == R0 then goto 39
+  34: JMP	4                        ; goto 39
+  35: GETGLOBAL	R1 K1              ; R1 := write
+  36: LOADK	R2 K9                  ; R2 := "Number.NaN"
+  37: CALL	R1 2 1                  ; R1(R2)
+  38: JMP	16                       ; goto 55
+  39: GETGLOBAL	R1 K1              ; R1 := write
+  40: GETUPVAL	R2 1                ; R2 := UpValue[1]
+  41: MOVE	R3 R0                   ; R3 := R0
+  42: CALL	R2 2 0                  ; R2... := R2(R3)
+  43: CALL	R1 0 1                  ; R1(R2...)
+  44: JMP	10                       ; goto 55
+  45: GETGLOBAL	R1 K1              ; R1 := write
+  46: GETUPVAL	R2 1                ; R2 := UpValue[1]
+  47: MOVE	R3 R0                   ; R3 := R0
+  48: CALL	R2 2 2                  ; R2 := R2(R3)
+  49: SELF	R2 R2 K11               ; R3 := R2; R2 := R2["gsub"]
+  50: LOADK	R4 K12                 ; R4 := "[\"%z\001-\031]"
+  51: CLOSURE	R5 0                 ; R5 := closure(0)
+  52: CALL	R2 4 2                  ; R2 := R2(R3, R4, R5)
+  53: MOD	R2 K10 R2                ; R2 := "\"%s\"" % R2
+  54: CALL	R1 2 1                  ; R1(R2)
+  55: RETURN	R0 1                  ; return
 
 -- SubChunks:
 
 -- SubChunk 1:
 -- SubChunk: lineDefined=381, lastLineDefined=383, numParams=1, isVararg=0, maxStackSize=4
 
+-- Raw Instructions:
+-- pc=00 raw=0x0040404F opcodeNum=15 A=1 B=0 C=257 Bx=257 sBx=-130814
+-- pc=01 raw=0x000080C6 opcodeNum=6 A=3 B=0 C=2 Bx=2 sBx=-131069
+-- pc=02 raw=0x01808050 opcodeNum=16 A=1 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=03 raw=0x80004059 opcodeNum=25 A=1 B=256 C=1 Bx=131073 sBx=2
+-- pc=04 raw=0x01000048 opcodeNum=8 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=05 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: SELF	R1 R0 R257         ; R1, R2 := R0, R257
-   1: LOADK	R3 K2             ; R3 := 1
-   2: CALL	R1 3 2             ; R1 := R1(...) -- b=3, c=2
-   3: MOD	R1 R256 R1          ; R1 := R256 % R1
-   4: RETURN	R1 2             ; return R1, R2
-   5: RETURN	R0 1             ; return R0
+   0: SELF	R1 R0 K1                ; R2 := R0; R1 := R0["byte"]
+   1: LOADK	R3 K2                  ; R3 := 1
+   2: CALL	R1 3 2                  ; R1 := R1(R2, R3)
+   3: MOD	R1 K0 R1                 ; R1 := "\\u%04x" % R1
+   4: RETURN	R1 2                  ; return R1
+   5: RETURN	R0 1                  ; return
 
 
 -- SubChunk 28:
 -- SubChunk: lineDefined=389, lastLineDefined=393, numParams=1, isVararg=0, maxStackSize=5
 
+-- Raw Instructions:
+-- pc=00 raw=0x00000066 opcodeNum=38 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=01 raw=0x00004086 opcodeNum=6 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=02 raw=0x01008050 opcodeNum=16 A=1 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=03 raw=0x00C0809B opcodeNum=27 A=2 B=1 C=258 Bx=770 sBx=-130301
+-- pc=04 raw=0x0000C0C6 opcodeNum=6 A=3 B=0 C=3 Bx=3 sBx=-131068
+-- pc=05 raw=0x00000124 opcodeNum=36 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=06 raw=0x01804090 opcodeNum=16 A=2 B=3 C=1 Bx=1537 sBx=-129534
+-- pc=07 raw=0x000100A6 opcodeNum=38 A=2 B=0 C=4 Bx=4 sBx=-131067
+-- pc=08 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=09 raw=0x01004090 opcodeNum=16 A=2 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=10 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: GETGLOBAL	R1 K0         ; R1 := require
-   1: LOADK	R2 K1             ; R2 := "xiaoqiang.XQLog"
-   2: CALL	R1 2 2             ; R1 := R1(...) -- b=2, c=2
-   3: GETTABLE	R2 R1 RK258    ; R2 := R1["log"]
-   4: LOADK	R3 K3             ; R3 := 7
-   5: MOVE	R4 R0              ; R4 := R0
-   6: CALL	R2 3 1             ; R2 := R2(...) -- b=3, c=1
-   7: GETGLOBAL	R2 K4         ; R2 := writeJsonNoLog
-   8: MOVE	R3 R0              ; R3 := R0
-   9: CALL	R2 2 1             ; R2 := R2(...) -- b=2, c=1
-  10: RETURN	R0 1             ; return R0
+   0: GETGLOBAL	R1 K0              ; R1 := require
+   1: LOADK	R2 K1                  ; R2 := "xiaoqiang.XQLog"
+   2: CALL	R1 2 2                  ; R1 := R1(R2)
+   3: GETTABLE	R2 R1 K2            ; R2 := R1["log"]
+   4: LOADK	R3 K3                  ; R3 := 7
+   5: MOVE	R4 R0                   ; R4 := R0
+   6: CALL	R2 3 1                  ; R2(R3, R4)
+   7: GETGLOBAL	R2 K4              ; R2 := writeJsonNoLog
+   8: MOVE	R3 R0                   ; R3 := R0
+   9: CALL	R2 2 1                  ; R2(R3)
+  10: RETURN	R0 1                  ; return
 
 -- SubChunk 29:
 -- SubChunk: lineDefined=395, lastLineDefined=423, numParams=2, isVararg=0, maxStackSize=8
 
+-- Raw Instructions:
+-- pc=00 raw=0x00400013 opcodeNum=19 A=0 B=0 C=256 Bx=256 sBx=-130815
+-- pc=01 raw=0x8000C01F opcodeNum=31 A=0 B=256 C=3 Bx=131075 sBx=4
+-- pc=02 raw=0x000040A6 opcodeNum=38 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=03 raw=0x000080C6 opcodeNum=6 A=3 B=0 C=2 Bx=2 sBx=-131069
+-- pc=04 raw=0x01004090 opcodeNum=16 A=2 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=05 raw=0x8014C01F opcodeNum=31 A=0 B=256 C=83 Bx=131155 sBx=84
+-- pc=06 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=07 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=08 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=09 raw=0x0140C013 opcodeNum=19 A=0 B=2 C=259 Bx=1283 sBx=-129788
+-- pc=10 raw=0x8006C01F opcodeNum=31 A=0 B=256 C=27 Bx=131099 sBx=28
+-- pc=11 raw=0x000100A6 opcodeNum=38 A=2 B=0 C=4 Bx=4 sBx=-131067
+-- pc=12 raw=0x000140C6 opcodeNum=6 A=3 B=0 C=5 Bx=5 sBx=-131066
+-- pc=13 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=14 raw=0x00000049 opcodeNum=9 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=15 raw=0x8002C01F opcodeNum=31 A=0 B=256 C=11 Bx=131083 sBx=12
+-- pc=16 raw=0x000040E6 opcodeNum=38 A=3 B=0 C=1 Bx=1 sBx=-131070
+-- pc=17 raw=0x00800124 opcodeNum=36 A=4 B=1 C=0 Bx=512 sBx=-130559
+-- pc=18 raw=0x00018146 opcodeNum=6 A=5 B=0 C=6 Bx=6 sBx=-131065
+-- pc=19 raw=0x0141C19B opcodeNum=27 A=6 B=2 C=263 Bx=1287 sBx=-129784
+-- pc=20 raw=0x000001E4 opcodeNum=36 A=7 B=0 C=0 Bx=0 sBx=-131071
+-- pc=21 raw=0x01008190 opcodeNum=16 A=6 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=22 raw=0x000201C6 opcodeNum=6 A=7 B=0 C=8 Bx=8 sBx=-131063
+-- pc=23 raw=0x0201C115 opcodeNum=21 A=4 B=4 C=7 Bx=2055 sBx=-129016
+-- pc=24 raw=0x02800169 opcodeNum=41 A=5 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=25 raw=0x00800198 opcodeNum=24 A=6 B=1 C=0 Bx=512 sBx=-130559
+-- pc=26 raw=0x020040D0 opcodeNum=16 A=3 B=4 C=1 Bx=2049 sBx=-129022
+-- pc=27 raw=0x800F401F opcodeNum=31 A=0 B=256 C=61 Bx=131133 sBx=62
+-- pc=28 raw=0x000040E6 opcodeNum=38 A=3 B=0 C=1 Bx=1 sBx=-131070
+-- pc=29 raw=0x00024106 opcodeNum=6 A=4 B=0 C=9 Bx=9 sBx=-131062
+-- pc=30 raw=0x0141C15B opcodeNum=27 A=5 B=2 C=263 Bx=1287 sBx=-129784
+-- pc=31 raw=0x000001A4 opcodeNum=36 A=6 B=0 C=0 Bx=0 sBx=-131071
+-- pc=32 raw=0x01008150 opcodeNum=16 A=5 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=33 raw=0x00020186 opcodeNum=6 A=6 B=0 C=8 Bx=8 sBx=-131063
+-- pc=34 raw=0x02018115 opcodeNum=21 A=4 B=4 C=6 Bx=2054 sBx=-129017
+-- pc=35 raw=0x02800169 opcodeNum=41 A=5 B=5 C=0 Bx=2560 sBx=-128511
+-- pc=36 raw=0x00800198 opcodeNum=24 A=6 B=1 C=0 Bx=512 sBx=-130559
+-- pc=37 raw=0x020040D0 opcodeNum=16 A=3 B=4 C=1 Bx=2049 sBx=-129022
+-- pc=38 raw=0x800C801F opcodeNum=31 A=0 B=256 C=50 Bx=131122 sBx=51
+-- pc=39 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=40 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=41 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=42 raw=0x01428053 opcodeNum=19 A=1 B=2 C=266 Bx=1290 sBx=-129781
+-- pc=43 raw=0x8001001F opcodeNum=31 A=0 B=256 C=4 Bx=131076 sBx=5
+-- pc=44 raw=0x00000092 opcodeNum=18 A=2 B=0 C=0 Bx=0 sBx=-131071
+-- pc=45 raw=0x000000E4 opcodeNum=36 A=3 B=0 C=0 Bx=0 sBx=-131071
+-- pc=46 raw=0x01008090 opcodeNum=16 A=2 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=47 raw=0x0142C013 opcodeNum=19 A=0 B=2 C=267 Bx=1291 sBx=-129780
+-- pc=48 raw=0x8002C01F opcodeNum=31 A=0 B=256 C=11 Bx=131083 sBx=12
+-- pc=49 raw=0x00000054 opcodeNum=20 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=50 raw=0x8000C01F opcodeNum=31 A=0 B=256 C=3 Bx=131075 sBx=4
+-- pc=51 raw=0x000040A6 opcodeNum=38 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=52 raw=0x000300C6 opcodeNum=6 A=3 B=0 C=12 Bx=12 sBx=-131059
+-- pc=53 raw=0x01004090 opcodeNum=16 A=2 B=2 C=1 Bx=1025 sBx=-130046
+-- pc=54 raw=0x8008801F opcodeNum=31 A=0 B=256 C=34 Bx=131106 sBx=35
+-- pc=55 raw=0x000040A6 opcodeNum=38 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=56 raw=0x008000D2 opcodeNum=18 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=57 raw=0x00000124 opcodeNum=36 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=58 raw=0x010000D0 opcodeNum=16 A=3 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=59 raw=0x00004090 opcodeNum=16 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=60 raw=0x8007001F opcodeNum=31 A=0 B=256 C=28 Bx=131100 sBx=29
+-- pc=61 raw=0x00000049 opcodeNum=9 A=1 B=0 C=0 Bx=0 sBx=-131071
+-- pc=62 raw=0x8003801F opcodeNum=31 A=0 B=256 C=14 Bx=131086 sBx=15
+-- pc=63 raw=0x000040A6 opcodeNum=38 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=64 raw=0x008000E4 opcodeNum=36 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=65 raw=0x00800112 opcodeNum=18 A=4 B=1 C=0 Bx=512 sBx=-130559
+-- pc=66 raw=0x00000164 opcodeNum=36 A=5 B=0 C=0 Bx=0 sBx=-131071
+-- pc=67 raw=0x01008110 opcodeNum=16 A=4 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=68 raw=0x0243810F opcodeNum=15 A=4 B=4 C=270 Bx=2318 sBx=-128753
+-- pc=69 raw=0x0003C186 opcodeNum=6 A=6 B=0 C=15 Bx=15 sBx=-131056
+-- pc=70 raw=0x000001C1 opcodeNum=1 A=7 B=0 C=0 Bx=0 sBx=-131071
+-- pc=71 raw=0x02008110 opcodeNum=16 A=4 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=72 raw=0x86810119 opcodeNum=25 A=4 B=269 C=4 Bx=137732 sBx=6661
+-- pc=73 raw=0x018100D5 opcodeNum=21 A=3 B=3 C=4 Bx=1540 sBx=-129531
+-- pc=74 raw=0x02000129 opcodeNum=41 A=4 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=75 raw=0x00800158 opcodeNum=24 A=5 B=1 C=0 Bx=512 sBx=-130559
+-- pc=76 raw=0x02004090 opcodeNum=16 A=2 B=4 C=1 Bx=2049 sBx=-129022
+-- pc=77 raw=0x8002C01F opcodeNum=31 A=0 B=256 C=11 Bx=131083 sBx=12
+-- pc=78 raw=0x000040A6 opcodeNum=38 A=2 B=0 C=1 Bx=1 sBx=-131070
+-- pc=79 raw=0x008000D2 opcodeNum=18 A=3 B=1 C=0 Bx=512 sBx=-130559
+-- pc=80 raw=0x00000124 opcodeNum=36 A=4 B=0 C=0 Bx=0 sBx=-131071
+-- pc=81 raw=0x010080D0 opcodeNum=16 A=3 B=2 C=2 Bx=1026 sBx=-130045
+-- pc=82 raw=0x01C380CF opcodeNum=15 A=3 B=3 C=270 Bx=1806 sBx=-129265
+-- pc=83 raw=0x0003C146 opcodeNum=6 A=5 B=0 C=15 Bx=15 sBx=-131056
+-- pc=84 raw=0x00004181 opcodeNum=1 A=6 B=0 C=1 Bx=1 sBx=-131070
+-- pc=85 raw=0x020080D0 opcodeNum=16 A=3 B=4 C=2 Bx=2050 sBx=-129021
+-- pc=86 raw=0x8800C0D9 opcodeNum=25 A=3 B=272 C=3 Bx=139267 sBx=8196
+-- pc=87 raw=0x02000129 opcodeNum=41 A=4 B=4 C=0 Bx=2048 sBx=-129023
+-- pc=88 raw=0x00800158 opcodeNum=24 A=5 B=1 C=0 Bx=512 sBx=-130559
+-- pc=89 raw=0x02004090 opcodeNum=16 A=2 B=4 C=1 Bx=2049 sBx=-129022
+-- pc=90 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: EQ	R0 R256 0            ; if R0 == nil then goto 0
-   1: JMP	4                   ; goto 4
-   2: GETGLOBAL	R2 K1         ; R2 := write
-   3: LOADK	R3 K2             ; R3 := "null"
-   4: CALL	R2 2 1             ; R2 := R2(...) -- b=2, c=1
-   5: JMP	84                  ; goto 84
-   6: GETUPVAL	R2 0           ; R2 := UpValue[0]
-   7: MOVE	R3 R0              ; R3 := R0
-   8: CALL	R2 2 2             ; R2 := R2(...) -- b=2, c=2
-   9: EQ	R2 R259 0            ; if R2 == "table" then goto 0
-  10: JMP	28                  ; goto 28
-  11: GETGLOBAL	R2 K4         ; R2 := require
-  12: LOADK	R3 K5             ; R3 := "luci.json"
-  13: CALL	R2 2 2             ; R2 := R2(...) -- b=2, c=2
-  14: TEST	R1 0 0             ; if  R1 then goto 0
-  15: JMP	12                  ; goto 12
-  16: GETGLOBAL	R3 K1         ; R3 := write
-  17: MOVE	R4 R1              ; R4 := R1
-  18: LOADK	R5 K6             ; R5 := "("
-  19: GETTABLE	R6 R2 RK263    ; R6 := R2["encode"]
-  20: MOVE	R7 R0              ; R7 := R0
-  21: CALL	R6 2 2             ; R6 := R6(...) -- b=2, c=2
-  22: LOADK	R7 K8             ; R7 := ");"
-  23: CONCAT	R4 R4 R7         ; R4 := R4 .. R7
-  24: LOADNIL	R5 R5           ; R5 := nil
-  25: LOADBOOL	R6 1 0         ; R6 := true
-  26: CALL	R3 4 1             ; R3 := R3(...) -- b=4, c=1
-  27: JMP	62                  ; goto 62
-  28: GETGLOBAL	R3 K1         ; R3 := write
-  29: LOADK	R4 K9             ; R4 := "jsonpHandler("
-  30: GETTABLE	R5 R2 RK263    ; R5 := R2["encode"]
-  31: MOVE	R6 R0              ; R6 := R0
-  32: CALL	R5 2 2             ; R5 := R5(...) -- b=2, c=2
-  33: LOADK	R6 K8             ; R6 := ");"
-  34: CONCAT	R4 R4 R6         ; R4 := R4 .. R6
-  35: LOADNIL	R5 R5           ; R5 := nil
-  36: LOADBOOL	R6 1 0         ; R6 := true
-  37: CALL	R3 4 1             ; R3 := R3(...) -- b=4, c=1
-  38: JMP	51                  ; goto 51
-  39: GETUPVAL	R2 0           ; R2 := UpValue[0]
-  40: MOVE	R3 R0              ; R3 := R0
-  41: CALL	R2 2 2             ; R2 := R2(...) -- b=2, c=2
-  42: EQ	R2 R266 0            ; if R2 == "number" then goto 0
-  43: JMP	5                   ; goto 5
-  44: GETUPVAL	R2 0           ; R2 := UpValue[0]
-  45: MOVE	R3 R0              ; R3 := R0
-  46: CALL	R2 2 2             ; R2 := R2(...) -- b=2, c=2
-  47: EQ	R2 R267 0            ; if R2 == "boolean" then goto 0
-  48: JMP	12                  ; goto 12
-  49: EQ	R0 R0 0              ; if R0 == R0 then goto 0
-  50: JMP	4                   ; goto 4
-  51: GETGLOBAL	R2 K1         ; R2 := write
-  52: LOADK	R3 K12            ; R3 := "Number.NaN"
-  53: CALL	R2 2 1             ; R2 := R2(...) -- b=2, c=1
-  54: JMP	35                  ; goto 35
-  55: GETGLOBAL	R2 K1         ; R2 := write
-  56: GETUPVAL	R3 1           ; R3 := UpValue[1]
-  57: MOVE	R4 R0              ; R4 := R0
-  58: CALL	R3 2 0             ; R3 := R3(...) -- b=2, c=0
-  59: CALL	R2 0 1             ; R2 := R2(...) -- b=0, c=1
-  60: JMP	29                  ; goto 29
-  61: TEST	R1 0 0             ; if  R1 then goto 0
-  62: JMP	15                  ; goto 15
-  63: GETGLOBAL	R2 K1         ; R2 := write
-  64: MOVE	R3 R1              ; R3 := R1
-  65: GETUPVAL	R4 1           ; R4 := UpValue[1]
-  66: MOVE	R5 R0              ; R5 := R0
-  67: CALL	R4 2 2             ; R4 := R4(...) -- b=2, c=2
-  68: SELF	R4 R4 R270         ; R4, R5 := R4, R270
-  69: LOADK	R6 K15            ; R6 := "["%z-]"
-  70: CLOSURE	R7 0            ; R7 := closure(0)
-  71: CALL	R4 4 2             ; R4 := R4(...) -- b=4, c=2
-  72: MOD	R4 R269 R4          ; R4 := R269 % R4
-  73: CONCAT	R3 R3 R4         ; R3 := R3 .. R4
-  74: LOADNIL	R4 R4           ; R4 := nil
-  75: LOADBOOL	R5 1 0         ; R5 := true
-  76: CALL	R2 4 1             ; R2 := R2(...) -- b=4, c=1
-  77: JMP	12                  ; goto 12
-  78: GETGLOBAL	R2 K1         ; R2 := write
-  79: GETUPVAL	R3 1           ; R3 := UpValue[1]
-  80: MOVE	R4 R0              ; R4 := R0
-  81: CALL	R3 2 2             ; R3 := R3(...) -- b=2, c=2
-  82: SELF	R3 R3 R270         ; R3, R4 := R3, R270
-  83: LOADK	R5 K15            ; R5 := "["%z-]"
-  84: CLOSURE	R6 1            ; R6 := closure(1)
-  85: CALL	R3 4 2             ; R3 := R3(...) -- b=4, c=2
-  86: MOD	R3 R272 R3          ; R3 := R272 % R3
-  87: LOADNIL	R4 R4           ; R4 := nil
-  88: LOADBOOL	R5 1 0         ; R5 := true
-  89: CALL	R2 4 1             ; R2 := R2(...) -- b=4, c=1
-  90: RETURN	R0 1             ; return R0
+   0: EQ	0 R0 K0                   ; if R0 ~= nil then goto 6
+   1: JMP	4                        ; goto 6
+   2: GETGLOBAL	R2 K1              ; R2 := write
+   3: LOADK	R3 K2                  ; R3 := "null"
+   4: CALL	R2 2 1                  ; R2(R3)
+   5: JMP	84                       ; goto 90
+   6: GETUPVAL	R2 0                ; R2 := UpValue[0]
+   7: MOVE	R3 R0                   ; R3 := R0
+   8: CALL	R2 2 2                  ; R2 := R2(R3)
+   9: EQ	0 R2 K3                   ; if R2 ~= "table" then goto 39
+  10: JMP	28                       ; goto 39
+  11: GETGLOBAL	R2 K4              ; R2 := require
+  12: LOADK	R3 K5                  ; R3 := "luci.json"
+  13: CALL	R2 2 2                  ; R2 := R2(R3)
+  14: TEST	R1 0                    ; if not R1 then goto 28
+  15: JMP	12                       ; goto 28
+  16: GETGLOBAL	R3 K1              ; R3 := write
+  17: MOVE	R4 R1                   ; R4 := R1
+  18: LOADK	R5 K6                  ; R5 := "("
+  19: GETTABLE	R6 R2 K7            ; R6 := R2["encode"]
+  20: MOVE	R7 R0                   ; R7 := R0
+  21: CALL	R6 2 2                  ; R6 := R6(R7)
+  22: LOADK	R7 K8                  ; R7 := ");"
+  23: CONCAT	R4 R4 R7              ; R4 := R4 .. R7
+  24: LOADNIL	R5 R5                ; R5 := nil
+  25: LOADBOOL	R6 1 0              ; R6 := true
+  26: CALL	R3 4 1                  ; R3(R4, R5, R6)
+  27: JMP	62                       ; goto 90
+  28: GETGLOBAL	R3 K1              ; R3 := write
+  29: LOADK	R4 K9                  ; R4 := "jsonpHandler("
+  30: GETTABLE	R5 R2 K7            ; R5 := R2["encode"]
+  31: MOVE	R6 R0                   ; R6 := R0
+  32: CALL	R5 2 2                  ; R5 := R5(R6)
+  33: LOADK	R6 K8                  ; R6 := ");"
+  34: CONCAT	R4 R4 R6              ; R4 := R4 .. R6
+  35: LOADNIL	R5 R5                ; R5 := nil
+  36: LOADBOOL	R6 1 0              ; R6 := true
+  37: CALL	R3 4 1                  ; R3(R4, R5, R6)
+  38: JMP	51                       ; goto 90
+  39: GETUPVAL	R2 0                ; R2 := UpValue[0]
+  40: MOVE	R3 R0                   ; R3 := R0
+  41: CALL	R2 2 2                  ; R2 := R2(R3)
+  42: EQ	1 R2 K10                  ; if R2 == "number" then goto 49
+  43: JMP	5                        ; goto 49
+  44: GETUPVAL	R2 0                ; R2 := UpValue[0]
+  45: MOVE	R3 R0                   ; R3 := R0
+  46: CALL	R2 2 2                  ; R2 := R2(R3)
+  47: EQ	0 R2 K11                  ; if R2 ~= "boolean" then goto 61
+  48: JMP	12                       ; goto 61
+  49: EQ	1 R0 R0                   ; if R0 == R0 then goto 55
+  50: JMP	4                        ; goto 55
+  51: GETGLOBAL	R2 K1              ; R2 := write
+  52: LOADK	R3 K12                 ; R3 := "Number.NaN"
+  53: CALL	R2 2 1                  ; R2(R3)
+  54: JMP	35                       ; goto 90
+  55: GETGLOBAL	R2 K1              ; R2 := write
+  56: GETUPVAL	R3 1                ; R3 := UpValue[1]
+  57: MOVE	R4 R0                   ; R4 := R0
+  58: CALL	R3 2 0                  ; R3... := R3(R4)
+  59: CALL	R2 0 1                  ; R2(R3...)
+  60: JMP	29                       ; goto 90
+  61: TEST	R1 0                    ; if not R1 then goto 78
+  62: JMP	15                       ; goto 78
+  63: GETGLOBAL	R2 K1              ; R2 := write
+  64: MOVE	R3 R1                   ; R3 := R1
+  65: GETUPVAL	R4 1                ; R4 := UpValue[1]
+  66: MOVE	R5 R0                   ; R5 := R0
+  67: CALL	R4 2 2                  ; R4 := R4(R5)
+  68: SELF	R4 R4 K14               ; R5 := R4; R4 := R4["gsub"]
+  69: LOADK	R6 K15                 ; R6 := "[\"%z\001-\031]"
+  70: CLOSURE	R7 0                 ; R7 := closure(0)
+  71: CALL	R4 4 2                  ; R4 := R4(R5, R6, R7)
+  72: MOD	R4 K13 R4                ; R4 := "(\"%s\");" % R4
+  73: CONCAT	R3 R3 R4              ; R3 := R3 .. R4
+  74: LOADNIL	R4 R4                ; R4 := nil
+  75: LOADBOOL	R5 1 0              ; R5 := true
+  76: CALL	R2 4 1                  ; R2(R3, R4, R5)
+  77: JMP	12                       ; goto 90
+  78: GETGLOBAL	R2 K1              ; R2 := write
+  79: GETUPVAL	R3 1                ; R3 := UpValue[1]
+  80: MOVE	R4 R0                   ; R4 := R0
+  81: CALL	R3 2 2                  ; R3 := R3(R4)
+  82: SELF	R3 R3 K14               ; R4 := R3; R3 := R3["gsub"]
+  83: LOADK	R5 K15                 ; R5 := "[\"%z\001-\031]"
+  84: CLOSURE	R6 1                 ; R6 := closure(1)
+  85: CALL	R3 4 2                  ; R3 := R3(R4, R5, R6)
+  86: MOD	R3 K16 R3                ; R3 := "jsonpHandler(\"%s\");" % R3
+  87: LOADNIL	R4 R4                ; R4 := nil
+  88: LOADBOOL	R5 1 0              ; R5 := true
+  89: CALL	R2 4 1                  ; R2(R3, R4, R5)
+  90: RETURN	R0 1                  ; return
 
 -- SubChunks:
 
 -- SubChunk 1:
 -- SubChunk: lineDefined=414, lastLineDefined=416, numParams=1, isVararg=0, maxStackSize=4
 
+-- Raw Instructions:
+-- pc=00 raw=0x0040404F opcodeNum=15 A=1 B=0 C=257 Bx=257 sBx=-130814
+-- pc=01 raw=0x000080C6 opcodeNum=6 A=3 B=0 C=2 Bx=2 sBx=-131069
+-- pc=02 raw=0x01808050 opcodeNum=16 A=1 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=03 raw=0x80004059 opcodeNum=25 A=1 B=256 C=1 Bx=131073 sBx=2
+-- pc=04 raw=0x01000048 opcodeNum=8 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=05 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: SELF	R1 R0 R257         ; R1, R2 := R0, R257
-   1: LOADK	R3 K2             ; R3 := 1
-   2: CALL	R1 3 2             ; R1 := R1(...) -- b=3, c=2
-   3: MOD	R1 R256 R1          ; R1 := R256 % R1
-   4: RETURN	R1 2             ; return R1, R2
-   5: RETURN	R0 1             ; return R0
+   0: SELF	R1 R0 K1                ; R2 := R0; R1 := R0["byte"]
+   1: LOADK	R3 K2                  ; R3 := 1
+   2: CALL	R1 3 2                  ; R1 := R1(R2, R3)
+   3: MOD	R1 K0 R1                 ; R1 := "\\u%04x" % R1
+   4: RETURN	R1 2                  ; return R1
+   5: RETURN	R0 1                  ; return
 
 -- SubChunk 2:
 -- SubChunk: lineDefined=418, lastLineDefined=420, numParams=1, isVararg=0, maxStackSize=4
 
+-- Raw Instructions:
+-- pc=00 raw=0x0040404F opcodeNum=15 A=1 B=0 C=257 Bx=257 sBx=-130814
+-- pc=01 raw=0x000080C6 opcodeNum=6 A=3 B=0 C=2 Bx=2 sBx=-131069
+-- pc=02 raw=0x01808050 opcodeNum=16 A=1 B=3 C=2 Bx=1538 sBx=-129533
+-- pc=03 raw=0x80004059 opcodeNum=25 A=1 B=256 C=1 Bx=131073 sBx=2
+-- pc=04 raw=0x01000048 opcodeNum=8 A=1 B=2 C=0 Bx=1024 sBx=-130047
+-- pc=05 raw=0x00800008 opcodeNum=8 A=0 B=1 C=0 Bx=512 sBx=-130559
+
 -- Register Operations:
-   0: SELF	R1 R0 R257         ; R1, R2 := R0, R257
-   1: LOADK	R3 K2             ; R3 := 1
-   2: CALL	R1 3 2             ; R1 := R1(...) -- b=3, c=2
-   3: MOD	R1 R256 R1          ; R1 := R256 % R1
-   4: RETURN	R1 2             ; return R1, R2
-   5: RETURN	R0 1             ; return R0
+   0: SELF	R1 R0 K1                ; R2 := R0; R1 := R0["byte"]
+   1: LOADK	R3 K2                  ; R3 := 1
+   2: CALL	R1 3 2                  ; R1 := R1(R2, R3)
+   3: MOD	R1 K0 R1                 ; R1 := "\\u%04x" % R1
+   4: RETURN	R1 2                  ; return R1
+   5: RETURN	R0 1                  ; return
 
 
