@@ -165,78 +165,66 @@ public class AstCleanupPass {
         Set<String> optimizerUpvalues = new HashSet<>(finalUpvalueNames);
         optimizerUpvalues.addAll(capturedLocals);
 
-        DecompilerDebugger.dump("dataflow_opt_0_" + funcName, block);
-
-        // 0.9 先恢复 FORPREP/FORLOOP，让后续数据流在结构化循环上判断活性。
-        new StructureRestorer(context != null ? context.getChunk() : null).restoreNumericForLoops(block);
-        DecompilerDebugger.dump("numeric_for_restored_0_" + funcName, block);
-
-        // 1. 数据流变量内联及点号/冒号语法糖还原
-        new DataFlowAnalyzer().optimize(block, parentDeclared, optimizerUpvalues, capturedLocalDefinitionPcs);
-        ssaTemporaryCleanup.inlineSingleUse(block, context, pipeline, capturedLocalDefinitionPcs);
-        ssaTemporaryCleanup.deleteDead(block, context, pipeline, capturedLocalDefinitionPcs, true);
-        DecompilerDebugger.dump("dataflow_opt_1_" + funcName, block);
-
-        // 1.4 在空 if 清理前恢复 FORPREP/FORLOOP。FORLOOP 的标签常位于空 else
-        // 分支里，过早删除会把数值 for 的拓扑打散。
-        new StructureRestorer(context != null ? context.getChunk() : null).restoreNumericForLoops(block);
-        DecompilerDebugger.dump("numeric_for_restored_1_" + funcName, block);
-
-        // 1.5 清理空的if块（nil-guard等模式产生的空条件分支）
-        removeEmptyIfBlocks(block);
-        DecompilerDebugger.dump("empty_if_removed_1_" + funcName, block);
-
-        // 2. 结构化控制流还原与 GOTO/Label 消解
-        new StructureRestorer(context != null ? context.getChunk() : null).restructure(block);
-        DecompilerDebugger.dump("structure_restored_" + funcName, block);
-
-        // 2.2 简化冗余的NaN/类型检查
-        simplifyRedundantNanChecks(block);
-        DecompilerDebugger.dump("nan_checks_simplified_" + funcName, block);
-
-        // 2.5 再次清理空的if块（结构恢复可能产生新的空分支）
-        removeEmptyIfBlocks(block);
-        DecompilerDebugger.dump("empty_if_removed_2_" + funcName, block);
-
-        // 2.5.5 再次执行数据流变量内联（消解 GOTO/Label 之后，许多原本因跳转阻碍而无法安全内联的变量现在可以安全内联了）
-        new DataFlowAnalyzer().optimize(block, parentDeclared, optimizerUpvalues, capturedLocalDefinitionPcs);
-        ssaTemporaryCleanup.inlineSingleUse(block, context, pipeline, capturedLocalDefinitionPcs);
-        ssaTemporaryCleanup.deleteDead(block, context, pipeline, capturedLocalDefinitionPcs, true);
-        DecompilerDebugger.dump("dataflow_opt_2_" + funcName, block);
-
-        // 2.6 移除 return 后的死代码
-        removeDeadCodeAfterReturn(block);
-        DecompilerDebugger.dump("dead_code_removed_1_" + funcName, block);
-
-        // 优化返回模式（Peephole 优化）：合并临时寄存器赋值与其后紧随的返回
-        optimizeReturnPatterns(block, context, optimizerUpvalues);
-        DecompilerDebugger.dump("return_opt_" + funcName, block);
-
-        // 再次移除合并可能产生的新一轮死代码
-        removeDeadCodeAfterReturn(block);
-        DecompilerDebugger.dump("dead_code_removed_2_" + funcName, block);
-
-        Set<TableConstructor> consumedTables = Collections.newSetFromMap(new IdentityHashMap<>());
-        collectConsumedTables(block, consumedTables, true);
-        removeConsumedTemporaryTables(block, consumedTables);
-        removeJoinGotos(block);
-        removeUnusedEmptyLocalDeclarations(block);
-        DecompilerDebugger.dump("ast_cleanup_final_" + funcName, block);
-
-        // 3. 把函数体顶层第一次出现的寄存器赋值恢复为 local，主块无参数
-        List<String> params = new ArrayList<>();
-        if (context != null && context.getChunk() != null && !"main".equals(context.getChunk().getFunction())) {
-            Chunk functionChunk = context.getChunk();
-            params.addAll(ssaNameResolver.parameterNames(functionChunk.getNumParams()));
+        // 广播第一个阶段状态：dataflow_opt_0
+        if (pipeline != null && pipeline.getGenerator() != null) {
+            for (com.github.relua.decompiler.pipeline.PipelineDebugListener listener : pipeline.getGenerator().getDebugListeners()) {
+                listener.onStageFinished("dataflow_opt_0", funcName, block);
+            }
         }
-        Set<String> declared = declareTopLevelLocals(block, params, parentDeclared, finalUpvalueNames);
-        ssaTemporaryCleanup.inlineSingleUse(block, context, pipeline, capturedLocalDefinitionPcs);
-        ssaTemporaryCleanup.deleteDead(block, context, pipeline, capturedLocalDefinitionPcs, true);
-        DecompilerDebugger.dump("locals_declared_" + funcName, block);
-        return declared;
+
+        com.github.relua.decompiler.pass.PassContext passContext = new com.github.relua.decompiler.pass.PassContext(
+                context, pipeline, parentDeclared, finalUpvalueNames, optimizerUpvalues, capturedLocalDefinitionPcs
+        );
+
+        com.github.relua.decompiler.pass.PassManager pm = new com.github.relua.decompiler.pass.PassManager();
+        
+        // 0.9 先恢复 FORPREP/FORLOOP，让后续数据流在结构化循环上判断活性。
+        pm.addPass(new ForLoopRestorationPass(0));
+        
+        // 1. 数据流变量内联及点号/冒号语法糖还原
+        pm.addPass(new DataFlowOptimizationPass(1));
+        pm.addPass(new SsaCleanupPass(1));
+        
+        // 1.4 在空 if 清理前恢复 FORPREP/FORLOOP。
+        pm.addPass(new ForLoopRestorationPass(1));
+        
+        // 1.5 清理空的if块
+        pm.addPass(new EmptyIfRemovalPass(1, this));
+        
+        // 2. 结构化控制流还原与 GOTO/Label 消解
+        pm.addPass(new ControlFlowRestructuringPass());
+        
+        // 2.2 简化冗余的NaN/类型检查
+        pm.addPass(new NanCheckSimplificationPass(this));
+        
+        // 2.5 再次清理空的if块
+        pm.addPass(new EmptyIfRemovalPass(2, this));
+        
+        // 2.5.5 再次执行数据流变量内联
+        pm.addPass(new DataFlowOptimizationPass(2));
+        pm.addPass(new SsaCleanupPass(2));
+        
+        // 2.6 移除 return 后的死代码
+        pm.addPass(new DeadCodeEliminationPass(1, this));
+        
+        // 优化返回模式（Peephole 优化）：合并临时寄存器赋值与其后紧随的返回
+        pm.addPass(new ReturnPatternOptimizationPass(this));
+        
+        // 再次移除合并可能产生的新一轮死代码
+        pm.addPass(new DeadCodeEliminationPass(2, this));
+        
+        // 最终清理
+        pm.addPass(new AstCleanupFinalPass(this));
+        
+        // 3. 把函数体顶层第一次出现的寄存器赋值恢复为 local，主块无参数
+        pm.addPass(new LocalHoistingPass(this));
+        
+        pm.execute(block, passContext);
+        
+        return passContext.getDeclaredVariables();
     }
 
-    private void removeEmptyIfBlocks(Block block) {
+    void removeEmptyIfBlocks(Block block) {
         if (block == null || block.statements == null) {
             return;
         }
@@ -396,7 +384,7 @@ public class AstCleanupPass {
         return isTerminatingStatement(last);
     }
 
-    private void removeDeadCodeAfterReturn(Block block) {
+    void removeDeadCodeAfterReturn(Block block) {
         if (block == null || block.statements == null) {
             return;
         }
@@ -525,7 +513,7 @@ public class AstCleanupPass {
         }
     }
 
-    private void removeConsumedTemporaryTables(Block block, Set<TableConstructor> consumedTables) {
+    void removeConsumedTemporaryTables(Block block, Set<TableConstructor> consumedTables) {
         if (block == null) {
             return;
         }
@@ -579,7 +567,7 @@ public class AstCleanupPass {
         }
     }
 
-    private void collectConsumedTables(Block block, Set<TableConstructor> consumedTables, boolean skipTempAssignRight) {
+    void collectConsumedTables(Block block, Set<TableConstructor> consumedTables, boolean skipTempAssignRight) {
         for (Statement statement : block.statements) {
             collectFromStatement(statement, consumedTables, skipTempAssignRight);
         }
@@ -666,7 +654,7 @@ public class AstCleanupPass {
         }
     }
 
-    private void removeJoinGotos(Block block) {
+    void removeJoinGotos(Block block) {
         if (block == null) {
             return;
         }
@@ -851,7 +839,7 @@ public class AstCleanupPass {
         return false;
     }
 
-    private Set<String> declareTopLevelLocals(Block block, List<String> params, Set<String> parentDeclared,
+    Set<String> declareTopLevelLocals(Block block, List<String> params, Set<String> parentDeclared,
             Set<String> upvalueNames) {
         if (block == null || block.statements == null) {
             return java.util.Collections.emptySet();
@@ -1282,7 +1270,7 @@ public class AstCleanupPass {
         block.statements.addAll(rewritten);
     }
 
-    private void removeUnusedEmptyLocalDeclarations(Block block) {
+    void removeUnusedEmptyLocalDeclarations(Block block) {
         if (block == null || block.statements == null) {
             return;
         }
@@ -1635,7 +1623,7 @@ public class AstCleanupPass {
         block.statements.addAll(optimized);
     }
 
-    private void simplifyRedundantNanChecks(Block block) {
+    void simplifyRedundantNanChecks(Block block) {
         simplifyRedundantNanChecks(block, new HashSet<>(), new HashMap<>());
     }
 

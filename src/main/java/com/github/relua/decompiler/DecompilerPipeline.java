@@ -41,6 +41,10 @@ public class DecompilerPipeline {
         this.ssaExpressionAnalyzer = new SsaExpressionAnalyzer();
     }
 
+    public LuaCodeGenerator getGenerator() {
+        return generator;
+    }
+
     /**
      * 处理代码块的指令
      * 
@@ -103,6 +107,9 @@ public class DecompilerPipeline {
         ssaFunctions.put(chunk.getFunction(), ssaFunction);
         List<String> ssaErrors = SsaVerifier.verify(ssaFunction);
         if (!ssaErrors.isEmpty()) {
+            for (com.github.relua.decompiler.pipeline.PipelineDebugListener listener : generator.getDebugListeners()) {
+                listener.onSsaVerifyFailed(chunk, ssaErrors);
+            }
             String message = "SSA verification failed for " + chunk.getFunction() + ": " + ssaErrors;
             Logger.error(message);
             throw new IllegalStateException(message);
@@ -110,14 +117,10 @@ public class DecompilerPipeline {
         SsaExpressionAnalysis ssaExpressionAnalysis = ssaExpressionAnalyzer.analyze(ssaFunction);
         ssaExpressionAnalyses.put(chunk.getFunction(), ssaExpressionAnalysis);
 
-        if (com.github.relua.debug.DecompilerDebugger.isEnabled()) {
-            com.github.relua.debug.DecompilerDebugger.dump("cfg_built_" + chunk.getFunction(), formatCFG(chunk, basicBlockBuilder));
-            com.github.relua.debug.DecompilerDebugger.dump("ssa_built_" + chunk.getFunction(), ssaFunction.format());
-            com.github.relua.debug.DecompilerDebugger.dump("ssa_expr_" + chunk.getFunction(), ssaExpressionAnalysis.format());
-            if (!ssaErrors.isEmpty()) {
-                com.github.relua.debug.DecompilerDebugger.dump("ssa_verify_failed_" + chunk.getFunction(),
-                        String.join(System.lineSeparator(), ssaErrors));
-            }
+        for (com.github.relua.decompiler.pipeline.PipelineDebugListener listener : generator.getDebugListeners()) {
+            listener.onCFGBuilt(chunk, basicBlockBuilder.getBasicBlocks(), formatCFG(chunk, basicBlockBuilder));
+            listener.onSSABuilt(chunk, ssaFunction);
+            listener.onSsaExprAnalyzed(chunk, ssaExpressionAnalysis);
         }
     }
 

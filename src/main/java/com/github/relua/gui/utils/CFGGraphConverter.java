@@ -6,8 +6,8 @@ import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.LuacFile;
 import com.github.relua.decompiler.BasicBlock;
-import com.github.relua.decompiler.InstructionHandler;
-import com.github.relua.decompiler.LuaCodeGenerator;
+import com.github.relua.decompiler.pipeline.DecompilerEngine;
+import com.github.relua.decompiler.pipeline.DecompilerResult;
 
 import java.util.List;
 
@@ -31,28 +31,41 @@ public class CFGGraphConverter {
      * @param chunk 代码块
      */
     public void convertToGraph(Chunk chunk) {
+        convertToGraph(chunk, null);
+    }
+
+    /**
+     * 将CFG转换为图形
+     * @param chunk 代码块
+     * @param decompilerResult 反编译结果
+     */
+    public void convertToGraph(Chunk chunk, DecompilerResult decompilerResult) {
         // 清空现有图形
         graphView.clearGraph();
         // 切换到图形视图模式
         graphView.switchToGraphMode();
         
-        System.out.println("CFGGraphConverter.convertToGraph(Chunk): chunk = " + chunk);
+        System.out.println("CFGGraphConverter.convertToGraph(Chunk, DecompilerResult): chunk = " + chunk);
         
         if (chunk != null) {
-            System.out.println("CFGGraphConverter.convertToGraph(Chunk): chunk.getInstructions().size() = " + chunk.getInstructions().size());
-
-            LuaCodeGenerator generator = new LuaCodeGenerator(chunk);
-            InstructionHandler handler = generator.getInstructionHandler(chunk.getFunction());
-            if (handler == null) {
-                graphView.addNode("No CFG handler found\nPlease check if the input file is valid", GraphVisualizationView.NodeType.NORMAL);
-                graphView.applyLayout();
-                return;
+            List<BasicBlock> basicBlocks = null;
+            if (decompilerResult != null) {
+                basicBlocks = decompilerResult.getChunkCfgs().get(chunk.getFunction());
             }
 
-            handler.process(chunk);
-            List<BasicBlock> basicBlocks = handler.getBasicBlocks(chunk);
-            System.out.println("CFGGraphConverter.convertToGraph(Chunk): basicBlocks.size() = " + basicBlocks.size());
+            if (basicBlocks == null) {
+                try {
+                    LuacFile dummyFile = new LuacFile();
+                    dummyFile.setMainChunk(chunk);
+                    DecompilerEngine engine = new DecompilerEngine();
+                    DecompilerResult result = engine.decompile(dummyFile, false);
+                    basicBlocks = result.getChunkCfgs().get(chunk.getFunction());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
 
+            System.out.println("CFGGraphConverter.convertToGraph: basicBlocks.size() = " + basicBlocks.size());
             convertCFGToGraph(basicBlocks, chunk);
         }
     }

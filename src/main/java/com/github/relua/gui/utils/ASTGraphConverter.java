@@ -5,9 +5,8 @@ import com.github.relua.model.Chunk;
 import com.github.relua.model.LuacFile;
 import com.github.relua.ast.AstNode;
 import com.github.relua.ast.AstVisitor;
-import com.github.relua.decompiler.CodeGeneratorContext;
-import com.github.relua.decompiler.InstructionHandler;
-import com.github.relua.decompiler.LuaCodeGenerator;
+import com.github.relua.decompiler.pipeline.DecompilerEngine;
+import com.github.relua.decompiler.pipeline.DecompilerResult;
 
 /**
  * AST到图形的转换器，用于将Relua的AST转换为JavaFX Canvas的图形表示
@@ -29,6 +28,15 @@ public class ASTGraphConverter {
      * @param astNode AST节点或LuacFile对象
      */
     public void convertToGraph(Object astNode) {
+        convertToGraph(astNode, null);
+    }
+
+    /**
+     * 将AST转换为图形
+     * @param astNode AST节点或LuacFile对象
+     * @param decompilerResult 反编译结果
+     */
+    public void convertToGraph(Object astNode, DecompilerResult decompilerResult) {
         // 清空现有图形
         graphView.clearGraph();
         // 切换到图形视图模式
@@ -36,11 +44,29 @@ public class ASTGraphConverter {
         
         if (astNode != null) {
             if (astNode instanceof LuacFile) {
-                // 处理LuacFile对象，生成AST节点
-                processLuacFile((LuacFile) astNode);
+                LuacFile luacFile = (LuacFile) astNode;
+                AstNode astRoot = null;
+                if (decompilerResult != null) {
+                    astRoot = decompilerResult.getChunkAsts().get(luacFile.getMainChunk().getFunction());
+                }
+                if (astRoot != null) {
+                    processAstNode(astRoot);
+                } else {
+                    processLuacFile(luacFile);
+                }
             } else if (astNode instanceof Chunk) {
                 // 处理单独的Chunk对象，生成AST节点
-                processChunk((Chunk) astNode);
+                Chunk chunk = (Chunk) astNode;
+                AstNode astRoot = null;
+                if (decompilerResult != null) {
+                    astRoot = decompilerResult.getChunkAsts().get(chunk.getFunction());
+                }
+                
+                if (astRoot != null) {
+                    processAstNode(astRoot);
+                } else {
+                    processChunk(chunk);
+                }
             } else if (astNode instanceof AstNode) {
                 // 直接处理AST节点
                 processAstNode((AstNode) astNode);
@@ -66,12 +92,16 @@ public class ASTGraphConverter {
      */
     private void processChunk(Chunk chunk) {
         try {
-            LuaCodeGenerator generator = new LuaCodeGenerator(chunk);
-            InstructionHandler handler = generator.getInstructionHandler(chunk.getFunction());
-            if (handler != null) {
-                handler.process(chunk);
-                AstNode astRoot = handler.generateASTFromChunk(chunk);
+            LuacFile dummyFile = new LuacFile();
+            dummyFile.setMainChunk(chunk);
+            DecompilerEngine engine = new DecompilerEngine();
+            DecompilerResult result = engine.decompile(dummyFile, false);
+            AstNode astRoot = result.getChunkAsts().get(chunk.getFunction());
+            if (astRoot != null) {
                 processAstNode(astRoot);
+            } else {
+                graphView.addNode("Error: AST root is null for chunk");
+                graphView.applyLayout();
             }
         } catch (Exception e) {
             int errorIndex = graphView.addNode("Error generating AST: " + e.getMessage());
@@ -86,20 +116,15 @@ public class ASTGraphConverter {
      */
     private void processLuacFile(LuacFile luacFile) {
         try {
-            // 创建代码生成上下文
-            Chunk mainChunk = luacFile.getMainChunk();
-            LuaCodeGenerator generator = new LuaCodeGenerator(mainChunk);
-            CodeGeneratorContext codeGenContext = new CodeGeneratorContext(mainChunk, "");
-            
-            // 创建指令处理器
-            InstructionHandler instructionHandler = new InstructionHandler(generator, codeGenContext);
-            
-            // 处理主代码块，生成AST节点
-            instructionHandler.process(luacFile.getMainChunk());
-            AstNode astRoot = instructionHandler.generateASTFromChunk(luacFile.getMainChunk());
-            
-            // 处理AST节点，生成图形
-            processAstNode(astRoot);
+            DecompilerEngine engine = new DecompilerEngine();
+            DecompilerResult result = engine.decompile(luacFile, false);
+            AstNode astRoot = result.getChunkAsts().get(luacFile.getMainChunk().getFunction());
+            if (astRoot != null) {
+                processAstNode(astRoot);
+            } else {
+                graphView.addNode("Error: AST root is null for file");
+                graphView.applyLayout();
+            }
         } catch (Exception e) {
             // 如果生成AST失败，显示错误信息
             int errorIndex = graphView.addNode("Error generating AST: " + e.getMessage());

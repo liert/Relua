@@ -51,6 +51,19 @@ public class LuaCodeGenerator {
     private Map<String, InstructionHandler> handlers = new HashMap<>();
     private final SsaAstNameResolver ssaNameResolver = new SsaAstNameResolver();
     private int extractedClosureCounter = 0;
+    private final List<com.github.relua.decompiler.pipeline.PipelineDebugListener> debugListeners = new ArrayList<>();
+
+    public void addDebugListener(com.github.relua.decompiler.pipeline.PipelineDebugListener listener) {
+        this.debugListeners.add(listener);
+    }
+
+    public List<com.github.relua.decompiler.pipeline.PipelineDebugListener> getDebugListeners() {
+        return debugListeners;
+    }
+
+    public List<CodeGeneratorContext> getContexts() {
+        return contexts;
+    }
 
     /**
      * 构造函数

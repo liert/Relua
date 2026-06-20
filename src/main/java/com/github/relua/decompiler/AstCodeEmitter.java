@@ -59,8 +59,8 @@ public class AstCodeEmitter {
         // 获取指令处理器生成的AST
         AstNode ast = handler.generateASTFromChunk(chunk);
 
-        if (DecompilerDebugger.isEnabled()) {
-            DecompilerDebugger.dump("ast_constructed_" + chunk.getFunction(), ast);
+        for (com.github.relua.decompiler.pipeline.PipelineDebugListener listener : handler.getPipeline().getGenerator().getDebugListeners()) {
+            listener.onAstConstructed(chunk, ast);
         }
 
         // 如果生成的是Block，直接设置为上下文的astBlock

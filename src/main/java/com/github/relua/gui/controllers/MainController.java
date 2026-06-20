@@ -494,13 +494,13 @@ public class MainController {
                     case AST:
                         updateMessage("正在生成AST视图...");
                         javafx.application.Platform.runLater(() -> {
-                            astGraphConverter.convertToGraph(chunk);
+                            astGraphConverter.convertToGraph(chunk, fileMenuHandler.getCurrentDecompilerResult());
                         });
                         break;
                     case CFG:
                         updateMessage("正在生成CFG视图...");
                         javafx.application.Platform.runLater(() -> {
-                            cfgGraphConverter.convertToGraph(chunk);
+                            cfgGraphConverter.convertToGraph(chunk, fileMenuHandler.getCurrentDecompilerResult());
                         });
                         break;
                 }

@@ -37,6 +37,11 @@ public class Decompiler {
         return decompile(luacFile, false);
     }
     
+    private com.github.relua.decompiler.pipeline.DecompilerResult lastResult;
+
+    public com.github.relua.decompiler.pipeline.DecompilerResult getLastResult() {
+        return lastResult;
+    }
     /**
      * 反编译Luac文件
      * @param luacFile 解析后的Luac文件对象
@@ -44,21 +49,16 @@ public class Decompiler {
      * @return 反编译后的Lua代码
      */
     public String decompile(LuacFile luacFile, boolean showBytecode) {
-        if (luacFile == null || luacFile.getMainChunk() == null) {
-            throw new IllegalArgumentException("Invalid LuacFile object");
+        com.github.relua.decompiler.pipeline.DecompilerEngine engine = new com.github.relua.decompiler.pipeline.DecompilerEngine();
+        if (com.github.relua.debug.DecompilerDebugger.isEnabled()) {
+            engine.addDebugListener(new com.github.relua.decompiler.pipeline.DecompilerDebugLogger());
         }
-
-        Chunk mainChunk = luacFile.getMainChunk();
-        Logger.debug(mainChunk.toString());
-        
-        // 生成Lua代码
-        if (showBytecode) {
-            return generateBytecode(mainChunk);
-        } else {
-            this.codeGenerator = new LuaCodeGenerator(mainChunk);
-            String rawCode = codeGenerator.generate(mainChunk);
-            return processChunkMarkers(rawCode);
-        }
+        com.github.relua.decompiler.pipeline.DecompilerResult result = engine.decompile(luacFile, showBytecode);
+        this.lastResult = result;
+        this.codeGenerator = result.getLuaCodeGenerator();
+        this.chunkLineRanges.clear();
+        this.chunkLineRanges.putAll(result.getChunkLineRanges());
+        return result.getDecompiledCode();
     }
 
     private String processChunkMarkers(String rawCode) {

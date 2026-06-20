@@ -37,6 +37,7 @@ public class FileMenuHandler {
     private FileTreeView fileTreeView;
     private File currentFile;
     private LuacFile currentLuacFile;
+    private com.github.relua.decompiler.pipeline.DecompilerResult currentDecompilerResult;
     private java.util.Map<String, com.github.relua.model.LineRange> chunkLineRanges = new java.util.HashMap<>();
 
     // 加载动画及提示覆盖层
@@ -53,12 +54,14 @@ public class FileMenuHandler {
         final LuacFile luacFile;
         final java.util.Map<String, com.github.relua.model.LineRange> chunkLineRanges;
         final boolean isText;
+        final com.github.relua.decompiler.pipeline.DecompilerResult decompilerResult;
         
-        DecompileResult(String luaCode, LuacFile luacFile, java.util.Map<String, com.github.relua.model.LineRange> chunkLineRanges, boolean isText) {
+        DecompileResult(String luaCode, LuacFile luacFile, java.util.Map<String, com.github.relua.model.LineRange> chunkLineRanges, boolean isText, com.github.relua.decompiler.pipeline.DecompilerResult decompilerResult) {
             this.luaCode = luaCode;
             this.luacFile = luacFile;
             this.chunkLineRanges = chunkLineRanges;
             this.isText = isText;
+            this.decompilerResult = decompilerResult;
         }
     }
 
@@ -227,7 +230,7 @@ public class FileMenuHandler {
                     if (isTextFile(file)) {
                         updateMessage("正在读取文本文件...");
                         String textContent = readTextFileContent(file);
-                        return new DecompileResult(textContent, null, new java.util.HashMap<>(), true);
+                        return new DecompileResult(textContent, null, new java.util.HashMap<>(), true, null);
                     } else {
                         throw e;
                     }
@@ -243,7 +246,7 @@ public class FileMenuHandler {
 
                 if (isCancelled()) return null;
 
-                return new DecompileResult(luaCode, luacFile, lineRanges, false);
+                return new DecompileResult(luaCode, luacFile, lineRanges, false, decompiler.getLastResult());
             }
 
             @Override
@@ -261,6 +264,7 @@ public class FileMenuHandler {
                 if (result != null) {
                     currentLuacFile = result.luacFile;
                     chunkLineRanges = result.chunkLineRanges;
+                    currentDecompilerResult = result.decompilerResult;
 
                     // 显示反编译结果
                     textEditorView.setText(result.luaCode);
@@ -402,6 +406,14 @@ public class FileMenuHandler {
      */
     public LuacFile getCurrentLuacFile() {
         return currentLuacFile;
+    }
+
+    /**
+     * 获取当前反编译结果对象
+     * @return 当前反编译结果对象
+     */
+    public com.github.relua.decompiler.pipeline.DecompilerResult getCurrentDecompilerResult() {
+        return currentDecompilerResult;
     }
 
     /**
