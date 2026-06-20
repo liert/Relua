@@ -658,17 +658,119 @@ public class StructureRestorer {
     }
 
     private void renameTemporaryRegister(Block bodyBlock, int physicalRegister, String newName) {
-        for (String oldName : temporaryRegisterNameCandidates(physicalRegister)) {
-            renameVariable(bodyBlock, oldName, newName);
-        }
+        renameTemporaryRegisterByIndex(bodyBlock, physicalRegister, newName);
     }
 
-    private List<String> temporaryRegisterNameCandidates(int physicalRegister) {
-        List<String> names = new ArrayList<>();
-        names.add(RegisterNamePolicy.physicalRegisterName(physicalRegister));
-        names.add(RegisterNamePolicy.prefixedRegisterName("chunk_", physicalRegister));
-        names.add(RegisterNamePolicy.prefixedRegisterName("module_", physicalRegister));
-        return names;
+    private void renameTemporaryRegisterByIndex(AstNode node, int physicalRegister, String newName) {
+        if (node == null) return;
+        if (node instanceof Name) {
+            Name nameNode = (Name) node;
+            if (RegisterNamePolicy.temporaryRegisterIndex(nameNode.name) == physicalRegister) {
+                nameNode.name = newName;
+            }
+        } else if (node instanceof Assign) {
+            Assign assign = (Assign) node;
+            for (Expression left : assign.left) {
+                renameTemporaryRegisterByIndex(left, physicalRegister, newName);
+            }
+            for (Expression right : assign.right) {
+                renameTemporaryRegisterByIndex(right, physicalRegister, newName);
+            }
+        } else if (node instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) node;
+            for (int i = 0; i < local.names.size(); i++) {
+                if (RegisterNamePolicy.temporaryRegisterIndex(local.names.get(i)) == physicalRegister) {
+                    local.names.set(i, newName);
+                }
+            }
+            for (Expression right : local.right) {
+                renameTemporaryRegisterByIndex(right, physicalRegister, newName);
+            }
+        } else if (node instanceof GlobalAssign) {
+            GlobalAssign glob = (GlobalAssign) node;
+            for (int i = 0; i < glob.names.size(); i++) {
+                if (RegisterNamePolicy.temporaryRegisterIndex(glob.names.get(i)) == physicalRegister) {
+                    glob.names.set(i, newName);
+                }
+            }
+            for (Expression right : glob.right) {
+                renameTemporaryRegisterByIndex(right, physicalRegister, newName);
+            }
+        } else if (node instanceof ExpressionStatement) {
+            renameTemporaryRegisterByIndex(((ExpressionStatement) node).expression, physicalRegister, newName);
+        } else if (node instanceof ReturnStatement) {
+            for (Expression val : ((ReturnStatement) node).values) {
+                renameTemporaryRegisterByIndex(val, physicalRegister, newName);
+            }
+        } else if (node instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) node;
+            for (Expression cond : ifStmt.conditions) {
+                renameTemporaryRegisterByIndex(cond, physicalRegister, newName);
+            }
+            for (Block nested : ifStmt.blocks) {
+                renameTemporaryRegisterByIndex(nested, physicalRegister, newName);
+            }
+            renameTemporaryRegisterByIndex(ifStmt.elseBlock, physicalRegister, newName);
+        } else if (node instanceof WhileStatement) {
+            WhileStatement wh = (WhileStatement) node;
+            renameTemporaryRegisterByIndex(wh.condition, physicalRegister, newName);
+            renameTemporaryRegisterByIndex(wh.body, physicalRegister, newName);
+        } else if (node instanceof RepeatStatement) {
+            RepeatStatement rep = (RepeatStatement) node;
+            renameTemporaryRegisterByIndex(rep.condition, physicalRegister, newName);
+            renameTemporaryRegisterByIndex(rep.body, physicalRegister, newName);
+        } else if (node instanceof ForNumeric) {
+            ForNumeric fn = (ForNumeric) node;
+            renameTemporaryRegisterByIndex(fn.start, physicalRegister, newName);
+            renameTemporaryRegisterByIndex(fn.end, physicalRegister, newName);
+            renameTemporaryRegisterByIndex(fn.step, physicalRegister, newName);
+            renameTemporaryRegisterByIndex(fn.body, physicalRegister, newName);
+        } else if (node instanceof ForIn) {
+            ForIn fi = (ForIn) node;
+            for (int i = 0; i < fi.names.size(); i++) {
+                if (RegisterNamePolicy.temporaryRegisterIndex(fi.names.get(i)) == physicalRegister) {
+                    fi.names.set(i, newName);
+                }
+            }
+            for (Expression exp : fi.iterators) {
+                renameTemporaryRegisterByIndex(exp, physicalRegister, newName);
+            }
+            renameTemporaryRegisterByIndex(fi.body, physicalRegister, newName);
+        } else if (node instanceof FunctionDeclaration) {
+            renameTemporaryRegisterByIndex(((FunctionDeclaration) node).func, physicalRegister, newName);
+        } else if (node instanceof Block) {
+            for (Statement stmt : ((Block) node).statements) {
+                renameTemporaryRegisterByIndex(stmt, physicalRegister, newName);
+            }
+        } else if (node instanceof BinaryOp) {
+            BinaryOp binary = (BinaryOp) node;
+            renameTemporaryRegisterByIndex(binary.left, physicalRegister, newName);
+            renameTemporaryRegisterByIndex(binary.right, physicalRegister, newName);
+        } else if (node instanceof UnaryOp) {
+            renameTemporaryRegisterByIndex(((UnaryOp) node).expr, physicalRegister, newName);
+        } else if (node instanceof IndexExpr) {
+            IndexExpr idx = (IndexExpr) node;
+            renameTemporaryRegisterByIndex(idx.table, physicalRegister, newName);
+            renameTemporaryRegisterByIndex(idx.index, physicalRegister, newName);
+        } else if (node instanceof MemberExpr) {
+            renameTemporaryRegisterByIndex(((MemberExpr) node).table, physicalRegister, newName);
+        } else if (node instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) node;
+            renameTemporaryRegisterByIndex(call.callee, physicalRegister, newName);
+            for (Expression arg : call.args) {
+                renameTemporaryRegisterByIndex(arg, physicalRegister, newName);
+            }
+        } else if (node instanceof TableConstructor) {
+            TableConstructor tc = (TableConstructor) node;
+            if (tc.fields != null) {
+                for (TableField field : tc.fields) {
+                    renameTemporaryRegisterByIndex(field.key, physicalRegister, newName);
+                    renameTemporaryRegisterByIndex(field.value, physicalRegister, newName);
+                }
+            }
+        } else if (node instanceof FunctionLiteral) {
+            renameTemporaryRegisterByIndex(((FunctionLiteral) node).body, physicalRegister, newName);
+        }
     }
 
     private boolean isForInIteratorAssign(Statement stmt) {
@@ -1387,6 +1489,11 @@ public class StructureRestorer {
                     LabelStatement labelStmt = (LabelStatement) stmt;
                     String labelName = labelStmt.label;
 
+                    if (restoreLabelIfWhile(stmts, i, labelStmt)) {
+                        changed = true;
+                        break;
+                    }
+
                     // Find a GotoStatement targeting this labelName
                     int gotoIdx = -1;
                     int ifIdx = -1;
@@ -1551,6 +1658,201 @@ public class StructureRestorer {
                     }
                 }
             }
+        }
+    }
+
+    private boolean restoreLabelIfWhile(List<Statement> stmts, int labelIndex, LabelStatement labelStmt) {
+        int ifIndex = labelIndex + 1;
+        List<Statement> prepStmts = new ArrayList<>();
+        while (ifIndex < stmts.size() && !(stmts.get(ifIndex) instanceof IfStatement)) {
+            Statement prep = stmts.get(ifIndex);
+            if (!(prep instanceof Assign) && !(prep instanceof LocalAssign)) {
+                return false;
+            }
+            prepStmts.add(prep);
+            ifIndex++;
+        }
+        if (ifIndex >= stmts.size() || !(stmts.get(ifIndex) instanceof IfStatement)) {
+            return false;
+        }
+
+        IfStatement ifStmt = (IfStatement) stmts.get(ifIndex);
+        if (ifStmt.conditions.size() != 1 || ifStmt.blocks.size() != 1 || ifStmt.elseBlock != null) {
+            return false;
+        }
+
+        String loopLabel = labelStmt.label;
+        int internalBackEdges = countGotosTo(ifStmt, loopLabel);
+        if (internalBackEdges == 0) {
+            return false;
+        }
+
+        int allBackEdges = 0;
+        for (Statement stmt : stmts) {
+            allBackEdges += countGotosTo(stmt, loopLabel);
+        }
+        if (allBackEdges != internalBackEdges) {
+            return false;
+        }
+
+        String exitLabel = null;
+        if (ifIndex + 1 < stmts.size() && stmts.get(ifIndex + 1) instanceof LabelStatement) {
+            exitLabel = ((LabelStatement) stmts.get(ifIndex + 1)).label;
+        }
+
+        Expression condition = ifStmt.conditions.get(0);
+        Set<Statement> inlinedPreps = new HashSet<>();
+        for (int j = prepStmts.size() - 1; j >= 0; j--) {
+            Statement prep = prepStmts.get(j);
+            String varName = singleAssignedName(prep);
+            Expression rightExpr = singleAssignedValue(prep);
+            if (varName == null || rightExpr == null || !containsVar(condition, varName)) {
+                continue;
+            }
+            if (isAssignedInBlock(ifStmt.blocks.get(0), varName)) {
+                continue;
+            }
+            condition = replaceVariable(condition, varName, rightExpr);
+            inlinedPreps.add(prep);
+        }
+
+        String continueLabel = uniqueLabel(stmts, loopLabel + "_continue");
+        Block loopBody = ifStmt.blocks.get(0);
+        rewriteGotos(loopBody, loopLabel, continueLabel);
+        if (exitLabel != null) {
+            rewriteGotosToBreak(loopBody, exitLabel);
+        }
+        loopBody.statements.add(new LabelStatement(continueLabel, labelStmt.pos));
+
+        WhileStatement whileStmt = new WhileStatement(condition, loopBody, labelStmt.pos);
+        List<Statement> replacement = new ArrayList<>();
+        for (Statement prep : prepStmts) {
+            if (!inlinedPreps.contains(prep)) {
+                replacement.add(prep);
+            }
+        }
+        replacement.add(whileStmt);
+
+        for (int remove = ifIndex; remove >= labelIndex; remove--) {
+            stmts.remove(remove);
+        }
+        stmts.addAll(labelIndex, replacement);
+        restructure(loopBody);
+        return true;
+    }
+
+    private String singleAssignedName(Statement stmt) {
+        if (stmt instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) stmt;
+            if (local.names.size() == 1 && local.right.size() == 1) {
+                return local.names.get(0);
+            }
+        } else if (stmt instanceof Assign) {
+            Assign assign = (Assign) stmt;
+            if (assign.left.size() == 1 && assign.right.size() == 1 && assign.left.get(0) instanceof Name) {
+                return ((Name) assign.left.get(0)).name;
+            }
+        }
+        return null;
+    }
+
+    private Expression singleAssignedValue(Statement stmt) {
+        if (stmt instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) stmt;
+            if (local.names.size() == 1 && local.right.size() == 1) {
+                return local.right.get(0);
+            }
+        } else if (stmt instanceof Assign) {
+            Assign assign = (Assign) stmt;
+            if (assign.left.size() == 1 && assign.right.size() == 1 && assign.left.get(0) instanceof Name) {
+                return assign.right.get(0);
+            }
+        }
+        return null;
+    }
+
+    private boolean isAssignedInBlock(Block block, String varName) {
+        if (block == null) {
+            return false;
+        }
+        for (Statement stmt : block.statements) {
+            if (isAssignedInStatement(stmt, varName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String uniqueLabel(List<Statement> stmts, String base) {
+        String candidate = base;
+        int suffix = 1;
+        while (containsLabel(stmts, candidate)) {
+            candidate = base + "_" + suffix++;
+        }
+        return candidate;
+    }
+
+    private void rewriteGotos(Block block, String fromLabel, String toLabel) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+        for (int i = 0; i < block.statements.size(); i++) {
+            Statement stmt = block.statements.get(i);
+            if (stmt instanceof GotoStatement && ((GotoStatement) stmt).label.equals(fromLabel)) {
+                block.statements.set(i, new GotoStatement(toLabel, stmt.pos));
+            } else {
+                rewriteGotos(stmt, fromLabel, toLabel);
+            }
+        }
+    }
+
+    private void rewriteGotos(Statement stmt, String fromLabel, String toLabel) {
+        if (stmt instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) stmt;
+            for (Block block : ifStmt.blocks) {
+                rewriteGotos(block, fromLabel, toLabel);
+            }
+            rewriteGotos(ifStmt.elseBlock, fromLabel, toLabel);
+        } else if (stmt instanceof WhileStatement) {
+            rewriteGotos(((WhileStatement) stmt).body, fromLabel, toLabel);
+        } else if (stmt instanceof RepeatStatement) {
+            rewriteGotos(((RepeatStatement) stmt).body, fromLabel, toLabel);
+        } else if (stmt instanceof ForNumeric) {
+            rewriteGotos(((ForNumeric) stmt).body, fromLabel, toLabel);
+        } else if (stmt instanceof ForIn) {
+            rewriteGotos(((ForIn) stmt).body, fromLabel, toLabel);
+        }
+    }
+
+    private void rewriteGotosToBreak(Block block, String label) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+        for (int i = 0; i < block.statements.size(); i++) {
+            Statement stmt = block.statements.get(i);
+            if (stmt instanceof GotoStatement && ((GotoStatement) stmt).label.equals(label)) {
+                block.statements.set(i, new BreakStatement(stmt.pos));
+            } else {
+                rewriteGotosToBreak(stmt, label);
+            }
+        }
+    }
+
+    private void rewriteGotosToBreak(Statement stmt, String label) {
+        if (stmt instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) stmt;
+            for (Block block : ifStmt.blocks) {
+                rewriteGotosToBreak(block, label);
+            }
+            rewriteGotosToBreak(ifStmt.elseBlock, label);
+        } else if (stmt instanceof WhileStatement) {
+            rewriteGotosToBreak(((WhileStatement) stmt).body, label);
+        } else if (stmt instanceof RepeatStatement) {
+            rewriteGotosToBreak(((RepeatStatement) stmt).body, label);
+        } else if (stmt instanceof ForNumeric) {
+            rewriteGotosToBreak(((ForNumeric) stmt).body, label);
+        } else if (stmt instanceof ForIn) {
+            rewriteGotosToBreak(((ForIn) stmt).body, label);
         }
     }
 

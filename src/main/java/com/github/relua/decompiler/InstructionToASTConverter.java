@@ -18,12 +18,14 @@ import com.github.relua.decompiler.ssa.SsaValueKind;
 import com.github.relua.decompiler.ssa.SsaValueSummary;
 import com.github.relua.decompiler.ssa.SsaFunction;
 import com.github.relua.decompiler.ssa.SsaInstruction;
+import com.github.relua.decompiler.ssa.SsaPhi;
 import com.github.relua.util.RegisterNamePolicy;
 
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -148,10 +150,11 @@ public class InstructionToASTConverter {
             case SETUPVAL:
                 return convertSetUpvalInstruction(instruction, instructionIndex);
             case CLOSE:
-            case SETLIST:
             case TFORLOOP:
             case VARARG:
                 return null;
+            case SETLIST:
+                return convertSetListInstruction(instruction, instructionIndex);
             case FORPREP: {
                 int loopIdx = -1;
                 int a = instruction.getA();
@@ -629,6 +632,40 @@ public class InstructionToASTConverter {
         return false;
     }
 
+    private AstNode convertSetListInstruction(Instruction instruction, int instructionIndex) {
+        int a = instruction.getA();
+        int b = instruction.getB();
+        int c = instruction.getC();
+        if (b <= 0 || c <= 0) {
+            return null;
+        }
+
+        SourcePos pos = new SourcePos(instructionIndex, -1);
+        SsaInstruction ssaInstruction = pipeline.requireSsaInstruction(chunk.getFunction(), instructionIndex);
+        SsaValue tableValue = ssaInstruction.getFirstUseForRegister(a);
+        if (tableValue == null) {
+            return null;
+        }
+
+        List<TableField> fields = new ArrayList<>();
+        for (int i = 1; i <= b; i++) {
+            SsaValue elementValue = ssaInstruction.getFirstUseForRegister(a + i);
+            Expression element = expressionFromSsaValue(elementValue, instructionIndex, null, pos, new HashSet<SsaValue>());
+            if (element == null) {
+                element = new Name(getSsaCompatibleUseName(a + i, null, elementValue), pos);
+            }
+            fields.add(new TableField(null, element));
+        }
+
+        String tableName = getSsaCompatibleUseName(a, null, tableValue);
+        pipeline.getContext().setPreferredSsaValueName(tableValue, tableName);
+        List<Expression> left = new ArrayList<>();
+        left.add(new Name(tableName, pos));
+        List<Expression> right = new ArrayList<>();
+        right.add(new TableConstructor(fields, pos));
+        return new Assign(left, right, pos);
+    }
+
     /**
      * 转换SELF指令
      * 
@@ -977,6 +1014,7 @@ public class InstructionToASTConverter {
             }
 
             registerState.setRegisterEntity(a, call, ValueType.OBJECT, FromType.REGISTER);
+            rememberCallResultNames(a, instructionIndex, targets);
             return new Assign(targets, Collections.singletonList(call), pos);
         }
 
@@ -999,12 +1037,28 @@ public class InstructionToASTConverter {
             targets.add(returnName);
             returns.add(returnName);
             registerState.setRegisterEntity(a, call, ValueType.OBJECT, FromType.REGISTER);
+            rememberCallResultNames(a, instructionIndex, targets);
 
             return new Assign(targets, Collections.singletonList(call), pos);
         }
 
         // fallback
         return new ExpressionStatement(call, pos);
+    }
+
+    private void rememberCallResultNames(int firstRegister, int instructionIndex, List<Expression> targets) {
+        if (targets == null || targets.isEmpty()) {
+            return;
+        }
+        SsaInstruction ssaInstruction = pipeline.requireSsaInstruction(chunk.getFunction(), instructionIndex);
+        for (int i = 0; i < targets.size(); i++) {
+            Expression target = targets.get(i);
+            if (!(target instanceof Name)) {
+                continue;
+            }
+            SsaValue definition = ssaInstruction.getFirstDefForRegister(firstRegister + i);
+            pipeline.getContext().setPreferredSsaValueName(definition, ((Name) target).name);
+        }
     }
 
     /**
@@ -1163,12 +1217,26 @@ public class InstructionToASTConverter {
                 case CONSTANT:
                     return constantExpressionFromSsa(value, pos);
                 case CALL_RESULT:
+                    String preferredName = pipeline.getContext().getPreferredSsaValueName(value);
+                    if (preferredName != null) {
+                        return new Name(preferredName, pos);
+                    }
+                    return new Name(getSsaCompatibleUseName(value.getRegister(), registerState, value), pos);
                 case PARAMETER:
-                case PHI:
                 case UNKNOWN:
                 case VARARG:
                 case CLOSURE:
                 case TABLE_NEW:
+                    String preferredTableName = pipeline.getContext().getPreferredSsaValueName(value);
+                    if (preferredTableName != null) {
+                        return new Name(preferredTableName, pos);
+                    }
+                    return new Name(getSsaCompatibleUseName(value.getRegister(), registerState, value), pos);
+                case PHI:
+                    Expression shortCircuitPhi = shortCircuitPhiExpression(value, usePc, registerState, pos, visiting);
+                    if (shortCircuitPhi != null) {
+                        return shortCircuitPhi;
+                    }
                     return new Name(getSsaCompatibleUseName(value.getRegister(), registerState, value), pos);
                 case GLOBAL:
                 case TABLE_READ:
@@ -1200,6 +1268,80 @@ public class InstructionToASTConverter {
             }
         } finally {
             visiting.remove(value);
+        }
+    }
+
+    private Expression shortCircuitPhiExpression(SsaValue phiValue, int usePc, Register registerState, SourcePos pos,
+            Set<SsaValue> visiting) {
+        SsaFunction ssaFunc = pipeline.getSsaFunction(chunk.getFunction());
+        if (ssaFunc == null) {
+            return null;
+        }
+        SsaPhi phi = ssaFunc.getDefiningPhi(phiValue);
+        if (phi == null || phi.getIncoming().size() != 2) {
+            return null;
+        }
+
+        for (Map.Entry<BasicBlock, SsaValue> entry : phi.getIncoming().entrySet()) {
+            BasicBlock testBlock = entry.getKey();
+            SsaValue testedValue = entry.getValue();
+            ShortCircuitTest test = shortCircuitTestEndingAt(testBlock, testedValue, phi.getBlock().getStartIndex());
+            if (test == null) {
+                continue;
+            }
+
+            for (Map.Entry<BasicBlock, SsaValue> other : phi.getIncoming().entrySet()) {
+                if (other.getKey() == testBlock) {
+                    continue;
+                }
+                if (!isSingleDefinitionBlock(other.getKey(), other.getValue(), phi.getRegister())) {
+                    continue;
+                }
+                Expression left = expressionFromSsaValue(testedValue, usePc, registerState, pos, visiting);
+                Expression right = expressionFromSsaValue(other.getValue(), usePc, registerState, pos, visiting);
+                if (left != null && right != null) {
+                    return new BinaryOp(test.operator, left, right, pos);
+                }
+            }
+        }
+        return null;
+    }
+
+    private ShortCircuitTest shortCircuitTestEndingAt(BasicBlock block, SsaValue testedValue, int mergePc) {
+        if (block == null || testedValue == null || block.getEndIndex() < 1) {
+            return null;
+        }
+        Instruction jump = chunk.getInstruction(block.getEndIndex());
+        Instruction test = chunk.getInstruction(block.getEndIndex() - 1);
+        if (jump == null || test == null || jump.getOpcode() != Opcode.JMP || test.getOpcode() != Opcode.TEST) {
+            return null;
+        }
+        int jumpTarget = block.getEndIndex() + 1 + jump.getSBx();
+        if (jumpTarget != mergePc) {
+            return null;
+        }
+        SsaInstruction ssaTest = pipeline.requireSsaInstruction(chunk.getFunction(), block.getEndIndex() - 1);
+        SsaValue testUse = ssaTest.getFirstUseForRegister(test.getA());
+        if (!testedValue.equals(testUse)) {
+            return null;
+        }
+        return new ShortCircuitTest(test.getC() == 0 ? "and" : "or");
+    }
+
+    private boolean isSingleDefinitionBlock(BasicBlock block, SsaValue value, int register) {
+        if (block == null || value == null || block.getStartIndex() != block.getEndIndex()) {
+            return false;
+        }
+        SsaFunction ssaFunc = pipeline.getSsaFunction(chunk.getFunction());
+        SsaInstruction def = ssaFunc != null ? ssaFunc.getDefiningInstruction(value) : null;
+        return def != null && def.getPc() == block.getStartIndex() && def.getFirstDefForRegister(register) != null;
+    }
+
+    private static final class ShortCircuitTest {
+        final String operator;
+
+        ShortCircuitTest(String operator) {
+            this.operator = operator;
         }
     }
 

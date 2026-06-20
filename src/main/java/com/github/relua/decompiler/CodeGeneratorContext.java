@@ -9,6 +9,7 @@ import com.github.relua.model.CodeLine;
 import com.github.relua.model.Register;
 import com.github.relua.model.CodeLine.CodeType;
 import com.github.relua.model.UpValue;
+import com.github.relua.decompiler.ssa.SsaValue;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -61,6 +62,7 @@ public class CodeGeneratorContext {
     private Map<Integer, BasicBlock> thenBlocks = new HashMap<>(); // 基本块映射
     private Register register = new Register(); // 初始寄存器状态
     private List<UpValue> upvalues = new ArrayList<>(); // 上值存储，key为上值索引，value为上值对象
+    private Map<SsaValue, String> preferredSsaValueNames = new HashMap<>();
     
     // 用于跟踪pending的SELF指令，用于方法调用绑定
     private Map<Integer, PendingSelf> pendingSelfCalls = new HashMap<>();
@@ -382,6 +384,16 @@ public class CodeGeneratorContext {
 
     public List<UpValue> getUpvalues() {
         return this.upvalues;
+    }
+
+    public void setPreferredSsaValueName(SsaValue value, String name) {
+        if (value != null && name != null && !name.isEmpty()) {
+            preferredSsaValueNames.put(value, name);
+        }
+    }
+
+    public String getPreferredSsaValueName(SsaValue value) {
+        return value != null ? preferredSsaValueNames.get(value) : null;
     }
 
     /**

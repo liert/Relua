@@ -122,6 +122,10 @@ class DecompilerTest {
         assertTrue(luaCode.contains("a0:read("), "SELF read call should preserve the captured file handle");
         assertTrue(luaCode.contains("256 * R2_2 + 127") || luaCode.contains("256 * R2_2") && luaCode.contains("+ 127"),
                 "Stopped execute status should preserve the waitExec status code result");
+        assertTrue(luaCode.contains("while coroutine.status(R1_7) ~= \"dead\" do"),
+                "Coroutine dispatch loop should recover as a while loop");
+        assertFalse(luaCode.contains("::L35::"), "Recovered while loop should not keep the original loop-head label");
+        assertFalse(luaCode.contains("goto L35\n"), "Recovered while loop should not keep back-edge gotos to the loop head");
 
         com.github.relua.debug.DecompilerDebugger.clear();
 
@@ -153,6 +157,19 @@ class DecompilerTest {
         try (PrintWriter writer = new PrintWriter(new FileWriter("target/http_decompiled.lua"))) {
             writer.print(luaCode);
         }
+
+        assertTrue(luaCode.contains("context = luci_util.threadlocal()"),
+                "CALL result uses should preserve the recovered require local name for luci.util.threadlocal");
+        assertTrue(luaCode.contains("Request = luci_util.class()"),
+                "CALL result uses should preserve the recovered require local name for luci.util.class");
+        assertFalse(luaCode.contains("module_R2_3.threadlocal"),
+                "Recovered CALL result names must not fall back to unresolved module-prefixed SSA temporaries");
+        assertFalse(luaCode.contains("module_R2_3.class"),
+                "Recovered CALL result names must not fall back to unresolved module-prefixed SSA temporaries");
+        assertTrue(luaCode.contains("luci_http_protocol.urldecode_params(a1.QUERY_STRING or \"\")"),
+                "Short-circuit phi from TEST/JMP/default assignment should lower to an or expression");
+        assertFalse(luaCode.contains("urldecode_params(R6_3)"),
+                "Short-circuit phi values must not leak as unresolved SSA temporaries");
 
         // 验证 writeJsonNoLog 中没有重复的 write(string.format("\"%s\"", ...))
         int count = 0;
@@ -195,6 +212,14 @@ class DecompilerTest {
 
         // 3. 验证 LOADK 折叠（如 return "" 等）
         assertTrue(luaCode.contains("return \"\""), "Should contain direct 'return \"\"'");
+        assertTrue(luaCode.contains("KEY_WORDS = { \"'\", \";\", \"nvram\", \"dropbear\", \"bdata\" }"),
+                "SETLIST array initializers should be recovered for global table assignments");
+        assertTrue(luaCode.contains("R6_3 = a0:match(v)"),
+                "generic-for body should use the recovered value variable instead of the raw result register");
+        assertFalse(luaCode.contains("KEY_WORDS = module_R14_4"),
+                "SETLIST table initializers must not disappear before SETGLOBAL");
+        assertFalse(luaCode.contains("a0:match(R5_2)"),
+                "generic-for value registers must be renamed inside the recovered loop body");
     }
 
     @Test
