@@ -264,7 +264,7 @@ public class LuaCodeGenerator {
                     continue;
                 }
                 finalStatements.add(materializeTemporaryClosureBinding(statement, binding, contextByFunction,
-                        emittedFunctions));
+                        emittedFunctions, activeFunctions));
                 continue;
             }
             if (isTemporaryRegisterClosureAssign(statement, emittedFunctions)) {
@@ -399,7 +399,7 @@ public class LuaCodeGenerator {
     }
 
     private Statement materializeTemporaryClosureBinding(Statement statement, ClosureBinding binding,
-            Map<String, CodeGeneratorContext> contextByFunction, Set<String> emittedFunctions) {
+            Map<String, CodeGeneratorContext> contextByFunction, Set<String> emittedFunctions, Set<String> activeFunctions) {
         CodeGeneratorContext closureContext = contextByFunction.get(binding.closureName);
         if (closureContext == null) {
             return statement;
@@ -408,7 +408,11 @@ public class LuaCodeGenerator {
         List<String> names = new ArrayList<>();
         names.add(binding.targetName);
         List<Expression> right = new ArrayList<>();
-        right.add(createAnonymousFunctionLiteral(closureContext));
+        FunctionLiteral lit = createAnonymousFunctionLiteral(closureContext);
+        Set<String> nextActive = new HashSet<>(activeFunctions);
+        nextActive.add(binding.closureName);
+        inlineClosureDeclarations(lit.body, contextByFunction, emittedFunctions, nextActive);
+        right.add(lit);
         return new LocalAssign(names, right, statement.pos);
     }
 
@@ -472,6 +476,9 @@ public class LuaCodeGenerator {
                 return false;
             }
             FunctionLiteral literal = createAnonymousFunctionLiteral(contextByFunction.get(binding.closureName));
+            Set<String> nextActive = new HashSet<>(activeFunctions);
+            nextActive.add(binding.closureName);
+            inlineClosureDeclarations(literal.body, contextByFunction, emittedFunctions, nextActive);
             statements.set(i, replaceNameRead(statement, binding.targetName, literal));
             emittedFunctions.add(binding.closureName);
             return true;
@@ -686,7 +693,11 @@ public class LuaCodeGenerator {
                     return expression;
                 }
                 emittedFunctions.add(name);
-                return createAnonymousFunctionLiteral(contextByFunction.get(name));
+                FunctionLiteral lit = createAnonymousFunctionLiteral(contextByFunction.get(name));
+                Set<String> nextActive = new HashSet<>(activeFunctions);
+                nextActive.add(name);
+                inlineClosureDeclarations(lit.body, contextByFunction, emittedFunctions, nextActive);
+                return lit;
             }
             return expression;
         }
@@ -955,7 +966,8 @@ public class LuaCodeGenerator {
     private FunctionLiteral createFunctionLiteral(CodeGeneratorContext context) {
         Chunk functionChunk = context.getChunk();
         List<String> params = ssaNameResolver.parameterNames(functionChunk.getNumParams());
-        FunctionLiteral literal = new FunctionLiteral(params, functionChunk.getIsVararg() != 0, context.getAstBlock(), null);
+        Block clonedBlock = new com.github.relua.ast.AstCloner().clone(context.getAstBlock());
+        FunctionLiteral literal = new FunctionLiteral(params, functionChunk.getIsVararg() != 0, clonedBlock, null);
         literal.setChunk(functionChunk);
         return literal;
     }
@@ -963,7 +975,8 @@ public class LuaCodeGenerator {
     private FunctionLiteral createAnonymousFunctionLiteral(CodeGeneratorContext context) {
         Chunk functionChunk = context.getChunk();
         List<String> params = ssaNameResolver.parameterNames(functionChunk.getNumParams());
-        return new FunctionLiteral(params, functionChunk.getIsVararg() != 0, context.getAstBlock(), null);
+        Block clonedBlock = new com.github.relua.ast.AstCloner().clone(context.getAstBlock());
+        return new FunctionLiteral(params, functionChunk.getIsVararg() != 0, clonedBlock, null);
     }
 
     private static class ClosureBinding {
