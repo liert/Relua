@@ -171,7 +171,9 @@ public class LuaCodeGenerator {
 
             Set<String> emittedFunctions = new HashSet<>();
             for (CodeGeneratorContext ctx : contexts) {
-                inlineClosureDeclarations(ctx.getAstBlock(), contextByFunction, emittedFunctions);
+                Set<String> activeFunctions = new HashSet<>();
+                activeFunctions.add(ctx.getChunk().getFunction());
+                inlineClosureDeclarations(ctx.getAstBlock(), contextByFunction, emittedFunctions, activeFunctions);
             }
 
             // 为main函数创建一个主Block
@@ -227,7 +229,7 @@ public class LuaCodeGenerator {
     }
 
     private void inlineClosureDeclarations(Block block, Map<String, CodeGeneratorContext> contextByFunction,
-            Set<String> emittedFunctions) {
+            Set<String> emittedFunctions, Set<String> activeFunctions) {
         if (block == null || block.statements == null) {
             return;
         }
@@ -237,8 +239,11 @@ public class LuaCodeGenerator {
         for (Statement statement : block.statements) {
             FunctionDeclaration functionDeclaration = asClosureDeclaration(statement, contextByFunction);
             if (functionDeclaration != null) {
-                emittedFunctions.add(extractClosureName(statement));
-                inlineClosureDeclarations(functionDeclaration.func.body, contextByFunction, emittedFunctions);
+                String closureName = extractClosureName(statement);
+                emittedFunctions.add(closureName);
+                Set<String> nextActive = new HashSet<>(activeFunctions);
+                nextActive.add(closureName);
+                inlineClosureDeclarations(functionDeclaration.func.body, contextByFunction, emittedFunctions, nextActive);
                 rewritten.add(functionDeclaration);
             } else {
                 rewritten.add(statement);
@@ -251,7 +256,11 @@ public class LuaCodeGenerator {
             Statement statement = rewritten.get(i);
             ClosureBinding binding = asTemporaryClosureBinding(statement, contextByFunction);
             if (binding != null) {
-                if (inlineSingleUseClosureBinding(rewritten, i, binding, contextByFunction, emittedFunctions)) {
+                if (activeFunctions.contains(binding.closureName)) {
+                    finalStatements.add(statement);
+                    continue;
+                }
+                if (inlineSingleUseClosureBinding(rewritten, i, binding, contextByFunction, emittedFunctions, activeFunctions)) {
                     continue;
                 }
                 finalStatements.add(materializeTemporaryClosureBinding(statement, binding, contextByFunction,
@@ -261,7 +270,7 @@ public class LuaCodeGenerator {
             if (isTemporaryRegisterClosureAssign(statement, emittedFunctions)) {
                 continue;
             }
-            Statement rewrittenStatement = rewriteAnonymousClosureUses(statement, contextByFunction, emittedFunctions);
+            Statement rewrittenStatement = rewriteAnonymousClosureUses(statement, contextByFunction, emittedFunctions, activeFunctions);
             finalStatements.addAll(extractIifeClosures(rewrittenStatement));
         }
 
@@ -439,7 +448,10 @@ public class LuaCodeGenerator {
     }
 
     private boolean inlineSingleUseClosureBinding(List<Statement> statements, int bindingIndex, ClosureBinding binding,
-            Map<String, CodeGeneratorContext> contextByFunction, Set<String> emittedFunctions) {
+            Map<String, CodeGeneratorContext> contextByFunction, Set<String> emittedFunctions, Set<String> activeFunctions) {
+        if (activeFunctions.contains(binding.closureName)) {
+            return false;
+        }
         for (int i = bindingIndex + 1; i < statements.size(); i++) {
             Statement statement = statements.get(i);
             if (definesName(statement, binding.targetName)) {
@@ -583,93 +595,96 @@ public class LuaCodeGenerator {
     }
 
     private Statement rewriteAnonymousClosureUses(Statement statement,
-            Map<String, CodeGeneratorContext> contextByFunction, Set<String> emittedFunctions) {
+            Map<String, CodeGeneratorContext> contextByFunction, Set<String> emittedFunctions, Set<String> activeFunctions) {
         if (asTemporaryClosureBinding(statement, contextByFunction) != null) {
             return statement;
         }
         if (statement instanceof Assign) {
             Assign assign = (Assign) statement;
-            List<Expression> right = rewriteClosureExpressions(assign.right, contextByFunction, emittedFunctions);
+            List<Expression> right = rewriteClosureExpressions(assign.right, contextByFunction, emittedFunctions, activeFunctions);
             return new Assign(assign.left, right, assign.pos);
         }
         if (statement instanceof GlobalAssign) {
             GlobalAssign assign = (GlobalAssign) statement;
             return new GlobalAssign(assign.names, rewriteClosureExpressions(assign.right, contextByFunction,
-                    emittedFunctions), assign.pos);
+                    emittedFunctions, activeFunctions), assign.pos);
         }
         if (statement instanceof LocalAssign) {
             LocalAssign assign = (LocalAssign) statement;
             return new LocalAssign(assign.names, rewriteClosureExpressions(assign.right, contextByFunction,
-                    emittedFunctions), assign.pos);
+                    emittedFunctions, activeFunctions), assign.pos);
         }
         if (statement instanceof ExpressionStatement) {
             ExpressionStatement expr = (ExpressionStatement) statement;
             return new ExpressionStatement(rewriteClosureExpression(expr.expression, contextByFunction,
-                    emittedFunctions), expr.pos);
+                    emittedFunctions, activeFunctions), expr.pos);
         }
         if (statement instanceof ReturnStatement) {
             ReturnStatement ret = (ReturnStatement) statement;
-            return new ReturnStatement(rewriteClosureExpressions(ret.values, contextByFunction, emittedFunctions),
+            return new ReturnStatement(rewriteClosureExpressions(ret.values, contextByFunction, emittedFunctions, activeFunctions),
                     ret.pos);
         }
         if (statement instanceof IfStatement) {
             IfStatement ifs = (IfStatement) statement;
             List<Expression> conditions = rewriteClosureExpressions(ifs.conditions, contextByFunction,
-                    emittedFunctions);
+                    emittedFunctions, activeFunctions);
             for (Block child : ifs.blocks) {
-                inlineClosureDeclarations(child, contextByFunction, emittedFunctions);
+                inlineClosureDeclarations(child, contextByFunction, emittedFunctions, activeFunctions);
             }
             if (ifs.elseBlock != null) {
-                inlineClosureDeclarations(ifs.elseBlock, contextByFunction, emittedFunctions);
+                inlineClosureDeclarations(ifs.elseBlock, contextByFunction, emittedFunctions, activeFunctions);
             }
             return new IfStatement(conditions, ifs.blocks, ifs.elseBlock, ifs.pos);
         }
         if (statement instanceof WhileStatement) {
             WhileStatement loop = (WhileStatement) statement;
-            inlineClosureDeclarations(loop.body, contextByFunction, emittedFunctions);
-            return new WhileStatement(rewriteClosureExpression(loop.condition, contextByFunction, emittedFunctions),
+            inlineClosureDeclarations(loop.body, contextByFunction, emittedFunctions, activeFunctions);
+            return new WhileStatement(rewriteClosureExpression(loop.condition, contextByFunction, emittedFunctions, activeFunctions),
                     loop.body, loop.pos);
         }
         if (statement instanceof RepeatStatement) {
             RepeatStatement loop = (RepeatStatement) statement;
-            inlineClosureDeclarations(loop.body, contextByFunction, emittedFunctions);
+            inlineClosureDeclarations(loop.body, contextByFunction, emittedFunctions, activeFunctions);
             return new RepeatStatement(loop.body, rewriteClosureExpression(loop.condition, contextByFunction,
-                    emittedFunctions), loop.pos);
+                    emittedFunctions, activeFunctions), loop.pos);
         }
         if (statement instanceof ForIn) {
             ForIn loop = (ForIn) statement;
-            inlineClosureDeclarations(loop.body, contextByFunction, emittedFunctions);
+            inlineClosureDeclarations(loop.body, contextByFunction, emittedFunctions, activeFunctions);
             return new ForIn(loop.names, rewriteClosureExpressions(loop.iterators, contextByFunction,
-                    emittedFunctions), loop.body, loop.pos);
+                    emittedFunctions, activeFunctions), loop.body, loop.pos);
         }
         if (statement instanceof ForNumeric) {
             ForNumeric loop = (ForNumeric) statement;
-            inlineClosureDeclarations(loop.body, contextByFunction, emittedFunctions);
-            return new ForNumeric(loop.name, rewriteClosureExpression(loop.start, contextByFunction, emittedFunctions),
-                    rewriteClosureExpression(loop.end, contextByFunction, emittedFunctions),
-                    rewriteClosureExpression(loop.step, contextByFunction, emittedFunctions), loop.body, loop.pos);
+            inlineClosureDeclarations(loop.body, contextByFunction, emittedFunctions, activeFunctions);
+            return new ForNumeric(loop.name, rewriteClosureExpression(loop.start, contextByFunction, emittedFunctions, activeFunctions),
+                    rewriteClosureExpression(loop.end, contextByFunction, emittedFunctions, activeFunctions),
+                    rewriteClosureExpression(loop.step, contextByFunction, emittedFunctions, activeFunctions), loop.body, loop.pos);
         }
         if (statement instanceof FunctionDeclaration) {
             FunctionDeclaration declaration = (FunctionDeclaration) statement;
-            inlineClosureDeclarations(declaration.func.body, contextByFunction, emittedFunctions);
+            inlineClosureDeclarations(declaration.func.body, contextByFunction, emittedFunctions, activeFunctions);
         }
         return statement;
     }
 
     private List<Expression> rewriteClosureExpressions(List<Expression> expressions,
-            Map<String, CodeGeneratorContext> contextByFunction, Set<String> emittedFunctions) {
+            Map<String, CodeGeneratorContext> contextByFunction, Set<String> emittedFunctions, Set<String> activeFunctions) {
         List<Expression> rewritten = new ArrayList<>();
         for (Expression expression : expressions) {
-            rewritten.add(rewriteClosureExpression(expression, contextByFunction, emittedFunctions));
+            rewritten.add(rewriteClosureExpression(expression, contextByFunction, emittedFunctions, activeFunctions));
         }
         return rewritten;
     }
 
     private Expression rewriteClosureExpression(Expression expression,
-            Map<String, CodeGeneratorContext> contextByFunction, Set<String> emittedFunctions) {
+            Map<String, CodeGeneratorContext> contextByFunction, Set<String> emittedFunctions, Set<String> activeFunctions) {
         if (expression instanceof Name) {
             String name = ((Name) expression).name;
             if (contextByFunction.containsKey(name)) {
+                if (activeFunctions.contains(name)) {
+                    return expression;
+                }
                 emittedFunctions.add(name);
                 return createAnonymousFunctionLiteral(contextByFunction.get(name));
             }
@@ -677,28 +692,28 @@ public class LuaCodeGenerator {
         }
         if (expression instanceof BinaryOp) {
             BinaryOp binary = (BinaryOp) expression;
-            return new BinaryOp(binary.op, rewriteClosureExpression(binary.left, contextByFunction, emittedFunctions),
-                    rewriteClosureExpression(binary.right, contextByFunction, emittedFunctions), binary.pos);
+            return new BinaryOp(binary.op, rewriteClosureExpression(binary.left, contextByFunction, emittedFunctions, activeFunctions),
+                    rewriteClosureExpression(binary.right, contextByFunction, emittedFunctions, activeFunctions), binary.pos);
         }
         if (expression instanceof UnaryOp) {
             UnaryOp unary = (UnaryOp) expression;
-            return new UnaryOp(unary.op, rewriteClosureExpression(unary.expr, contextByFunction, emittedFunctions),
+            return new UnaryOp(unary.op, rewriteClosureExpression(unary.expr, contextByFunction, emittedFunctions, activeFunctions),
                     unary.pos);
         }
         if (expression instanceof FunctionCall) {
             FunctionCall call = (FunctionCall) expression;
-            return new FunctionCall(rewriteClosureExpression(call.callee, contextByFunction, emittedFunctions),
-                    rewriteClosureExpressions(call.args, contextByFunction, emittedFunctions), call.isMethodCall,
+            return new FunctionCall(rewriteClosureExpression(call.callee, contextByFunction, emittedFunctions, activeFunctions),
+                    rewriteClosureExpressions(call.args, contextByFunction, emittedFunctions, activeFunctions), call.isMethodCall,
                     call.returns, call.pos);
         }
         if (expression instanceof IndexExpr) {
             IndexExpr index = (IndexExpr) expression;
-            return new IndexExpr(rewriteClosureExpression(index.table, contextByFunction, emittedFunctions),
-                    rewriteClosureExpression(index.index, contextByFunction, emittedFunctions), index.pos);
+            return new IndexExpr(rewriteClosureExpression(index.table, contextByFunction, emittedFunctions, activeFunctions),
+                    rewriteClosureExpression(index.index, contextByFunction, emittedFunctions, activeFunctions), index.pos);
         }
         if (expression instanceof MemberExpr) {
             MemberExpr member = (MemberExpr) expression;
-            return new MemberExpr(rewriteClosureExpression(member.table, contextByFunction, emittedFunctions),
+            return new MemberExpr(rewriteClosureExpression(member.table, contextByFunction, emittedFunctions, activeFunctions),
                     member.member, member.pos);
         }
         if (expression instanceof TableConstructor) {
@@ -707,14 +722,14 @@ public class LuaCodeGenerator {
             for (TableField field : table.fields) {
                 fields.add(new TableField(
                         field.key == null ? null : rewriteClosureExpression(field.key, contextByFunction,
-                                emittedFunctions),
-                        rewriteClosureExpression(field.value, contextByFunction, emittedFunctions)));
+                                emittedFunctions, activeFunctions),
+                        rewriteClosureExpression(field.value, contextByFunction, emittedFunctions, activeFunctions)));
             }
             return new TableConstructor(fields, table.pos);
         }
         if (expression instanceof MultiVal) {
             MultiVal multi = (MultiVal) expression;
-            return new MultiVal(rewriteClosureExpressions(multi.values, contextByFunction, emittedFunctions),
+            return new MultiVal(rewriteClosureExpressions(multi.values, contextByFunction, emittedFunctions, activeFunctions),
                     multi.pos);
         }
         return expression;
