@@ -18,11 +18,26 @@ import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.event.MouseOverTextEvent;
 
 import java.util.*;
+import java.io.File;
+import java.io.IOException;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 public class LuaCodeIntelligenceController {
     private final CodeArea codeArea;
     private final LuaSymbolIndexer indexer;
     private final Label statusLabel;
+    
+    private java.util.function.Supplier<File> rootFolderSupplier;
+    private java.util.function.Consumer<File> fileNavigationHandler;
+    
+    public void setRootFolderSupplier(java.util.function.Supplier<File> rootFolderSupplier) {
+        this.rootFolderSupplier = rootFolderSupplier;
+    }
+    
+    public void setFileNavigationHandler(java.util.function.Consumer<File> fileNavigationHandler) {
+        this.fileNavigationHandler = fileNavigationHandler;
+    }
     
     // Hover popup
     private final Popup hoverPopup = new Popup();
@@ -122,6 +137,19 @@ public class LuaCodeIntelligenceController {
         codeArea.addEventHandler(MouseOverTextEvent.MOUSE_OVER_TEXT_BEGIN, event -> {
             int charIdx = event.getCharacterIndex();
             String text = codeArea.getText();
+            
+            // Check require match first (only in open folder mode)
+            if (rootFolderSupplier != null && rootFolderSupplier.get() != null) {
+                RequireMatch reqMatch = findRequireMatchAt(text, charIdx);
+                if (reqMatch != null) {
+                    File resolvedFile = resolveRequireFile(rootFolderSupplier.get(), reqMatch.moduleName);
+                    if (resolvedFile != null) {
+                        showRequireHoverTip(reqMatch.moduleName, resolvedFile, event.getScreenPosition());
+                        return;
+                    }
+                }
+            }
+
             String word = getWordAt(text, charIdx);
             if (word != null && !KEYWORDS.contains(word)) {
                 int line = getLineOfCharacter(text, charIdx);
@@ -141,6 +169,18 @@ public class LuaCodeIntelligenceController {
             if (event.isControlDown()) {
                 org.fxmisc.richtext.CharacterHit hit = codeArea.hit(event.getX(), event.getY());
                 hit.getCharacterIndex().ifPresent(idx -> {
+                    // Check require match first (only in open folder mode)
+                    if (rootFolderSupplier != null && rootFolderSupplier.get() != null) {
+                        RequireMatch reqMatch = findRequireMatchAt(codeArea.getText(), idx);
+                        if (reqMatch != null) {
+                            File resolvedFile = resolveRequireFile(rootFolderSupplier.get(), reqMatch.moduleName);
+                            if (resolvedFile != null) {
+                                codeArea.setCursor(Cursor.HAND);
+                                return;
+                            }
+                        }
+                    }
+
                     String word = getWordAt(codeArea.getText(), idx);
                     if (word != null && !KEYWORDS.contains(word)) {
                         int line = codeArea.offsetToPosition(idx, org.fxmisc.richtext.model.TwoDimensional.Bias.Forward).getMajor() + 1;
@@ -162,6 +202,24 @@ public class LuaCodeIntelligenceController {
             if (event.isControlDown() && event.getButton() == MouseButton.PRIMARY) {
                 org.fxmisc.richtext.CharacterHit hit = codeArea.hit(event.getX(), event.getY());
                 hit.getCharacterIndex().ifPresent(idx -> {
+                    // Check require match first (only in open folder mode)
+                    if (rootFolderSupplier != null && rootFolderSupplier.get() != null) {
+                        RequireMatch reqMatch = findRequireMatchAt(codeArea.getText(), idx);
+                        if (reqMatch != null) {
+                            File resolvedFile = resolveRequireFile(rootFolderSupplier.get(), reqMatch.moduleName);
+                            if (resolvedFile != null) {
+                                if (fileNavigationHandler != null) {
+                                    fileNavigationHandler.accept(resolvedFile);
+                                    showStatusMessage("已导航到模块: " + reqMatch.moduleName);
+                                }
+                                return;
+                            } else {
+                                showStatusMessage("未在当前文件夹中找到模块文件: " + reqMatch.moduleName);
+                                return;
+                            }
+                        }
+                    }
+
                     String word = getWordAt(codeArea.getText(), idx);
                     if (word != null && !KEYWORDS.contains(word)) {
                         int line = codeArea.offsetToPosition(idx, org.fxmisc.richtext.model.TwoDimensional.Bias.Forward).getMajor() + 1;
@@ -450,5 +508,139 @@ public class LuaCodeIntelligenceController {
         if (statusLabel != null) {
             statusLabel.setText(msg);
         }
+    }
+
+    private static class RequireMatch {
+        final int start;
+        final int end;
+        final String moduleName;
+        RequireMatch(int start, int end, String moduleName) {
+            this.start = start;
+            this.end = end;
+            this.moduleName = moduleName;
+        }
+    }
+
+    private RequireMatch findRequireMatchAt(String text, int charIdx) {
+        if (text == null || charIdx < 0 || charIdx >= text.length()) {
+            return null;
+        }
+        // Define patterns with group 1 as the module name
+        Pattern[] patterns = {
+            Pattern.compile("\\brequire\\s*\\(\\s*\"([^\"]*)\"\\s*\\)"),
+            Pattern.compile("\\brequire\\s*\\(\\s*'([^']*)'\\s*\\)"),
+            Pattern.compile("\\brequire\\s*\\(\\s*\\[\\[([^\\]]*)\\]\\]\\s*\\)"),
+            Pattern.compile("\\brequire\\s*\"([^\"]*)\""),
+            Pattern.compile("\\brequire\\s*'([^']*)'"),
+            Pattern.compile("\\brequire\\s*\\[\\[([^\\]]*)\\]\\]")
+        };
+        for (Pattern p : patterns) {
+            Matcher m = p.matcher(text);
+            while (m.find()) {
+                if (charIdx >= m.start() && charIdx < m.end()) {
+                    return new RequireMatch(m.start(), m.end(), m.group(1));
+                }
+            }
+        }
+        return null;
+    }
+
+    private File resolveRequireFile(File rootFolder, String moduleName) {
+        if (rootFolder == null || moduleName == null || moduleName.trim().isEmpty()) {
+            return null;
+        }
+        if (moduleName.contains("..")) {
+            return null;
+        }
+        
+        // Normalize separators: replace '.' and '\\' with '/'
+        String normalized = moduleName.replace('.', '/').replace('\\', '/');
+        
+        // Strip leading and trailing slashes
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        
+        // Try exact match first (fast path)
+        File file1 = new File(rootFolder, normalized + ".lua");
+        if (file1.exists() && file1.isFile() && isUnderDirectory(rootFolder, file1)) {
+            return file1;
+        }
+        File file2 = new File(rootFolder, normalized + "/init.lua");
+        if (file2.exists() && file2.isFile() && isUnderDirectory(rootFolder, file2)) {
+            return file2;
+        }
+        
+        // Try case-insensitive match (slow path / compatible path)
+        String[] parts1 = (normalized + ".lua").split("/");
+        File matched1 = findFileCaseInsensitive(rootFolder, parts1, 0);
+        if (matched1 != null && isUnderDirectory(rootFolder, matched1)) {
+            return matched1;
+        }
+        
+        String[] parts2 = (normalized + "/init.lua").split("/");
+        File matched2 = findFileCaseInsensitive(rootFolder, parts2, 0);
+        if (matched2 != null && isUnderDirectory(rootFolder, matched2)) {
+            return matched2;
+        }
+        
+        return null;
+    }
+
+    private File findFileCaseInsensitive(File currentDir, String[] parts, int index) {
+        if (currentDir == null || !currentDir.exists() || !currentDir.isDirectory()) {
+            return null;
+        }
+        if (index >= parts.length) {
+            return null;
+        }
+        
+        String part = parts[index];
+        File[] children = currentDir.listFiles();
+        if (children == null) {
+            return null;
+        }
+        
+        for (File child : children) {
+            if (child.getName().equalsIgnoreCase(part)) {
+                if (index == parts.length - 1) {
+                    if (child.isFile()) {
+                        return child;
+                    }
+                } else {
+                    if (child.isDirectory()) {
+                        File found = findFileCaseInsensitive(child, parts, index + 1);
+                        if (found != null) {
+                            return found;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean isUnderDirectory(File directory, File file) {
+        try {
+            String dirPath = directory.getCanonicalPath();
+            String filePath = file.getCanonicalPath();
+            return filePath.startsWith(dirPath + File.separator) || filePath.equals(dirPath);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private void showRequireHoverTip(String moduleName, File resolvedFile, Point2D screenPos) {
+        String tip = "(module) " + moduleName + "\n" +
+                     "Ctrl + Click to navigate to " + resolvedFile.getName();
+        hoverLabel.setText(tip);
+        hoverPopup.show(codeArea.getScene().getWindow(), screenPos.getX() + 10, screenPos.getY() + 10);
     }
 }

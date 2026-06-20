@@ -92,9 +92,17 @@ public class TextEditorView {
     private static final Pattern LUA_TOKEN_PATTERN = Pattern.compile("\\b(function|end|repeat|until|if|for|while)\\b");
 
     /**
-     * 构造函数
+     * 默认构造函数（显示欢迎文本）
      */
     public TextEditorView() {
+        this(true);
+    }
+
+    /**
+     * 构造函数
+     * @param showWelcome 是否显示欢迎文本
+     */
+    public TextEditorView(boolean showWelcome) {
         // 初始化CodeArea
         codeArea = new FoldableCodeArea();
         codeArea.setWrapText(false); // 禁用自动换行，长行出现水平滚动条
@@ -115,8 +123,8 @@ public class TextEditorView {
         searchPopup.setAutoFix(true);
         searchPopup.setHideOnEscape(false);
         
-        // 设置行号和折叠标识
-        installParagraphGraphics();
+        // 延迟设置行号和折叠标识，避免在组件未渲染或未显示时计算 Visible paragraphs 导致 RichTextFX 崩溃
+        Platform.runLater(this::installParagraphGraphics);
         
         // 加载 Lua 语法高亮样式表
         try {
@@ -137,27 +145,22 @@ public class TextEditorView {
                 refreshHighlighting();
             }
         });
-        
         // 设置字体和字体大小
         codeArea.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 14px;");
         
         // 设置CodeArea的尺寸约束，确保它能够扩展到可用空间
-        codeArea.setPrefWidth(Double.MAX_VALUE);
-        codeArea.setPrefHeight(Double.MAX_VALUE);
         codeArea.setMaxWidth(Double.MAX_VALUE);
         codeArea.setMaxHeight(Double.MAX_VALUE);
-        // 设置最小高度，确保至少能显示10行文本内容（假设每行高度为20px）
         codeArea.setMinHeight(200);
 
-        // 设置 virtualizedScrollPane 的尺寸约束，确保能填充 ScrollPane Content 区域
-        virtualizedScrollPane.setPrefWidth(Double.MAX_VALUE);
-        virtualizedScrollPane.setPrefHeight(Double.MAX_VALUE);
         virtualizedScrollPane.setMaxWidth(Double.MAX_VALUE);
         virtualizedScrollPane.setMaxHeight(Double.MAX_VALUE);
         installSearchHandlers();
         
         // 设置初始文本
-        codeArea.replaceText(I18nUtil.getString("editor.welcome"));
+        if (showWelcome) {
+            codeArea.replaceText(I18nUtil.getString("editor.welcome"));
+        }
     }
 
     private HBox createSearchBar() {
@@ -348,6 +351,8 @@ public class TextEditorView {
     public void setText(String text) {
         clearFoldState();
         codeArea.replaceText(text);
+        codeArea.moveTo(0);
+        codeArea.requestFollowCaret();
         rebuildFunctionFolds();
         updateSearchMatches(false);
         refreshHighlighting();

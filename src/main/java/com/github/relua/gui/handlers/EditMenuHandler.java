@@ -7,14 +7,14 @@ import javafx.event.ActionEvent;
  * 编辑菜单处理器，处理编辑菜单的交互逻辑
  */
 public class EditMenuHandler {
-    private TextEditorView textEditorView;
+    private final java.util.function.Supplier<TextEditorView> editorSupplier;
 
     /**
      * 构造函数
-     * @param textEditorView 文本编辑器视图
+     * @param editorSupplier 文本编辑器视图的提供者
      */
-    public EditMenuHandler(TextEditorView textEditorView) {
-        this.textEditorView = textEditorView;
+    public EditMenuHandler(java.util.function.Supplier<TextEditorView> editorSupplier) {
+        this.editorSupplier = editorSupplier;
     }
 
     /**
@@ -22,7 +22,10 @@ public class EditMenuHandler {
      * @param event 事件对象
      */
     public void handleUndo(ActionEvent event) {
-        textEditorView.undo();
+        TextEditorView textEditorView = editorSupplier.get();
+        if (textEditorView != null) {
+            textEditorView.undo();
+        }
     }
 
     /**
@@ -30,7 +33,10 @@ public class EditMenuHandler {
      * @param event 事件对象
      */
     public void handleRedo(ActionEvent event) {
-        textEditorView.redo();
+        TextEditorView textEditorView = editorSupplier.get();
+        if (textEditorView != null) {
+            textEditorView.redo();
+        }
     }
 
     /**
@@ -38,7 +44,10 @@ public class EditMenuHandler {
      * @param event 事件对象
      */
     public void handleCut(ActionEvent event) {
-        textEditorView.cut();
+        TextEditorView textEditorView = editorSupplier.get();
+        if (textEditorView != null) {
+            textEditorView.cut();
+        }
     }
 
     /**
@@ -46,7 +55,10 @@ public class EditMenuHandler {
      * @param event 事件对象
      */
     public void handleCopy(ActionEvent event) {
-        textEditorView.copy();
+        TextEditorView textEditorView = editorSupplier.get();
+        if (textEditorView != null) {
+            textEditorView.copy();
+        }
     }
 
     /**
@@ -54,6 +66,9 @@ public class EditMenuHandler {
      * @param event 事件对象
      */
     public void handlePaste(ActionEvent event) {
-        textEditorView.paste();
+        TextEditorView textEditorView = editorSupplier.get();
+        if (textEditorView != null) {
+            textEditorView.paste();
+        }
     }
 }

@@ -96,13 +96,11 @@ public class I18nService {
     
     /**
      * 初始化标签的国际化文本
-     * @param luaCodeLabel Lua代码标签
      * @param astGraphLabel AST图形标签
      * @param logLabel 日志标签
      * @param btnClearLog 清空日志按钮
      */
-    public void initializeLabels(Label luaCodeLabel, Label astGraphLabel, Label logLabel, Button btnClearLog) {
-        luaCodeLabel.setText(I18nUtil.getString("label.luaCode"));
+    public void initializeLabels(Label astGraphLabel, Label logLabel, Button btnClearLog) {
         astGraphLabel.setText(I18nUtil.getString("label.astGraph"));
         logLabel.setText(I18nUtil.getString("label.log"));
         btnClearLog.setText(I18nUtil.getString("btn.clearLog"));

@@ -8,6 +8,9 @@ import com.github.relua.gui.utils.CFGGraphConverter;
 import com.github.relua.decompiler.Decompiler;
 import com.github.relua.parser.LuacParser;
 import com.github.relua.model.LuacFile;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
+import com.github.relua.gui.views.EditorTab;
 import javafx.event.ActionEvent;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
@@ -28,26 +31,17 @@ import java.io.IOException;
  * 文件菜单处理器，处理文件菜单的交互逻辑
  */
 public class FileMenuHandler {
-    private TextEditorView textEditorView;
+    private TabPane textEditorTabPane;
     private ASTGraphConverter astGraphConverter;
     private CFGGraphConverter cfgGraphConverter;
     private I18nService i18nService;
     private Label statusLabel;
     private Label fileLabel;
     private FileTreeView fileTreeView;
-    private File currentFile;
-    private LuacFile currentLuacFile;
-    private com.github.relua.decompiler.pipeline.DecompilerResult currentDecompilerResult;
-    private java.util.Map<String, com.github.relua.model.LineRange> chunkLineRanges = new java.util.HashMap<>();
-
-    // 加载动画及提示覆盖层
-    private StackPane textEditorStackPane;
-    private VBox loadingOverlay;
-    private ProgressIndicator progressIndicator;
-    private Label loadingLabel;
-    private Label warningLabel;
-    private Task<DecompileResult> activeTask;
+    
     private int currentTaskId = 0;
+    private Runnable onFileOpenedCallback;
+    private Runnable onCaretPositionChangedCallback;
 
     private static class DecompileResult {
         final String luaCode;
@@ -67,67 +61,50 @@ public class FileMenuHandler {
 
     /**
      * 构造函数
-     * @param textEditorView 文本编辑器视图
+     * @param textEditorTabPane 标签页容器
      * @param astGraphConverter AST到图形的转换器
      * @param cfgGraphConverter CFG到图形的转换器
      * @param i18nService 国际化服务
      * @param statusLabel 状态栏标签
      * @param fileLabel 文件标签
      * @param fileTreeView 文件树视图
-     * @param textEditorStackPane 文本编辑器StackPane容器
      */
-    public FileMenuHandler(TextEditorView textEditorView, ASTGraphConverter astGraphConverter, CFGGraphConverter cfgGraphConverter, I18nService i18nService, Label statusLabel, Label fileLabel, FileTreeView fileTreeView, StackPane textEditorStackPane) {
-        this.textEditorView = textEditorView;
+    public FileMenuHandler(TabPane textEditorTabPane, ASTGraphConverter astGraphConverter, CFGGraphConverter cfgGraphConverter, I18nService i18nService, Label statusLabel, Label fileLabel, FileTreeView fileTreeView) {
+        this.textEditorTabPane = textEditorTabPane;
         this.astGraphConverter = astGraphConverter;
         this.cfgGraphConverter = cfgGraphConverter;
         this.i18nService = i18nService;
         this.statusLabel = statusLabel;
         this.fileLabel = fileLabel;
         this.fileTreeView = fileTreeView;
-        this.textEditorStackPane = textEditorStackPane;
-
-        // 初始化加载状态覆盖层
-        initLoadingOverlay();
-    }
-
-    private void initLoadingOverlay() {
-        if (textEditorStackPane == null) {
-            return;
-        }
-
-        loadingOverlay = new VBox();
-        loadingOverlay.setAlignment(javafx.geometry.Pos.CENTER);
-        loadingOverlay.setSpacing(15);
-        loadingOverlay.setStyle("-fx-background-color: rgba(255, 255, 255, 0.85);");
-
-        progressIndicator = new ProgressIndicator();
-        progressIndicator.setMinSize(50, 50);
-
-        loadingLabel = new Label("正在反编译，请稍候...");
-        loadingLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #333333;");
-
-        warningLabel = new Label("");
-        warningLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #666666;");
-
-        loadingOverlay.getChildren().addAll(progressIndicator, loadingLabel, warningLabel);
-        loadingOverlay.setVisible(false);
-
-        textEditorStackPane.getChildren().add(loadingOverlay);
     }
 
     /**
-     * 重置加载状态，取消所有运行中的任务并隐藏遮罩层
+     * 设置文件成功打开后的回调
+     * @param callback 回调函数
+     */
+    public void setOnFileOpenedCallback(Runnable callback) {
+        this.onFileOpenedCallback = callback;
+    }
+
+    /**
+     * 设置光标位置改变后的回调
+     * @param callback 回调函数
+     */
+    public void setOnCaretPositionChangedCallback(Runnable callback) {
+        this.onCaretPositionChangedCallback = callback;
+    }
+
+    /**
+     * 重置加载状态，关闭所有打开的标签页并取消所有运行中的任务
      */
     public void resetLoadingState() {
-        if (activeTask != null) {
-            activeTask.cancel();
+        for (Tab tab : textEditorTabPane.getTabs()) {
+            if (tab instanceof EditorTab) {
+                ((EditorTab) tab).cancelTask();
+            }
         }
-        if (loadingLabel != null) {
-            loadingLabel.textProperty().unbind();
-        }
-        if (loadingOverlay != null) {
-            loadingOverlay.setVisible(false);
-        }
+        textEditorTabPane.getTabs().clear();
     }
 
     /**
@@ -154,7 +131,7 @@ public class FileMenuHandler {
             openFile(file);
         }
     }
-    
+
     /**
      * 直接打开指定文件
      * @param file 文件对象
@@ -164,58 +141,78 @@ public class FileMenuHandler {
             return;
         }
 
-        // 如果当前已经打开了该文件，直接忽略，避免重复反编译和高亮失效
-        if (currentFile != null && currentFile.getAbsolutePath().equals(file.getAbsolutePath()) 
-                && textEditorView.getText() != null && !textEditorView.getText().isEmpty()
-                && (activeTask == null || !activeTask.isRunning())) {
-            updateStatus("File already open: " + file.getName());
-            if (fileTreeView != null) {
-                fileTreeView.selectFile(file);
+        // 检查是否已经打开了该文件，如果是则切换到对应标签页
+        for (Tab tab : textEditorTabPane.getTabs()) {
+            if (tab instanceof EditorTab) {
+                EditorTab editorTab = (EditorTab) tab;
+                if (editorTab.getFile().getAbsolutePath().equals(file.getAbsolutePath())) {
+                    textEditorTabPane.getSelectionModel().select(editorTab);
+                    updateStatus("File already open: " + file.getName());
+                    if (fileTreeView != null) {
+                        fileTreeView.selectFile(file);
+                    }
+                    return;
+                }
             }
-            return;
         }
 
-        // 取消旧任务并解除绑定，防止再次设置文本时抛出 "A bound value cannot be set" 异常
-        if (activeTask != null) {
-            activeTask.cancel();
+        // 创建新的文本编辑器和标签页
+        TextEditorView textEditorView = new TextEditorView(false);
+        textEditorView.initCodeIntelligence(statusLabel);
+        if (textEditorView.getCodeIntelligenceController() != null) {
+            textEditorView.getCodeIntelligenceController().setRootFolderSupplier(() -> {
+                return fileTreeView != null ? fileTreeView.getRootFolder() : null;
+            });
+            textEditorView.getCodeIntelligenceController().setFileNavigationHandler(targetFile -> {
+                openFile(targetFile);
+            });
         }
-        if (loadingLabel != null) {
-            loadingLabel.textProperty().unbind();
-        }
+        
+        EditorTab tab = new EditorTab(file, textEditorView);
+        
+        // 注册关闭事件，取消运行中的任务
+        tab.setOnCloseRequest(e -> {
+            tab.cancelTask();
+        });
 
-        currentFile = file;
-        updateFileLabel(file.getName());
-        updateStatus("Opening file...");
+        // 注册光标监听器以实现 AST/CFG 同步
+        textEditorView.getCodeArea().caretPositionProperty().addListener((obs, oldVal, newVal) -> {
+            if (textEditorTabPane.getSelectionModel().getSelectedItem() == tab) {
+                if (onCaretPositionChangedCallback != null) {
+                    onCaretPositionChangedCallback.run();
+                }
+            }
+        });
 
-        // 添加单个文件或在文件树中高亮当前选中的节点
+        textEditorTabPane.getTabs().add(tab);
+        textEditorTabPane.getSelectionModel().select(tab);
+
         if (fileTreeView != null) {
             fileTreeView.addFile(file);
             fileTreeView.selectFile(file);
         }
 
-        final int taskId = ++currentTaskId;
+        updateFileLabel(file.getName());
+        updateStatus("Opening file...");
 
-        if (loadingOverlay != null) {
-            loadingOverlay.setVisible(true);
-            loadingLabel.setText("正在反编译，请稍候...");
-            warningLabel.setText("");
-        }
+        tab.showLoading("正在反编译，请稍候...");
+
+        final int taskId = ++currentTaskId;
 
         // 如果文件处理耗时超过 3 秒，显示额外提示信息
         Timeline warningTimeline = new Timeline(
             new KeyFrame(Duration.seconds(3), e -> {
-                if (taskId == currentTaskId && loadingOverlay != null && loadingOverlay.isVisible()) {
-                    warningLabel.setText("文件较大，处理时间可能较长，请耐心等待...");
+                if (tab.getTabPane() != null && textEditorTabPane.getSelectionModel().getSelectedItem() == tab) {
+                    tab.setWarningText("文件较大，处理时间可能较长，请耐心等待...");
                 }
             })
         );
         warningTimeline.play();
 
         // 创建异步加载与反编译 Task
-        activeTask = new Task<DecompileResult>() {
+        Task<DecompileResult> task = new Task<DecompileResult>() {
             @Override
             protected DecompileResult call() throws Exception {
-                // 阶段一：解析字节码
                 updateMessage("正在解析字节码...");
                 LuacParser parser = new LuacParser();
                 
@@ -238,7 +235,7 @@ public class FileMenuHandler {
 
                 if (isCancelled()) return null;
 
-                // 阶段二：进行反编译并生成 Lua 代码
+                // 进行反编译并生成 Lua 代码
                 updateMessage("正在生成 Lua 代码...");
                 Decompiler decompiler = new Decompiler();
                 String luaCode = decompiler.decompile(luacFile, false);
@@ -252,27 +249,26 @@ public class FileMenuHandler {
             @Override
             protected void succeeded() {
                 warningTimeline.stop();
-                if (taskId != currentTaskId) {
-                    return;
-                }
-
-                if (loadingOverlay != null) {
-                    loadingOverlay.setVisible(false);
-                }
+                tab.unbindTaskMessage();
+                tab.hideLoading();
 
                 DecompileResult result = getValue();
                 if (result != null) {
-                    currentLuacFile = result.luacFile;
-                    chunkLineRanges = result.chunkLineRanges;
-                    currentDecompilerResult = result.decompilerResult;
+                    tab.setLuacFile(result.luacFile);
+                    tab.setChunkLineRanges(result.chunkLineRanges);
+                    tab.setDecompilerResult(result.decompilerResult);
 
                     // 显示反编译结果
-                    textEditorView.setText(result.luaCode);
+                    tab.getTextEditorView().setText(result.luaCode);
 
                     if (result.isText) {
-                        updateStatus("Opened text file: " + file.getName());
+                         updateStatus("Opened text file: " + file.getName());
                     } else {
-                        updateStatus("File opened successfully");
+                         updateStatus("File opened successfully");
+                    }
+
+                    if (onFileOpenedCallback != null) {
+                        onFileOpenedCallback.run();
                     }
                 }
             }
@@ -280,31 +276,29 @@ public class FileMenuHandler {
             @Override
             protected void failed() {
                 warningTimeline.stop();
-                if (taskId != currentTaskId) {
-                    return;
-                }
-
-                if (loadingOverlay != null) {
-                    loadingOverlay.setVisible(false);
-                }
+                tab.unbindTaskMessage();
+                tab.hideLoading();
 
                 Throwable e = getException();
                 updateStatus("Unsupported file format: " + file.getName());
                 showError(i18nService.getErrorDialogTitle(), "不支持的文件格式: " + e.getMessage());
+                
+                // 如果打开失败，则关闭该标签页
+                textEditorTabPane.getTabs().remove(tab);
             }
 
             @Override
             protected void cancelled() {
                 warningTimeline.stop();
+                tab.unbindTaskMessage();
             }
         };
 
-        if (loadingOverlay != null) {
-            loadingLabel.textProperty().bind(activeTask.messageProperty());
-        }
+        tab.bindTaskMessage(task);
+        tab.setActiveTask(task);
 
         // 启动后台线程执行任务
-        Thread thread = new Thread(activeTask);
+        Thread thread = new Thread(task);
         thread.setDaemon(true);
         thread.start();
     }
@@ -314,8 +308,9 @@ public class FileMenuHandler {
      * @param event 事件对象
      */
     public void handleSaveFile(ActionEvent event) {
-        if (currentFile != null) {
-            saveToFile(currentFile);
+        EditorTab activeTab = getActiveTab();
+        if (activeTab != null) {
+            saveToFile(activeTab.getFile(), activeTab);
         } else {
             handleSaveAsFile(event);
         }
@@ -326,6 +321,10 @@ public class FileMenuHandler {
      * @param event 事件对象
      */
     public void handleSaveAsFile(ActionEvent event) {
+        EditorTab activeTab = getActiveTab();
+        if (activeTab == null) {
+            return;
+        }
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Save Lua File");
         fileChooser.getExtensionFilters().addAll(
@@ -335,18 +334,19 @@ public class FileMenuHandler {
 
         File file = fileChooser.showSaveDialog(new Stage());
         if (file != null) {
-            saveToFile(file);
+            saveToFile(file, activeTab);
         }
     }
 
     /**
      * 将文本保存到文件
      * @param file 文件对象
+     * @param tab 标签页对象
      */
-    private void saveToFile(File file) {
+    private void saveToFile(File file, EditorTab tab) {
         try {
-            textEditorView.saveToFile(file);
-            currentFile = file;
+            tab.getTextEditorView().saveToFile(file);
+            tab.setFile(file);
             updateFileLabel(file.getName());
             updateStatus("File saved successfully");
         } catch (IOException e) {
@@ -385,11 +385,24 @@ public class FileMenuHandler {
     }
 
     /**
+     * 获取当前激活的标签页
+     * @return 当前激活的标签页，如果没有则为 null
+     */
+    public EditorTab getActiveTab() {
+        Tab selectedTab = textEditorTabPane.getSelectionModel().getSelectedItem();
+        if (selectedTab instanceof EditorTab) {
+            return (EditorTab) selectedTab;
+        }
+        return null;
+    }
+
+    /**
      * 获取当前打开的文件
      * @return 当前打开的文件
      */
     public File getCurrentFile() {
-        return currentFile;
+        EditorTab activeTab = getActiveTab();
+        return activeTab != null ? activeTab.getFile() : null;
     }
 
     /**
@@ -397,7 +410,10 @@ public class FileMenuHandler {
      * @param currentFile 当前打开的文件
      */
     public void setCurrentFile(File currentFile) {
-        this.currentFile = currentFile;
+        EditorTab activeTab = getActiveTab();
+        if (activeTab != null) {
+            activeTab.setFile(currentFile);
+        }
     }
     
     /**
@@ -405,7 +421,8 @@ public class FileMenuHandler {
      * @return 当前打开的LuacFile对象
      */
     public LuacFile getCurrentLuacFile() {
-        return currentLuacFile;
+        EditorTab activeTab = getActiveTab();
+        return activeTab != null ? activeTab.getLuacFile() : null;
     }
 
     /**
@@ -413,7 +430,8 @@ public class FileMenuHandler {
      * @return 当前反编译结果对象
      */
     public com.github.relua.decompiler.pipeline.DecompilerResult getCurrentDecompilerResult() {
-        return currentDecompilerResult;
+        EditorTab activeTab = getActiveTab();
+        return activeTab != null ? activeTab.getDecompilerResult() : null;
     }
 
     /**
@@ -421,7 +439,8 @@ public class FileMenuHandler {
      * @return 代码行区间映射
      */
     public java.util.Map<String, com.github.relua.model.LineRange> getChunkLineRanges() {
-        return chunkLineRanges;
+        EditorTab activeTab = getActiveTab();
+        return activeTab != null ? activeTab.getChunkLineRanges() : new java.util.HashMap<>();
     }
 
     private boolean isTextFile(File file) {

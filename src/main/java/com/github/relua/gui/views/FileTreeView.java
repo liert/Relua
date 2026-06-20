@@ -387,6 +387,18 @@ public class FileTreeView {
     }
 
     /**
+     * 获取当前打开的根文件夹
+     * @return 根文件夹，如果未处于文件夹模式则返回 null
+     */
+    public File getRootFolder() {
+        if (!isFolderMode()) {
+            return null;
+        }
+        TreeItem<FileNode> firstChild = rootItem.getChildren().get(0);
+        return firstChild != null && firstChild.getValue() != null ? firstChild.getValue().getFile() : null;
+    }
+
+    /**
      * 在文件树中选中并高亮对应的文件节点
      * @param file 要选中的文件
      */

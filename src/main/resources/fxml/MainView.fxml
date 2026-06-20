@@ -16,6 +16,7 @@
 <?import javafx.scene.control.SeparatorMenuItem?>
 <?import javafx.scene.control.Separator?>
 <?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.TabPane?>
 
 <BorderPane xmlns="http://javafx.com/javafx/11.0.2" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.github.relua.gui.controllers.MainController">
     <!-- 菜单栏 -->
@@ -104,11 +105,10 @@
                     
                     <!-- 中间：文本编辑区域 -->
                     <VBox fx:id="textEditorContainer">
-                        <Label fx:id="luaCodeLabel" style="-fx-font-weight: bold;" />
                         <StackPane fx:id="textEditorStackPane" VBox.vgrow="ALWAYS">
-                            <ScrollPane fx:id="textEditorScrollPane" prefHeight="0">
-                                <!-- 文本编辑器将通过代码添加 -->
-                            </ScrollPane>
+                            <TabPane fx:id="textEditorTabPane" VBox.vgrow="ALWAYS">
+                                <!-- 标签页将通过代码动态添加 -->
+                            </TabPane>
                         </StackPane>
                     </VBox>
                     
@@ -128,7 +128,7 @@
                         <ComboBox fx:id="logLevelComboBox" style="-fx-margin-left: 10px; -fx-min-width: 100px;" />
                         <Button fx:id="btnClearLog" style="-fx-margin-left: auto;" />
                     </HBox>
-                    <ScrollPane fx:id="logScrollPane" VBox.vgrow="ALWAYS" prefHeight="0">
+                    <ScrollPane fx:id="logScrollPane" VBox.vgrow="ALWAYS" prefHeight="0" minHeight="50">
                         <!-- 日志文本区域将通过代码添加 -->
                     </ScrollPane>
                 </VBox>

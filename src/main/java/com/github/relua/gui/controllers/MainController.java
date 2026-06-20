@@ -6,6 +6,7 @@ import com.github.relua.gui.handlers.EditMenuHandler;
 import com.github.relua.gui.handlers.ViewMenuHandler;
 import com.github.relua.gui.handlers.HelpMenuHandler;
 import com.github.relua.gui.views.TextEditorView;
+import com.github.relua.gui.views.EditorTab;
 import com.github.relua.gui.views.GraphVisualizationView;
 import com.github.relua.gui.views.FileTreeView;
 import com.github.relua.gui.views.LogView;
@@ -25,6 +26,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.application.Platform;
 
 import java.io.File;
 import java.io.IOException;
@@ -40,7 +42,9 @@ public class MainController {
     @FXML
     private SplitPane mainSplitPane;
     @FXML
-    private ScrollPane textEditorScrollPane;
+    private SplitPane verticalSplitPane;
+    @FXML
+    private TabPane textEditorTabPane;
     @FXML
     private StackPane textEditorStackPane;
     @FXML
@@ -53,8 +57,6 @@ public class MainController {
     private Label statusLabel;
     @FXML
     private Label fileLabel;
-    @FXML
-    private Label luaCodeLabel;
     @FXML
     private Label astGraphLabel;
     
@@ -147,7 +149,6 @@ public class MainController {
     private LogView logView;
     
     // 视图组件
-    private TextEditorView textEditorView;
     private GraphVisualizationView graphVisualizationView;
     
     // AST到图形的转换器
@@ -191,17 +192,8 @@ public class MainController {
         fileTreeScrollPane.setFitToWidth(true);
         fileTreeScrollPane.setFitToHeight(true);
         
-        // 初始化文本编辑器视图
-        textEditorView = new TextEditorView();
-        textEditorView.initCodeIntelligence(statusLabel);
-        
-        textEditorScrollPane.setFitToWidth(true);
-        textEditorScrollPane.setFitToHeight(true);
-        textEditorScrollPane.setContent(textEditorView.getView());
-        
-        // 禁用外层 ScrollPane 的滚动条以避免与内层 VirtualizedScrollPane 发生冲突，实现完美流畅滚动
-        textEditorScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        textEditorScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        // 初始化标签页视图
+        textEditorTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
         
         // 初始化图形可视化视图
         graphVisualizationView = new GraphVisualizationView();
@@ -222,8 +214,6 @@ public class MainController {
         logScrollPane.setFitToHeight(true);
         
         // 设置ScrollPane的fitToWidth和fitToHeight属性，确保内容自动调整到适合ScrollPane的尺寸
-        textEditorScrollPane.setFitToWidth(true);
-        textEditorScrollPane.setFitToHeight(true);
         graphScrollPane.setFitToWidth(true);
         graphScrollPane.setFitToHeight(true);
         
@@ -237,7 +227,7 @@ public class MainController {
         i18nService.initializeViewMenuItems(menuItemZoomIn, menuItemZoomOut, menuItemResetZoom);
         i18nService.initializeHelpMenuItems(menuItemAbout);
         i18nService.initializeToolbarButtons(btnOpen, btnSave, btnUndo, btnRedo, btnZoomIn, btnZoomOut, btnResetZoom);
-        i18nService.initializeLabels(luaCodeLabel, astGraphLabel, logLabel, btnClearLog);
+        i18nService.initializeLabels(astGraphLabel, logLabel, btnClearLog);
         
         // 默认隐藏右侧图形视图，仅保留文件树和代码视图
         mainSplitPane.getItems().remove(graphContainer);
@@ -256,8 +246,15 @@ public class MainController {
         java.util.logging.Logger.getLogger("MainController").severe("错误信息: 这是一个测试错误");
         
         // 初始化菜单处理器
-        fileMenuHandler = new FileMenuHandler(textEditorView, astGraphConverter, cfgGraphConverter, i18nService, statusLabel, fileLabel, fileTreeView, textEditorStackPane);
-        editMenuHandler = new EditMenuHandler(textEditorView);
+        fileMenuHandler = new FileMenuHandler(textEditorTabPane, astGraphConverter, cfgGraphConverter, i18nService, statusLabel, fileLabel, fileTreeView);
+        fileMenuHandler.setOnFileOpenedCallback(() -> {
+            handleCaretPositionChanged(true);
+        });
+        fileMenuHandler.setOnCaretPositionChangedCallback(() -> {
+            handleCaretPositionChanged();
+        });
+        
+        editMenuHandler = new EditMenuHandler(this::getActiveTextEditorView);
         viewMenuHandler = new ViewMenuHandler(graphVisualizationView, mainSplitPane, graphContainer);
         helpMenuHandler = new HelpMenuHandler(i18nService);
         
@@ -266,10 +263,12 @@ public class MainController {
             fileMenuHandler.openFile(fileNode.getFile());
         });
         
-        // 注册编辑器光标位置监听器，实现CFG/AST视图的自动同步
-        textEditorView.getCodeArea().caretPositionProperty().addListener((obs, oldVal, newVal) -> {
-            handleCaretPositionChanged();
+        textEditorTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            handleActiveTabChanged(newTab);
         });
+
+        // 确保主内容区域和日志的垂直分割比例稳定，避免日志区域在初次渲染或拉伸时挤占编辑区
+        SplitPane.setResizableWithParent(logContainer, false);
     }
     
     /**
@@ -625,10 +624,13 @@ public class MainController {
      */
     private void saveToFile(File file) {
         try {
-            textEditorView.saveToFile(file);
-            currentFile = file;
-            updateFileLabel(file.getName());
-            updateStatus("File saved successfully");
+            TextEditorView activeEditor = getActiveTextEditorView();
+            if (activeEditor != null) {
+                activeEditor.saveToFile(file);
+                currentFile = file;
+                updateFileLabel(file.getName());
+                updateStatus("File saved successfully");
+            }
         } catch (IOException e) {
             updateStatus("Error saving file: " + e.getMessage());
             showError(i18nService.getErrorDialogTitle(), i18nService.getFileSaveFailedMessage(e.getMessage()));
@@ -686,8 +688,13 @@ public class MainController {
             force = true;
         }
 
+        TextEditorView activeEditor = getActiveTextEditorView();
+        if (activeEditor == null) {
+            return;
+        }
+
         // 获取当前光标所在的行号（1-based）
-        int currentLine = textEditorView.getCodeArea().getCurrentParagraph() + 1;
+        int currentLine = activeEditor.getCodeArea().getCurrentParagraph() + 1;
 
         // 根据行号寻找匹配的最深层 Chunk
         Chunk targetChunk = findTargetChunkForLine(luacFile.getMainChunk(), currentLine);
@@ -699,6 +706,42 @@ public class MainController {
             if (graphContainer.isVisible()) {
                 updateSubViewTitle(currentSubViewType);
                 executeSubViewConversionForChunk(currentSubViewType, targetChunk);
+            }
+        }
+    }
+
+    private TextEditorView getActiveTextEditorView() {
+        EditorTab activeTab = getActiveEditorTab();
+        return activeTab != null ? activeTab.getTextEditorView() : null;
+    }
+
+    private EditorTab getActiveEditorTab() {
+        Tab selectedTab = textEditorTabPane.getSelectionModel().getSelectedItem();
+        return (selectedTab instanceof EditorTab) ? (EditorTab) selectedTab : null;
+    }
+
+    private void handleActiveTabChanged(Tab newTab) {
+        if (newTab instanceof EditorTab) {
+            EditorTab activeTab = (EditorTab) newTab;
+            // 更新文件名和状态栏
+            updateFileLabel(activeTab.getFile().getName());
+            updateStatus("Active file: " + activeTab.getFile().getName());
+
+            // 在文件树中高亮选中
+            if (fileTreeView != null) {
+                fileTreeView.selectFile(activeTab.getFile());
+            }
+
+            // 同步子视图
+            handleCaretPositionChanged(true);
+        } else {
+            // 没有打开的标签页
+            updateFileLabel(i18nService.getInitialFileLabelText());
+            updateStatus(i18nService.getInitialStatusText());
+
+            // 关闭当前子视图
+            if (graphContainer.isVisible()) {
+                closeSubView();
             }
         }
     }

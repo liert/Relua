@@ -25,6 +25,7 @@ public class LogView {
         logTextArea.setEditable(false);
         logTextArea.setWrapText(true);
         logTextArea.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 12px;");
+        logTextArea.setMinHeight(50);
         
         // 初始化清空日志按钮
         clearLogButton = new Button("清空日志");
