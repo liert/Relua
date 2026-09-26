@@ -3,6 +3,8 @@ package com.github.relua.util;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Constant;
 import com.github.relua.model.Instruction;
+import com.github.relua.model.LocalVar;
+import com.github.relua.model.LuacFile;
 import com.github.relua.model.Opcode;
 import java.util.List;
 
@@ -10,6 +12,124 @@ import java.util.List;
  * 字节码格式化工具类
  */
 public class BytecodeFormatter {
+    /**
+     * 格式化整个 Luac 文件的完整字节码反汇编（包含文件头、主函数及所有子函数）
+     * 
+     * @param luacFile Luac文件对象
+     * @return 格式化后的完整字节码反汇编文本
+     */
+    public static String formatLuacFile(LuacFile luacFile) {
+        if (luacFile == null) {
+            return "; 未加载有效的 Luac 文件。\n";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("; ====================================================================\n");
+        sb.append("; Relua 字节码反汇编\n");
+        sb.append(String.format("; Lua 版本: %s\n", luacFile.getLuaVersion()));
+        sb.append(String.format("; 字节序: %s\n", luacFile.isLittleEndian() ? "Little Endian (小端)" : "Big Endian (大端)"));
+        sb.append(String.format("; 指令大小: %d 字节, 数字大小: %d 字节\n", 
+                                luacFile.getInstructionSize(), luacFile.getLuaNumberSize()));
+        sb.append(String.format("; 格式标识: %d, 整数标志: %d\n", luacFile.getFormat(), luacFile.getIntegralFlag()));
+        sb.append("; ====================================================================\n\n");
+        
+        Chunk mainChunk = luacFile.getMainChunk();
+        if (mainChunk != null) {
+            formatChunkInternal(mainChunk, 0, true, sb);
+        } else {
+            sb.append("; 主代码块 (Main chunk) 为空。\n");
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 格式化单个代码块（Chunk）的字节码
+     * 
+     * @param chunk 代码块
+     * @return 格式化后的字节码文本
+     */
+    public static String formatChunk(Chunk chunk) {
+        return formatChunk(chunk, true);
+    }
+
+    /**
+     * 格式化单个代码块（Chunk）的字节码
+     * 
+     * @param chunk 代码块
+     * @param includeSubChunks 是否递归包含子函数
+     * @return 格式化后的字节码文本
+     */
+    public static String formatChunk(Chunk chunk, boolean includeSubChunks) {
+        if (chunk == null) {
+            return "; 代码块 (Chunk) 为空。\n";
+        }
+        StringBuilder sb = new StringBuilder();
+        formatChunkInternal(chunk, 0, includeSubChunks, sb);
+        return sb.toString();
+    }
+
+    private static void formatChunkInternal(Chunk chunk, int depth, boolean includeSubChunks, StringBuilder sb) {
+        String indent = "  ".repeat(depth);
+        String funcName = chunk.getFunction();
+        if (funcName == null || funcName.isEmpty()) {
+            funcName = (depth == 0) ? "main" : "anonymous_func";
+        }
+
+        sb.append(indent).append("; --------------------------------------------------------------------\n");
+        sb.append(indent).append(String.format("; 函数: %s (层级: %d)\n", funcName, depth));
+        sb.append(indent).append(String.format("; 定义行号: %d 到 %d\n", chunk.getLineDefined(), chunk.getLastLineDefined()));
+        sb.append(indent).append(String.format("; 参数数量: %d, 可变参数: %d, 最大栈大小: %d, Upvalues: %d\n",
+                chunk.getNumParams(), chunk.getIsVararg(), chunk.getMaxStackSize(), chunk.getNup()));
+        sb.append(indent).append("; --------------------------------------------------------------------\n");
+
+        // 常量表
+        List<Constant> constants = chunk.getConstants();
+        if (constants != null && !constants.isEmpty()) {
+            sb.append(indent).append(String.format("; 常量池 (共 %d 个):\n", constants.size()));
+            for (int i = 0; i < constants.size(); i++) {
+                Constant c = constants.get(i);
+                sb.append(indent).append(String.format(";   .const K%-3d = %s\n", i, c != null ? c.toString() : "nil"));
+            }
+            sb.append("\n");
+        }
+
+        // 局部变量表
+        List<LocalVar> localVars = chunk.getLocalVars();
+        if (localVars != null && !localVars.isEmpty()) {
+            sb.append(indent).append(String.format("; 局部变量 (共 %d 个):\n", localVars.size()));
+            for (int i = 0; i < localVars.size(); i++) {
+                LocalVar lv = localVars.get(i);
+                sb.append(indent).append(String.format(";   .local [%d] %-16s (生命周期 pc: %d - %d)\n", 
+                        i, lv.getName(), lv.getStartPC(), lv.getEndPC()));
+            }
+            sb.append("\n");
+        }
+
+        // 指令列表
+        List<Instruction> instructions = chunk.getInstructions();
+        if (instructions != null && !instructions.isEmpty()) {
+            sb.append(indent).append(String.format("; 指令列表 (共 %d 条指令):\n", instructions.size()));
+            for (int i = 0; i < instructions.size(); i++) {
+                Instruction inst = instructions.get(i);
+                String formattedInst = formatInstruction(chunk, inst, i);
+                sb.append(indent).append(formattedInst).append("\n");
+            }
+        } else {
+            sb.append(indent).append("; 无指令。\n");
+        }
+
+        sb.append("\n");
+
+        // 递归输出子函数
+        if (includeSubChunks) {
+            List<Chunk> subChunks = chunk.getSubChunks();
+            if (subChunks != null && !subChunks.isEmpty()) {
+                sb.append(indent).append(String.format("; 子函数 (共 %d 个):\n\n", subChunks.size()));
+                for (int i = 0; i < subChunks.size(); i++) {
+                    formatChunkInternal(subChunks.get(i), depth + 1, true, sb);
+                }
+            }
+        }
+    }
     /**
      * 格式化单个指令为字节码字符串
      * 

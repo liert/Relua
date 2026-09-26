@@ -50,14 +50,17 @@
                 <!-- 视图菜单 -->
                 <Menu fx:id="menuView">
                     <items>
+                        <MenuItem fx:id="menuItemToggleTabBytecode" onAction="#handleToggleCurrentTabBytecode" text="切换当前文件字节码/源码" accelerator="Shortcut+B" />
+                        <SeparatorMenuItem />
                         <!-- 子视图子菜单 -->
                         <Menu text="子视图">
                             <items>
-                                <MenuItem fx:id="menuItemBytecodeView" onAction="#handleBytecodeView" text="字节码视图" />
+                                <MenuItem fx:id="menuItemBytecodeView" onAction="#handleBytecodeView" text="字节码子视图" />
                                 <MenuItem fx:id="menuItemAstView" onAction="#handleAstView" text="AST视图" />
                                 <MenuItem fx:id="menuItemCfgView" onAction="#handleCfgView" text="CFG视图" />
                             </items>
                         </Menu>
+                        <SeparatorMenuItem />
                         <!-- 缩放相关菜单项 -->
                         <MenuItem fx:id="menuItemZoomIn" onAction="#handleZoomIn" />
                         <MenuItem fx:id="menuItemZoomOut" onAction="#handleZoomOut" />
@@ -81,6 +84,8 @@
             <ToolBar>
                 <Button fx:id="btnOpen" onAction="#handleOpenFile" />
                 <Button fx:id="btnSave" onAction="#handleSaveFile" />
+                <Separator orientation="VERTICAL" />
+                <Button fx:id="btnToggleBytecode" onAction="#handleToggleCurrentTabBytecode" text="源码/字节码" />
                 <Separator orientation="VERTICAL" />
                 <Button fx:id="btnUndo" onAction="#handleUndo" />
                 <Button fx:id="btnRedo" onAction="#handleRedo" />

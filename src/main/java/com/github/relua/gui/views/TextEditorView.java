@@ -56,15 +56,18 @@ public class TextEditorView {
     private final Button collapseAllButton;
     private final Button expandAllButton;
     
-    // Lua语法高亮的正则表达式
+    // Lua语法高亮与字节码反汇编高亮的正则表达式
     private static final String KEYWORDS = "\\b(and|break|do|else|elseif|end|false|for|function|goto|if|in|local|nil|not|or|repeat|return|then|true|until|while)\\b";
+    private static final String OPCODES = "\\b(MOVE|LOADK|LOADBOOL|LOADNIL|GETUPVAL|GETGLOBAL|GETTABLE|SETGLOBAL|SETUPVAL|SETTABLE|NEWTABLE|SELF|ADD|SUB|MUL|DIV|MOD|POW|UNM|NOT|LEN|CONCAT|JMP|EQ|LT|LE|TEST|TESTSET|CALL|TAILCALL|RETURN|FORLOOP|FORPREP|TFORLOOP|SETLIST|CLOSE|CLOSURE|VARARG)\\b";
     private static final String STRINGS = "\\\"([^\\\\\"\\r\\n]|\\\\.)*\\\"|\\'([^\\\\\\'\\r\\n]|\\\\.)*\\'";
-    private static final String COMMENTS = "--.*$";
-    private static final String NUMBERS = "\\b\\d+\\.?\\d*\\b";
+    private static final String COMMENTS = "(--.*$)|(;.*$)";
+    private static final String NUMBERS = "\\b(0x[0-9a-fA-F]+|\\d+\\.?\\d*)\\b";
     private static final String GLOBALVAR = "\\b(global_|chunk_|module_)[A-Za-z0-9_]+\\b";
     private static final String METHODCALL = "(?<=:)[A-Za-z_][A-Za-z0-9_]*";
     private static final String TABLEFIELD = "(?<=\\.)[A-Za-z_][A-Za-z0-9_]*";
     private static final String FUNCTION = "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()";
+    private static final String REGISTERS = "\\b(R\\d+|K\\d+|RK\\d+)\\b";
+    private static final String DIRECTIVES = "\\.(function|constants|locals|upvalues|const|local|upvalue)\\b";
     private static final String LOCALVAR = "\\b[A-Za-z_][A-Za-z0-9_]*\\b";
     private static final String OPERATORS = "==|~=|<=|>=|\\.\\.|[\\+\\-\\*\\/\\%\\^\\#\\=\\<\\>\\:]";
     
@@ -73,12 +76,15 @@ public class TextEditorView {
           "(?<COMMENTS>" + COMMENTS + ")"
         + "|(?<STRINGS>" + STRINGS + ")"
         + "|(?<KEYWORDS>" + KEYWORDS + ")"
+        + "|(?<OPCODES>" + OPCODES + ")"
+        + "|(?<DIRECTIVES>" + DIRECTIVES + ")"
+        + "|(?<REGISTERS>" + REGISTERS + ")"
         + "|(?<GLOBALVAR>" + GLOBALVAR + ")"
         + "|(?<METHODCALL>" + METHODCALL + ")"
         + "|(?<TABLEFIELD>" + TABLEFIELD + ")"
         + "|(?<FUNCTION>" + FUNCTION + ")"
-        + "|(?<LOCALVAR>" + LOCALVAR + ")"
         + "|(?<NUMBERS>" + NUMBERS + ")"
+        + "|(?<LOCALVAR>" + LOCALVAR + ")"
         + "|(?<OPERATORS>" + OPERATORS + ")";
     private static final Pattern SYNTAX_PATTERN = Pattern.compile(PATTERN);
     
@@ -264,7 +270,7 @@ public class TextEditorView {
         Matcher matcher = SYNTAX_PATTERN.matcher(text);
         while (matcher.find()) {
             String styleClass = null;
-            if (matcher.group("KEYWORDS") != null) {
+            if (matcher.group("KEYWORDS") != null || matcher.group("OPCODES") != null) {
                 styleClass = "keyword";
             } else if (matcher.group("STRINGS") != null) {
                 styleClass = "string";
@@ -272,7 +278,7 @@ public class TextEditorView {
                 styleClass = "comment";
             } else if (matcher.group("NUMBERS") != null) {
                 styleClass = "number";
-            } else if (matcher.group("GLOBALVAR") != null) {
+            } else if (matcher.group("GLOBALVAR") != null || matcher.group("DIRECTIVES") != null) {
                 styleClass = "global-var";
             } else if (matcher.group("METHODCALL") != null) {
                 styleClass = "method-call";
@@ -280,7 +286,7 @@ public class TextEditorView {
                 styleClass = "table-field";
             } else if (matcher.group("FUNCTION") != null) {
                 styleClass = "function";
-            } else if (matcher.group("LOCALVAR") != null) {
+            } else if (matcher.group("LOCALVAR") != null || matcher.group("REGISTERS") != null) {
                 styleClass = "local-var";
             } else if (matcher.group("OPERATORS") != null) {
                 styleClass = "operator";

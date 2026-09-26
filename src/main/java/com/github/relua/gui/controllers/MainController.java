@@ -17,6 +17,7 @@ import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Constant;
 import com.github.relua.model.LocalVar;
+import com.github.relua.util.BytecodeFormatter;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
@@ -27,6 +28,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.application.Platform;
+import javafx.concurrent.Task;
 
 import java.io.File;
 import java.io.IOException;
@@ -96,6 +98,8 @@ public class MainController {
     
     // 视图菜单项
     @FXML
+    private MenuItem menuItemToggleTabBytecode;
+    @FXML
     private MenuItem menuItemBytecodeView;
     @FXML
     private MenuItem menuItemAstView;
@@ -117,6 +121,8 @@ public class MainController {
     private Button btnOpen;
     @FXML
     private Button btnSave;
+    @FXML
+    private Button btnToggleBytecode;
     @FXML
     private Button btnUndo;
     @FXML
@@ -150,6 +156,12 @@ public class MainController {
     
     // 视图组件
     private GraphVisualizationView graphVisualizationView;
+    private TextEditorView bytecodeSubViewEditor;
+    private StackPane subViewStackPane;
+    private javafx.scene.layout.HBox subViewHeaderBar;
+    private ToggleButton btnScopeCurrentChunk;
+    private ToggleButton btnScopeFullFile;
+    private boolean bytecodeShowFullFile = false;
     
     // AST到图形的转换器
     private ASTGraphConverter astGraphConverter;
@@ -217,6 +229,27 @@ public class MainController {
         graphScrollPane.setFitToWidth(true);
         graphScrollPane.setFitToHeight(true);
         
+        // 初始化字节码代码编辑器（作为子视图代码呈现，与主代码视图体验一致）
+        bytecodeSubViewEditor = new TextEditorView(false);
+        bytecodeSubViewEditor.getCodeArea().setEditable(false);
+        Node bytecodeNode = bytecodeSubViewEditor.getView();
+        VBox.setVgrow(bytecodeNode, Priority.ALWAYS);
+
+        // 初始化子视图内容堆叠容器
+        subViewStackPane = new StackPane();
+        VBox.setVgrow(subViewStackPane, Priority.ALWAYS);
+
+        // 将原有的 graphScrollPane 移入 subViewStackPane
+        graphContainer.getChildren().remove(graphScrollPane);
+        subViewStackPane.getChildren().addAll(graphScrollPane, bytecodeNode);
+        bytecodeNode.setVisible(false);
+        bytecodeNode.setManaged(false);
+
+        // 初始化子视图顶部标题栏及范围控制按钮
+        initSubViewHeader();
+
+        graphContainer.getChildren().add(subViewStackPane);
+
         // 初始化国际化服务
         i18nService = new I18nService();
         
@@ -238,13 +271,7 @@ public class MainController {
         // 设置初始状态
         updateStatus(i18nService.getInitialStatusText());
         updateFileLabel(i18nService.getInitialFileLabelText());
-        
-        // 测试日志输出
-        java.util.logging.Logger.getLogger("MainController").info("应用程序启动成功");
-        java.util.logging.Logger.getLogger("MainController").fine("调试信息: 日志系统已初始化");
-        java.util.logging.Logger.getLogger("MainController").warning("警告信息: 这是一个测试警告");
-        java.util.logging.Logger.getLogger("MainController").severe("错误信息: 这是一个测试错误");
-        
+
         // 初始化菜单处理器
         fileMenuHandler = new FileMenuHandler(textEditorTabPane, astGraphConverter, cfgGraphConverter, i18nService, statusLabel, fileLabel, fileTreeView);
         fileMenuHandler.setOnFileOpenedCallback(() -> {
@@ -425,6 +452,65 @@ public class MainController {
         toggleSubView(SubViewType.CFG);
     }
     
+    private void initSubViewHeader() {
+        subViewHeaderBar = new javafx.scene.layout.HBox(8);
+        subViewHeaderBar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        subViewHeaderBar.setStyle("-fx-padding: 3 6 3 6; -fx-background-color: #f7f9fa; -fx-border-color: #e2e8f0; -fx-border-width: 0 0 1 0;");
+
+        graphContainer.getChildren().remove(astGraphLabel);
+        astGraphLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 12px;");
+        subViewHeaderBar.getChildren().add(astGraphLabel);
+
+        javafx.scene.layout.Region spacer = new javafx.scene.layout.Region();
+        javafx.scene.layout.HBox.setHgrow(spacer, Priority.ALWAYS);
+        subViewHeaderBar.getChildren().add(spacer);
+
+        ToggleGroup scopeGroup = new ToggleGroup();
+        btnScopeCurrentChunk = new ToggleButton("当前函数");
+        btnScopeFullFile = new ToggleButton("完整文件");
+        btnScopeCurrentChunk.setToggleGroup(scopeGroup);
+        btnScopeFullFile.setToggleGroup(scopeGroup);
+        btnScopeCurrentChunk.setSelected(true);
+
+        String scopeBtnStyle = "-fx-font-size: 11px; -fx-padding: 1 6 1 6; -fx-cursor: hand;";
+        btnScopeCurrentChunk.setStyle(scopeBtnStyle);
+        btnScopeFullFile.setStyle(scopeBtnStyle);
+
+        btnScopeCurrentChunk.setOnAction(e -> {
+            bytecodeShowFullFile = false;
+            updateSubViewTitle(SubViewType.BYTECODE);
+            handleCaretPositionChanged(true);
+        });
+        btnScopeFullFile.setOnAction(e -> {
+            bytecodeShowFullFile = true;
+            updateSubViewTitle(SubViewType.BYTECODE);
+            handleCaretPositionChanged(true);
+        });
+
+        // 默认隐藏范围切换按钮（仅在字节码视图模式下显示）
+        btnScopeCurrentChunk.setVisible(false);
+        btnScopeCurrentChunk.setManaged(false);
+        btnScopeFullFile.setVisible(false);
+        btnScopeFullFile.setManaged(false);
+
+        subViewHeaderBar.getChildren().addAll(btnScopeCurrentChunk, btnScopeFullFile);
+        graphContainer.getChildren().add(0, subViewHeaderBar);
+    }
+
+    /**
+     * 切换当前激活标签页的代码/字节码视图 (快捷键 Shortcut+B)
+     */
+    @FXML
+    private void handleToggleCurrentTabBytecode(ActionEvent event) {
+        EditorTab activeTab = getActiveEditorTab();
+        if (activeTab != null) {
+            activeTab.toggleBytecodeView();
+            updateStatus(activeTab.isShowingBytecode() ? "当前标签页已切换为字节码反汇编视图" : "当前标签页已切换为Lua源码视图");
+        } else {
+            updateStatus("无打开的文件标签页");
+        }
+    }
+
     /**
      * 切换子视图
      * @param subViewType 子视图类型
@@ -439,7 +525,18 @@ public class MainController {
         // 激活新的子视图
         currentSubViewType = subViewType;
         
-        // 确保图形容器可见
+        boolean isBytecode = (subViewType == SubViewType.BYTECODE);
+        graphScrollPane.setVisible(!isBytecode);
+        graphScrollPane.setManaged(!isBytecode);
+        bytecodeSubViewEditor.getView().setVisible(isBytecode);
+        bytecodeSubViewEditor.getView().setManaged(isBytecode);
+
+        btnScopeCurrentChunk.setVisible(isBytecode);
+        btnScopeCurrentChunk.setManaged(isBytecode);
+        btnScopeFullFile.setVisible(isBytecode);
+        btnScopeFullFile.setManaged(isBytecode);
+
+        // 确保副视图容器可见
         if (!graphContainer.isVisible()) {
             if (!mainSplitPane.getItems().contains(graphContainer)) {
                 mainSplitPane.getItems().add(graphContainer);
@@ -467,10 +564,14 @@ public class MainController {
      */
     private void updateSubViewTitle(SubViewType subViewType) {
         String funcName = (currentDisplayedChunk != null) ? currentDisplayedChunk.getFunction() : "";
-        String titleSuffix = funcName.isEmpty() ? "" : " - [" + funcName + "]";
+        String titleSuffix = (funcName == null || funcName.isEmpty()) ? "" : " - [" + funcName + "]";
         switch (subViewType) {
             case BYTECODE:
-                astGraphLabel.setText("字节码视图" + titleSuffix);
+                if (bytecodeShowFullFile) {
+                    astGraphLabel.setText("字节码视图 - [完整文件]");
+                } else {
+                    astGraphLabel.setText("字节码视图" + titleSuffix);
+                }
                 break;
             case AST:
                 astGraphLabel.setText("AST视图" + titleSuffix);
@@ -498,21 +599,27 @@ public class MainController {
         }
         
         // 创建并启动后台任务
-        javafx.concurrent.Task<Void> task = new javafx.concurrent.Task<Void>() {
+        Task<Void> task = new Task<Void>() {
             @Override
             protected Void call() throws Exception {
                 updateMessage("正在生成" + getSubViewName(subViewType) + "...");
                 
                 switch (subViewType) {
                     case BYTECODE:
-                        updateMessage("正在生成字节码视图...");
-                        javafx.application.Platform.runLater(() -> {
-                            generateBytecodeView(luacFile);
+                        updateMessage("正在生成字节码代码视图...");
+                        String bytecodeText;
+                        if (bytecodeShowFullFile) {
+                            bytecodeText = BytecodeFormatter.formatLuacFile(luacFile);
+                        } else {
+                            bytecodeText = BytecodeFormatter.formatChunk(chunk, true);
+                        }
+                        Platform.runLater(() -> {
+                            bytecodeSubViewEditor.setText(bytecodeText);
                         });
                         break;
                     case AST:
                         updateMessage("正在生成AST视图...");
-                        javafx.application.Platform.runLater(() -> {
+                        Platform.runLater(() -> {
                             astGraphConverter.convertToGraph(chunk, fileMenuHandler.getCurrentDecompilerResult());
                         });
                         break;
@@ -543,79 +650,6 @@ public class MainController {
         Thread thread = new Thread(task);
         thread.setDaemon(true);
         thread.start();
-    }
-    
-    /**
-     * 生成字节码视图
-     * @param luacFile Luac文件对象
-     */
-    private void generateBytecodeView(LuacFile luacFile) {
-        // 获取主代码块
-        Chunk mainChunk = luacFile.getMainChunk();
-        if (mainChunk == null) {
-            return;
-        }
-        
-        // 生成字节码内容
-        StringBuilder bytecodeContent = new StringBuilder();
-        
-        // 添加文件头信息
-        bytecodeContent.append("=== Luac File Header ===\n");
-        bytecodeContent.append(String.format("Version: %s\n", luacFile.getLuaVersion()));
-        bytecodeContent.append(String.format("Endianness: %s\n", luacFile.isLittleEndian() ? "Little Endian" : "Big Endian"));
-        bytecodeContent.append(String.format("Instruction Size: %d bytes\n", luacFile.getInstructionSize()));
-        bytecodeContent.append(String.format("Lua Number Size: %d bytes\n", luacFile.getLuaNumberSize()));
-        bytecodeContent.append(String.format("Integral Flag: %d\n\n", luacFile.getIntegralFlag()));
-        
-        // 添加主代码块信息
-        bytecodeContent.append("=== Main Chunk ===\n");
-        bytecodeContent.append(String.format("Function: %s\n", mainChunk.getFunction()));
-        bytecodeContent.append(String.format("Line Defined: %d\n", mainChunk.getLineDefined()));
-        bytecodeContent.append(String.format("Last Line Defined: %d\n", mainChunk.getLastLineDefined()));
-        bytecodeContent.append(String.format("Parameters: %d\n", mainChunk.getNumParams()));
-        bytecodeContent.append(String.format("Vararg: %d\n", mainChunk.getIsVararg()));
-        bytecodeContent.append(String.format("Max Stack Size: %d\n", mainChunk.getMaxStackSize()));
-        bytecodeContent.append(String.format("Upvalues: %d\n", mainChunk.getNup()));
-        bytecodeContent.append(String.format("Instructions: %d\n", mainChunk.getInstructions().size()));
-        bytecodeContent.append(String.format("Constants: %d\n", mainChunk.getConstants().size()));
-        bytecodeContent.append(String.format("Sub Chunks: %d\n", mainChunk.getSubChunks().size()));
-        bytecodeContent.append(String.format("Local Vars: %d\n\n", mainChunk.getLocalVars().size()));
-        
-        // 添加指令列表
-        bytecodeContent.append("=== Instructions ===\n");
-        bytecodeContent.append(String.format("%4s | %8s | %-12s | %s\n", "PC", "Code", "Opcode", "Operands"));
-        bytecodeContent.append("----+--------+------------+--------\n");
-        
-        List<Instruction> instructions = mainChunk.getInstructions();
-        for (int i = 0; i < instructions.size(); i++) {
-            Instruction instr = instructions.get(i);
-            String codeHex = String.format("0x%08X", instr.getCode());
-            String opcode = instr.getOpcode().name();
-            String operands = String.format("A=%d B=%d C=%d Bx=%d sBx=%d", 
-                                          instr.getA(), instr.getB(), instr.getC(), 
-                                          instr.getBx(), instr.getSBx());
-            
-            bytecodeContent.append(String.format("%4d | %8s | %-12s | %s\n", i, codeHex, opcode, operands));
-        }
-        
-        // 添加常量表
-        bytecodeContent.append("\n=== Constants ===\n");
-        List<Constant> constants = mainChunk.getConstants();
-        for (int i = 0; i < constants.size(); i++) {
-            Constant constant = constants.get(i);
-            bytecodeContent.append(String.format("%4d: %s\n", i, constant.toString()));
-        }
-        
-        // 添加局部变量表
-        bytecodeContent.append("\n=== Local Variables ===\n");
-        List<LocalVar> localVars = mainChunk.getLocalVars();
-        for (LocalVar localVar : localVars) {
-            bytecodeContent.append(String.format("%s: startPC=%d endPC=%d\n", 
-                                          localVar.getName(), localVar.getStartPC(), localVar.getEndPC()));
-        }
-        
-        // 将字节码内容显示在图形视图中
-        graphVisualizationView.setTextContent(bytecodeContent.toString());
     }
     
     /**
@@ -732,7 +766,7 @@ public class MainController {
 
     private TextEditorView getActiveTextEditorView() {
         EditorTab activeTab = getActiveEditorTab();
-        return activeTab != null ? activeTab.getTextEditorView() : null;
+        return activeTab != null ? activeTab.getActiveEditorView() : null;
     }
 
     private EditorTab getActiveEditorTab() {

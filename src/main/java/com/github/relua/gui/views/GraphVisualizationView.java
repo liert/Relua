@@ -40,17 +40,6 @@ public class GraphVisualizationView {
     // 当前缩放级别
     private double currentScale = 1.0;
     
-    // 视图模式枚举
-    private enum ViewMode {
-        GRAPH, TEXT
-    }
-    
-    // 当前视图模式
-    private ViewMode currentViewMode = ViewMode.GRAPH;
-    
-    // 文本内容
-    private String textContent = "";
-    
     // 拖拽与平移相关变量
     private int draggedNodeIndex = -1; // 当前正在拖动的节点索引，-1表示没有节点被拖动
     private double dragOffsetX = 0; // 鼠标按下时相对于节点左上角的X偏移
@@ -412,20 +401,11 @@ public class GraphVisualizationView {
         // 清空画布
         gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
         
-        // 应用缩放
+        // 应用缩放与平移
         gc.save();
         gc.scale(currentScale, currentScale);
-        
-        if (currentViewMode == ViewMode.GRAPH) {
-            // 应用平移量
-            gc.translate(translationX, translationY);
-            // 绘制图形
-            drawGraphContent();
-        } else {
-            // 绘制文本
-            drawTextContent();
-        }
-        
+        gc.translate(translationX, translationY);
+        drawGraphContent();
         gc.restore();
     }
     
@@ -536,28 +516,6 @@ public class GraphVisualizationView {
                 gc.fillText(line, textX, startY);
                 startY += LINE_HEIGHT;
             }
-        }
-    }
-    
-    /**
-     * 绘制文本内容
-     */
-    private void drawTextContent() {
-        // 设置文本样式
-        gc.setFill(Color.BLACK);
-        gc.setFont(Font.font("Consolas", 12));
-        
-        // 分割文本为多行
-        String[] lines = textContent.split("\\n");
-        
-        // 绘制每行文本
-        double x = 20 / currentScale;
-        double y = 30 / currentScale;
-        double lineHeight = 15 / currentScale;
-        
-        for (String line : lines) {
-            gc.fillText(line, x, y);
-            y += lineHeight;
         }
     }
     
@@ -889,30 +847,10 @@ public class GraphVisualizationView {
     }
     
     /**
-     * 设置文本内容并切换到文本视图模式
-     * @param text 要显示的文本内容
-     */
-    public void setTextContent(String text) {
-        this.textContent = text;
-        this.currentViewMode = ViewMode.TEXT;
-        drawGraph();
-    }
-    
-    /**
-     * 切换到图形视图模式
+     * 切换到图形模式（保持兼容性）
      */
     public void switchToGraphMode() {
-        this.currentViewMode = ViewMode.GRAPH;
-        drawGraph();
-    }
-    
-    /**
-     * 清除文本内容
-     */
-    public void clearText() {
-        this.textContent = "";
-        this.currentViewMode = ViewMode.GRAPH;
-        drawGraph();
+        // 当前视图专用于图形可视化
     }
     
     /**
@@ -1180,8 +1118,7 @@ public class GraphVisualizationView {
      */
     private void updateDescriptionPanelVisibility() {
         if (descriptionPanel != null) {
-            boolean isCFG = currentViewMode == ViewMode.GRAPH && 
-                            nodes.stream().anyMatch(node -> node.label.startsWith("BB"));
+            boolean isCFG = nodes.stream().anyMatch(node -> node.label != null && node.label.startsWith("BB"));
             descriptionPanel.setVisible(isCFG);
         }
     }
