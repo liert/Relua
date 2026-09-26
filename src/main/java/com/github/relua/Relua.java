@@ -2,40 +2,113 @@ package com.github.relua;
 
 import com.github.relua.model.LuacFile;
 import com.github.relua.parser.LuacParser;
+
+import javafx.application.Application;
+
+import com.github.relua.debug.DecompilerDebugger;
 import com.github.relua.decompiler.Decompiler;
+import com.github.relua.gui.ReluaGUI;
 import com.github.relua.log.Logger;
 import com.github.relua.log.LogConfig;
 import com.github.relua.log.LogLevel;
 
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Relua主程序入口
+ * Relua主程序入口：默认启动GUI，指定 --nogui 进入命令行模式
  */
 public class Relua {
     private static final String VERSION = "1.0.0";
-    
+
     /**
      * 主函数
      * @param args 命令行参数
      */
     public static void main(String[] args) {
-        // 初始化日志系统（默认WARNING级别，不输出到控制台或文件）
+        // 初始化日志系统
         initLogger(LogLevel.WARNING, Boolean.getBoolean("relua.logToConsole"), false, "logs/relua.log");
-        
+
+        boolean cliMode = false;
+        for (String arg : args) {
+            switch (arg) {
+                case "-v":
+                case "--version":
+                    showVersion();
+                    return;
+                case "-h":
+                case "--help":
+                    showHelp();
+                    return;
+                case "-l":
+                case "--log":
+                    // TODO: 后续调整日志系统
+                    continue;
+                case "--nogui":
+                    cliMode = true;
+            }
+        }
+
+        if (cliMode) {
+            runCli(args);
+        } else {
+            runGui(args);
+        }
+    }
+
+    /**
+     * GUI模式（默认）：启动图形界面并打开命令行指定的文件/文件夹
+     * @param args 除去 --nogui 后的命令行参数
+     */
+    private static void runGui(String[] args) {
+        List<String> inputFiles = new ArrayList<>();
+        for (String arg : args) {
+            switch (arg) {
+                case "-l":
+                case "--log":
+                    System.err.println("Option " + arg + " is only available in command-line mode, please add --nogui");
+                    System.exit(1);
+                    return;
+                default:
+                    if (arg.startsWith("-")) {
+                        System.err.println("Unknown option: " + arg);
+                        showHelp();
+                        System.exit(1);
+                    } else {
+                        inputFiles.add(arg);
+                    }
+                    break;
+            }
+        }
+
+        try {
+            Application.launch(ReluaGUI.class, inputFiles.toArray(new String[0]));
+        } catch (Throwable t) {
+            System.err.println("Failed to start GUI: " + t.getMessage());
+            System.err.println("If JavaFX is unavailable, use --nogui for command-line mode");
+            System.exit(1);
+        }
+    }
+
+    /**
+     * 命令行模式（--nogui）
+     * @param args 除去 --nogui 后的命令行参数
+     */
+    private static void runCli(String[] args) {
         if (args.length == 0) {
             showHelp();
             return;
         }
-        
-        java.util.List<String> inputFiles = new java.util.ArrayList<>();
+
+        List<String> inputFiles = new ArrayList<>();
         String outputFile = null;
-        boolean showVersion = false;
-        boolean showHelp = false;
         boolean showBytecode = false;
         boolean debugMode = false;
         LogLevel logLevel = LogLevel.WARNING;
@@ -48,14 +121,6 @@ public class Relua {
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
             switch (arg) {
-                case "-v":
-                case "--version":
-                    showVersion = true;
-                    break;
-                case "-h":
-                case "--help":
-                    showHelp = true;
-                    break;
                 case "-o":
                 case "--output":
                     if (i + 1 < args.length) {
@@ -110,16 +175,6 @@ public class Relua {
         }
         
         // 处理命令行选项
-        if (showVersion) {
-            showVersion();
-            return;
-        }
-        
-        if (showHelp) {
-            showHelp();
-            return;
-        }
-        
         if (inputFiles.isEmpty()) {
             Logger.error("No input file specified");
             showHelp();
@@ -137,17 +192,17 @@ public class Relua {
         
         boolean hasError = false;
         for (String inputFile : inputFiles) {
-            com.github.relua.debug.DecompilerDebugger debugger = null;
+            DecompilerDebugger debugger = null;
             if (debugMode) {
                 try {
-                    java.io.File file = new java.io.File(inputFile);
+                    File file = new File(inputFile);
                     String baseName = file.getName();
                     int dotIndex = baseName.lastIndexOf('.');
                     String nameWithoutExt = dotIndex > 0 ? baseName.substring(0, dotIndex) : baseName;
                     String debugDir = "debug_output/" + nameWithoutExt;
                     
-                    debugger = new com.github.relua.debug.DecompilerDebugger(debugDir, inputFile);
-                    com.github.relua.debug.DecompilerDebugger.set(debugger);
+                    debugger = new DecompilerDebugger(debugDir, inputFile);
+                    DecompilerDebugger.set(debugger);
                 } catch (Exception e) {
                     Logger.error("Failed to initialize debug output directory for " + inputFile + ": " + e.getMessage());
                 }
@@ -180,7 +235,7 @@ public class Relua {
                     } catch (Exception e) {
                         Logger.error("Failed to write summary log for " + inputFile + ": " + e.getMessage());
                     }
-                    com.github.relua.debug.DecompilerDebugger.clear();
+                    DecompilerDebugger.clear();
                 }
             }
         }
@@ -223,7 +278,7 @@ public class Relua {
         }
     }
 
-    private static class LoggerPrintStream extends java.io.OutputStream {
+    private static class LoggerPrintStream extends OutputStream {
         private final StringBuilder buffer = new StringBuilder();
         private final PrintStream originalOut;
 
@@ -290,8 +345,8 @@ public class Relua {
         Logger.info("Parsing " + inputFile + "...");
         LuacFile luacFile = parser.parse(inputFile);
         
-        if (com.github.relua.debug.DecompilerDebugger.isEnabled() && luacFile != null && luacFile.getMainChunk() != null) {
-            com.github.relua.debug.DecompilerDebugger.dump("bytecode_parsed", decompiler.generateBytecode(luacFile.getMainChunk()));
+        if (DecompilerDebugger.isEnabled() && luacFile != null && luacFile.getMainChunk() != null) {
+            DecompilerDebugger.dump("bytecode_parsed", decompiler.generateBytecode(luacFile.getMainChunk()));
         }
 
         // 反编译
@@ -316,17 +371,19 @@ public class Relua {
      */
     private static void showVersion() {
         System.out.println("Relua " + VERSION);
-        System.out.println("A Lua bytecode decompiler for OpenWRT");
     }
     
     /**
      * 显示帮助信息
      */
     private static void showHelp() {
-        System.out.println("Usage: relua [OPTIONS] INPUT_FILES...");
+        System.out.println("Usage: relua [OPTIONS] [INPUT_FILES...]");
         System.out.println("Decompile Lua bytecode files to readable Lua code");
         System.out.println();
+        System.out.println("GUI mode is the default; pass --nogui to decompile on the command line.");
+        System.out.println();
         System.out.println("Options:");
+        System.out.println("  --nogui              Run in command-line mode instead of launching the GUI");
         System.out.println("  -o, --output FILE    Write output to FILE instead of stdout (only for single input file)");
         System.out.println("  -b, --bytecode       Show bytecode instructions in output");
         System.out.println("  --debug              Enable intermediate stages dumping for debugging");
@@ -335,12 +392,5 @@ public class Relua {
         System.out.println("  -v, --version        Show version information");
         System.out.println("  -h, --help           Show this help message");
         System.out.println();
-        System.out.println("Examples:");
-        System.out.println("  relua file.luac              Decompile file.luac to stdout");
-        System.out.println("  relua -o file.lua file.luac  Decompile file.luac to file.lua");
-        System.out.println("  relua --debug file.luac      Decompile with debug stages dumped to debug_output/file/");
-        System.out.println("  relua -b file.luac           Show bytecode instructions");
-        System.out.println("  relua -l DEBUG file.luac     Decompile file.luac with DEBUG logs");
-        System.out.println("  relua -l DEBUG -f my.log file.luac   Decompile with DEBUG logs redirected to my.log");
     }
 }

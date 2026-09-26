@@ -1,5 +1,6 @@
 package com.github.relua.gui;
 
+import com.github.relua.gui.controllers.MainController;
 import com.github.relua.gui.utils.I18nUtil;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
@@ -7,7 +8,10 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 
+import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -19,14 +23,24 @@ public class ReluaGUI extends Application {
     public void start(Stage primaryStage) throws IOException {
         // 初始化国际化支持
         I18nUtil.initialize(Locale.CHINA);
-        
+
         // 加载主界面FXML文件
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/MainView.fxml"));
         Parent root = loader.load();
-        
+
+        // 打开命令行传入的文件/文件夹
+        MainController controller = loader.getController();
+        if (controller != null) {
+            List<File> startupFiles = new ArrayList<>();
+            for (String path : getParameters().getRaw()) {
+                startupFiles.add(new File(path));
+            }
+            controller.openStartupFiles(startupFiles);
+        }
+
         // 设置场景
         Scene scene = new Scene(root, 800, 600);
-        
+
         // 设置主舞台
         primaryStage.setTitle("Relua - Lua字节码反编译器");
         primaryStage.setScene(scene);

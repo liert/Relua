@@ -272,6 +272,26 @@ public class MainController {
     }
     
     /**
+     * 打开启动参数中指定的文件或文件夹
+     * @param files 启动时传入的文件/文件夹列表
+     */
+    public void openStartupFiles(List<File> files) {
+        if (files == null || files.isEmpty()) {
+            return;
+        }
+        for (File file : files) {
+            if (file.isDirectory()) {
+                // 重置反编译状态并加载文件夹内容到文件树
+                fileMenuHandler.resetLoadingState();
+                fileTreeView.loadFolder(file);
+                updateStatus("Folder opened: " + file.getName());
+            } else if (file.isFile()) {
+                fileMenuHandler.openFile(file);
+            }
+        }
+    }
+
+    /**
      * 处理打开文件夹事件
      * @param event 事件对象
      */

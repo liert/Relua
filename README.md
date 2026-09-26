@@ -76,8 +76,8 @@ Relua 是一个功能强大的 Lua 字节码反编译器，专为 OpenWRT 路由
    ```
 
 3. 构建完成后，输出文件将生成在 `target` 目录下：
-   - GUI 默认入口：`com.github.relua.gui.ReluaGUI`
-   - CLI 默认入口 JAR 位于：`target/relua-1.0.0.jar`
+   - 统一入口：`com.github.relua.Relua`（默认启动 GUI，指定 `--nogui` 进入 CLI 模式）
+   - 可执行 JAR 位于：`target/relua-1.0.0.jar`
 
 ---
 
@@ -85,15 +85,18 @@ Relua 是一个功能强大的 Lua 字节码反编译器，专为 OpenWRT 路由
 
 ### 命令行（CLI）使用
 
+CLI 为无界面模式：需显式指定 `--nogui` 才会进入命令行反编译流程，否则默认启动 GUI。
+
 #### 基本语法
 ```bash
-java -jar target/relua-1.0.0.jar [OPTIONS] INPUT_FILE
+java -jar target/relua-1.0.0.jar --nogui [OPTIONS] INPUT_FILES...
 ```
 
 #### 命令行选项
 
 | 短选项 | 长选项 | 参数类型 | 描述 |
 | :--- | :--- | :--- | :--- |
+| | `--nogui` | 无 | 进入命令行模式（不指定则默认启动 GUI） |
 | `-o` | `--output` | `FILE` | 将反编译结果写入指定文件，若不指定则输出到标准输出（stdout） |
 | `-b` | `--bytecode` | 无 | 在输出中显示汇编字节码指令及常量表 |
 | `-l` | `--log` | `LEVEL` | 设置日志控制台输出级别 (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
@@ -109,22 +112,24 @@ java -jar target/relua-1.0.0.jar [OPTIONS] INPUT_FILE
 
 1. **基本反编译**并输出到控制台：
    ```bash
-   java -jar target/relua-1.0.0.jar file.luac
+   java -jar target/relua-1.0.0.jar --nogui file.luac
    ```
 
 2. 反编译并 **保存至文件**：
    ```bash
-   java -jar target/relua-1.0.0.jar -o file.lua file.luac
+   java -jar target/relua-1.0.0.jar --nogui -o file.lua file.luac
    ```
 
 3. 反编译并 **包含反汇编指令与调试日志**：
    ```bash
-   java -jar target/relua-1.0.0.jar -b -l DEBUG -f run.log file.luac
+   java -jar target/relua-1.0.0.jar --nogui -b -l DEBUG -f run.log file.luac
    ```
 
 ---
 
 ### 图形界面（GUI）使用
+
+GUI 为默认启动模式，无需任何参数。
 
 1. **通过 Maven 启动**（推荐）：
    ```bash
@@ -133,6 +138,10 @@ java -jar target/relua-1.0.0.jar [OPTIONS] INPUT_FILE
    或者直接运行构建出的 JAR 包（需要对应平台的 JavaFX 环境配置）：
    ```bash
    java -jar target/relua-1.0.0.jar
+   ```
+   也可以在启动时直接传入待打开的文件或文件夹：
+   ```bash
+   java -jar target/relua-1.0.0.jar file.luac
    ```
 
 2. **操作步骤**：
