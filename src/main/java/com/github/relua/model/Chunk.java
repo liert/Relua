@@ -281,6 +281,40 @@ public class Chunk {
         return null;
     }
 
+    /**
+     * 判断指定 PC 的指令是否是紧随 CLOSURE 指令之后的 upvalue 绑定伪指令 (MOVE / GETUPVAL)
+     * 在 Lua 5.1 虚拟机规范中，这些伪指令仅用于向新创建的闭包传递 upvalue 捕获来源，并不作为普通指令执行，
+     * 且其 A 操作数不写入目标寄存器。
+     */
+    public boolean isClosureUpvalueInstruction(int pc) {
+        if (instructions == null || pc <= 0 || pc >= instructions.size()) {
+            return false;
+        }
+        Instruction inst = instructions.get(pc);
+        if (inst == null) {
+            return false;
+        }
+        Opcode opcode = inst.getOpcode();
+        if (opcode != Opcode.MOVE && opcode != Opcode.GETUPVAL) {
+            return false;
+        }
+        for (int prevPc = pc - 1; prevPc >= 0; prevPc--) {
+            Instruction prev = instructions.get(prevPc);
+            if (prev == null) {
+                break;
+            }
+            if (prev.getOpcode() == Opcode.CLOSURE) {
+                Chunk child = getSubChunk(prev.getBx());
+                int nups = child != null ? child.getNup() : 0;
+                return pc <= prevPc + nups;
+            }
+            if (prev.getOpcode() != Opcode.MOVE && prev.getOpcode() != Opcode.GETUPVAL) {
+                break;
+            }
+        }
+        return false;
+    }
+
     @Override
     public String toString() {
         return String.format("Chunk[lineDefined=%d, lastLineDefined=%d, numParams=%d, isVararg=%d, maxStackSize=%d, instructions=%d, constants=%d, subChunks=%d, localVars=%d]",

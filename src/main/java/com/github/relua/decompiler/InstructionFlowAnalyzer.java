@@ -14,6 +14,11 @@ final class InstructionFlowAnalyzer {
 
     static boolean isRegisterConsumedByFollowingCallArgument(List<Instruction> instructions, int registerIndex,
             int instructionIndex) {
+        return isRegisterConsumedByFollowingCallArgument(null, instructions, registerIndex, instructionIndex);
+    }
+
+    static boolean isRegisterConsumedByFollowingCallArgument(com.github.relua.model.Chunk chunk, List<Instruction> instructions, int registerIndex,
+            int instructionIndex) {
         for (int pc = instructionIndex + 1; pc < instructions.size(); pc++) {
             Instruction next = instructions.get(pc);
             Opcode opcode = next.getOpcode();
@@ -36,7 +41,7 @@ final class InstructionFlowAnalyzer {
                 return registerIndex > callA;
             }
 
-            if (writesRegister(next, registerIndex) || isForwardScanBarrier(opcode)) {
+            if (writesRegister(chunk, pc, next, registerIndex) || isForwardScanBarrier(opcode)) {
                 return false;
             }
         }
@@ -44,7 +49,10 @@ final class InstructionFlowAnalyzer {
         return false;
     }
 
-    private static boolean writesRegister(Instruction instruction, int registerIndex) {
+    static boolean writesRegister(com.github.relua.model.Chunk chunk, int pc, Instruction instruction, int registerIndex) {
+        if (chunk != null && pc >= 0 && chunk.isClosureUpvalueInstruction(pc)) {
+            return false;
+        }
         Opcode opcode = instruction.getOpcode();
         int a = instruction.getA();
 
@@ -92,7 +100,7 @@ final class InstructionFlowAnalyzer {
         }
     }
 
-    private static boolean isForwardScanBarrier(Opcode opcode) {
+    static boolean isForwardScanBarrier(Opcode opcode) {
         switch (opcode) {
             case JMP:
             case RETURN:

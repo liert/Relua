@@ -1,5 +1,9 @@
 package com.github.relua.decompiler;
 
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+
 import com.github.relua.ast.AstNode;
 import com.github.relua.ast.AstPrinter;
 import com.github.relua.ast.Block;
@@ -7,7 +11,12 @@ import com.github.relua.ast.Expression;
 import com.github.relua.ast.ExpressionStatement;
 import com.github.relua.ast.Statement;
 import com.github.relua.debug.DecompilerDebugger;
+import com.github.relua.decompiler.pipeline.PipelineDebugListener;
 import com.github.relua.model.Chunk;
+import com.github.relua.model.FromType;
+import com.github.relua.model.Instruction;
+import com.github.relua.model.Opcode;
+import com.github.relua.model.UpValue;
 import com.github.relua.log.Logger;
 import com.github.relua.util.RegisterNamePolicy;
 
@@ -23,25 +32,23 @@ public class AstCodeEmitter {
      * @param handler 指令处理器
      */
     public void emitAst(Chunk chunk, CodeGeneratorContext context, InstructionHandler handler) {
-        emitAst(chunk, context, handler, java.util.Collections.emptySet());
+        emitAst(chunk, context, handler, Collections.emptySet());
     }
 
-    public void emitAst(Chunk chunk, CodeGeneratorContext context, InstructionHandler handler,
-            java.util.Set<String> parentDeclared) {
-        java.util.Set<String> upvalueNames = new java.util.HashSet<>();
-        java.util.Set<Integer> usedUpvalueIndices = new java.util.HashSet<>();
+    public void emitAst(Chunk chunk, CodeGeneratorContext context, InstructionHandler handler, Set<String> parentDeclared) {
+        Set<String> upvalueNames = new HashSet<>();
+        Set<Integer> usedUpvalueIndices = new HashSet<>();
         if (chunk.getInstructions() != null) {
-            for (com.github.relua.model.Instruction ins : chunk.getInstructions()) {
+            for (Instruction ins : chunk.getInstructions()) {
                 if (ins != null) {
-                    if (ins.getOpcode() == com.github.relua.model.Opcode.GETUPVAL
-                            || ins.getOpcode() == com.github.relua.model.Opcode.SETUPVAL) {
+                    if (ins.getOpcode() == Opcode.GETUPVAL || ins.getOpcode() == Opcode.SETUPVAL) {
                         usedUpvalueIndices.add(ins.getB());
                     }
                 }
             }
         }
         for (int idx : usedUpvalueIndices) {
-            com.github.relua.model.UpValue uv = context.getUpvalue(idx);
+            UpValue uv = context.getUpvalue(idx);
             if (uv != null) {
                 String uvName = getResolvedUpvalueName(uv, idx);
                 if (uvName != null) {
@@ -49,25 +56,22 @@ public class AstCodeEmitter {
                 }
             }
         }
-        Logger.debug("[DEBUG] Chunk " + chunk.getFunction() + " usedUpvalueIndices: " + usedUpvalueIndices
-                + " -> upvalueNames: " + upvalueNames);
+        Logger.debug("[DEBUG] Chunk " + chunk.getFunction() + " usedUpvalueIndices: " + usedUpvalueIndices + " -> upvalueNames: " + upvalueNames);
         emitAst(chunk, context, handler, parentDeclared, upvalueNames);
     }
 
-    public void emitAst(Chunk chunk, CodeGeneratorContext context, InstructionHandler handler,
-            java.util.Set<String> parentDeclared, java.util.Set<String> upvalueNames) {
+    public void emitAst(Chunk chunk, CodeGeneratorContext context, InstructionHandler handler, Set<String> parentDeclared, Set<String> upvalueNames) {
         // 获取指令处理器生成的AST
         AstNode ast = handler.generateASTFromChunk(chunk);
 
-        for (com.github.relua.decompiler.pipeline.PipelineDebugListener listener : handler.getPipeline().getGenerator().getDebugListeners()) {
+        for (PipelineDebugListener listener : handler.getPipeline().getGenerator().getDebugListeners()) {
             listener.onAstConstructed(chunk, ast);
         }
 
         // 如果生成的是Block，直接设置为上下文的astBlock
         if (ast instanceof Block) {
             Block block = (Block) ast;
-            java.util.Set<String> declared = new AstCleanupPass().cleanup(block, context, parentDeclared, upvalueNames,
-                    handler.getPipeline());
+            Set<String> declared = new AstCleanupPass().cleanup(block, context, parentDeclared, upvalueNames, handler.getPipeline());
             context.setDeclaredVariables(declared);
             context.setAstBlock(block);
         } else {
@@ -79,20 +83,18 @@ public class AstCodeEmitter {
                 Expression expr = (Expression) ast;
                 block.statements.add(new ExpressionStatement(expr, expr.pos));
             }
-            java.util.Set<String> declared = new AstCleanupPass().cleanup(block, context, parentDeclared, upvalueNames,
-                    handler.getPipeline());
+            Set<String> declared = new AstCleanupPass().cleanup(block, context, parentDeclared, upvalueNames, handler.getPipeline());
             context.setDeclaredVariables(declared);
             context.setAstBlock(block);
         }
     }
 
-    private String getResolvedUpvalueName(com.github.relua.model.UpValue upvalue, int b) {
+    private String getResolvedUpvalueName(UpValue upvalue, int b) {
         if (upvalue != null
-                && (upvalue.getFromType() == com.github.relua.model.FromType.CONSTANT
-                        || upvalue.getFromType() == com.github.relua.model.FromType.GLOBAL)
+                && (upvalue.getFromType() == FromType.CONSTANT || upvalue.getFromType() == FromType.GLOBAL)
                 && upvalue.getValue() != null) {
             Object val = upvalue.getValue();
-            if (upvalue.getFromType() == com.github.relua.model.FromType.GLOBAL) {
+            if (upvalue.getFromType() == FromType.GLOBAL) {
                 String globalName = val.toString();
                 if (!RegisterNamePolicy.isTemporaryRegisterName(globalName)) {
                     if (globalName.contains(".")) {

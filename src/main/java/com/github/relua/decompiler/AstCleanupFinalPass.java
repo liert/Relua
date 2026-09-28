@@ -25,6 +25,8 @@ public class AstCleanupFinalPass implements DecompilationPass {
         parent.collectConsumedTables(block, consumedTables, true);
         parent.removeConsumedTemporaryTables(block, consumedTables);
         parent.removeJoinGotos(block);
+        parent.removeRedundantSelfAssignments(block);
+        parent.collapseElseIfChains(block);
         parent.removeUnusedEmptyLocalDeclarations(block);
     }
 

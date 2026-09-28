@@ -73,7 +73,8 @@ final class SsaTemporaryCleanupPass {
                         && isAstPureExpression(assignment.right);
 
                 int useIndex = findSingleLinearUseIndex(block.statements, i, assignment);
-                if (useIndex < 0 || !canInlineIntoStatement(block.statements.get(useIndex))) {
+                if (useIndex < 0 || !canInlineIntoStatement(block.statements.get(useIndex))
+                        || statementWritesToVariableProperty(block.statements.get(useIndex), assignment.name)) {
                     continue;
                 }
                 
@@ -426,16 +427,16 @@ final class SsaTemporaryCleanupPass {
                     return -1;
                 }
                 useIndex = i;
-                if (definesAnyTemporary(next, dependencies) && !writesDependenciesAfterReadableOperands(next)) {
+                if (statementModifiesAnyVariable(next, dependencies) && !writesDependenciesAfterReadableOperands(next)) {
                     return -1;
                 }
             } else if (hasSideEffectBeforeUse(next, dependencies)) {
                 return -1;
             }
-            if (definesTemporary(next, assignment.name)) {
+            if (statementModifiesVariable(next, assignment.name)) {
                 return totalReads == 1 ? useIndex : -1;
             }
-            if (definesAnyTemporary(next, dependencies)) {
+            if (statementModifiesAnyVariable(next, dependencies)) {
                 return -1;
             }
         }
@@ -461,6 +462,36 @@ final class SsaTemporaryCleanupPass {
     private boolean canInlineIntoStatement(Statement statement) {
         return statement instanceof Assign || statement instanceof LocalAssign || statement instanceof GlobalAssign
                 || statement instanceof ExpressionStatement || statement instanceof ReturnStatement;
+    }
+
+    private boolean statementWritesToVariableProperty(Statement statement, String name) {
+        if (statement instanceof Assign) {
+            Assign assign = (Assign) statement;
+            for (Expression left : assign.left) {
+                if (left instanceof IndexExpr || left instanceof MemberExpr) {
+                    if (expressionRefersToVariable(left, name)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean expressionRefersToVariable(Expression expr, String name) {
+        if (expr == null || name == null) {
+            return false;
+        }
+        if (expr instanceof IndexExpr) {
+            IndexExpr index = (IndexExpr) expr;
+            return expressionRefersToVariable(index.table, name) || expressionRefersToVariable(index.index, name);
+        } else if (expr instanceof MemberExpr) {
+            MemberExpr member = (MemberExpr) expr;
+            return expressionRefersToVariable(member.table, name);
+        } else if (expr instanceof Name) {
+            return name.equals(((Name) expr).name);
+        }
+        return false;
     }
 
     private Statement replaceVariableReadInStatement(Statement statement, String name, Expression replacement) {
@@ -630,6 +661,71 @@ final class SsaTemporaryCleanupPass {
         }
         for (String name : names) {
             if (definesTemporary(statement, name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean statementModifiesVariable(Statement statement, String name) {
+        if (statement == null) {
+            return false;
+        }
+        if (statement instanceof Assign) {
+            Assign assign = (Assign) statement;
+            for (Expression target : assign.left) {
+                if (target instanceof Name && name.equals(((Name) target).name)) {
+                    return true;
+                }
+            }
+        }
+        if (statement instanceof LocalAssign) {
+            return ((LocalAssign) statement).names.contains(name);
+        }
+        if (statement instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) statement;
+            for (Block b : ifStmt.blocks) {
+                if (blockModifiesVariable(b, name)) {
+                    return true;
+                }
+            }
+            if (blockModifiesVariable(ifStmt.elseBlock, name)) {
+                return true;
+            }
+        }
+        if (statement instanceof WhileStatement) {
+            return blockModifiesVariable(((WhileStatement) statement).body, name);
+        }
+        if (statement instanceof RepeatStatement) {
+            return blockModifiesVariable(((RepeatStatement) statement).body, name);
+        }
+        if (statement instanceof ForNumeric) {
+            return blockModifiesVariable(((ForNumeric) statement).body, name);
+        }
+        if (statement instanceof ForIn) {
+            return blockModifiesVariable(((ForIn) statement).body, name);
+        }
+        return false;
+    }
+
+    private boolean blockModifiesVariable(Block block, String name) {
+        if (block == null || block.statements == null) {
+            return false;
+        }
+        for (Statement stmt : block.statements) {
+            if (statementModifiesVariable(stmt, name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean statementModifiesAnyVariable(Statement statement, Set<String> names) {
+        if (statement == null || names == null || names.isEmpty()) {
+            return false;
+        }
+        for (String name : names) {
+            if (statementModifiesVariable(statement, name)) {
                 return true;
             }
         }

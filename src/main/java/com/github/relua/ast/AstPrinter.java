@@ -1,10 +1,30 @@
 package com.github.relua.ast;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import com.github.relua.util.LuaStringEscapeUtils;
 
 public class AstPrinter implements AstVisitor<String> {
+    public static final int PREC_LOWEST = 0;
+    public static final int PREC_OR = 1;
+    public static final int PREC_AND = 2;
+    public static final int PREC_COMPARE = 3;
+    public static final int PREC_CONCAT = 4;
+    public static final int PREC_ADD_SUB = 5;
+    public static final int PREC_MUL_DIV_MOD = 6;
+    public static final int PREC_UNARY = 7;
+    public static final int PREC_POWER = 8;
+    public static final int PREC_POSTFIX = 9;
+    public static final int PREC_PRIMARY = 10;
+
+    private static final Set<String> LUA_KEYWORDS = new HashSet<>(Arrays.asList(
+        "and", "break", "do", "else", "elseif", "end", "false", "for", "function",
+        "goto", "if", "in", "local", "nil", "not", "or", "repeat", "return", "then", "true", "until", "while"
+    ));
+
     private int indentLevel = 0;
     private final String indent = "    ";
     
@@ -90,6 +110,7 @@ public class AstPrinter implements AstVisitor<String> {
             if (i == 0) {
                 sb.append("if ");
             } else {
+                sb.append(getIndent());
                 sb.append("elseif ");
             }
             sb.append(node.conditions.get(i).accept(this));
@@ -259,21 +280,22 @@ public class AstPrinter implements AstVisitor<String> {
     
     @Override
     public String visit(IndexExpr node) {
+        String tableStr = formatPostfixReceiver(node.table);
         if (node.index instanceof StringConst) {
             String key = ((StringConst) node.index).value;
             if (key.startsWith("\"") && key.endsWith("\"") && key.length() >= 2) {
                 key = key.substring(1, key.length() - 1);
             }
-            if (key.matches("[A-Za-z_][A-Za-z0-9_]*")) {
-                return node.table.accept(this) + "." + key;
+            if (isValidLuaIdentifier(key)) {
+                return tableStr + "." + key;
             }
         }
-        return node.table.accept(this) + "[" + node.index.accept(this) + "]";
+        return tableStr + "[" + node.index.accept(this) + "]";
     }
     
     @Override
     public String visit(MemberExpr node) {
-        return node.table.accept(this) + "." + node.member;
+        return formatPostfixReceiver(node.table) + "." + node.member;
     }
     
     @Override
@@ -283,12 +305,12 @@ public class AstPrinter implements AstVisitor<String> {
         if (node.isMethodCall && node.callee instanceof MemberExpr) {
             // 方法调用，使用冒号语法
             MemberExpr memberExpr = (MemberExpr) node.callee;
-            sb.append(memberExpr.table.accept(this));
+            sb.append(formatPostfixReceiver(memberExpr.table));
             sb.append(":");
             sb.append(memberExpr.member);
         } else {
             // 普通函数调用
-            sb.append(node.callee.accept(this));
+            sb.append(formatPostfixReceiver(node.callee));
         }
         
         sb.append("(");
@@ -355,11 +377,26 @@ public class AstPrinter implements AstVisitor<String> {
     
     @Override
     public String visit(UnaryOp node) {
-        String expr = node.expr.accept(this);
-        if (node.expr instanceof BinaryOp) {
-            expr = "(" + expr + ")";
+        String expr = formatUnaryChild(node.expr, node);
+        if ("-".equals(node.op) && expr.startsWith("-")) {
+            return "- " + expr;
         }
         return node.op + " " + expr;
+    }
+
+    private String formatUnaryChild(Expression child, UnaryOp parent) {
+        String rendered = child.accept(this);
+        if (child instanceof BinaryOp) {
+            return "(" + rendered + ")";
+        }
+        if ("-".equals(parent.op) && child instanceof UnaryOp && "-".equals(((UnaryOp) child).op)) {
+            return "(" + rendered + ")";
+        }
+        int childPrec = getPrecedence(child);
+        if (childPrec < PREC_UNARY) {
+            return "(" + rendered + ")";
+        }
+        return rendered;
     }
     
     @Override
@@ -369,68 +406,121 @@ public class AstPrinter implements AstVisitor<String> {
 
     private String formatBinaryChild(Expression child, BinaryOp parent, boolean isLeft) {
         String rendered = child.accept(this);
-        if (!(child instanceof BinaryOp)) {
+        if (child instanceof BinaryOp) {
+            BinaryOp childBinary = (BinaryOp) child;
+            if ("..".equals(parent.op) && !"..".equals(childBinary.op)) {
+                return "(" + rendered + ")";
+            }
+
+            int childPrecedence = getBinaryOpPrecedence(childBinary.op);
+            int parentPrecedence = getBinaryOpPrecedence(parent.op);
+            if (childPrecedence < parentPrecedence
+                    || (childPrecedence == parentPrecedence && needsParensForEqualPrecedence(parent.op, childBinary.op, isLeft))) {
+                return "(" + rendered + ")";
+            }
             return rendered;
         }
 
-        BinaryOp childBinary = (BinaryOp) child;
-        if ("..".equals(parent.op) && !"..".equals(childBinary.op)) {
-            return "(" + rendered + ")";
-        }
-
-        int childPrecedence = binaryPrecedence(childBinary.op);
-        int parentPrecedence = binaryPrecedence(parent.op);
-        if (childPrecedence < parentPrecedence
-                || (childPrecedence == parentPrecedence && needsParensForEqualPrecedence(parent.op, childBinary.op, isLeft))) {
+        int childPrecedence = getPrecedence(child);
+        int parentPrecedence = getBinaryOpPrecedence(parent.op);
+        if (childPrecedence < parentPrecedence) {
             return "(" + rendered + ")";
         }
         return rendered;
     }
 
     private boolean needsParensForEqualPrecedence(String parentOp, String childOp, boolean isLeft) {
-        if (isRightAssociative(parentOp)) {
+        if (isComparison(parentOp)) {
+            return true;
+        }
+        if ("..".equals(parentOp)) {
+            return false;
+        }
+        if ("^".equals(parentOp)) {
             return isLeft;
         }
-        if (!isLeft) {
-            return !isAssociative(parentOp) || !parentOp.equals(childOp);
+        if (isLeft) {
+            return false;
         }
-        return false;
+        return !isAssociative(parentOp) || !parentOp.equals(childOp);
     }
 
     private boolean isRightAssociative(String op) {
         return "^".equals(op) || "..".equals(op);
     }
 
+    private boolean isComparison(String op) {
+        return "<".equals(op) || ">".equals(op) || "<=".equals(op)
+                || ">=".equals(op) || "~=".equals(op) || "==".equals(op);
+    }
+
     private boolean isAssociative(String op) {
         return "+".equals(op) || "*".equals(op) || "and".equals(op) || "or".equals(op);
     }
 
-    private int binaryPrecedence(String op) {
+    private String formatPostfixReceiver(Expression receiver) {
+        String rendered = receiver.accept(this);
+        if (isValidPrefixExp(receiver)) {
+            return rendered;
+        }
+        return "(" + rendered + ")";
+    }
+
+    private boolean isValidPrefixExp(Expression expr) {
+        return expr instanceof Name
+                || expr instanceof MemberExpr
+                || expr instanceof IndexExpr
+                || expr instanceof FunctionCall;
+    }
+
+    private boolean isValidLuaIdentifier(String str) {
+        return str != null && str.matches("[A-Za-z_][A-Za-z0-9_]*") && !LUA_KEYWORDS.contains(str);
+    }
+
+    public static int getPrecedence(Expression expr) {
+        if (expr instanceof BinaryOp) {
+            return getBinaryOpPrecedence(((BinaryOp) expr).op);
+        }
+        if (expr instanceof UnaryOp) {
+            return PREC_UNARY;
+        }
+        if (expr instanceof MemberExpr || expr instanceof IndexExpr || expr instanceof FunctionCall) {
+            return PREC_POSTFIX;
+        }
+        if (expr instanceof Name || expr instanceof NilConst || expr instanceof BooleanConst
+                || expr instanceof NumberConst || expr instanceof StringConst || expr instanceof Vararg
+                || expr instanceof TableConstructor || expr instanceof FunctionLiteral) {
+            return PREC_PRIMARY;
+        }
+        return PREC_LOWEST;
+    }
+
+    public static int getBinaryOpPrecedence(String op) {
         switch (op) {
             case "or":
-                return 1;
+                return PREC_OR;
             case "and":
-                return 2;
+                return PREC_AND;
             case "<":
             case ">":
             case "<=":
             case ">=":
             case "~=":
             case "==":
-                return 3;
+                return PREC_COMPARE;
             case "..":
-                return 4;
+                return PREC_CONCAT;
             case "+":
             case "-":
-                return 5;
+                return PREC_ADD_SUB;
             case "*":
             case "/":
             case "%":
-                return 6;
+                return PREC_MUL_DIV_MOD;
             case "^":
-                return 8;
+                return PREC_POWER;
             default:
-                return 7;
+                return PREC_LOWEST;
         }
     }
     

@@ -67,8 +67,16 @@ public class BytecodeFormatter {
         return sb.toString();
     }
 
+    private static String repeat(String str, int count) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            sb.append(str);
+        }
+        return sb.toString();
+    }
+
     private static void formatChunkInternal(Chunk chunk, int depth, boolean includeSubChunks, StringBuilder sb) {
-        String indent = "  ".repeat(depth);
+        String indent = repeat("  ", depth);
         String funcName = chunk.getFunction();
         if (funcName == null || funcName.isEmpty()) {
             funcName = (depth == 0) ? "main" : "anonymous_func";

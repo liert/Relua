@@ -24,6 +24,13 @@ final class SsaInstructionSummarizer {
         int b = instruction.getB();
         int c = instruction.getC();
 
+        if (chunk != null && pc >= 0 && chunk.isClosureUpvalueInstruction(pc)) {
+            if (opcode == Opcode.MOVE) {
+                summary.use(b);
+            }
+            return summary;
+        }
+
         switch (opcode) {
             case MOVE:
                 summary.use(b);
@@ -144,8 +151,12 @@ final class SsaInstructionSummarizer {
                 break;
             case SETLIST:
                 summary.use(a);
-                for (int reg = 1; reg <= b; reg++) {
-                    summary.use(a + reg);
+                if (b > 0) {
+                    for (int reg = 1; reg <= b; reg++) {
+                        summary.use(a + reg);
+                    }
+                } else {
+                    summary.use(a + 1);
                 }
                 break;
             case CLOSE:

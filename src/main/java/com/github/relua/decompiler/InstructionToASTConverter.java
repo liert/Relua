@@ -37,7 +37,6 @@ public class InstructionToASTConverter {
     private DecompilerPipeline pipeline;
     private final SsaAstNameResolver ssaNameResolver = new SsaAstNameResolver();
     private PendingTest pendingTest = null;
-    private final Set<Integer> emittedComparisonBooleanFalsePcs = new HashSet<>();
 
     /**
      * 清除残留的 pendingTest 状态。
@@ -394,13 +393,18 @@ public class InstructionToASTConverter {
         // 清除目标寄存器的pending SELF指令
         pipeline.getContext().removePendingSelf(a);
 
-        if (isComparisonBooleanLoadBool(instructionIndex)) {
-            if (emittedComparisonBooleanFalsePcs.contains(instructionIndex)) {
+        int compFalsePc = getComparisonBooleanFalsePc(instructionIndex);
+        if (compFalsePc >= 0) {
+            if (pipeline.getContext().isEmittedComparisonBooleanFalsePc(compFalsePc)) {
                 return null;
             }
-            Assign comparisonAssign = tryBuildComparisonBooleanAssignFromLoadBool(instructionIndex);
+            if (InstructionFlowAnalyzer.isRegisterConsumedByFollowingCallArgument(chunk, chunk.getInstructions(), a, compFalsePc + 1)) {
+                pipeline.getContext().addEmittedComparisonBooleanFalsePc(compFalsePc);
+                return null;
+            }
+            Assign comparisonAssign = tryBuildComparisonBooleanAssignFromLoadBool(compFalsePc);
             if (comparisonAssign != null) {
-                emittedComparisonBooleanFalsePcs.add(instructionIndex);
+                pipeline.getContext().addEmittedComparisonBooleanFalsePc(compFalsePc);
                 return comparisonAssign;
             }
             return null;
@@ -465,7 +469,7 @@ public class InstructionToASTConverter {
             //   R6(R7, nil, false, true)
             // 而不是额外输出：
             //   R8 = nil
-            if (InstructionFlowAnalyzer.isRegisterConsumedByFollowingCallArgument(chunk.getInstructions(), i, instructionIndex)) {
+            if (InstructionFlowAnalyzer.isRegisterConsumedByFollowingCallArgument(chunk, chunk.getInstructions(), i, instructionIndex)) {
                 continue;
             }
             if (isUnusedDiscardableDefinition(i, instructionIndex)) {
@@ -702,7 +706,10 @@ public class InstructionToASTConverter {
             if (next.getOpcode() == Opcode.SETLIST && next.getA() == tableRegister) {
                 return true;
             }
-            if (next.getOpcode() != Opcode.LOADK && next.getOpcode() != Opcode.MOVE) {
+            if (InstructionFlowAnalyzer.writesRegister(chunk, pc, next, tableRegister)) {
+                return false;
+            }
+            if (InstructionFlowAnalyzer.isForwardScanBarrier(next.getOpcode())) {
                 return false;
             }
         }
@@ -713,7 +720,7 @@ public class InstructionToASTConverter {
         int a = instruction.getA();
         int b = instruction.getB();
         int c = instruction.getC();
-        if (b <= 0 || c <= 0) {
+        if (b < 0 || c <= 0) {
             return null;
         }
 
@@ -725,13 +732,23 @@ public class InstructionToASTConverter {
         }
 
         List<TableField> fields = new ArrayList<>();
-        for (int i = 1; i <= b; i++) {
-            SsaValue elementValue = ssaInstruction.getFirstUseForRegister(a + i);
-            Expression element = expressionFromSsaValue(elementValue, instructionIndex, null, pos, new HashSet<SsaValue>());
-            if (element == null) {
-                element = new Name(getSsaCompatibleUseName(a + i, null, elementValue), pos);
+        if (b > 0) {
+            for (int i = 1; i <= b; i++) {
+                SsaValue elementValue = ssaInstruction.getFirstUseForRegister(a + i);
+                Expression element = expressionFromSsaValue(elementValue, instructionIndex, null, pos, new HashSet<SsaValue>());
+                if (element == null) {
+                    element = new Name(getSsaCompatibleUseName(a + i, null, elementValue), pos);
+                }
+                fields.add(new TableField(null, element));
             }
-            fields.add(new TableField(null, element));
+        } else {
+            int openProducerPc = VariableArityResolver.findOpenResultProducerPc(chunk, instructionIndex);
+            if (openProducerPc >= 0) {
+                Expression multiVal = buildMultiValueExpressionAt(openProducerPc);
+                if (multiVal != null) {
+                    fields.add(new TableField(null, multiVal));
+                }
+            }
         }
 
         String tableName = getSsaCompatibleUseName(a, null, tableValue);
@@ -1064,13 +1081,6 @@ public class InstructionToASTConverter {
 
         // 情况 1：C == 1 → 没有返回值（语句形式）
         if (c == 1) {
-            Assign comparisonArgAssign = comparisonBooleanAssignForCallArgument(a, b, instructionIndex, args);
-            if (comparisonArgAssign != null) {
-                Block block = new Block(pos);
-                block.statements.add(comparisonArgAssign);
-                block.statements.add(new ExpressionStatement(call, pos));
-                return block;
-            }
             return new ExpressionStatement(call, pos);
         }
 
@@ -1855,43 +1865,16 @@ public class InstructionToASTConverter {
             if (argRegister == openStart) {
                 args.add(buildMultiValueExpressionAt(openProducerPc));
             } else {
-                args.add(resolveExpressionFromRegister(argRegister, instructionIndex, registerState));
+                Expression compExpr = tryResolveComparisonBooleanArgument(argRegister, instructionIndex);
+                if (compExpr != null) {
+                    args.add(compExpr);
+                } else {
+                    args.add(resolveExpressionFromRegister(argRegister, instructionIndex, registerState));
+                }
             }
         }
 
         return args;
-    }
-
-    private Assign comparisonBooleanAssignForCallArgument(int callRegister, int b, int callPc, List<Expression> args) {
-        if (b <= 1) {
-            return null;
-        }
-        int argRegister = callRegister + 1;
-        int minPc = Math.max(0, callPc - 8);
-        for (int pc = callPc - 1; pc >= minPc; pc--) {
-            Instruction inst = chunk.getInstruction(pc);
-            if (inst == null || inst.getOpcode() != Opcode.LOADBOOL || inst.getA() != argRegister) {
-                continue;
-            }
-            int falsePc = inst.getB() == 0 ? pc : pc - 1;
-            if (emittedComparisonBooleanFalsePcs.contains(falsePc)) {
-                return null;
-            }
-            String targetName = null;
-            if (args != null && !args.isEmpty() && args.get(0) instanceof Name) {
-                targetName = ((Name) args.get(0)).name;
-            }
-            if (targetName == null) {
-                SsaRegisterSnapshot callState = pipeline.getRegisterByInstructionIndex(callPc);
-                targetName = getUsedRegisterName(argRegister, callPc, callState);
-            }
-            Assign assign = tryBuildComparisonBooleanAssignFromLoadBool(falsePc, targetName);
-            if (assign != null) {
-                emittedComparisonBooleanFalsePcs.add(falsePc);
-                return assign;
-            }
-        }
-        return null;
     }
 
     private Expression buildMultiValueExpressionAt(int pc) {
@@ -2073,11 +2056,7 @@ public class InstructionToASTConverter {
         return new Assign(new Name(targetName, pos), comparisonExpr, pos);
     }
 
-    private Assign tryBuildComparisonBooleanAssignFromLoadBool(int falsePc) {
-        return tryBuildComparisonBooleanAssignFromLoadBool(falsePc, null);
-    }
-
-    private Assign tryBuildComparisonBooleanAssignFromLoadBool(int falsePc, String targetNameOverride) {
+    private Expression tryBuildComparisonBooleanExpressionFromLoadBool(int falsePc) {
         List<Instruction> instructions = chunk.getInstructions();
         if (falsePc < 2 || falsePc >= instructions.size()) {
             return null;
@@ -2107,12 +2086,26 @@ public class InstructionToASTConverter {
         SsaRegisterSnapshot registerState = pipeline.getRegisterByInstructionIndex(comparison.getPc());
         Expression leftExpr = rkExpression(registerState, comparison.getB(), pos);
         Expression rightExpr = rkExpression(registerState, comparison.getC(), pos);
-        Expression comparisonExpr = new BinaryOp(booleanComparisonOperator(comparison.getOpcode(), comparison.getA()),
+        return new BinaryOp(booleanComparisonOperator(comparison.getOpcode(), comparison.getA()),
                 leftExpr, rightExpr, pos);
+    }
+
+    private Assign tryBuildComparisonBooleanAssignFromLoadBool(int falsePc) {
+        return tryBuildComparisonBooleanAssignFromLoadBool(falsePc, null);
+    }
+
+    private Assign tryBuildComparisonBooleanAssignFromLoadBool(int falsePc, String targetNameOverride) {
+        Expression comparisonExpr = tryBuildComparisonBooleanExpressionFromLoadBool(falsePc);
+        if (comparisonExpr == null) {
+            return null;
+        }
+        Instruction falseLoad = chunk.getInstruction(falsePc);
+        Instruction jump = chunk.getInstruction(falsePc - 1);
+        int truePc = (falsePc - 1) + 1 + jump.getSBx();
         String targetName = targetNameOverride != null
                 ? targetNameOverride
                 : booleanComparisonTargetName(falseLoad.getA(), truePc + 1, truePc);
-        return new Assign(new Name(targetName, pos), comparisonExpr, pos);
+        return new Assign(new Name(targetName, comparisonExpr.pos), comparisonExpr, comparisonExpr.pos);
     }
 
     private String booleanComparisonTargetName(int targetReg, int usePc, int fallbackDefPc) {
@@ -2252,48 +2245,86 @@ public class InstructionToASTConverter {
         return opcode.toString().toLowerCase();
     }
 
-    private boolean isComparisonBooleanLoadBool(int instructionIndex) {
+    private int getComparisonBooleanFalsePc(int instructionIndex) {
         List<Instruction> instructions = chunk.getInstructions();
         if (instructionIndex < 2 || instructionIndex >= instructions.size()) {
-            return false;
+            return -1;
         }
         Instruction load = instructions.get(instructionIndex);
         if (load.getOpcode() != Opcode.LOADBOOL) {
-            return false;
+            return -1;
         }
 
         Instruction prev = instructions.get(instructionIndex - 1);
         Instruction maybeJump;
         Instruction maybeComparison;
+        int jumpPc;
         if (prev.getOpcode() == Opcode.JMP) {
             maybeJump = prev;
             maybeComparison = instructions.get(instructionIndex - 2);
+            jumpPc = instructionIndex - 1;
         } else if (prev.getOpcode() == Opcode.LOADBOOL && instructionIndex >= 3) {
             maybeJump = instructions.get(instructionIndex - 2);
             maybeComparison = instructions.get(instructionIndex - 3);
+            jumpPc = instructionIndex - 2;
         } else {
-            return false;
+            return -1;
         }
 
         if (maybeJump.getOpcode() != Opcode.JMP || !isComparisonInstruction(maybeComparison)) {
-            return false;
+            return -1;
         }
-        int jumpPc = prev.getOpcode() == Opcode.JMP ? instructionIndex - 1 : instructionIndex - 2;
         int falsePc = jumpPc + 1;
         int truePc = jumpPc + 1 + maybeJump.getSBx();
         if (truePc != falsePc + 1 || falsePc < 0 || truePc < 0
                 || falsePc >= instructions.size() || truePc >= instructions.size()) {
-            return false;
+            return -1;
         }
         Instruction falseLoad = instructions.get(falsePc);
         Instruction trueLoad = instructions.get(truePc);
-        return falseLoad.getOpcode() == Opcode.LOADBOOL
+        if (falseLoad.getOpcode() == Opcode.LOADBOOL
                 && trueLoad.getOpcode() == Opcode.LOADBOOL
                 && falseLoad.getA() == trueLoad.getA()
                 && falseLoad.getB() == 0
                 && trueLoad.getB() != 0
                 && falseLoad.getC() != 0
-                && trueLoad.getC() == 0;
+                && trueLoad.getC() == 0) {
+            return falsePc;
+        }
+        return -1;
+    }
+
+    private boolean isComparisonBooleanLoadBool(int instructionIndex) {
+        return getComparisonBooleanFalsePc(instructionIndex) >= 0;
+    }
+
+    private Expression tryResolveComparisonBooleanArgument(int argRegister, int callPc) {
+        int minPc = Math.max(0, callPc - 10);
+        for (int pc = callPc - 1; pc >= minPc; pc--) {
+            int compFalsePc = getComparisonBooleanFalsePc(pc);
+            if (compFalsePc >= 0) {
+                Instruction falseLoad = chunk.getInstruction(compFalsePc);
+                if (falseLoad != null && falseLoad.getA() == argRegister) {
+                    int truePc = compFalsePc + 1;
+                    boolean overwritten = false;
+                    for (int checkPc = truePc + 1; checkPc < callPc; checkPc++) {
+                        Instruction mid = chunk.getInstruction(checkPc);
+                        if (InstructionFlowAnalyzer.writesRegister(chunk, checkPc, mid, argRegister)) {
+                            overwritten = true;
+                            break;
+                        }
+                    }
+                    if (!overwritten) {
+                        Expression compExpr = tryBuildComparisonBooleanExpressionFromLoadBool(compFalsePc);
+                        if (compExpr != null) {
+                            pipeline.getContext().addEmittedComparisonBooleanFalsePc(compFalsePc);
+                            return compExpr;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private String comparisonOperator(Opcode opcode, int a) {
@@ -2413,8 +2444,14 @@ public class InstructionToASTConverter {
         if (pendingTest != null) {
             Assign booleanAssign = tryBuildComparisonBooleanAssign(instructionIndex, jmpTarget);
             if (booleanAssign != null) {
-                emittedComparisonBooleanFalsePcs.add(instructionIndex + 1);
+                int falsePc = instructionIndex + 1;
+                pipeline.getContext().addEmittedComparisonBooleanFalsePc(falsePc);
                 pendingTest = null;
+                Instruction falseLoad = chunk.getInstruction(falsePc);
+                if (falseLoad != null && InstructionFlowAnalyzer.isRegisterConsumedByFollowingCallArgument(
+                        chunk, chunk.getInstructions(), falseLoad.getA(), falsePc + 1)) {
+                    return null;
+                }
                 return booleanAssign;
             }
 

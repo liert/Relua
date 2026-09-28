@@ -28,6 +28,7 @@ import com.github.relua.ast.IndexExpr;
 import com.github.relua.ast.LabelStatement;
 import com.github.relua.ast.LocalAssign;
 import com.github.relua.ast.MemberExpr;
+import com.github.relua.ast.MultiVal;
 import com.github.relua.ast.Name;
 import com.github.relua.ast.RepeatStatement;
 import com.github.relua.ast.ReturnStatement;
@@ -146,7 +147,7 @@ public class AstCleanupPass {
                                         }
                                         if (regName != null) {
                                             capturedLocals.add(regName);
-                                            int reachingDefPc = findReachingRegisterDefinitionPc(insts, i, b);
+                                            int reachingDefPc = findReachingRegisterDefinitionPc(chunk, insts, i, b);
                                             if (reachingDefPc != -1) {
                                                 capturedLocalDefinitionPcs
                                                         .computeIfAbsent(regName, k -> new HashSet<>())
@@ -418,6 +419,100 @@ public class AstCleanupPass {
                 break;
             }
         }
+    }
+
+    void removeRedundantSelfAssignments(Block block) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+
+        for (Statement statement : block.statements) {
+            if (statement instanceof IfStatement) {
+                IfStatement ifStmt = (IfStatement) statement;
+                for (Block nested : ifStmt.blocks) {
+                    removeRedundantSelfAssignments(nested);
+                }
+                removeRedundantSelfAssignments(ifStmt.elseBlock);
+            } else if (statement instanceof FunctionDeclaration) {
+                removeRedundantSelfAssignments(((FunctionDeclaration) statement).func.body);
+            } else if (statement instanceof WhileStatement) {
+                removeRedundantSelfAssignments(((WhileStatement) statement).body);
+            } else if (statement instanceof RepeatStatement) {
+                removeRedundantSelfAssignments(((RepeatStatement) statement).body);
+            } else if (statement instanceof ForNumeric) {
+                removeRedundantSelfAssignments(((ForNumeric) statement).body);
+            } else if (statement instanceof ForIn) {
+                removeRedundantSelfAssignments(((ForIn) statement).body);
+            }
+        }
+
+        block.statements.removeIf(stmt -> {
+            if (stmt instanceof Assign) {
+                Assign assign = (Assign) stmt;
+                if (assign.left.size() == 1 && assign.right.size() == 1) {
+                    Expression left = assign.left.get(0);
+                    Expression right = assign.right.get(0);
+                    if (left instanceof Name && right instanceof Name) {
+                        return ((Name) left).name.equals(((Name) right).name);
+                    }
+                }
+            }
+            return false;
+        });
+    }
+
+    void collapseElseIfChains(Block block) {
+        if (block == null || block.statements == null) {
+            return;
+        }
+
+        for (int i = 0; i < block.statements.size(); i++) {
+            Statement stmt = block.statements.get(i);
+            if (stmt instanceof IfStatement) {
+                IfStatement collapsed = collapseIf((IfStatement) stmt);
+                block.statements.set(i, collapsed);
+            } else if (stmt instanceof WhileStatement) {
+                collapseElseIfChains(((WhileStatement) stmt).body);
+            } else if (stmt instanceof RepeatStatement) {
+                collapseElseIfChains(((RepeatStatement) stmt).body);
+            } else if (stmt instanceof ForNumeric) {
+                collapseElseIfChains(((ForNumeric) stmt).body);
+            } else if (stmt instanceof ForIn) {
+                collapseElseIfChains(((ForIn) stmt).body);
+            } else if (stmt instanceof FunctionDeclaration) {
+                collapseElseIfChains(((FunctionDeclaration) stmt).func.body);
+            }
+        }
+    }
+
+    private IfStatement collapseIf(IfStatement ifStmt) {
+        List<Block> newBlocks = new ArrayList<>();
+        for (Block b : ifStmt.blocks) {
+            collapseElseIfChains(b);
+            newBlocks.add(b);
+        }
+        Block elseBlock = ifStmt.elseBlock;
+        if (elseBlock != null) {
+            collapseElseIfChains(elseBlock);
+        }
+
+        List<Expression> newConds = new ArrayList<>(ifStmt.conditions);
+
+        while (elseBlock != null && elseBlock.statements != null && elseBlock.statements.size() == 1
+                && elseBlock.statements.get(0) instanceof IfStatement) {
+            IfStatement childIf = (IfStatement) elseBlock.statements.get(0);
+            newConds.addAll(childIf.conditions);
+            for (Block cb : childIf.blocks) {
+                collapseElseIfChains(cb);
+                newBlocks.add(cb);
+            }
+            elseBlock = childIf.elseBlock;
+            if (elseBlock != null) {
+                collapseElseIfChains(elseBlock);
+            }
+        }
+
+        return new IfStatement(newConds, newBlocks, elseBlock, ifStmt.pos);
     }
 
     private void stripTrailingJoinGotos(Block parentBlock, IfStatement ifStmt) {
@@ -841,8 +936,13 @@ public class AstCleanupPass {
 
     Set<String> declareTopLevelLocals(Block block, List<String> params, Set<String> parentDeclared,
             Set<String> upvalueNames) {
+        return declareTopLevelLocals(block, params, parentDeclared, upvalueNames, Collections.emptySet());
+    }
+
+    Set<String> declareTopLevelLocals(Block block, List<String> params, Set<String> parentDeclared,
+            Set<String> upvalueNames, Set<String> capturedLocals) {
         if (block == null || block.statements == null) {
-            return java.util.Collections.emptySet();
+            return Collections.emptySet();
         }
 
         Logger.debug("[DEBUG] declareTopLevelLocals block, params: " + params + ", parentDeclared: " + parentDeclared);
@@ -862,80 +962,33 @@ public class AstCleanupPass {
             // never be hoisted as missing locals in the current function, otherwise
             // the generated local shadows the captured value and changes semantics.
             hoistedRegisters.removeAll(upvalueNames);
+
+            Set<String> loopBound = new HashSet<>();
+            collectSelfContainedLoopVariables(block, block, loopBound);
+            hoistedRegisters.removeAll(loopBound);
+
             Logger.debug("[DEBUG] Collected hoistedRegisters after remove: " + hoistedRegisters);
         }
 
-        List<String> missing = new ArrayList<>();
+        Map<Block, List<String>> blockToLocals = new IdentityHashMap<>();
         if (isFunction && !hoistedRegisters.isEmpty()) {
             for (String reg : hoistedRegisters) {
                 if (!declared.contains(reg)) {
-                    Statement firstOccurrence = null;
-                    for (Statement stmt : block.statements) {
-                        if (containsRegister(stmt, reg)) {
-                            firstOccurrence = stmt;
-                            break;
-                        }
+                    Block targetBlock = findMinimalEnclosingBlock(block, reg, capturedLocals);
+                    if (targetBlock == null) {
+                        targetBlock = block;
                     }
-                    if (firstOccurrence == null || !isValidInlineLocalizableAssignment(firstOccurrence, reg)) {
-                        missing.add(reg);
-                    }
+                    blockToLocals.computeIfAbsent(targetBlock, k -> new ArrayList<>()).add(reg);
                 }
             }
-            if (!missing.isEmpty()) {
-                missing.sort(this::compareTemporaryRegisterNames);
-                declared.addAll(missing);
+            for (List<String> regs : blockToLocals.values()) {
+                regs.sort(this::compareTemporaryRegisterNames);
             }
         }
-        Logger.debug("[DEBUG] computed declared (with missing): " + declared);
 
-        Set<String> actuallyHoisted = new HashSet<>(missing);
-
-        List<Statement> rewritten = new ArrayList<>();
-        for (Statement statement : block.statements) {
-            declareStatementLocalIfNeeded(statement, declared, true, actuallyHoisted, rewritten);
-        }
-
-        block.statements.clear();
-        block.statements.addAll(rewritten);
-
-        if (isFunction && !missing.isEmpty()) {
-            Map<Statement, List<String>> insertMap = new IdentityHashMap<>();
-            List<String> unplacedDeclarations = new ArrayList<>();
-
-            for (String reg : missing) {
-                Statement firstStmt = null;
-                for (Statement stmt : block.statements) {
-                    if (containsRegister(stmt, reg)) {
-                        firstStmt = stmt;
-                        break;
-                    }
-                }
-                if (firstStmt != null) {
-                    insertMap.computeIfAbsent(firstStmt, k -> new ArrayList<>()).add(reg);
-                } else {
-                    unplacedDeclarations.add(reg);
-                }
-            }
-
-            List<Statement> newStmts = new ArrayList<>();
-            if (!unplacedDeclarations.isEmpty()) {
-                unplacedDeclarations.sort(this::compareTemporaryRegisterNames);
-                newStmts.add(new LocalAssign(unplacedDeclarations, new ArrayList<>(), block.pos));
-            }
-
-            for (Statement stmt : block.statements) {
-                List<String> regsToDeclare = insertMap.get(stmt);
-                if (regsToDeclare != null && !regsToDeclare.isEmpty()) {
-                    regsToDeclare.sort(this::compareTemporaryRegisterNames);
-                    newStmts.add(new LocalAssign(regsToDeclare, new ArrayList<>(), block.pos));
-                }
-                newStmts.add(stmt);
-            }
-
-            block.statements.clear();
-            block.statements.addAll(newStmts);
-        }
-        return declared;
+        Set<String> allDeclared = new HashSet<>(declared);
+        processBlockLocals(block, blockToLocals, declared, allDeclared);
+        return allDeclared;
     }
 
     private int compareTemporaryRegisterNames(String left, String right) {
@@ -1098,176 +1151,565 @@ public class AstCleanupPass {
         }
     }
 
-    private void declareStatementLocalIfNeeded(Statement statement, Set<String> declared, boolean allowNewLocal,
-            Set<String> hoistedRegisters, List<Statement> result) {
-        if (statement instanceof LocalAssign) {
-            LocalAssign local = (LocalAssign) statement;
+    private Block findMinimalEnclosingBlock(Block currentBlock, String reg, Set<String> capturedLocals) {
+        if (currentBlock == null || currentBlock.statements == null) {
+            return null;
+        }
+        if (capturedLocals != null && capturedLocals.contains(reg)) {
+            return currentBlock;
+        }
 
-            List<String> hoistedInLocal = new ArrayList<>();
-            List<String> remainInLocal = new ArrayList<>();
+        List<Statement> matchingStmts = new ArrayList<>();
+        for (Statement stmt : currentBlock.statements) {
+            if (containsRegister(stmt, reg)) {
+                matchingStmts.add(stmt);
+            }
+        }
+
+        if (matchingStmts.isEmpty()) {
+            return null;
+        }
+        if (matchingStmts.size() > 1) {
+            return currentBlock;
+        }
+
+        Statement singleStmt = matchingStmts.get(0);
+
+        if (singleStmt instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) singleStmt;
+            if (ifStmt.conditions != null) {
+                for (Expression cond : ifStmt.conditions) {
+                    if (containsRegister(cond, reg)) {
+                        return currentBlock;
+                    }
+                }
+            }
+            List<Block> matchingBranches = new ArrayList<>();
+            if (ifStmt.blocks != null) {
+                for (Block branch : ifStmt.blocks) {
+                    if (containsRegister(branch, reg)) {
+                        matchingBranches.add(branch);
+                    }
+                }
+            }
+            if (ifStmt.elseBlock != null && containsRegister(ifStmt.elseBlock, reg)) {
+                matchingBranches.add(ifStmt.elseBlock);
+            }
+
+            if (matchingBranches.size() == 1) {
+                Block targetBranch = matchingBranches.get(0);
+                Block deeper = findMinimalEnclosingBlock(targetBranch, reg, capturedLocals);
+                return deeper != null ? deeper : targetBranch;
+            }
+            return currentBlock;
+        }
+
+        if (singleStmt instanceof WhileStatement) {
+            WhileStatement ws = (WhileStatement) singleStmt;
+            if (containsRegister(ws.condition, reg)) {
+                return currentBlock;
+            }
+            if (isSafeToSinkIntoLoop(ws.body, reg)) {
+                Block deeper = findMinimalEnclosingBlock(ws.body, reg, capturedLocals);
+                return deeper != null ? deeper : ws.body;
+            }
+            return currentBlock;
+        }
+
+        if (singleStmt instanceof ForNumeric) {
+            ForNumeric fn = (ForNumeric) singleStmt;
+            if (containsRegister(fn.start, reg) || containsRegister(fn.end, reg) || containsRegister(fn.step, reg)) {
+                return currentBlock;
+            }
+            if (reg.equals(fn.name)) {
+                return null;
+            }
+            if (isSafeToSinkIntoLoop(fn.body, reg)) {
+                Block deeper = findMinimalEnclosingBlock(fn.body, reg, capturedLocals);
+                return deeper != null ? deeper : fn.body;
+            }
+            return currentBlock;
+        }
+
+        if (singleStmt instanceof ForIn) {
+            ForIn fi = (ForIn) singleStmt;
+            if (fi.iterators != null) {
+                for (Expression it : fi.iterators) {
+                    if (containsRegister(it, reg)) {
+                        return currentBlock;
+                    }
+                }
+            }
+            if (fi.names != null && fi.names.contains(reg)) {
+                return null;
+            }
+            if (isSafeToSinkIntoLoop(fi.body, reg)) {
+                Block deeper = findMinimalEnclosingBlock(fi.body, reg, capturedLocals);
+                return deeper != null ? deeper : fi.body;
+            }
+            return currentBlock;
+        }
+
+        if (singleStmt instanceof RepeatStatement) {
+            RepeatStatement rs = (RepeatStatement) singleStmt;
+            if (isSafeToSinkIntoLoop(rs.body, reg)) {
+                Block deeper = findMinimalEnclosingBlock(rs.body, reg, capturedLocals);
+                return deeper != null ? deeper : rs.body;
+            }
+            return currentBlock;
+        }
+
+        if (singleStmt instanceof Block) {
+            Block deeper = findMinimalEnclosingBlock((Block) singleStmt, reg, capturedLocals);
+            return deeper != null ? deeper : (Block) singleStmt;
+        }
+
+        return currentBlock;
+    }
+
+    private boolean isSafeToSinkIntoLoop(Block loopBody, String reg) {
+        if (loopBody == null || loopBody.statements == null || loopBody.statements.isEmpty()) {
+            return false;
+        }
+        for (Statement stmt : loopBody.statements) {
+            if (containsRegister(stmt, reg)) {
+                if (stmt instanceof Assign) {
+                    Assign assign = (Assign) stmt;
+                    if (assign.left.size() == 1 && assign.left.get(0) instanceof Name) {
+                        String name = ((Name) assign.left.get(0)).name;
+                        if (name.equals(reg)) {
+                            if (assign.right != null && assign.right.size() == 1
+                                    && !containsRegister(assign.right.get(0), reg)) {
+                                return true;
+                            }
+                        }
+                    }
+                } else if (stmt instanceof LocalAssign) {
+                    LocalAssign local = (LocalAssign) stmt;
+                    if (local.names.size() == 1 && local.names.get(0).equals(reg)) {
+                        if (local.right != null && local.right.size() == 1
+                                && !containsRegister(local.right.get(0), reg)) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private void collectSelfContainedLoopVariables(Block rootBlock, AstNode node, Set<String> loopVars) {
+        if (node == null) {
+            return;
+        }
+        if (node instanceof ForNumeric) {
+            ForNumeric fn = (ForNumeric) node;
+            if (fn.name != null && isRegisterOrObj(fn.name)) {
+                if (countRegisterOccurrences(rootBlock, fn.name) == countRegisterOccurrences(fn, fn.name)) {
+                    loopVars.add(fn.name);
+                }
+            }
+            collectSelfContainedLoopVariables(rootBlock, fn.body, loopVars);
+        } else if (node instanceof ForIn) {
+            ForIn fi = (ForIn) node;
+            if (fi.names != null) {
+                for (String name : fi.names) {
+                    if (isRegisterOrObj(name)) {
+                        if (countRegisterOccurrences(rootBlock, name) == countRegisterOccurrences(fi, name)) {
+                            loopVars.add(name);
+                        }
+                    }
+                }
+            }
+            collectSelfContainedLoopVariables(rootBlock, fi.body, loopVars);
+        } else if (node instanceof Block) {
+            Block block = (Block) node;
+            if (block.statements != null) {
+                for (Statement stmt : block.statements) {
+                    collectSelfContainedLoopVariables(rootBlock, stmt, loopVars);
+                }
+            }
+        } else if (node instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) node;
+            if (ifStmt.blocks != null) {
+                for (Block b : ifStmt.blocks) {
+                    collectSelfContainedLoopVariables(rootBlock, b, loopVars);
+                }
+            }
+            collectSelfContainedLoopVariables(rootBlock, ifStmt.elseBlock, loopVars);
+        } else if (node instanceof WhileStatement) {
+            collectSelfContainedLoopVariables(rootBlock, ((WhileStatement) node).body, loopVars);
+        } else if (node instanceof RepeatStatement) {
+            collectSelfContainedLoopVariables(rootBlock, ((RepeatStatement) node).body, loopVars);
+        }
+    }
+
+    private int countRegisterOccurrences(AstNode node, String reg) {
+        if (node == null || reg == null) {
+            return 0;
+        }
+        if (node instanceof Name) {
+            return reg.equals(((Name) node).name) ? 1 : 0;
+        }
+        if (node instanceof Block) {
+            int count = 0;
+            for (Statement stmt : ((Block) node).statements) {
+                count += countRegisterOccurrences(stmt, reg);
+            }
+            return count;
+        }
+        if (node instanceof Assign) {
+            Assign assign = (Assign) node;
+            int count = 0;
+            for (Expression left : assign.left) {
+                count += countRegisterOccurrences(left, reg);
+            }
+            for (Expression right : assign.right) {
+                count += countRegisterOccurrences(right, reg);
+            }
+            return count;
+        }
+        if (node instanceof LocalAssign) {
+            LocalAssign local = (LocalAssign) node;
+            int count = 0;
             for (String name : local.names) {
-                if (isRegisterOrObj(name) && hoistedRegisters != null && hoistedRegisters.contains(name)) {
-                    hoistedInLocal.add(name);
-                } else {
-                    remainInLocal.add(name);
+                if (reg.equals(name)) count++;
+            }
+            if (local.right != null) {
+                for (Expression right : local.right) {
+                    count += countRegisterOccurrences(right, reg);
                 }
             }
-
-            if (hoistedInLocal.isEmpty()) {
-                declared.addAll(local.names);
-                result.add(local);
-                return;
+            return count;
+        }
+        if (node instanceof GlobalAssign) {
+            GlobalAssign global = (GlobalAssign) node;
+            int count = 0;
+            for (String name : global.names) {
+                if (reg.equals(name)) count++;
             }
-
-            declared.addAll(remainInLocal);
-
-            if (!remainInLocal.isEmpty()) {
-                List<Expression> remainRight = new ArrayList<>();
-                for (String rName : remainInLocal) {
-                    int idx = local.names.indexOf(rName);
-                    if (idx < local.right.size()) {
-                        remainRight.add(local.right.get(idx));
-                    }
-                }
-                result.add(new LocalAssign(remainInLocal, remainRight, local.pos));
-            }
-
-            for (String hName : hoistedInLocal) {
-                int idx = local.names.indexOf(hName);
-                if (idx < local.right.size()) {
-                    Expression rightExpr = local.right.get(idx);
-                    List<Expression> leftList = new ArrayList<>();
-                    leftList.add(new Name(hName, local.pos));
-                    List<Expression> rightList = new ArrayList<>();
-                    rightList.add(rightExpr);
-                    result.add(new Assign(leftList, rightList, local.pos));
+            if (global.right != null) {
+                for (Expression right : global.right) {
+                    count += countRegisterOccurrences(right, reg);
                 }
             }
+            return count;
+        }
+        if (node instanceof IfStatement) {
+            IfStatement ifStmt = (IfStatement) node;
+            int count = 0;
+            if (ifStmt.conditions != null) {
+                for (Expression condition : ifStmt.conditions) {
+                    count += countRegisterOccurrences(condition, reg);
+                }
+            }
+            if (ifStmt.blocks != null) {
+                for (Block nested : ifStmt.blocks) {
+                    count += countRegisterOccurrences(nested, reg);
+                }
+            }
+            count += countRegisterOccurrences(ifStmt.elseBlock, reg);
+            return count;
+        }
+        if (node instanceof WhileStatement) {
+            WhileStatement ws = (WhileStatement) node;
+            return countRegisterOccurrences(ws.condition, reg) + countRegisterOccurrences(ws.body, reg);
+        }
+        if (node instanceof RepeatStatement) {
+            RepeatStatement rs = (RepeatStatement) node;
+            return countRegisterOccurrences(rs.condition, reg) + countRegisterOccurrences(rs.body, reg);
+        }
+        if (node instanceof ForNumeric) {
+            ForNumeric fn = (ForNumeric) node;
+            int count = (reg.equals(fn.name)) ? 1 : 0;
+            count += countRegisterOccurrences(fn.start, reg);
+            count += countRegisterOccurrences(fn.end, reg);
+            count += countRegisterOccurrences(fn.step, reg);
+            count += countRegisterOccurrences(fn.body, reg);
+            return count;
+        }
+        if (node instanceof ForIn) {
+            ForIn fi = (ForIn) node;
+            int count = 0;
+            if (fi.names != null) {
+                for (String name : fi.names) {
+                    if (reg.equals(name)) count++;
+                }
+            }
+            if (fi.iterators != null) {
+                for (Expression it : fi.iterators) {
+                    count += countRegisterOccurrences(it, reg);
+                }
+            }
+            count += countRegisterOccurrences(fi.body, reg);
+            return count;
+        }
+        if (node instanceof FunctionDeclaration) {
+            FunctionDeclaration fd = (FunctionDeclaration) node;
+            return (fd.name != null && reg.equals(fd.name)) ? 1 : 0;
+        }
+        if (node instanceof FunctionLiteral) {
+            return 0;
+        }
+        if (node instanceof BinaryOp) {
+            BinaryOp bo = (BinaryOp) node;
+            return countRegisterOccurrences(bo.left, reg) + countRegisterOccurrences(bo.right, reg);
+        }
+        if (node instanceof UnaryOp) {
+            return countRegisterOccurrences(((UnaryOp) node).expr, reg);
+        }
+        if (node instanceof IndexExpr) {
+            IndexExpr ie = (IndexExpr) node;
+            return countRegisterOccurrences(ie.table, reg) + countRegisterOccurrences(ie.index, reg);
+        }
+        if (node instanceof MemberExpr) {
+            return countRegisterOccurrences(((MemberExpr) node).table, reg);
+        }
+        if (node instanceof FunctionCall) {
+            FunctionCall call = (FunctionCall) node;
+            int count = countRegisterOccurrences(call.callee, reg);
+            if (call.args != null) {
+                for (Expression arg : call.args) {
+                    count += countRegisterOccurrences(arg, reg);
+                }
+            }
+            return count;
+        }
+        if (node instanceof TableConstructor) {
+            TableConstructor table = (TableConstructor) node;
+            int count = 0;
+            if (table.fields != null) {
+                for (TableField field : table.fields) {
+                    count += countRegisterOccurrences(field.key, reg);
+                    count += countRegisterOccurrences(field.value, reg);
+                }
+            }
+            return count;
+        }
+        if (node instanceof ReturnStatement) {
+            ReturnStatement ret = (ReturnStatement) node;
+            int count = 0;
+            if (ret.values != null) {
+                for (Expression value : ret.values) {
+                    count += countRegisterOccurrences(value, reg);
+                }
+            }
+            return count;
+        }
+        if (node instanceof ExpressionStatement) {
+            return countRegisterOccurrences(((ExpressionStatement) node).expression, reg);
+        }
+        if (node instanceof MultiVal) {
+            MultiVal mv = (MultiVal) node;
+            int count = 0;
+            if (mv.values != null) {
+                for (Expression val : mv.values) {
+                    count += countRegisterOccurrences(val, reg);
+                }
+            }
+            return count;
+        }
+        return 0;
+    }
+
+    private void processBlockLocals(Block currentBlock, Map<Block, List<String>> blockToLocals,
+            Set<String> declared, Set<String> allDeclared) {
+        if (currentBlock == null || currentBlock.statements == null) {
             return;
         }
 
-        if (statement instanceof GlobalAssign) {
-            result.add(statement);
-            return;
+        List<String> blockLocals = blockToLocals.getOrDefault(currentBlock, Collections.emptyList());
+        List<String> missing = new ArrayList<>();
+        Set<String> inlinableLocals = new HashSet<>();
+
+        for (String reg : blockLocals) {
+            if (declared.contains(reg)) {
+                continue;
+            }
+            Statement firstOccurrence = null;
+            for (Statement stmt : currentBlock.statements) {
+                if (containsRegister(stmt, reg)) {
+                    firstOccurrence = stmt;
+                    break;
+                }
+            }
+            if (firstOccurrence == null || !isValidInlineLocalizableAssignment(firstOccurrence, reg)) {
+                missing.add(reg);
+            } else {
+                inlinableLocals.add(reg);
+            }
         }
 
-        if (statement instanceof Assign) {
-            Assign assign = (Assign) statement;
+        Map<Statement, List<String>> insertMap = new IdentityHashMap<>();
+        List<String> unplaced = new ArrayList<>();
 
-            if (allowNewLocal) {
-                boolean allNames = true;
+        for (String reg : missing) {
+            Statement firstStmt = null;
+            for (Statement stmt : currentBlock.statements) {
+                if (containsRegister(stmt, reg)) {
+                    firstStmt = stmt;
+                    break;
+                }
+            }
+            if (firstStmt != null) {
+                insertMap.computeIfAbsent(firstStmt, k -> new ArrayList<>()).add(reg);
+            } else {
+                unplaced.add(reg);
+            }
+        }
+
+        if (allDeclared != null) {
+            allDeclared.addAll(blockLocals);
+        }
+        declared.addAll(missing);
+
+        List<Statement> rewritten = new ArrayList<>();
+        if (!unplaced.isEmpty()) {
+            unplaced.sort(this::compareTemporaryRegisterNames);
+            rewritten.add(new LocalAssign(unplaced, new ArrayList<>(), currentBlock.pos));
+        }
+
+        for (Statement stmt : currentBlock.statements) {
+            List<String> regsToDeclare = insertMap.get(stmt);
+            if (regsToDeclare != null && !regsToDeclare.isEmpty()) {
+                regsToDeclare.sort(this::compareTemporaryRegisterNames);
+                rewritten.add(new LocalAssign(regsToDeclare, new ArrayList<>(), currentBlock.pos));
+            }
+
+            if (stmt instanceof Assign) {
+                Assign assign = (Assign) stmt;
+                boolean canInline = false;
                 List<String> names = new ArrayList<>();
-                for (Expression left : assign.left) {
-                    if (left instanceof Name) {
-                        names.add(((Name) left).name);
-                    } else {
-                        allNames = false;
-                        break;
-                    }
-                }
-                if (allNames && !names.isEmpty()) {
-                    boolean noneDeclared = true;
-                    for (String name : names) {
-                        if (declared.contains(name)) {
-                            noneDeclared = false;
+                if (assign.left != null && !assign.left.isEmpty()) {
+                    boolean allNames = true;
+                    for (Expression left : assign.left) {
+                        if (left instanceof Name) {
+                            names.add(((Name) left).name);
+                        } else {
+                            allNames = false;
                             break;
                         }
                     }
-                    if (noneDeclared) {
-                        boolean allShouldDeclare = true;
+                    if (allNames && !names.isEmpty()) {
+                        boolean allInlinable = true;
                         for (int k = 0; k < names.size(); k++) {
                             String name = names.get(k);
-                            Expression right = k < assign.right.size() ? assign.right.get(k) : null;
-                            if (!shouldDeclareLocal(name, right)) {
-                                allShouldDeclare = false;
+                            Expression right = (assign.right != null && k < assign.right.size()) ? assign.right.get(k) : null;
+                            boolean inlinable = (inlinableLocals.contains(name) || isRequireCall(right))
+                                    && !declared.contains(name)
+                                    && shouldDeclareLocal(name, right);
+                            if (!inlinable) {
+                                allInlinable = false;
                                 break;
                             }
                         }
-                        if (allShouldDeclare) {
-                            if (hoistedRegisters != null) {
-                                boolean hasHoisted = false;
-                                for (String name : names) {
-                                    if (hoistedRegisters.contains(name)) {
-                                        hasHoisted = true;
-                                        break;
-                                    }
-                                }
-                                if (hasHoisted) {
-                                    result.add(statement);
-                                    return;
-                                }
-                            }
-                            declared.addAll(names);
-                            result.add(new LocalAssign(names, assign.right, assign.pos));
-                            return;
+                        if (allInlinable) {
+                            canInline = true;
                         }
                     }
                 }
+                if (canInline) {
+                    declared.addAll(names);
+                    if (allDeclared != null) {
+                        allDeclared.addAll(names);
+                    }
+                    rewritten.add(new LocalAssign(names, assign.right, assign.pos));
+                    continue;
+                }
+                rewritten.add(stmt);
+            } else if (stmt instanceof LocalAssign) {
+                LocalAssign local = (LocalAssign) stmt;
+                List<String> alreadyDeclaredNames = new ArrayList<>();
+                List<String> newLocalNames = new ArrayList<>();
+                for (String name : local.names) {
+                    if (declared.contains(name)) {
+                        alreadyDeclaredNames.add(name);
+                    } else {
+                        newLocalNames.add(name);
+                    }
+                }
+                if (alreadyDeclaredNames.isEmpty()) {
+                    declared.addAll(local.names);
+                    if (allDeclared != null) {
+                        allDeclared.addAll(local.names);
+                    }
+                    rewritten.add(local);
+                } else {
+                    if (!newLocalNames.isEmpty()) {
+                        List<Expression> newRights = new ArrayList<>();
+                        for (String n : newLocalNames) {
+                            int idx = local.names.indexOf(n);
+                            if (local.right != null && idx < local.right.size()) {
+                                newRights.add(local.right.get(idx));
+                            }
+                        }
+                        rewritten.add(new LocalAssign(newLocalNames, newRights, local.pos));
+                        declared.addAll(newLocalNames);
+                        if (allDeclared != null) {
+                            allDeclared.addAll(newLocalNames);
+                        }
+                    }
+                    for (String aName : alreadyDeclaredNames) {
+                        int idx = local.names.indexOf(aName);
+                        Expression rightExpr = (local.right != null && idx < local.right.size()) ? local.right.get(idx) : null;
+                        if (rightExpr != null) {
+                            List<Expression> leftList = new ArrayList<>();
+                            leftList.add(new Name(aName, local.pos));
+                            List<Expression> rightList = new ArrayList<>();
+                            rightList.add(rightExpr);
+                            rewritten.add(new Assign(leftList, rightList, local.pos));
+                        }
+                    }
+                }
+            } else if (stmt instanceof IfStatement) {
+                IfStatement ifStmt = (IfStatement) stmt;
+                if (ifStmt.blocks != null) {
+                    for (Block branch : ifStmt.blocks) {
+                        processBlockLocals(branch, blockToLocals, new HashSet<>(declared), allDeclared);
+                    }
+                }
+                if (ifStmt.elseBlock != null) {
+                    processBlockLocals(ifStmt.elseBlock, blockToLocals, new HashSet<>(declared), allDeclared);
+                }
+                rewritten.add(stmt);
+            } else if (stmt instanceof WhileStatement) {
+                WhileStatement ws = (WhileStatement) stmt;
+                processBlockLocals(ws.body, blockToLocals, new HashSet<>(declared), allDeclared);
+                rewritten.add(stmt);
+            } else if (stmt instanceof RepeatStatement) {
+                RepeatStatement rs = (RepeatStatement) stmt;
+                processBlockLocals(rs.body, blockToLocals, new HashSet<>(declared), allDeclared);
+                rewritten.add(stmt);
+            } else if (stmt instanceof ForNumeric) {
+                ForNumeric fn = (ForNumeric) stmt;
+                Set<String> forDeclared = new HashSet<>(declared);
+                if (fn.name != null) {
+                    forDeclared.add(fn.name);
+                }
+                processBlockLocals(fn.body, blockToLocals, forDeclared, allDeclared);
+                rewritten.add(stmt);
+            } else if (stmt instanceof ForIn) {
+                ForIn fi = (ForIn) stmt;
+                Set<String> forDeclared = new HashSet<>(declared);
+                if (fi.names != null) {
+                    forDeclared.addAll(fi.names);
+                }
+                processBlockLocals(fi.body, blockToLocals, forDeclared, allDeclared);
+                rewritten.add(stmt);
+            } else if (stmt instanceof FunctionDeclaration) {
+                FunctionDeclaration fd = (FunctionDeclaration) stmt;
+                if (fd.func != null) {
+                    declareTopLevelLocals(fd.func.body, fd.func.params, declared, Collections.emptySet(), Collections.emptySet());
+                }
+                rewritten.add(stmt);
+            } else {
+                rewritten.add(stmt);
             }
-
-            result.add(statement);
-            return;
         }
 
-        if (statement instanceof IfStatement) {
-            IfStatement ifStatement = (IfStatement) statement;
-
-            for (Block nested : ifStatement.blocks) {
-                rewriteNestedBlockWithoutNewLocals(nested, declared, hoistedRegisters);
-            }
-
-            rewriteNestedBlockWithoutNewLocals(ifStatement.elseBlock, declared, hoistedRegisters);
-            result.add(statement);
-            return;
-        }
-
-        if (statement instanceof WhileStatement) {
-            rewriteNestedBlockWithoutNewLocals(((WhileStatement) statement).body, declared, hoistedRegisters);
-            result.add(statement);
-            return;
-        }
-
-        if (statement instanceof RepeatStatement) {
-            rewriteNestedBlockWithoutNewLocals(((RepeatStatement) statement).body, declared, hoistedRegisters);
-            result.add(statement);
-            return;
-        }
-
-        if (statement instanceof ForNumeric) {
-            rewriteNestedBlockWithoutNewLocals(((ForNumeric) statement).body, declared, hoistedRegisters);
-            result.add(statement);
-            return;
-        }
-
-        if (statement instanceof ForIn) {
-            rewriteNestedBlockWithoutNewLocals(((ForIn) statement).body, declared, hoistedRegisters);
-            result.add(statement);
-            return;
-        }
-
-        if (statement instanceof FunctionDeclaration) {
-            declareTopLevelLocals(((FunctionDeclaration) statement).func.body,
-                    ((FunctionDeclaration) statement).func.params, declared, java.util.Collections.emptySet());
-            result.add(statement);
-            return;
-        }
-
-        result.add(statement);
-    }
-
-    private void rewriteNestedBlockWithoutNewLocals(Block block, Set<String> declared, Set<String> hoistedRegisters) {
-        if (block == null || block.statements == null) {
-            return;
-        }
-
-        List<Statement> rewritten = new ArrayList<>();
-
-        for (Statement statement : block.statements) {
-            declareStatementLocalIfNeeded(statement, declared, false, hoistedRegisters, rewritten);
-        }
-
-        block.statements.clear();
-        block.statements.addAll(rewritten);
+        currentBlock.statements.clear();
+        currentBlock.statements.addAll(rewritten);
     }
 
     void removeUnusedEmptyLocalDeclarations(Block block) {
@@ -1848,22 +2290,26 @@ public class AstCleanupPass {
         return (upvalue != null) ? upvalue.getName() : ("upvalue_" + b);
     }
 
-    private int findReachingRegisterDefinitionPc(List<com.github.relua.model.Instruction> instructions,
-            int beforeInstructionIndex, int registerIndex) {
+    private int findReachingRegisterDefinitionPc(com.github.relua.model.Chunk chunk,
+            List<com.github.relua.model.Instruction> instructions, int beforeInstructionIndex, int registerIndex) {
         if (instructions == null) {
             return -1;
         }
         for (int i = beforeInstructionIndex - 1; i >= 0; i--) {
             com.github.relua.model.Instruction instruction = instructions.get(i);
-            if (instructionDefinesRegister(instruction, registerIndex)) {
+            if (instructionDefinesRegister(chunk, instruction, registerIndex)) {
                 return instruction.getPc();
             }
         }
         return -1;
     }
 
-    private boolean instructionDefinesRegister(com.github.relua.model.Instruction instruction, int registerIndex) {
+    private boolean instructionDefinesRegister(com.github.relua.model.Chunk chunk,
+            com.github.relua.model.Instruction instruction, int registerIndex) {
         if (instruction == null) {
+            return false;
+        }
+        if (chunk != null && chunk.isClosureUpvalueInstruction(instruction.getPc())) {
             return false;
         }
         int a = instruction.getA();

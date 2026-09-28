@@ -62,6 +62,7 @@ public class CodeGeneratorContext {
     private String registerPrefix = "";
     private List<UpValue> upvalues = new ArrayList<>(); // 上值存储，key为上值索引，value为上值对象
     private Map<SsaValue, String> preferredSsaValueNames = new HashMap<>();
+    private final Set<Integer> emittedComparisonBooleanFalsePcs = new HashSet<>();
     
     // 用于跟踪pending的SELF指令，用于方法调用绑定
     private Map<Integer, PendingSelf> pendingSelfCalls = new HashMap<>();
@@ -276,6 +277,14 @@ public class CodeGeneratorContext {
      */
     public void addLabelPC(int pc) {
         labelPCs.add(pc);
+    }
+
+    public void addEmittedComparisonBooleanFalsePc(int pc) {
+        emittedComparisonBooleanFalsePcs.add(pc);
+    }
+
+    public boolean isEmittedComparisonBooleanFalsePc(int pc) {
+        return emittedComparisonBooleanFalsePcs.contains(pc);
     }
 
     /**

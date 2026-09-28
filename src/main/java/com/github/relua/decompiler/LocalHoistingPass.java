@@ -33,13 +33,19 @@ public class LocalHoistingPass implements DecompilationPass {
             params.addAll(ssaNameResolver.parameterNames(functionChunk.getNumParams()));
         }
         
-        Set<String> declared = parent.declareTopLevelLocals(block, params, context.getParentDeclared(), context.getUpvalueNames());
+        Set<String> capturedLocals = context.getCapturedLocalDefinitionPcs() != null
+                ? context.getCapturedLocalDefinitionPcs().keySet()
+                : java.util.Collections.emptySet();
+        Set<String> declared = parent.declareTopLevelLocals(block, params, context.getParentDeclared(),
+                context.getUpvalueNames(), capturedLocals);
         context.setDeclaredVariables(declared);
 
         ssaTemporaryCleanup.inlineSingleUse(block, context.getContext(), context.getPipeline(),
                 context.getCapturedLocalDefinitionPcs());
         ssaTemporaryCleanup.deleteDead(block, context.getContext(), context.getPipeline(),
                 context.getCapturedLocalDefinitionPcs(), true);
+        parent.removeRedundantSelfAssignments(block);
+        parent.collapseElseIfChains(block);
     }
 
     @Override

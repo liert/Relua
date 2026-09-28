@@ -89,6 +89,11 @@ public final class VariableArityResolver {
                     return true;
                 }
             }
+            if (inst.getOpcode() == Opcode.SETLIST && inst.getB() == 0) {
+                if (findOpenResultProducerPc(chunk, i) == producerPc) {
+                    return true;
+                }
+            }
             if (inst.getOpcode() == Opcode.CALL && inst.getC() == 0) {
                 break;
             }
