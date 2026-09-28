@@ -378,10 +378,13 @@ public class AstPrinter implements AstVisitor<String> {
     @Override
     public String visit(UnaryOp node) {
         String expr = formatUnaryChild(node.expr, node);
+        if (node.op != null && !node.op.isEmpty() && Character.isLetter(node.op.charAt(0))) {
+            return node.op + " " + expr;
+        }
         if ("-".equals(node.op) && expr.startsWith("-")) {
             return "- " + expr;
         }
-        return node.op + " " + expr;
+        return node.op + expr;
     }
 
     private String formatUnaryChild(Expression child, UnaryOp parent) {
@@ -408,10 +411,6 @@ public class AstPrinter implements AstVisitor<String> {
         String rendered = child.accept(this);
         if (child instanceof BinaryOp) {
             BinaryOp childBinary = (BinaryOp) child;
-            if ("..".equals(parent.op) && !"..".equals(childBinary.op)) {
-                return "(" + rendered + ")";
-            }
-
             int childPrecedence = getBinaryOpPrecedence(childBinary.op);
             int parentPrecedence = getBinaryOpPrecedence(parent.op);
             if (childPrecedence < parentPrecedence

@@ -170,11 +170,22 @@ public final class SsaExpressionAnalyzer {
             case LT:
             case LE:
             case TEST:
+                effectOnly(summaries, ssaInstruction, SsaEffect.CONTROL_FLOW);
+                effectful = true;
+                break;
             case TESTSET:
                 effectOnly(summaries, ssaInstruction, SsaEffect.CONTROL_FLOW);
                 effectful = true;
                 for (SsaValue def : ssaInstruction.getDefs()) {
-                    summaryFor(summaries, def).setKind(SsaValueKind.UNKNOWN);
+                    SsaValueSummary summary = summaryFor(summaries, def);
+                    if (modifiedRegs.contains(def.getRegister())) {
+                        summary.setKind(SsaValueKind.UNKNOWN);
+                    } else {
+                        summary.setKind(SsaValueKind.COPY);
+                        if (!ssaInstruction.getUses().isEmpty()) {
+                            summary.setCopySource(ssaInstruction.getUses().get(0));
+                        }
+                    }
                 }
                 break;
             case CLOSE:

@@ -934,6 +934,9 @@ public class InstructionHandler {
                         Expression expr = (Expression) csr.astNode;
                         blockNode.statements.add(new ExpressionStatement(expr, expr.pos));
                     }
+                    if (csr.skipCount > 0) {
+                        markBlocksAsVisited(chunk, i + 1, i + csr.skipCount);
+                    }
                     i += csr.skipCount;
                     continue;
                 }
@@ -1329,6 +1332,9 @@ public class InstructionHandler {
                     } else if (csr.astNode instanceof Expression) {
                         Expression expr = (Expression) csr.astNode;
                         block.statements.add(new ExpressionStatement(expr, expr.pos));
+                    }
+                    if (csr.skipCount > 0) {
+                        markBlocksAsVisited(chunk, pc + 1, pc + csr.skipCount);
                     }
                     pc += csr.skipCount;
                     continue;

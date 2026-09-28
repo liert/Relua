@@ -1516,7 +1516,8 @@ public class InstructionToASTConverter {
         }
         Instruction jump = chunk.getInstruction(block.getEndIndex());
         Instruction test = chunk.getInstruction(block.getEndIndex() - 1);
-        if (jump == null || test == null || jump.getOpcode() != Opcode.JMP || test.getOpcode() != Opcode.TEST) {
+        if (jump == null || test == null || jump.getOpcode() != Opcode.JMP
+                || (test.getOpcode() != Opcode.TEST && test.getOpcode() != Opcode.TESTSET)) {
             return null;
         }
         int jumpTarget = block.getEndIndex() + 1 + jump.getSBx();
@@ -1524,9 +1525,16 @@ public class InstructionToASTConverter {
             return null;
         }
         SsaInstruction ssaTest = pipeline.requireSsaInstruction(chunk.getFunction(), block.getEndIndex() - 1);
-        SsaValue testUse = ssaTest.getFirstUseForRegister(test.getA());
-        if (!testedValue.equals(testUse)) {
-            return null;
+        if (test.getOpcode() == Opcode.TESTSET) {
+            SsaValue testDef = ssaTest.getFirstDefForRegister(test.getA());
+            if (!testedValue.equals(testDef)) {
+                return null;
+            }
+        } else {
+            SsaValue testUse = ssaTest.getFirstUseForRegister(test.getA());
+            if (!testedValue.equals(testUse)) {
+                return null;
+            }
         }
         return new ShortCircuitTest(test.getC() == 0 ? "and" : "or");
     }
@@ -2056,6 +2064,84 @@ public class InstructionToASTConverter {
         return new Assign(new Name(targetName, pos), comparisonExpr, pos);
     }
 
+    private ClosureSkipResult tryBuildShortCircuitAssign(int jumpPc, int jumpTarget) {
+        if (pendingTest == null || pendingTest.type != PendingTest.TestType.TESTSET) {
+            return null;
+        }
+        int testPc = pendingTest.pc;
+        if (testPc < 0 || testPc + 1 != jumpPc) {
+            return null;
+        }
+        Instruction testInst = chunk.getInstruction(testPc);
+        if (testInst == null || testInst.getOpcode() != Opcode.TESTSET) {
+            return null;
+        }
+
+        int targetReg = testInst.getA();
+        int sourceReg = testInst.getB();
+        int c = testInst.getC();
+        String op = (c == 1) ? "or" : "and";
+        SourcePos pos = new SourcePos(testPc, -1);
+
+        int rhsStart = jumpPc + 1;
+        int rhsEnd = jumpTarget - 1;
+        List<Instruction> instructions = chunk.getInstructions();
+        if (rhsStart > rhsEnd || rhsEnd >= instructions.size()) {
+            return null;
+        }
+
+        SsaRegisterSnapshot testRegState = pipeline.getRegisterByInstructionIndex(testPc);
+        Expression leftExpr = resolveExpressionFromRegister(sourceReg, testPc, testRegState);
+        if (leftExpr == null) {
+            return null;
+        }
+
+        Object lastResult = null;
+        for (int pc = rhsStart; pc <= rhsEnd; pc++) {
+            Instruction inst = instructions.get(pc);
+            Object res = convertInstructionToAST(inst, pc);
+            if (res instanceof ClosureSkipResult) {
+                ClosureSkipResult csr = (ClosureSkipResult) res;
+                lastResult = csr.astNode;
+                pc += csr.skipCount;
+            } else if (res != null) {
+                lastResult = res;
+            }
+        }
+
+        if (lastResult instanceof Block) {
+            Block blk = (Block) lastResult;
+            if (!blk.statements.isEmpty()) {
+                Statement lastStmt = blk.statements.get(blk.statements.size() - 1);
+                if (lastStmt instanceof Assign) {
+                    lastResult = lastStmt;
+                }
+            }
+        }
+
+        Expression target = null;
+        Expression rightExpr = null;
+        if (lastResult instanceof Assign) {
+            Assign assign = (Assign) lastResult;
+            if (!assign.left.isEmpty() && !assign.right.isEmpty()) {
+                target = assign.left.get(0);
+                rightExpr = assign.right.get(0);
+            }
+        } else if (lastResult instanceof Expression) {
+            rightExpr = (Expression) lastResult;
+            target = new Name(getDefinedRegisterName(targetReg, rhsEnd), pos);
+        }
+
+        if (target == null || rightExpr == null) {
+            return null;
+        }
+
+        BinaryOp shortCircuit = new BinaryOp(op, leftExpr, rightExpr, pos);
+        Assign combinedAssign = new Assign(target, shortCircuit, pos);
+        int skipCount = rhsEnd - jumpPc;
+        return new ClosureSkipResult(combinedAssign, skipCount);
+    }
+
     private Expression tryBuildComparisonBooleanExpressionFromLoadBool(int falsePc) {
         List<Instruction> instructions = chunk.getInstructions();
         if (falsePc < 2 || falsePc >= instructions.size()) {
@@ -2453,6 +2539,12 @@ public class InstructionToASTConverter {
                     return null;
                 }
                 return booleanAssign;
+            }
+
+            ClosureSkipResult shortCircuitAssign = tryBuildShortCircuitAssign(instructionIndex, jmpTarget);
+            if (shortCircuitAssign != null) {
+                pendingTest = null;
+                return shortCircuitAssign;
             }
 
             // 向后跳转（循环条件）不生成 PendingIf，避免 buildBlock 范围回退导致无限递归
