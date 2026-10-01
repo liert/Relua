@@ -11,6 +11,7 @@ import com.github.relua.gui.ReluaGUI;
 import com.github.relua.log.Logger;
 import com.github.relua.log.LogConfig;
 import com.github.relua.log.LogLevel;
+import com.github.relua.util.BytecodeFormatter;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -110,6 +111,7 @@ public class Relua {
         List<String> inputFiles = new ArrayList<>();
         String outputFile = null;
         boolean showBytecode = false;
+        boolean showPseudocode = false;
         boolean debugMode = false;
         LogLevel logLevel = LogLevel.WARNING;
         boolean logToConsole = Boolean.getBoolean("relua.logToConsole");
@@ -121,6 +123,16 @@ public class Relua {
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
             switch (arg) {
+                case "--nogui":
+                    break;
+                case "-h":
+                case "--help":
+                    showHelp();
+                    return;
+                case "-v":
+                case "--version":
+                    showVersion();
+                    return;
                 case "-o":
                 case "--output":
                     if (i + 1 < args.length) {
@@ -133,6 +145,15 @@ public class Relua {
                 case "-b":
                 case "--bytecode":
                     showBytecode = true;
+                    break;
+                case "-p":
+                case "--pseudocode":
+                    showPseudocode = true;
+                    break;
+                case "-a":
+                case "--all":
+                    showBytecode = true;
+                    showPseudocode = true;
                     break;
                 case "--debug":
                     debugMode = true;
@@ -174,6 +195,11 @@ public class Relua {
             }
         }
         
+        // 默认行为：若未显式指定输出指令，也未指定输出伪代码，则默认输出伪代码
+        if (!showBytecode && !showPseudocode) {
+            showPseudocode = true;
+        }
+
         // 处理命令行选项
         if (inputFiles.isEmpty()) {
             Logger.error("No input file specified");
@@ -212,15 +238,16 @@ public class Relua {
             try {
                 final String finalInputFile = inputFile;
                 final boolean finalShowBytecode = showBytecode;
+                final boolean finalShowPseudocode = showPseudocode;
                 // 执行反编译
-                String luaCode = runWithCapturedStdout(() -> decompileFile(finalInputFile, finalShowBytecode));
+                String resultOutput = runWithCapturedStdout(() -> decompileFile(finalInputFile, finalShowBytecode, finalShowPseudocode));
                 
                 // 输出结果
                 if (outputFile != null) {
-                    writeToFile(outputFile, luaCode);
-                    Logger.info("Successfully decompiled " + inputFile + " to " + outputFile);
+                    writeToFile(outputFile, resultOutput);
+                    Logger.info("Successfully processed " + inputFile + " to " + outputFile);
                 } else {
-                    System.out.println(luaCode); // 直接输出反编译结果，不经过日志
+                    System.out.println(resultOutput); // 直接输出结果，不经过日志
                 }
             } catch (Exception e) {
                 System.err.println("Error decompiling " + inputFile + ": " + e.getMessage());
@@ -330,13 +357,14 @@ public class Relua {
     }
     
     /**
-     * 反编译Luac文件
+     * 反编译Luac文件并根据选项返回字节码指令、伪代码或两者
      * @param inputFile 输入Luac文件路径
-     * @param showBytecode 是否显示字节码
-     * @return 反编译后的Lua代码
+     * @param showBytecode 是否输出字节码指令
+     * @param showPseudocode 是否输出反编译伪代码
+     * @return 格式化后的输出内容
      * @throws IOException IO异常
      */
-    private static String decompileFile(String inputFile, boolean showBytecode) throws IOException {
+    private static String decompileFile(String inputFile, boolean showBytecode, boolean showPseudocode) throws IOException {
         // 创建解析器和反编译器
         LuacParser parser = new LuacParser();
         Decompiler decompiler = new Decompiler();
@@ -344,14 +372,44 @@ public class Relua {
         // 解析Luac文件
         Logger.info("Parsing " + inputFile + "...");
         LuacFile luacFile = parser.parse(inputFile);
+
+        if (luacFile == null || luacFile.getMainChunk() == null) {
+            throw new IOException("Failed to parse Luac file or main chunk is null: " + inputFile);
+        }
         
-        if (DecompilerDebugger.isEnabled() && luacFile != null && luacFile.getMainChunk() != null) {
+        if (DecompilerDebugger.isEnabled()) {
             DecompilerDebugger.dump("bytecode_parsed", decompiler.generateBytecode(luacFile.getMainChunk()));
         }
 
-        // 反编译
-        Logger.info("Decompiling...");
-        return decompiler.decompile(luacFile, showBytecode);
+        String bytecodeStr = null;
+        if (showBytecode) {
+            bytecodeStr = BytecodeFormatter.formatLuacFile(luacFile);
+        }
+
+        String pseudocodeStr = null;
+        if (showPseudocode) {
+            // 反编译
+            Logger.info("Decompiling...");
+            pseudocodeStr = decompiler.decompile(luacFile, false);
+        }
+
+        if (showBytecode && showPseudocode) {
+            StringBuilder sb = new StringBuilder();
+            sb.append(bytecodeStr != null ? bytecodeStr : "");
+            if (bytecodeStr != null && !bytecodeStr.endsWith("\n")) {
+                sb.append("\n");
+            }
+            sb.append("\n");
+            sb.append("; ====================================================================\n");
+            sb.append("; Relua 反编译伪代码\n");
+            sb.append("; ====================================================================\n\n");
+            sb.append(pseudocodeStr != null ? pseudocodeStr : "");
+            return sb.toString();
+        } else if (showBytecode) {
+            return bytecodeStr != null ? bytecodeStr : "";
+        } else {
+            return pseudocodeStr != null ? pseudocodeStr : "";
+        }
     }
     
     /**
@@ -382,10 +440,14 @@ public class Relua {
         System.out.println();
         System.out.println("GUI mode is the default; pass --nogui to decompile on the command line.");
         System.out.println();
-        System.out.println("Options:");
+        System.out.println("Output Selection Options:");
+        System.out.println("  -p, --pseudocode     Output decompiled Lua pseudocode (default)");
+        System.out.println("  -b, --bytecode       Output bytecode instructions / disassembly");
+        System.out.println("  -a, --all            Output both bytecode instructions and pseudocode");
+        System.out.println();
+        System.out.println("General Options:");
         System.out.println("  --nogui              Run in command-line mode instead of launching the GUI");
         System.out.println("  -o, --output FILE    Write output to FILE instead of stdout (only for single input file)");
-        System.out.println("  -b, --bytecode       Show bytecode instructions in output");
         System.out.println("  --debug              Enable intermediate stages dumping for debugging");
         System.out.println("  -l, --log LEVEL      Set log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)");
         System.out.println("  -f, --log-file FILE  Write logs to FILE");

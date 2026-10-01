@@ -9,6 +9,8 @@ import com.github.relua.decompiler.InstructionHandler;
 import com.github.relua.decompiler.BasicBlock;
 import com.github.relua.decompiler.ssa.SsaFunction;
 
+import com.github.relua.util.BytecodeFormatter;
+
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -46,8 +48,7 @@ public class DecompilerEngine {
         long startTime = System.currentTimeMillis();
 
         if (showBytecode) {
-            Decompiler decompiler = new Decompiler();
-            String bytecode = decompiler.generateBytecode(mainChunk);
+            String bytecode = BytecodeFormatter.formatLuacFile(luacFile);
             result.setDecompiledCode(bytecode);
             result.putTiming("bytecode_generation", System.currentTimeMillis() - startTime);
         } else {

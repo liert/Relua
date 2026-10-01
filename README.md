@@ -97,8 +97,11 @@ java -jar target/relua-1.0.0.jar --nogui [OPTIONS] INPUT_FILES...
 | 短选项 | 长选项 | 参数类型 | 描述 |
 | :--- | :--- | :--- | :--- |
 | | `--nogui` | 无 | 进入命令行模式（不指定则默认启动 GUI） |
-| `-o` | `--output` | `FILE` | 将反编译结果写入指定文件，若不指定则输出到标准输出（stdout） |
-| `-b` | `--bytecode` | 无 | 在输出中显示汇编字节码指令及常量表 |
+| `-p` | `--pseudocode` | 无 | 输出反编译伪代码（Lua 源码，默认模式） |
+| `-b` | `--bytecode` | 无 | 输出汇编字节码指令 / 反汇编 |
+| `-a` | `--all` | 无 | 同时输出汇编字节码指令与反编译伪代码 |
+| `-o` | `--output` | `FILE` | 将输出结果写入指定文件，若不指定则输出到标准输出（stdout） |
+| | `--debug` | 无 | 输出中间阶段调试信息 |
 | `-l` | `--log` | `LEVEL` | 设置日志控制台输出级别 (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
 | `-f` | `--log-file` | `FILE` | 重定向日志输出至指定文件 |
 | `-v` | `--version` | 无 | 显示 Relua 的版本信息 |
@@ -110,17 +113,31 @@ java -jar target/relua-1.0.0.jar --nogui [OPTIONS] INPUT_FILES...
 
 #### 使用示例
 
-1. **基本反编译**并输出到控制台：
+1. **反编译输出伪代码**（默认模式，输出到控制台）：
    ```bash
    java -jar target/relua-1.0.0.jar --nogui file.luac
+   # 或显式指定 -p / --pseudocode
+   java -jar target/relua-1.0.0.jar --nogui -p file.luac
    ```
 
-2. 反编译并 **保存至文件**：
+2. **输出字节码反汇编指令**：
+   ```bash
+   java -jar target/relua-1.0.0.jar --nogui -b file.luac
+   ```
+
+3. **同时输出指令与伪代码**：
+   ```bash
+   java -jar target/relua-1.0.0.jar --nogui -a file.luac
+   # 或同时指定 -b 与 -p
+   java -jar target/relua-1.0.0.jar --nogui -b -p file.luac
+   ```
+
+4. 反编译并 **保存至文件**：
    ```bash
    java -jar target/relua-1.0.0.jar --nogui -o file.lua file.luac
    ```
 
-3. 反编译并 **包含反汇编指令与调试日志**：
+5. 输出指令并 **包含调试日志**：
    ```bash
    java -jar target/relua-1.0.0.jar --nogui -b -l DEBUG -f run.log file.luac
    ```
