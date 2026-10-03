@@ -971,18 +971,24 @@ public class AstCleanupPass {
         }
 
         Map<Block, List<String>> blockToLocals = new IdentityHashMap<>();
-        if (isFunction && !hoistedRegisters.isEmpty()) {
-            for (String reg : hoistedRegisters) {
-                if (!declared.contains(reg)) {
-                    Block targetBlock = findMinimalEnclosingBlock(block, reg, capturedLocals);
-                    if (targetBlock == null) {
-                        targetBlock = block;
-                    }
-                    blockToLocals.computeIfAbsent(targetBlock, k -> new ArrayList<>()).add(reg);
-                }
+        if (isFunction) {
+            Set<String> neededLocals = new HashSet<>(hoistedRegisters);
+            if (capturedLocals != null) {
+                neededLocals.addAll(capturedLocals);
             }
-            for (List<String> regs : blockToLocals.values()) {
-                regs.sort(this::compareTemporaryRegisterNames);
+            if (!neededLocals.isEmpty()) {
+                for (String reg : neededLocals) {
+                    if (!declared.contains(reg)) {
+                        Block targetBlock = findMinimalEnclosingBlock(block, reg, capturedLocals);
+                        if (targetBlock == null) {
+                            targetBlock = block;
+                        }
+                        blockToLocals.computeIfAbsent(targetBlock, k -> new ArrayList<>()).add(reg);
+                    }
+                }
+                for (List<String> regs : blockToLocals.values()) {
+                    regs.sort(this::compareTemporaryRegisterNames);
+                }
             }
         }
 
@@ -2279,7 +2285,7 @@ public class AstCleanupPass {
             Object val = upvalue.getValue();
             if (upvalue.getFromType() == com.github.relua.model.FromType.GLOBAL) {
                 String globalName = val.toString();
-                if (!RegisterNamePolicy.isTemporaryRegisterName(globalName)) {
+                if (!RegisterNamePolicy.isTemporaryRegisterName(globalName) && !RegisterNamePolicy.isParameterName(globalName)) {
                     if (globalName.contains(".")) {
                         return globalName.split("\\.")[0];
                     }

@@ -85,7 +85,7 @@ public final class SsaRegisterSnapshot {
                 case PARAMETER:
                     data = RegisterNamePolicy.parameterName(resolved.getRegister());
                     type = ValueType.OBJECT;
-                    from = FromType.GLOBAL;
+                    from = FromType.LOCAL;
                     break;
                 case CONSTANT:
                     data = summary.getConstantValue();

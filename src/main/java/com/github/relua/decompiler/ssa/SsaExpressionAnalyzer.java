@@ -9,9 +9,12 @@ import com.github.relua.model.Instruction;
 import com.github.relua.model.Opcode;
 
 public final class SsaExpressionAnalyzer {
+    private Chunk chunk;
+
     public SsaExpressionAnalysis analyze(SsaFunction function) {
         Map<SsaValue, SsaValueSummary> summaries = new LinkedHashMap<>();
-        Chunk chunk = function.getChunk();
+        this.chunk = function.getChunk();
+        Chunk chunk = this.chunk;
         java.util.Set<Integer> modifiedRegs = getCapturedModifiedRegisters(chunk);
         int analyzedInstructions = 0;
         int effectfulInstructions = 0;
@@ -229,7 +232,11 @@ public final class SsaExpressionAnalyzer {
         if (summary == null) {
             summary = new SsaValueSummary(value);
             if (value != null && value.isImplicit()) {
-                summary.setKind(SsaValueKind.PARAMETER);
+                if (chunk != null && value.getRegister() >= 0 && value.getRegister() < chunk.getNumParams()) {
+                    summary.setKind(SsaValueKind.PARAMETER);
+                } else {
+                    summary.setKind(SsaValueKind.UNKNOWN);
+                }
             }
             summaries.put(value, summary);
         }

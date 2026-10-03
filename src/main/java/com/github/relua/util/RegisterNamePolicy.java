@@ -13,6 +13,22 @@ public final class RegisterNamePolicy {
         return "a" + parameterIndex;
     }
 
+    public static boolean isParameterName(String name) {
+        if (name == null || !name.startsWith("a")) {
+            return false;
+        }
+        String rest = name.substring(1);
+        if (rest.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < rest.length(); i++) {
+            if (!Character.isDigit(rest.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static String prefixedRegisterName(String prefix, int register) {
         return (prefix != null ? prefix : "") + physicalRegisterName(register);
     }

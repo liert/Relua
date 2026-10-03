@@ -1408,7 +1408,7 @@ public class InstructionToASTConverter {
             return null;
         }
         for (SsaPhi phi : ssaFunc.getPhiUses(nilDef)) {
-            SsaValue alias = mutableSlotPhiConcreteValue(phi);
+            SsaValue alias = mutableSlotPhiConcreteValue(phi, ssaFunc);
             if (alias != null && alias.getRegister() == registerIndex) {
                 return getSsaCompatibleUseName(registerIndex, registerState, alias);
             }
@@ -1422,30 +1422,22 @@ public class InstructionToASTConverter {
             return null;
         }
         SsaPhi phi = ssaFunc.getDefiningPhi(phiValue);
-        SsaValue concrete = mutableSlotPhiConcreteValue(phi);
+        SsaValue concrete = mutableSlotPhiConcreteValue(phi, ssaFunc);
         if (concrete == null) {
             return null;
         }
         return new Name(getSsaCompatibleUseName(concrete.getRegister(), registerState, concrete), pos);
     }
 
-    private SsaValue mutableSlotPhiConcreteValue(SsaPhi phi) {
-        if (phi == null || phi.getIncoming().isEmpty()) {
+    private SsaValue mutableSlotPhiConcreteValue(SsaPhi phi, SsaFunction ssaFunc) {
+        if (phi == null || ssaFunc == null) {
             return null;
         }
-        SsaValue concrete = null;
-        for (SsaValue incoming : phi.getIncoming().values()) {
-            if (incoming == null || incoming.isImplicit()) {
-                continue;
-            }
-            if (incoming.getRegister() != phi.getRegister()) {
-                return null;
-            }
-            if (concrete == null) {
-                concrete = incoming;
-            }
+        SsaValue resolved = resolveConcretePhiValue(phi, ssaFunc, new HashSet<SsaValue>());
+        if (resolved != null && resolved.getRegister() == phi.getRegister()) {
+            return resolved;
         }
-        return concrete;
+        return null;
     }
 
     private Expression optionalPhiExpression(SsaValue phiValue, SsaRegisterSnapshot registerState, SourcePos pos) {
@@ -1458,20 +1450,33 @@ public class InstructionToASTConverter {
             return null;
         }
 
+        SsaValue concrete = resolveConcretePhiValue(phi, ssaFunc, new HashSet<>());
+        if (concrete == null) {
+            return null;
+        }
+        return new Name(getSsaCompatibleUseName(concrete.getRegister(), registerState, concrete), pos);
+    }
+
+    private SsaValue resolveConcretePhiValue(SsaPhi phi, SsaFunction ssaFunc, Set<SsaValue> seenPhis) {
+        if (phi == null || phi.getTarget() == null || !seenPhis.add(phi.getTarget())) {
+            return null;
+        }
         SsaValue concrete = null;
         for (SsaValue incoming : phi.getIncoming().values()) {
             if (incoming == null || incoming.isImplicit()) {
                 continue;
             }
-            if (concrete != null && !concrete.equals(incoming)) {
+            SsaPhi innerPhi = ssaFunc.getDefiningPhi(incoming);
+            SsaValue resolved = (innerPhi != null) ? resolveConcretePhiValue(innerPhi, ssaFunc, seenPhis) : incoming;
+            if (resolved == null) {
+                continue;
+            }
+            if (concrete != null && !concrete.equals(resolved)) {
                 return null;
             }
-            concrete = incoming;
+            concrete = resolved;
         }
-        if (concrete == null) {
-            return null;
-        }
-        return new Name(getSsaCompatibleUseName(concrete.getRegister(), registerState, concrete), pos);
+        return concrete;
     }
 
     private Expression shortCircuitPhiExpression(SsaValue phiValue, int usePc, SsaRegisterSnapshot registerState, SourcePos pos,
@@ -1503,11 +1508,131 @@ public class InstructionToASTConverter {
                 Expression left = expressionFromSsaValue(testedValue, usePc, registerState, pos, visiting);
                 Expression right = expressionFromSsaValue(other.getValue(), usePc, registerState, pos, visiting);
                 if (left != null && right != null) {
+                    Expression guardCond = findTernaryGuardCondition(testBlock, other.getKey());
+                    if (guardCond != null && "or".equals(test.operator)) {
+                        return new BinaryOp("or", new BinaryOp("and", guardCond, left, pos), right, pos);
+                    }
                     return new BinaryOp(test.operator, left, right, pos);
                 }
             }
         }
         return null;
+    }
+
+    private Expression findTernaryGuardCondition(BasicBlock testBlock, BasicBlock otherBlock) {
+        if (testBlock == null || otherBlock == null) {
+            return null;
+        }
+        for (BasicBlock pred : testBlock.getPredecessors()) {
+            if (pred == null || pred.getEndIndex() < 1) {
+                continue;
+            }
+            if (pred.getEndIndex() + 1 != testBlock.getStartIndex()) {
+                continue;
+            }
+            Instruction jump = chunk.getInstruction(pred.getEndIndex());
+            Instruction test = chunk.getInstruction(pred.getEndIndex() - 1);
+            if (jump == null || test == null || jump.getOpcode() != Opcode.JMP) {
+                continue;
+            }
+            if (!isConditionalTestInstruction(test.getOpcode())) {
+                continue;
+            }
+            int jumpTarget = pred.getEndIndex() + 1 + jump.getSBx();
+            if (jumpTarget == otherBlock.getStartIndex()) {
+                return buildConditionExpression(pred.getEndIndex() - 1);
+            }
+        }
+        return null;
+    }
+
+    public static boolean isConditionalTestInstruction(Opcode op) {
+        return op == Opcode.TEST || op == Opcode.TESTSET || op == Opcode.EQ || op == Opcode.LT || op == Opcode.LE;
+    }
+
+    private Expression buildConditionExpression(int pc) {
+        Instruction inst = chunk.getInstruction(pc);
+        if (inst == null) {
+            return null;
+        }
+        Opcode opcode = inst.getOpcode();
+        SourcePos pos = new SourcePos(pc, -1);
+        SsaRegisterSnapshot registerState = pipeline.getRegisterByInstructionIndex(pc);
+        if (isComparisonInstruction(inst)) {
+            int a = inst.getA();
+            int b = inst.getB();
+            int c = inst.getC();
+            Expression left = rkExpression(registerState, b, pos);
+            Expression right = rkExpression(registerState, c, pos);
+            String opStr = comparisonOperator(opcode, a);
+            return new BinaryOp(opStr, left, right, pos);
+        } else if (opcode == Opcode.TEST) {
+            int a = inst.getA();
+            int c = inst.getC();
+            Expression operand = resolveExpressionFromRegister(a, pc, registerState);
+            if (c == 0) {
+                return operand;
+            } else {
+                return new UnaryOp("not", operand, pos);
+            }
+        } else if (opcode == Opcode.TESTSET) {
+            int b = inst.getB();
+            int c = inst.getC();
+            Expression source = resolveExpressionFromRegister(b, pc, registerState);
+            if (c == 1) {
+                return new UnaryOp("not", source, pos);
+            }
+            return source;
+        }
+        return null;
+    }
+
+    private boolean isExpressionPreparationInstruction(Instruction inst) {
+        if (inst == null) {
+            return false;
+        }
+        switch (inst.getOpcode()) {
+            case MOVE:
+            case LOADK:
+            case LOADBOOL:
+            case LOADNIL:
+            case GETUPVAL:
+            case GETGLOBAL:
+            case GETTABLE:
+            case SELF:
+            case ADD:
+            case SUB:
+            case MUL:
+            case DIV:
+            case MOD:
+            case POW:
+            case UNM:
+            case NOT:
+            case LEN:
+            case CONCAT:
+            case CALL:
+            case VARARG:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private boolean hasExternalJumpTargetInRange(Chunk chunk, int startPc, int endPc, int allowedSourceStart, int allowedSourceEnd) {
+        List<Instruction> instrs = chunk.getInstructions();
+        for (int i = 0; i < instrs.size(); i++) {
+            if (i >= allowedSourceStart && i <= allowedSourceEnd) {
+                continue;
+            }
+            Instruction ins = instrs.get(i);
+            if (ins.getOpcode() == Opcode.JMP || ins.getOpcode() == Opcode.FORLOOP) {
+                int target = i + 1 + ins.getSBx();
+                if (target >= startPc && target <= endPc) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private ShortCircuitTest shortCircuitTestEndingAt(BasicBlock block, SsaValue testedValue, int mergePc) {
@@ -2064,8 +2189,74 @@ public class InstructionToASTConverter {
         return new Assign(new Name(targetName, pos), comparisonExpr, pos);
     }
 
+    private ClosureSkipResult tryBuildTernaryAssign(int jumpPc, int jmpTarget) {
+        if (pendingTest == null || jmpTarget <= jumpPc + 2 || jmpTarget >= chunk.getInstructions().size()) {
+            return null;
+        }
+        Instruction innerJump = chunk.getInstruction(jmpTarget - 1);
+        if (innerJump == null || innerJump.getOpcode() != Opcode.JMP) {
+            return null;
+        }
+        int finalTarget = (jmpTarget - 1) + 1 + innerJump.getSBx();
+        if (finalTarget <= jmpTarget || finalTarget > chunk.getInstructions().size()) {
+            return null;
+        }
+        Instruction innerTest = chunk.getInstruction(jmpTarget - 2);
+        if (innerTest == null || (innerTest.getOpcode() != Opcode.TESTSET && innerTest.getOpcode() != Opcode.TEST)) {
+            return null;
+        }
+        if (innerTest.getC() != 1) {
+            return null;
+        }
+        int targetReg = innerTest.getA();
+        int bReg = (innerTest.getOpcode() == Opcode.TESTSET) ? innerTest.getB() : innerTest.getA();
+
+        Instruction cInst = chunk.getInstruction(finalTarget - 1);
+        if (cInst == null || cInst.getA() != targetReg || !isOutputRegisterOpcode(cInst.getOpcode())) {
+            return null;
+        }
+
+        SourcePos pos = new SourcePos(jumpPc, -1);
+        Expression cond = pendingTest.condition;
+        SsaRegisterSnapshot bState = pipeline.getRegisterByInstructionIndex(jmpTarget - 2);
+        Expression bExpr = resolveExpressionFromRegister(bReg, jmpTarget - 2, bState);
+
+        InstructionToASTConverter tempConv = new InstructionToASTConverter(chunk, pipeline);
+        Object cResult = null;
+        for (int pc = jmpTarget; pc <= finalTarget - 1; pc++) {
+            Instruction inst = chunk.getInstruction(pc);
+            Object res = tempConv.convertInstructionToAST(inst, pc);
+            if (res instanceof ClosureSkipResult) {
+                ClosureSkipResult csr = (ClosureSkipResult) res;
+                cResult = csr.astNode;
+                pc += csr.skipCount;
+            } else if (res != null) {
+                cResult = res;
+            }
+        }
+        Expression cExpr = null;
+        if (cResult instanceof Assign) {
+            Assign cAssign = (Assign) cResult;
+            if (!cAssign.right.isEmpty()) {
+                cExpr = cAssign.right.get(0);
+            }
+        } else if (cResult instanceof Expression) {
+            cExpr = (Expression) cResult;
+        }
+
+        if (cond == null || bExpr == null || cExpr == null) {
+            return null;
+        }
+
+        Expression ternaryExpr = new BinaryOp("or", new BinaryOp("and", cond, bExpr, pos), cExpr, pos);
+        String targetName = getDefinedRegisterName(targetReg, finalTarget - 1);
+        Assign assign = new Assign(new Name(targetName, pos), ternaryExpr, pos);
+        int skipCount = (finalTarget - 1) - jumpPc;
+        return new ClosureSkipResult(assign, skipCount);
+    }
+
     private ClosureSkipResult tryBuildShortCircuitAssign(int jumpPc, int jumpTarget) {
-        if (pendingTest == null || pendingTest.type != PendingTest.TestType.TESTSET) {
+        if (pendingTest == null || (pendingTest.type != PendingTest.TestType.TESTSET && pendingTest.type != PendingTest.TestType.TEST)) {
             return null;
         }
         int testPc = pendingTest.pc;
@@ -2073,12 +2264,17 @@ public class InstructionToASTConverter {
             return null;
         }
         Instruction testInst = chunk.getInstruction(testPc);
-        if (testInst == null || testInst.getOpcode() != Opcode.TESTSET) {
+        if (testInst == null) {
+            return null;
+        }
+        boolean isTest = (testInst.getOpcode() == Opcode.TEST);
+        boolean isTestSet = (testInst.getOpcode() == Opcode.TESTSET);
+        if (!isTest && !isTestSet) {
             return null;
         }
 
         int targetReg = testInst.getA();
-        int sourceReg = testInst.getB();
+        int sourceReg = isTestSet ? testInst.getB() : testInst.getA();
         int c = testInst.getC();
         String op = (c == 1) ? "or" : "and";
         SourcePos pos = new SourcePos(testPc, -1);
@@ -2090,16 +2286,28 @@ public class InstructionToASTConverter {
             return null;
         }
 
+        if (isTest) {
+            Instruction lastRhs = instructions.get(rhsEnd);
+            boolean isInnerShortCircuit = lastRhs.getOpcode() == Opcode.JMP
+                    && rhsEnd > rhsStart
+                    && (instructions.get(rhsEnd - 1).getOpcode() == Opcode.TEST || instructions.get(rhsEnd - 1).getOpcode() == Opcode.TESTSET)
+                    && instructions.get(rhsEnd - 1).getA() == targetReg;
+            if (!isInnerShortCircuit && (lastRhs.getA() != targetReg || !isOutputRegisterOpcode(lastRhs.getOpcode()))) {
+                return null;
+            }
+        }
+
         SsaRegisterSnapshot testRegState = pipeline.getRegisterByInstructionIndex(testPc);
         Expression leftExpr = resolveExpressionFromRegister(sourceReg, testPc, testRegState);
         if (leftExpr == null) {
             return null;
         }
 
+        InstructionToASTConverter tempConv = new InstructionToASTConverter(chunk, pipeline);
         Object lastResult = null;
         for (int pc = rhsStart; pc <= rhsEnd; pc++) {
             Instruction inst = instructions.get(pc);
-            Object res = convertInstructionToAST(inst, pc);
+            Object res = tempConv.convertInstructionToAST(inst, pc);
             if (res instanceof ClosureSkipResult) {
                 ClosureSkipResult csr = (ClosureSkipResult) res;
                 lastResult = csr.astNode;
@@ -2124,7 +2332,14 @@ public class InstructionToASTConverter {
         if (lastResult instanceof Assign) {
             Assign assign = (Assign) lastResult;
             if (!assign.left.isEmpty() && !assign.right.isEmpty()) {
-                target = assign.left.get(0);
+                Expression lhs = assign.left.get(0);
+                if (lhs instanceof Name) {
+                    int tIndex = RegisterNamePolicy.temporaryRegisterIndex(((Name) lhs).name);
+                    if (tIndex != -1 && tIndex != targetReg) {
+                        return null;
+                    }
+                }
+                target = lhs;
                 rightExpr = assign.right.get(0);
             }
         } else if (lastResult instanceof Expression) {
@@ -2514,6 +2729,21 @@ public class InstructionToASTConverter {
         return null;
     }
 
+    private BasicBlock getEnclosingThenBlock(int pc) {
+        BasicBlock innermost = null;
+        CodeGeneratorContext ctx = pipeline.getContext();
+        int count = ctx.getThenIndex();
+        for (int i = 0; i < count; i++) {
+            BasicBlock tb = ctx.getThenBlock(i);
+            if (tb != null && tb.getStartIndex() <= pc && pc <= tb.getEndIndex()) {
+                if (innermost == null || (tb.getEndIndex() - tb.getStartIndex() < innermost.getEndIndex() - innermost.getStartIndex())) {
+                    innermost = tb;
+                }
+            }
+        }
+        return innermost;
+    }
+
     /**
      * 转换JMP指令
      *
@@ -2528,6 +2758,7 @@ public class InstructionToASTConverter {
 
         // ============= 识别 IF 结构：TEST + JMP =============
         if (pendingTest != null) {
+            PendingTest activePendingTest = pendingTest;
             Assign booleanAssign = tryBuildComparisonBooleanAssign(instructionIndex, jmpTarget);
             if (booleanAssign != null) {
                 int falsePc = instructionIndex + 1;
@@ -2541,27 +2772,67 @@ public class InstructionToASTConverter {
                 return booleanAssign;
             }
 
+            pendingTest = activePendingTest;
+            ClosureSkipResult ternaryAssign = tryBuildTernaryAssign(instructionIndex, jmpTarget);
+            if (ternaryAssign != null) {
+                pendingTest = null;
+                return ternaryAssign;
+            }
+
+            pendingTest = activePendingTest;
             ClosureSkipResult shortCircuitAssign = tryBuildShortCircuitAssign(instructionIndex, jmpTarget);
             if (shortCircuitAssign != null) {
                 pendingTest = null;
                 return shortCircuitAssign;
             }
 
+            pendingTest = activePendingTest;
             // 向后跳转（循环条件）不生成 PendingIf，避免 buildBlock 范围回退导致无限递归
             if (jmpTarget <= instructionIndex) {
                 pendingTest = null;
                 return null;
             }
 
-            // 使用之前记录的TEST信息生成PendingIf
-            Expression condition = pendingTest.condition;
+            // ----------- 识别复合 and 条件 -----------
+            Expression condition = activePendingTest.condition;
+            int thenStart = instructionIndex + 1;
+            while (thenStart < jmpTarget) {
+                int nextTestPc = -1;
+                for (int scanPc = thenStart; scanPc < jmpTarget; scanPc++) {
+                    Instruction scanInst = chunk.getInstruction(scanPc);
+                    if (isConditionalTestInstruction(scanInst.getOpcode())) {
+                        if (scanPc + 1 < jmpTarget && chunk.getInstruction(scanPc + 1).getOpcode() == Opcode.JMP) {
+                            nextTestPc = scanPc;
+                        }
+                        break;
+                    }
+                    if (!isExpressionPreparationInstruction(scanInst)) {
+                        break;
+                    }
+                }
+                if (nextTestPc != -1) {
+                    if (hasExternalJumpTargetInRange(chunk, thenStart, nextTestPc, instructionIndex, nextTestPc + 1)) {
+                        break;
+                    }
+                    Instruction nextJmp = chunk.getInstruction(nextTestPc + 1);
+                    int nextTarget = (nextTestPc + 1) + 1 + nextJmp.getSBx();
+                    if (nextTarget == jmpTarget) {
+                        Expression nextCond = buildConditionExpression(nextTestPc);
+                        if (nextCond != null) {
+                            condition = new BinaryOp("and", condition, nextCond, new SourcePos(nextTestPc, -1));
+                            thenStart = nextTestPc + 2;
+                            continue;
+                        }
+                    }
+                }
+                break;
+            }
 
             // ----------- 计算 then 块范围 -----------
-            int thenStart = instructionIndex + 1;
             int thenEnd = jmpTarget - 1;
             BasicBlock currentThenBlock = new BasicBlock(thenStart);
             BasicBlock block = pipeline.getBlockByStartIndex(chunk.getFunction(), thenStart);
-            if (block != null && chunk.getInstructions().get(block.getEndIndex() - 1).getOpcode() != Opcode.TEST &&
+            if (block != null && !isConditionalTestInstruction(chunk.getInstructions().get(block.getEndIndex() - 1).getOpcode()) &&
                     chunk.getInstructions().get(block.getEndIndex()).getOpcode() == Opcode.JMP) {
                 Instruction jmpInst = chunk.getInstructions().get(block.getEndIndex());
                 int endTarget = block.getEndIndex() + 1 + jmpInst.getSBx();
@@ -2571,7 +2842,7 @@ public class InstructionToASTConverter {
             }
             // 获取上一个then块的结束索引
             int originalThenEnd = thenEnd;
-            BasicBlock lastThenBlock = pipeline.getContext().getLastThenBlock();
+            BasicBlock lastThenBlock = getEnclosingThenBlock(instructionIndex);
             if (lastThenBlock != null && lastThenBlock.getEndIndex() > thenStart
                     && lastThenBlock.getEndIndex() < thenEnd) {
                 thenEnd = lastThenBlock.getEndIndex();
@@ -2619,6 +2890,14 @@ public class InstructionToASTConverter {
                 int refinedEnd = refineElseEndByOuterJumpTargets(chunk, pendingTest.pc, jmpTarget, elseEnd);
                 if (refinedEnd < elseEnd) {
                     elseEnd = refinedEnd;
+                }
+            }
+
+            // 内层 if 的 else 范围不得超出外层 then 块的边界
+            if (lastThenBlock != null) {
+                if (elseEnd != null && elseEnd > lastThenBlock.getEndIndex()) {
+                    elseStart = null;
+                    elseEnd = null;
                 }
             }
 
@@ -2750,7 +3029,7 @@ public class InstructionToASTConverter {
             Object val = upvalue.getValue();
             if (upvalue.getFromType() == FromType.GLOBAL) {
                 String globalName = val.toString();
-                if (!RegisterNamePolicy.isTemporaryRegisterName(globalName)) {
+                if (!RegisterNamePolicy.isTemporaryRegisterName(globalName) && !RegisterNamePolicy.isParameterName(globalName)) {
                     if (globalName.contains(".")) {
                         String[] parts = globalName.split("\\.");
                         Expression current = new Name(parts[0], pos);
@@ -2794,7 +3073,7 @@ public class InstructionToASTConverter {
             Object val = upvalue.getValue();
             if (upvalue.getFromType() == FromType.GLOBAL) {
                 String globalName = val.toString();
-                if (!RegisterNamePolicy.isTemporaryRegisterName(globalName)) {
+                if (!RegisterNamePolicy.isTemporaryRegisterName(globalName) && !RegisterNamePolicy.isParameterName(globalName)) {
                     if (globalName.contains(".")) {
                         return globalName.split("\\.")[0];
                     }
@@ -2939,12 +3218,30 @@ public class InstructionToASTConverter {
             if (phi.getTarget() == null || ssaFunc.getUseCount(phi.getTarget()) == 0) {
                 continue;
             }
-            SsaValue alias = mutableSlotPhiConcreteValue(phi);
+            SsaValue alias = mutableSlotPhiConcreteValue(phi, ssaFunc);
             if (alias != null && alias.getRegister() == phi.getRegister()) {
                 return alias;
             }
+            if (!isShortCircuitPhi(phi)) {
+                return phi.getTarget();
+            }
         }
         return null;
+    }
+
+    private boolean isShortCircuitPhi(SsaPhi phi) {
+        if (phi == null || phi.getBlock() == null) {
+            return false;
+        }
+        for (Map.Entry<BasicBlock, SsaValue> entry : phi.getIncoming().entrySet()) {
+            BasicBlock testBlock = entry.getKey();
+            SsaValue testedValue = entry.getValue();
+            ShortCircuitTest test = shortCircuitTestEndingAt(testBlock, testedValue, phi.getBlock().getStartIndex());
+            if (test != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String getUsedRegisterName(int regIndex, int instructionIndex, SsaRegisterSnapshot registerState) {

@@ -160,7 +160,14 @@ public class DataFlowAnalyzer {
                         //   R3 = a0[R3]
                         // 第二条语句的 RHS 读取旧 R3，LHS 才开启新生命周期。
                         int usesInStmt = countVariableUses(nextStmt, regName);
-                        if (usesInStmt > 0) {
+                        if (usesInStmt == 0) {
+                            // nextStmt 是定义点与使用点之间的中间语句。
+                            // 若定义表达式具有副作用（如函数调用或非纯表达式），绝不可跨越中间语句向后移动执行时序！
+                            if (!isPureExpression(defExpr)) {
+                                dependencyBroken = true;
+                                break;
+                            }
+                        } else {
                             useCount += usesInStmt;
                             useIndex = j;
                             // 如果使用发生在复杂的控制流或嵌套块内部，为保证安全性，不进行内联。

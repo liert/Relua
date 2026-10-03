@@ -349,6 +349,15 @@ public class CodeGeneratorContext {
         return getThenBlock(thenIndex - 1);
     }
 
+    public int getThenIndex() {
+        return thenIndex;
+    }
+
+    public void resetThenBlocks() {
+        thenBlocks.clear();
+        thenIndex = 0;
+    }
+
     /**
      * 添加上值
      * 

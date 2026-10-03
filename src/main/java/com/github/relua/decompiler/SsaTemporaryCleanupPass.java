@@ -42,6 +42,7 @@ import com.github.relua.decompiler.ssa.SsaExpressionAnalysis;
 import com.github.relua.decompiler.ssa.SsaFunction;
 import com.github.relua.decompiler.ssa.SsaInstruction;
 import com.github.relua.decompiler.ssa.SsaPhi;
+import com.github.relua.decompiler.ssa.SsaRegisterSnapshot;
 import com.github.relua.decompiler.ssa.SsaValue;
 import com.github.relua.decompiler.ssa.SsaValueKind;
 import com.github.relua.decompiler.ssa.SsaValueSummary;
@@ -105,7 +106,7 @@ final class SsaTemporaryCleanupPass {
         if (!hasSsaContext(block, context, pipeline)) {
             return;
         }
-        Set<SsaValue> livePhis = computeLivePhis(pipeline.requireSsaExpressionAnalysis(context.getChunk().getFunction()).getFunction());
+        Set<SsaValue> livePhis = computeLivePhis(block, context, pipeline, pipeline.requireSsaExpressionAnalysis(context.getChunk().getFunction()).getFunction());
         deleteDead(block, context, pipeline, protectedDefinitionPcs, deleteAtBlockExitWhenNoAstUse, livePhis);
     }
 
@@ -1193,15 +1194,21 @@ final class SsaTemporaryCleanupPass {
         return expression instanceof Name && assignedName.equals(((Name) expression).name);
     }
 
-    private Set<SsaValue> computeLivePhis(SsaFunction function) {
+    private Set<SsaValue> computeLivePhis(Block rootBlock, CodeGeneratorContext context, DecompilerPipeline pipeline, SsaFunction function) {
         Set<SsaValue> livePhis = new HashSet<>();
         List<SsaValue> worklist = new ArrayList<>();
+        SsaRegisterSnapshot snapshot = pipeline != null ? pipeline.getRegisterByInstructionIndex(0) : null;
+        String varPrefix = snapshot != null ? snapshot.getVarPrefix() : "";
         
         for (SsaBlock block : function.getBlocks()) {
             for (SsaPhi phi : block.getPhis()) {
                 SsaValue target = phi.getTarget();
-                if (target != null) {
-                    if (!function.getInstructionUses(target).isEmpty()) {
+                if (target != null && !function.getInstructionUses(target).isEmpty()) {
+                    String targetName = RegisterNamePolicy.prefixedRegisterName(varPrefix, target.getRegister()) + "_" + target.getVersion();
+                    String preferred = context != null ? context.getPreferredSsaValueName(target) : null;
+                    boolean isAstUsed = countVariableReads(rootBlock, targetName) > 0
+                            || (preferred != null && countVariableReads(rootBlock, preferred) > 0);
+                    if (isAstUsed) {
                         livePhis.add(target);
                         worklist.add(target);
                     }

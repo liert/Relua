@@ -96,7 +96,7 @@ public class AstCodeEmitter {
             Object val = upvalue.getValue();
             if (upvalue.getFromType() == FromType.GLOBAL) {
                 String globalName = val.toString();
-                if (!RegisterNamePolicy.isTemporaryRegisterName(globalName)) {
+                if (!RegisterNamePolicy.isTemporaryRegisterName(globalName) && !RegisterNamePolicy.isParameterName(globalName)) {
                     if (globalName.contains(".")) {
                         return globalName.split("\\.")[0];
                     }

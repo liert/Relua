@@ -651,6 +651,7 @@ public class InstructionHandler {
         if (structuredBlock != null) {
             return structuredBlock;
         }
+        codeGenContext.resetThenBlocks();
 
         // 计算支配关系
         List<BasicBlock> basicBlocks = pipeline.getBasicBlocks(chunk.getFunction());
@@ -669,7 +670,6 @@ public class InstructionHandler {
         // 折叠SESE区域
         List<SESERegion> collapsedRegions = collapseRegions(regions, dom, postDom);
 
-        // 生成AST
         AstNode ast = generateAST(collapsedRegions, chunk);
 
         return ast;
@@ -1063,7 +1063,7 @@ public class InstructionHandler {
             }
         }
 
-        markBlocksAsVisited(chunk, pending.pos.pc, pending.pos.pc + 1);
+        markBlocksAsVisited(chunk, pending.pos.pc, Math.max(pending.pos.pc + 1, thenStart - 1));
         markBlocksAsVisited(chunk, thenStart, thenEnd);
         Block thenBlock = buildBlock(thenStart, thenEnd, chunk, converter);
 
