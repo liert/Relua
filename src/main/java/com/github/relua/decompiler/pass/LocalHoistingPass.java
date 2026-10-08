@@ -1,12 +1,13 @@
-package com.github.relua.decompiler;
+package com.github.relua.decompiler.pass;
 
 import com.github.relua.ast.Block;
-import com.github.relua.decompiler.pass.DecompilationPass;
-import com.github.relua.decompiler.pass.PassContext;
+import com.github.relua.decompiler.AstCleanupPass;
+import com.github.relua.decompiler.SsaTemporaryCleanupPass;
 import com.github.relua.decompiler.ssa.SsaAstNameResolver;
 import com.github.relua.model.Chunk;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -35,7 +36,7 @@ public class LocalHoistingPass implements DecompilationPass {
         
         Set<String> capturedLocals = context.getCapturedLocalDefinitionPcs() != null
                 ? context.getCapturedLocalDefinitionPcs().keySet()
-                : java.util.Collections.emptySet();
+                : Collections.emptySet();
         Set<String> declared = parent.declareTopLevelLocals(block, params, context.getParentDeclared(),
                 context.getUpvalueNames(), capturedLocals);
         context.setDeclaredVariables(declared);

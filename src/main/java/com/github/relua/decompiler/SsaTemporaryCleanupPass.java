@@ -48,8 +48,8 @@ import com.github.relua.decompiler.ssa.SsaValueKind;
 import com.github.relua.decompiler.ssa.SsaValueSummary;
 import com.github.relua.util.RegisterNamePolicy;
 
-final class SsaTemporaryCleanupPass {
-    void inlineSingleUse(Block block, CodeGeneratorContext context, DecompilerPipeline pipeline,
+public final class SsaTemporaryCleanupPass {
+    public void inlineSingleUse(Block block, CodeGeneratorContext context, DecompilerPipeline pipeline,
             Map<String, Set<Integer>> protectedDefinitionPcs) {
         if (!hasSsaContext(block, context, pipeline)) {
             return;
@@ -101,7 +101,7 @@ final class SsaTemporaryCleanupPass {
         }
     }
 
-    void deleteDead(Block block, CodeGeneratorContext context, DecompilerPipeline pipeline,
+    public void deleteDead(Block block, CodeGeneratorContext context, DecompilerPipeline pipeline,
             Map<String, Set<Integer>> protectedDefinitionPcs, boolean deleteAtBlockExitWhenNoAstUse) {
         if (!hasSsaContext(block, context, pipeline)) {
             return;

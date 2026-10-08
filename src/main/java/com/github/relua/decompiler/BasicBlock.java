@@ -3,6 +3,9 @@ package com.github.relua.decompiler;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.github.relua.model.Chunk;
+import com.github.relua.model.Instruction;
+
 /**
  * 基本块类，用于控制流分析
  */
@@ -46,5 +49,21 @@ public class BasicBlock {
             successors.add(block);
             block.predecessors.add(this);
         }
+    }
+
+    /**
+     * 获取基本块的最后一条指令
+     * @param chunk 代码块
+     * @return 最后一条指令，如果不存在或基本块为空则返回 null
+     */
+    public Instruction getLastInstruction(Chunk chunk) {
+        if (chunk == null) {
+            return null;
+        }
+        List<Instruction> instructions = chunk.getInstructions();
+        if (instructions != null && endIndex >= 0 && endIndex < instructions.size()) {
+            return instructions.get(endIndex);
+        }
+        return null;
     }
 }

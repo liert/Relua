@@ -1,8 +1,7 @@
-package com.github.relua.decompiler;
+package com.github.relua.decompiler.pass;
 
 import com.github.relua.ast.Block;
-import com.github.relua.decompiler.pass.DecompilationPass;
-import com.github.relua.decompiler.pass.PassContext;
+import com.github.relua.decompiler.AstCleanupPass;
 
 /**
  * 死代码消除 Pass，裁撤在 return 等终止性语句之后无法触及的 AST 节点

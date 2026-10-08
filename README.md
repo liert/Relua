@@ -44,14 +44,12 @@ Relua 是一个功能强大的 Lua 字节码反编译器，专为 OpenWRT 路由
 | 模块名称 | 功能描述 | 关键类与包 |
 | :--- | :--- | :--- |
 | **AST** | 抽象语法树表示 | `com.github.relua.ast.*` (Block, Statement, Expr等) |
-| **Parser** | 二进制字节码解析器 | `com.github.relua.parser.*` (LuacParser, FormatProfiles) |
-| **Decode** | 操作码解码与厂商检测 | `com.github.relua.decode.*` (VendorFormatDetector) |
-| **Opcode** | 字节码指令映射定义 | `com.github.relua.opcode.*` (Lua51OpcodeTable, CustomVendor) |
-| **Decompiler** | 反编译分析引擎与流水线 | `com.github.relua.decompiler.*` (CFGGenerator, AstCleanupPass) |
-| **Model** | 字节码结构数据模型 | `com.github.relua.model.*` (Chunk, Proto, Instruction) |
+| **Parser** | 二进制字节码解析器与格式 Profile | `com.github.relua.parser.*` (LuacParser, FormatProfiles) |
+| **Decompiler** | 反编译分析引擎与流水线 | `com.github.relua.decompiler.*` (DecompilerEngine, AstCleanupPass) |
+| **Model** | 字节码结构数据模型 | `com.github.relua.model.*` (Chunk, Instruction, LuacFile) |
 | **GUI** | JavaFX 图形界面与视图组件 | `com.github.relua.gui.*` (TextEditorView, GraphVisualizationView) |
-| **Log** | 自定义异步日志输出组件 | `com.github.relua.log.*` (Logger, LogConfig) |
-| **Util** | 常用工具类与分析辅助 | `com.github.relua.util.*` (BytecodeFormatter, RegisterUtils) |
+| **Log** | 自定义日志输出组件 | `com.github.relua.log.*` (Logger, LogConfig) |
+| **Util** | 常用工具类与分析辅助 | `com.github.relua.util.*` (BytecodeFormatter, RegisterNamePolicy) |
 
 ---
 

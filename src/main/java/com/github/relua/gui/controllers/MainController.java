@@ -1,6 +1,6 @@
 package com.github.relua.gui.controllers;
 
-import com.github.relua.gui.services.I18nService;
+import com.github.relua.gui.utils.I18nUtil;
 import com.github.relua.gui.handlers.FileMenuHandler;
 import com.github.relua.gui.handlers.EditMenuHandler;
 import com.github.relua.gui.handlers.ViewMenuHandler;
@@ -180,9 +180,6 @@ public class MainController {
     // 当前打开的文件
     private File currentFile;
     
-    // 国际化服务
-    private I18nService i18nService;
-    
     // 菜单处理器
     private FileMenuHandler fileMenuHandler;
     private EditMenuHandler editMenuHandler;
@@ -250,17 +247,8 @@ public class MainController {
 
         graphContainer.getChildren().add(subViewStackPane);
 
-        // 初始化国际化服务
-        i18nService = new I18nService();
-        
-        // 设置国际化文本
-        i18nService.initializeMenus(menuFile, menuEdit, menuView, menuHelp);
-        i18nService.initializeFileMenuItems(menuItemOpen, menuItemOpenFolder, menuItemSave, menuItemSaveAs, menuItemExit);
-        i18nService.initializeEditMenuItems(menuItemUndo, menuItemRedo, menuItemCut, menuItemCopy, menuItemPaste);
-        i18nService.initializeViewMenuItems(menuItemZoomIn, menuItemZoomOut, menuItemResetZoom);
-        i18nService.initializeHelpMenuItems(menuItemAbout);
-        i18nService.initializeToolbarButtons(btnOpen, btnSave, btnUndo, btnRedo, btnZoomIn, btnZoomOut, btnResetZoom);
-        i18nService.initializeLabels(astGraphLabel, logLabel, btnClearLog);
+        // 初始化国际化文本
+        initializeI18n();
         
         // 默认隐藏右侧图形视图，仅保留文件树和代码视图
         mainSplitPane.getItems().remove(graphContainer);
@@ -269,11 +257,11 @@ public class MainController {
         mainSplitPane.setDividerPosition(0, 0.25);
         
         // 设置初始状态
-        updateStatus(i18nService.getInitialStatusText());
-        updateFileLabel(i18nService.getInitialFileLabelText());
+        updateStatus(I18nUtil.getString("status.ready"));
+        updateFileLabel(I18nUtil.getString("status.noFileOpened"));
 
         // 初始化菜单处理器
-        fileMenuHandler = new FileMenuHandler(textEditorTabPane, astGraphConverter, cfgGraphConverter, i18nService, statusLabel, fileLabel, fileTreeView);
+        fileMenuHandler = new FileMenuHandler(textEditorTabPane, astGraphConverter, cfgGraphConverter, statusLabel, fileLabel, fileTreeView);
         fileMenuHandler.setOnFileOpenedCallback(() -> {
             handleCaretPositionChanged(true);
         });
@@ -283,7 +271,7 @@ public class MainController {
         
         editMenuHandler = new EditMenuHandler(this::getActiveTextEditorView);
         viewMenuHandler = new ViewMenuHandler(graphVisualizationView, mainSplitPane, graphContainer);
-        helpMenuHandler = new HelpMenuHandler(i18nService);
+        helpMenuHandler = new HelpMenuHandler();
         
         // 设置文件树的文件打开回调
         fileTreeView.setOnFileOpenCallback(fileNode -> {
@@ -670,53 +658,6 @@ public class MainController {
         }
     }
     
-    // 辅助方法
-    
-    /**
-     * 将文本保存到文件
-     * @param file 文件对象
-     */
-    private void saveToFile(File file) {
-        try {
-            TextEditorView activeEditor = getActiveTextEditorView();
-            if (activeEditor != null) {
-                activeEditor.saveToFile(file);
-                currentFile = file;
-                updateFileLabel(file.getName());
-                updateStatus("File saved successfully");
-            }
-        } catch (IOException e) {
-            updateStatus("Error saving file: " + e.getMessage());
-            showError(i18nService.getErrorDialogTitle(), i18nService.getFileSaveFailedMessage(e.getMessage()));
-        }
-    }
-    
-    /**
-     * 显示错误对话框
-     * @param title 对话框标题
-     * @param message 错误消息
-     */
-    private void showError(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
-    }
-    
-    /**
-     * 显示信息对话框
-     * @param title 对话框标题
-     * @param message 信息消息
-     */
-    private void showInfo(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
-    }
-    
     // 帮助菜单事件处理方法
     
     @FXML
@@ -790,8 +731,8 @@ public class MainController {
             handleCaretPositionChanged(true);
         } else {
             // 没有打开的标签页
-            updateFileLabel(i18nService.getInitialFileLabelText());
-            updateStatus(i18nService.getInitialStatusText());
+            updateFileLabel(I18nUtil.getString("status.noFileOpened"));
+            updateStatus(I18nUtil.getString("status.ready"));
 
             // 关闭当前子视图
             if (graphContainer.isVisible()) {
@@ -838,5 +779,45 @@ public class MainController {
             }
         }
         return null;
+    }
+
+    /**
+     * 初始化界面控件的国际化文本
+     */
+    private void initializeI18n() {
+        menuFile.setText(I18nUtil.getString("menu.file"));
+        menuEdit.setText(I18nUtil.getString("menu.edit"));
+        menuView.setText(I18nUtil.getString("menu.view"));
+        menuHelp.setText(I18nUtil.getString("menu.help"));
+
+        menuItemOpen.setText(I18nUtil.getString("menu.file.open"));
+        menuItemOpenFolder.setText(I18nUtil.getString("menu.file.openFolder"));
+        menuItemSave.setText(I18nUtil.getString("menu.file.save"));
+        menuItemSaveAs.setText(I18nUtil.getString("menu.file.saveAs"));
+        menuItemExit.setText(I18nUtil.getString("menu.file.exit"));
+
+        menuItemUndo.setText(I18nUtil.getString("menu.edit.undo"));
+        menuItemRedo.setText(I18nUtil.getString("menu.edit.redo"));
+        menuItemCut.setText(I18nUtil.getString("menu.edit.cut"));
+        menuItemCopy.setText(I18nUtil.getString("menu.edit.copy"));
+        menuItemPaste.setText(I18nUtil.getString("menu.edit.paste"));
+
+        menuItemZoomIn.setText(I18nUtil.getString("menu.view.zoomIn"));
+        menuItemZoomOut.setText(I18nUtil.getString("menu.view.zoomOut"));
+        menuItemResetZoom.setText(I18nUtil.getString("menu.view.resetZoom"));
+
+        menuItemAbout.setText(I18nUtil.getString("menu.help.about"));
+
+        btnOpen.setText(I18nUtil.getString("toolbar.open"));
+        btnSave.setText(I18nUtil.getString("toolbar.save"));
+        btnUndo.setText(I18nUtil.getString("toolbar.undo"));
+        btnRedo.setText(I18nUtil.getString("toolbar.redo"));
+        btnZoomIn.setText(I18nUtil.getString("toolbar.zoomIn"));
+        btnZoomOut.setText(I18nUtil.getString("toolbar.zoomOut"));
+        btnResetZoom.setText(I18nUtil.getString("toolbar.resetZoom"));
+
+        astGraphLabel.setText(I18nUtil.getString("label.astGraph"));
+        logLabel.setText(I18nUtil.getString("label.log"));
+        btnClearLog.setText(I18nUtil.getString("btn.clearLog"));
     }
 }

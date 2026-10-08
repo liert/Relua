@@ -2,7 +2,6 @@ package com.github.relua.gui.views;
 
 import com.github.relua.gui.model.FileNode;
 import javafx.application.Platform;
-import javafx.embed.swing.JFXPanel;
 import javafx.scene.control.TreeItem;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -24,8 +23,12 @@ public class FileTreeViewTest {
 
     @BeforeAll
     public static void initJFX() {
-        // 初始化 JavaFX 工具包环境
-        new JFXPanel();
+        // 初始化 JavaFX 工具包环境（避免依赖 Swing/JFXPanel）
+        try {
+            Platform.startup(() -> {});
+        } catch (IllegalStateException ignored) {
+            // JavaFX 工具包已初始化时会抛出该异常，直接忽略
+        }
     }
 
     @Test

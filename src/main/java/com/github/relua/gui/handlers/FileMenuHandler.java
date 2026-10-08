@@ -1,6 +1,6 @@
 package com.github.relua.gui.handlers;
 
-import com.github.relua.gui.services.I18nService;
+import com.github.relua.gui.utils.I18nUtil;
 import com.github.relua.gui.views.TextEditorView;
 import com.github.relua.gui.views.FileTreeView;
 import com.github.relua.gui.utils.ASTGraphConverter;
@@ -34,7 +34,6 @@ public class FileMenuHandler {
     private TabPane textEditorTabPane;
     private ASTGraphConverter astGraphConverter;
     private CFGGraphConverter cfgGraphConverter;
-    private I18nService i18nService;
     private Label statusLabel;
     private Label fileLabel;
     private FileTreeView fileTreeView;
@@ -64,16 +63,14 @@ public class FileMenuHandler {
      * @param textEditorTabPane 标签页容器
      * @param astGraphConverter AST到图形的转换器
      * @param cfgGraphConverter CFG到图形的转换器
-     * @param i18nService 国际化服务
      * @param statusLabel 状态栏标签
      * @param fileLabel 文件标签
      * @param fileTreeView 文件树视图
      */
-    public FileMenuHandler(TabPane textEditorTabPane, ASTGraphConverter astGraphConverter, CFGGraphConverter cfgGraphConverter, I18nService i18nService, Label statusLabel, Label fileLabel, FileTreeView fileTreeView) {
+    public FileMenuHandler(TabPane textEditorTabPane, ASTGraphConverter astGraphConverter, CFGGraphConverter cfgGraphConverter, Label statusLabel, Label fileLabel, FileTreeView fileTreeView) {
         this.textEditorTabPane = textEditorTabPane;
         this.astGraphConverter = astGraphConverter;
         this.cfgGraphConverter = cfgGraphConverter;
-        this.i18nService = i18nService;
         this.statusLabel = statusLabel;
         this.fileLabel = fileLabel;
         this.fileTreeView = fileTreeView;
@@ -281,7 +278,7 @@ public class FileMenuHandler {
 
                 Throwable e = getException();
                 updateStatus("Unsupported file format: " + file.getName());
-                showError(i18nService.getErrorDialogTitle(), "不支持的文件格式: " + e.getMessage());
+                showError(I18nUtil.getString("dialog.error.title"), "不支持的文件格式: " + e.getMessage());
                 
                 // 如果打开失败，则关闭该标签页
                 textEditorTabPane.getTabs().remove(tab);
@@ -351,7 +348,7 @@ public class FileMenuHandler {
             updateStatus("File saved successfully");
         } catch (IOException e) {
             updateStatus("Error saving file: " + e.getMessage());
-            showError(i18nService.getErrorDialogTitle(), i18nService.getFileSaveFailedMessage(e.getMessage()));
+            showError(I18nUtil.getString("dialog.error.title"), I18nUtil.getString("dialog.error.fileSaveFailed", e.getMessage()));
         }
     }
 

@@ -12,7 +12,6 @@ import com.github.relua.decompiler.IfElsePattern;
 import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Opcode;
-import com.github.relua.util.BasicBlockUtils;
 
 public class ControlFlowAnalyzer {
     private final DecompilerPipeline pipeline;
@@ -195,7 +194,7 @@ public class ControlFlowAnalyzer {
      * 检测if-else结构
      */
     public IfElsePattern detectIfElse(BasicBlock testBlock, Chunk chunk) {
-        Instruction last = BasicBlockUtils.getLastInstruction(testBlock, chunk);
+        Instruction last = testBlock != null ? testBlock.getLastInstruction(chunk) : null;
         if (last == null || (last.getOpcode() != Opcode.TEST && last.getOpcode() != Opcode.TESTSET)) {
             return null;
         }

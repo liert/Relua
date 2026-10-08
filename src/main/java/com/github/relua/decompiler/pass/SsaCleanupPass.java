@@ -1,8 +1,7 @@
-package com.github.relua.decompiler;
+package com.github.relua.decompiler.pass;
 
 import com.github.relua.ast.Block;
-import com.github.relua.decompiler.pass.DecompilationPass;
-import com.github.relua.decompiler.pass.PassContext;
+import com.github.relua.decompiler.SsaTemporaryCleanupPass;
 
 /**
  * SSA 寄存器清理 Pass，通过 SsaTemporaryCleanupPass 进行变量收缩与死代码清理

@@ -1,8 +1,7 @@
-package com.github.relua.decompiler;
+package com.github.relua.decompiler.pass;
 
 import com.github.relua.ast.Block;
-import com.github.relua.decompiler.pass.DecompilationPass;
-import com.github.relua.decompiler.pass.PassContext;
+import com.github.relua.decompiler.AstCleanupPass;
 
 /**
  * 空条件分支消除 Pass，消除 nil-guard 等模式产生的无意义 If 条件结构

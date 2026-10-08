@@ -1,7 +1,11 @@
-package com.github.relua.ast;
+package com.github.relua.decompiler;
 
 import java.util.List;
 import java.util.ArrayList;
+
+import com.github.relua.ast.AstNode;
+import com.github.relua.ast.Expression;
+import com.github.relua.ast.SourcePos;
 
 /**
  * 未完成的IF对象，由TEST+JMP产生，等待后续填充then/else内容

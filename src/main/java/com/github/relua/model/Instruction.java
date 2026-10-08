@@ -1,7 +1,5 @@
 package com.github.relua.model;
 
-import com.github.relua.opcode.OpcodeProps;
-
 /**
  * Lua指令模型
  */
@@ -57,10 +55,6 @@ public class Instruction {
         this.code = code & 0xFFFFFFFFL;
         this.opcode = opcode == null ? Opcode.UNKNOWN : opcode;
         decodeOperands();
-    }
-
-    public Instruction(int pc, int code, OpcodeProps props, Proto proto) {
-        this(pc, code);
     }
 
     /**

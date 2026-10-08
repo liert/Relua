@@ -1,9 +1,8 @@
-package com.github.relua.decompiler;
+package com.github.relua.decompiler.pass;
 
 import com.github.relua.ast.Block;
 import com.github.relua.ast.TableConstructor;
-import com.github.relua.decompiler.pass.DecompilationPass;
-import com.github.relua.decompiler.pass.PassContext;
+import com.github.relua.decompiler.AstCleanupPass;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;

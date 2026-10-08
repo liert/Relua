@@ -51,17 +51,30 @@ import com.github.relua.model.Chunk;
 import com.github.relua.model.Constant;
 import com.github.relua.log.Logger;
 import com.github.relua.util.RegisterNamePolicy;
+import com.github.relua.decompiler.pipeline.PipelineDebugListener;
+import com.github.relua.decompiler.pass.AstCleanupFinalPass;
+import com.github.relua.decompiler.pass.ControlFlowRestructuringPass;
+import com.github.relua.decompiler.pass.DataFlowOptimizationPass;
+import com.github.relua.decompiler.pass.DeadCodeEliminationPass;
+import com.github.relua.decompiler.pass.EmptyIfRemovalPass;
+import com.github.relua.decompiler.pass.ForLoopRestorationPass;
+import com.github.relua.decompiler.pass.LocalHoistingPass;
+import com.github.relua.decompiler.pass.NanCheckSimplificationPass;
+import com.github.relua.decompiler.pass.PassContext;
+import com.github.relua.decompiler.pass.PassManager;
+import com.github.relua.decompiler.pass.ReturnPatternOptimizationPass;
+import com.github.relua.decompiler.pass.SsaCleanupPass;
 
 public class AstCleanupPass {
     private final SsaAstNameResolver ssaNameResolver = new SsaAstNameResolver();
     private final SsaTemporaryCleanupPass ssaTemporaryCleanup = new SsaTemporaryCleanupPass();
 
     public void cleanup(Block block) {
-        cleanup(block, null, java.util.Collections.emptySet(), java.util.Collections.emptySet());
+        cleanup(block, null, Collections.emptySet(), Collections.emptySet());
     }
 
     public Set<String> cleanup(Block block, Set<String> parentDeclared) {
-        return cleanup(block, null, parentDeclared, java.util.Collections.emptySet());
+        return cleanup(block, null, parentDeclared, Collections.emptySet());
     }
 
     public Set<String> cleanup(Block block, Set<String> parentDeclared, Set<String> upvalueNames) {
@@ -69,11 +82,11 @@ public class AstCleanupPass {
     }
 
     public Set<String> cleanup(Block block, CodeGeneratorContext context) {
-        return cleanup(block, context, java.util.Collections.emptySet(), java.util.Collections.emptySet());
+        return cleanup(block, context, Collections.emptySet(), Collections.emptySet());
     }
 
     public Set<String> cleanup(Block block, CodeGeneratorContext context, Set<String> parentDeclared) {
-        return cleanup(block, context, parentDeclared, java.util.Collections.emptySet());
+        return cleanup(block, context, parentDeclared, Collections.emptySet());
     }
 
     public Set<String> cleanup(Block block, CodeGeneratorContext context, Set<String> parentDeclared,
@@ -168,16 +181,16 @@ public class AstCleanupPass {
 
         // 广播第一个阶段状态：dataflow_opt_0
         if (pipeline != null && pipeline.getGenerator() != null) {
-            for (com.github.relua.decompiler.pipeline.PipelineDebugListener listener : pipeline.getGenerator().getDebugListeners()) {
+            for (PipelineDebugListener listener : pipeline.getGenerator().getDebugListeners()) {
                 listener.onStageFinished("dataflow_opt_0", funcName, block);
             }
         }
 
-        com.github.relua.decompiler.pass.PassContext passContext = new com.github.relua.decompiler.pass.PassContext(
+        PassContext passContext = new PassContext(
                 context, pipeline, parentDeclared, finalUpvalueNames, optimizerUpvalues, capturedLocalDefinitionPcs
         );
 
-        com.github.relua.decompiler.pass.PassManager pm = new com.github.relua.decompiler.pass.PassManager();
+        PassManager pm = new PassManager();
         
         // 0.9 先恢复 FORPREP/FORLOOP，让后续数据流在结构化循环上判断活性。
         pm.addPass(new ForLoopRestorationPass(0));
@@ -225,7 +238,7 @@ public class AstCleanupPass {
         return passContext.getDeclaredVariables();
     }
 
-    void removeEmptyIfBlocks(Block block) {
+    public void removeEmptyIfBlocks(Block block) {
         if (block == null || block.statements == null) {
             return;
         }
@@ -385,7 +398,7 @@ public class AstCleanupPass {
         return isTerminatingStatement(last);
     }
 
-    void removeDeadCodeAfterReturn(Block block) {
+    public void removeDeadCodeAfterReturn(Block block) {
         if (block == null || block.statements == null) {
             return;
         }
@@ -421,7 +434,7 @@ public class AstCleanupPass {
         }
     }
 
-    void removeRedundantSelfAssignments(Block block) {
+    public void removeRedundantSelfAssignments(Block block) {
         if (block == null || block.statements == null) {
             return;
         }
@@ -461,7 +474,7 @@ public class AstCleanupPass {
         });
     }
 
-    void collapseElseIfChains(Block block) {
+    public void collapseElseIfChains(Block block) {
         if (block == null || block.statements == null) {
             return;
         }
@@ -608,7 +621,7 @@ public class AstCleanupPass {
         }
     }
 
-    void removeConsumedTemporaryTables(Block block, Set<TableConstructor> consumedTables) {
+    public void removeConsumedTemporaryTables(Block block, Set<TableConstructor> consumedTables) {
         if (block == null) {
             return;
         }
@@ -662,7 +675,7 @@ public class AstCleanupPass {
         }
     }
 
-    void collectConsumedTables(Block block, Set<TableConstructor> consumedTables, boolean skipTempAssignRight) {
+    public void collectConsumedTables(Block block, Set<TableConstructor> consumedTables, boolean skipTempAssignRight) {
         for (Statement statement : block.statements) {
             collectFromStatement(statement, consumedTables, skipTempAssignRight);
         }
@@ -749,7 +762,7 @@ public class AstCleanupPass {
         }
     }
 
-    void removeJoinGotos(Block block) {
+    public void removeJoinGotos(Block block) {
         if (block == null) {
             return;
         }
@@ -934,12 +947,12 @@ public class AstCleanupPass {
         return false;
     }
 
-    Set<String> declareTopLevelLocals(Block block, List<String> params, Set<String> parentDeclared,
+    public Set<String> declareTopLevelLocals(Block block, List<String> params, Set<String> parentDeclared,
             Set<String> upvalueNames) {
         return declareTopLevelLocals(block, params, parentDeclared, upvalueNames, Collections.emptySet());
     }
 
-    Set<String> declareTopLevelLocals(Block block, List<String> params, Set<String> parentDeclared,
+    public Set<String> declareTopLevelLocals(Block block, List<String> params, Set<String> parentDeclared,
             Set<String> upvalueNames, Set<String> capturedLocals) {
         if (block == null || block.statements == null) {
             return Collections.emptySet();
@@ -1718,7 +1731,7 @@ public class AstCleanupPass {
         currentBlock.statements.addAll(rewritten);
     }
 
-    void removeUnusedEmptyLocalDeclarations(Block block) {
+    public void removeUnusedEmptyLocalDeclarations(Block block) {
         if (block == null || block.statements == null) {
             return;
         }
@@ -2011,7 +2024,7 @@ public class AstCleanupPass {
         return null;
     }
 
-    void optimizeReturnPatterns(Block block, CodeGeneratorContext context, Set<String> upvalueNames) {
+    public void optimizeReturnPatterns(Block block, CodeGeneratorContext context, Set<String> upvalueNames) {
         if (block == null || block.statements == null || context == null) {
             return;
         }
@@ -2071,7 +2084,7 @@ public class AstCleanupPass {
         block.statements.addAll(optimized);
     }
 
-    void simplifyRedundantNanChecks(Block block) {
+    public void simplifyRedundantNanChecks(Block block) {
         simplifyRedundantNanChecks(block, new HashSet<>(), new HashMap<>());
     }
 

@@ -1,8 +1,7 @@
-package com.github.relua.decompiler;
+package com.github.relua.decompiler.pass;
 
 import com.github.relua.ast.Block;
-import com.github.relua.decompiler.pass.DecompilationPass;
-import com.github.relua.decompiler.pass.PassContext;
+import com.github.relua.decompiler.AstCleanupPass;
 
 /**
  * 返回模式窥孔优化 Pass，合并临时寄存器定值与其后的 Return 语句

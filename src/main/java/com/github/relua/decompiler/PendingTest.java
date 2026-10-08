@@ -1,7 +1,11 @@
-package com.github.relua.ast;
+package com.github.relua.decompiler;
 
 import java.util.List;
 import java.util.ArrayList;
+
+import com.github.relua.ast.AstNode;
+import com.github.relua.ast.Expression;
+import com.github.relua.ast.SourcePos;
 
 /**
  * 待处理的TEST指令，用于记录TEST指令的信息，供后续JMP指令使用

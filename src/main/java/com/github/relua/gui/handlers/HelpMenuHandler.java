@@ -1,6 +1,6 @@
 package com.github.relua.gui.handlers;
 
-import com.github.relua.gui.services.I18nService;
+import com.github.relua.gui.utils.I18nUtil;
 import javafx.event.ActionEvent;
 import javafx.scene.control.Alert;
 
@@ -8,14 +8,11 @@ import javafx.scene.control.Alert;
  * 帮助菜单处理器，处理帮助菜单的交互逻辑
  */
 public class HelpMenuHandler {
-    private I18nService i18nService;
 
     /**
      * 构造函数
-     * @param i18nService 国际化服务
      */
-    public HelpMenuHandler(I18nService i18nService) {
-        this.i18nService = i18nService;
+    public HelpMenuHandler() {
     }
 
     /**
@@ -23,7 +20,7 @@ public class HelpMenuHandler {
      * @param event 事件对象
      */
     public void handleAbout(ActionEvent event) {
-        showInfo(i18nService.getAboutDialogTitle(), i18nService.getAboutDialogContent());
+        showInfo(I18nUtil.getString("dialog.about.title"), I18nUtil.getString("dialog.about.content"));
     }
 
     /**
