@@ -8,6 +8,7 @@ import com.github.relua.model.LuacFile;
 import com.github.relua.decompiler.BasicBlock;
 import com.github.relua.decompiler.pipeline.DecompilerEngine;
 import com.github.relua.decompiler.pipeline.DecompilerResult;
+import com.github.relua.util.BytecodeFormatter;
 
 import java.util.List;
 
@@ -161,7 +162,7 @@ public class CFGGraphConverter {
             if (i < instructions.size()) {
                 Instruction inst = instructions.get(i);
                 // 使用 BytecodeFormatter 格式化指令，获取包含语义注释的汇编代码，并将制表符替换为空格以保证对齐
-                String instStr = com.github.relua.util.BytecodeFormatter.formatInstruction(chunk, inst, i)
+                String instStr = BytecodeFormatter.formatInstruction(chunk, inst, i)
                         .replace("\t", "    ");
                 label.append(instStr).append("\n");
             }

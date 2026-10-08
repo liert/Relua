@@ -1,8 +1,8 @@
 package com.github.relua.log;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * 核心日志类，负责管理日志配置、输出目标和日志记录的核心逻辑
@@ -11,8 +11,8 @@ public class Logger {
     // 默认日志配置
     private static LogConfig config = new LogConfig();
     
-    // 日志输出目标列表
-    private static List<LogOutput> outputs = new ArrayList<>();
+    // 线程安全的日志输出目标列表，支持运行时动态注册/注销输出目标（如GUI面板）
+    private static final List<LogOutput> outputs = new CopyOnWriteArrayList<>();
     
     // 初始化标志
     private static boolean initialized = false;
@@ -28,12 +28,43 @@ public class Logger {
         }
         
         // 更新配置
-        config = logConfig;
+        config = logConfig != null ? logConfig : new LogConfig();
         
         // 初始化输出目标
         initOutputs();
         
         initialized = true;
+    }
+
+    /**
+     * 动态添加自定义输出目标（如 GUI 日志视图）
+     * @param output 日志输出目标
+     */
+    public static synchronized void addOutput(LogOutput output) {
+        if (!initialized) {
+            init(new LogConfig());
+        }
+        if (output != null && !outputs.contains(output)) {
+            outputs.add(output);
+        }
+    }
+
+    /**
+     * 移除自定义输出目标
+     * @param output 日志输出目标
+     */
+    public static synchronized void removeOutput(LogOutput output) {
+        if (output != null) {
+            outputs.remove(output);
+        }
+    }
+
+    /**
+     * 获取当前全局日志级别
+     * @return 当前日志级别
+     */
+    public static LogLevel getLogLevel() {
+        return config.getLogLevel();
     }
     
     /**
