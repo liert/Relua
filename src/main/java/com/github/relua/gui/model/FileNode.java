@@ -1,6 +1,7 @@
 package com.github.relua.gui.model;
 
 import java.io.File;
+import java.util.Arrays;
 
 /**
  * 文件树节点模型类，用于表示文件系统中的文件和文件夹
@@ -77,7 +78,9 @@ public class FileNode {
     }
     
     /**
-     * 获取子文件节点
+     * 获取子文件节点列表，严格遵循 Windows 文件夹排序规则：
+     * 文件夹在上面，文件在下面，同类节点按不区分大小写的自然顺序排列
+     * 
      * @return 子文件节点数组
      */
     public FileNode[] getChildren() {
@@ -90,11 +93,25 @@ public class FileNode {
             return new FileNode[0];
         }
         
+        // 创建子文件节点数组并建立父子节点引用关系
         FileNode[] children = new FileNode[files.length];
         for (int i = 0; i < files.length; i++) {
             children[i] = new FileNode(files[i]);
             children[i].setParent(this);
         }
+        
+        // 按照 Windows 规则排序：文件夹排在最上面，文件排在下面
+        Arrays.sort(children, (n1, n2) -> {
+            boolean isDir1 = n1.isDirectory();
+            boolean isDir2 = n2.isDirectory();
+            if (isDir1 && !isDir2) {
+                return -1; // 文件夹排在前面
+            } else if (!isDir1 && isDir2) {
+                return 1;  // 文件排在后面
+            } else {
+                return n1.getName().compareToIgnoreCase(n2.getName());
+            }
+        });
         
         return children;
     }

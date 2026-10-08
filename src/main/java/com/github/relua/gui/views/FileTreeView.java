@@ -1,6 +1,7 @@
 package com.github.relua.gui.views;
 
 import com.github.relua.gui.model.FileNode;
+import javafx.application.Platform;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -8,7 +9,12 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 
 import java.io.File;
+import java.io.InputStream;
+import java.math.BigInteger;
+import java.text.Collator;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -73,7 +79,7 @@ public class FileTreeView {
      */
     private void loadIcon(String key, String path) {
         try {
-            java.io.InputStream stream = getClass().getResourceAsStream(path);
+            InputStream stream = getClass().getResourceAsStream(path);
             if (stream != null) {
                 iconMap.put(key, new Image(stream));
                 stream.close();
@@ -236,40 +242,67 @@ public class FileTreeView {
     }
     
     /**
-     * 加载子节点
+     * 区域感知比较器，用于模拟 Windows 文件管理器的本地化（如中文拼音）自然排序
+     */
+    private static final Collator COLLATOR = Collator.getInstance(Locale.getDefault());
+    static {
+        // 设置强度为 SECONDARY，忽略英文字母大小写差异进行基础比较
+        COLLATOR.setStrength(Collator.SECONDARY);
+    }
+
+    /**
+     * 加载子节点，按照 Windows 文件夹排序方式对子文件进行排序：
+     * 核心规则：文件夹排在最上面，文件排在下面；同类节点内部按 Windows 自然语言与数值顺序排列
+     * 
      * @param parentItem 父节点
      */
     private void loadChildren(TreeItem<FileNode> parentItem) {
+        if (parentItem == null) {
+            return;
+        }
         FileNode parentNode = parentItem.getValue();
-        if (!parentNode.isDirectory()) {
+        if (parentNode == null || !parentNode.isDirectory()) {
             return;
         }
         
-        // 获取子文件
+        // 获取当前目录下的子文件与子文件夹列表
         File[] files = parentNode.getFile().listFiles();
         if (files == null) {
             return;
         }
         
-        // 排序：使用文件管理器排序规则 (文件夹优先，名字按自然排序)
-        java.util.Arrays.sort(files, this::compareFiles);
+        // 核心排序：严格按照 Windows 规则排序（文件夹全部置顶在最上方，文件全部在下方，同类自然排序）
+        Arrays.sort(files, this::compareFiles);
         
-        if (javafx.application.Platform.isFxApplicationThread()) {
+        // 确保在 JavaFX 应用线程中更新 UI 视图树节点
+        if (Platform.isFxApplicationThread()) {
             updateChildren(parentItem, files);
         } else {
-            javafx.application.Platform.runLater(() -> updateChildren(parentItem, files));
+            Platform.runLater(() -> updateChildren(parentItem, files));
         }
     }
     
+    /**
+     * 更新父节点的子节点列表，并为子文件夹绑定展开懒加载监听器
+     * 
+     * @param parentItem 父节点
+     * @param files 已按 Windows 规则排好序的文件数组（文件夹在上面，文件在下面）
+     */
     private void updateChildren(TreeItem<FileNode> parentItem, File[] files) {
         parentItem.getChildren().clear();
         for (File file : files) {
             FileNode childNode = new FileNode(file);
             TreeItem<FileNode> childItem = new TreeItem<>(childNode);
             
-            // 如果是文件夹，添加一个空的子节点作为占位符
+            // 如果是文件夹，添加一个空的子节点作为占位符以显示展开箭头，并监听展开事件
             if (file.isDirectory()) {
                 childItem.getChildren().add(new TreeItem<>(null));
+                // 监听子文件夹展开事件：当用户点击箭头展开且子节点尚未加载时，触发自动加载
+                childItem.expandedProperty().addListener((obs, wasExpanded, isExpanded) -> {
+                    if (isExpanded && childItem.getChildren().size() == 1 && childItem.getChildren().get(0).getValue() == null) {
+                        loadChildren(childItem);
+                    }
+                });
             }
             
             parentItem.getChildren().add(childItem);
@@ -277,46 +310,140 @@ public class FileTreeView {
     }
 
     /**
-     * 比较两个文件，使用类似文件管理器的排序规则：
-     * 1. 文件夹优先于文件
-     * 2. 名称按自然顺序（忽略大小写）排序
+     * 比较两个树节点，严格遵循 Windows 文件夹排序规则：
+     * 1. 文件夹排在最上面，文件排在下面
+     * 2. 文件夹内部与文件内部，均按 Windows 自然排序（忽略大小写、数值自然递增、中文拼音等）
+     * 
+     * @param item1 第一个树节点
+     * @param item2 第二个树节点
+     * @return 比较结果（负数表示 item1 在前，正数表示 item2 在前，0 表示相等）
      */
-    private int compareFiles(File f1, File f2) {
-        if (f1.isDirectory() && !f2.isDirectory()) {
-            return -1;
-        } else if (!f1.isDirectory() && f2.isDirectory()) {
-            return 1;
+    public int compareTreeItems(TreeItem<FileNode> item1, TreeItem<FileNode> item2) {
+        if (item1 == null && item2 == null) return 0;
+        if (item1 == null) return 1;
+        if (item2 == null) return -1;
+        
+        FileNode node1 = item1.getValue();
+        FileNode node2 = item2.getValue();
+        if (node1 == null && node2 == null) return 0;
+        if (node1 == null) return 1;
+        if (node2 == null) return -1;
+        
+        return compareFileNodes(node1, node2);
+    }
+
+    /**
+     * 比较两个文件节点模型：
+     * 1. 文件夹排在最上面，文件排在下面
+     * 2. 同类节点按 Windows 自然语言与数值顺序排序
+     * 
+     * @param node1 第一个文件节点
+     * @param node2 第二个文件节点
+     * @return 比较结果
+     */
+    public int compareFileNodes(FileNode node1, FileNode node2) {
+        if (node1 == null && node2 == null) return 0;
+        if (node1 == null) return 1;
+        if (node2 == null) return -1;
+        
+        boolean isDir1 = node1.isDirectory();
+        boolean isDir2 = node2.isDirectory();
+        
+        // 核心排序规则：文件夹在上，文件在下
+        if (isDir1 && !isDir2) {
+            return -1; // node1是文件夹，node2是文件，文件夹排在前面
+        } else if (!isDir1 && isDir2) {
+            return 1;  // node1是文件，node2是文件夹，文件夹排在前面
         } else {
+            // 同为文件夹或同为文件，按照 Windows 文件名自然排序规则比较名称
+            return compareNatural(node1.getName(), node2.getName());
+        }
+    }
+
+    /**
+     * 比较两个文件对象，严格遵循 Windows 文件夹排序规则：
+     * 1. 文件夹排在最上面，文件排在下面
+     * 2. 同类节点按 Windows 自然顺序（忽略大小写、数字数值自然递增、中文拼音等）排序
+     * 
+     * @param f1 第一个文件对象
+     * @param f2 第二个文件对象
+     * @return 比较结果（负数表示 f1 排在前面，正数表示 f2 排在前面）
+     */
+    public int compareFiles(File f1, File f2) {
+        if (f1 == null && f2 == null) return 0;
+        if (f1 == null) return 1;
+        if (f2 == null) return -1;
+        
+        boolean isDir1 = f1.isDirectory();
+        boolean isDir2 = f2.isDirectory();
+        
+        // 核心排序规则：文件夹在上，文件在下
+        if (isDir1 && !isDir2) {
+            return -1; // f1是文件夹，f2是文件，f1排在前面
+        } else if (!isDir1 && isDir2) {
+            return 1;  // f1是文件，f2是文件夹，f2排在前面
+        } else {
+            // 同为文件夹或同为文件，按照 Windows 文件名自然排序规则比较
             return compareNatural(f1.getName(), f2.getName());
         }
     }
 
+    /**
+     * 模拟 Windows 资源管理器（StrCmpLogicalW）的文件名自然排序规则：
+     * 1. 支持数字连续串作为完整数值进行比较（例如 file2 排在 file10 前面）
+     * 2. 忽略英文字母大小写差异
+     * 3. 支持中文拼音自然排序（例如“李”排在“张”前面）
+     * 4. 数值相同时前导零较少的排在前面（Windows 规范：1 < 01 < 001）
+     * 5. 若忽略大小写与数值完全一致，按原始大小写精确比较，保证比较器自洽满足严格弱序（Strict Weak Ordering）
+     * 
+     * @param s1 第一个文件名
+     * @param s2 第二个文件名
+     * @return 比较结果（负数、0、正数）
+     */
     private int compareNatural(String s1, String s2) {
+        if (s1 == null && s2 == null) return 0;
+        if (s1 == null) return 1;
+        if (s2 == null) return -1;
+        if (s1.equals(s2)) return 0;
+
+        int len1 = s1.length();
+        int len2 = s2.length();
         int i = 0, j = 0;
-        while (i < s1.length() && j < s2.length()) {
+        int zeroDiff = 0; // 当数字数值相同时，记录前导零的长度差异作为备选判定
+
+        while (i < len1 && j < len2) {
             char c1 = s1.charAt(i);
             char c2 = s2.charAt(j);
-            
+
+            // 当两边同时遇到连续数字时，按完整数字的数值大小进行自然比较
             if (Character.isDigit(c1) && Character.isDigit(c2)) {
-                StringBuilder num1 = new StringBuilder();
-                while (i < s1.length() && Character.isDigit(s1.charAt(i))) {
-                    num1.append(s1.charAt(i));
+                int start1 = i;
+                while (i < len1 && Character.isDigit(s1.charAt(i))) {
                     i++;
                 }
-                StringBuilder num2 = new StringBuilder();
-                while (j < s2.length() && Character.isDigit(s2.charAt(j))) {
-                    num2.append(s2.charAt(j));
+                String numStr1 = s1.substring(start1, i);
+
+                int start2 = j;
+                while (j < len2 && Character.isDigit(s2.charAt(j))) {
                     j++;
                 }
-                
-                java.math.BigInteger b1 = new java.math.BigInteger(num1.toString());
-                java.math.BigInteger b2 = new java.math.BigInteger(num2.toString());
+                String numStr2 = s2.substring(start2, j);
+
+                // 使用 BigInteger 防止超长数字串溢出
+                BigInteger b1 = new BigInteger(numStr1);
+                BigInteger b2 = new BigInteger(numStr2);
                 int numComp = b1.compareTo(b2);
                 if (numComp != 0) {
                     return numComp;
                 }
+
+                // 数值相同但前导零数量不同（例如 "1" 与 "01"），记录第一次出现的长度差作为备选判定
+                if (zeroDiff == 0 && numStr1.length() != numStr2.length()) {
+                    zeroDiff = Integer.compare(numStr1.length(), numStr2.length());
+                }
             } else {
-                int charComp = Character.compare(Character.toLowerCase(c1), Character.toLowerCase(c2));
+                // 非全数字情况，使用本地化 Collator 比较字符（支持中文拼音和忽略大小写）
+                int charComp = COLLATOR.compare(String.valueOf(c1), String.valueOf(c2));
                 if (charComp != 0) {
                     return charComp;
                 }
@@ -324,7 +451,18 @@ public class FileTreeView {
                 j++;
             }
         }
-        return Integer.compare(s1.length(), s2.length());
+
+        // 一方已遍历完，短串排在前面
+        if (i < len1) return 1;
+        if (j < len2) return -1;
+
+        // 若自然数值完全相同，前导零较少的排在前面（Windows规则：1 < 01 < 001）
+        if (zeroDiff != 0) {
+            return zeroDiff;
+        }
+
+        // 若忽略大小写与前导零完全一致，按原始字符串大小写精确比较，保证 Comparator 的传递性与严格弱序
+        return s1.compareTo(s2);
     }
     
     /**
@@ -336,42 +474,46 @@ public class FileTreeView {
     }
     
     /**
-     * 添加单个文件到文件树中
+     * 添加单个文件到文件树中，并保持 Windows 排序（文件夹在上，文件在下）
+     * 
      * @param file 文件对象
      */
     public void addFile(File file) {
-        if (file == null || file.isDirectory()) {
+        if (file == null) {
             return;
         }
         
-        // 如果当前处于文件夹模式，则不追加任何独立文件节点，保持原文件夹结构不变
+        // 如果当前处于文件夹模式，且为普通文件，则不追加独立节点，保持原有文件夹结构不变
         if (isFolderMode()) {
             return;
         }
         
-        // 检查是否已存在相同绝对路径的文件节点，防止重复添加
+        // 检查根节点下是否已存在相同绝对路径的节点，防止重复添加
         for (TreeItem<FileNode> child : rootItem.getChildren()) {
             if (child.getValue() != null && child.getValue().getFile().getAbsolutePath().equals(file.getAbsolutePath())) {
                 return;
             }
         }
         
-        // 创建文件节点
+        // 创建文件或文件夹节点
         FileNode fileNode = new FileNode(file);
         TreeItem<FileNode> fileItem = new TreeItem<>(fileNode);
         
-        // 添加文件到根节点
+        // 如果是文件夹，添加占位符并绑定展开监听器
+        if (file.isDirectory()) {
+            fileItem.getChildren().add(new TreeItem<>(null));
+            fileItem.expandedProperty().addListener((obs, wasExpanded, isExpanded) -> {
+                if (isExpanded && fileItem.getChildren().size() == 1 && fileItem.getChildren().get(0).getValue() == null) {
+                    loadChildren(fileItem);
+                }
+            });
+        }
+        
+        // 添加到根节点
         rootItem.getChildren().add(fileItem);
         
-        // 排序根节点的子文件列表，保持列表有序
-        rootItem.getChildren().sort((item1, item2) -> {
-            FileNode node1 = item1.getValue();
-            FileNode node2 = item2.getValue();
-            if (node1 == null && node2 == null) return 0;
-            if (node1 == null) return 1;
-            if (node2 == null) return -1;
-            return compareFiles(node1.getFile(), node2.getFile());
-        });
+        // 严格按照 Windows 规则排序根节点的子列表：文件夹在上面，文件在下面
+        rootItem.getChildren().sort(this::compareTreeItems);
     }
 
     /**
@@ -413,7 +555,7 @@ public class FileTreeView {
         FileNode parentNode = parentItem.getValue();
         if (parentNode != null && parentNode.getFile().getAbsolutePath().equals(targetFile.getAbsolutePath())) {
             // 找到目标文件，选中并滚动
-            javafx.application.Platform.runLater(() -> {
+            Platform.runLater(() -> {
                 treeView.getSelectionModel().select(parentItem);
                 int row = treeView.getRow(parentItem);
                 if (row >= 0) {
@@ -523,11 +665,11 @@ public class FileTreeView {
                 setGraphic(null);
             }
             
-            // 如果是文件夹且只有一个空的子节点，加载真实的子节点
+            // 如果是文件夹且当前节点已展开，但尚未加载真实子节点（仅包含占位符），则触发加载真实子节点
             TreeItem<FileNode> treeItem = getTreeItem();
-            if (item.isDirectory() && treeItem.getChildren().size() == 1 && treeItem.getChildren().get(0).getValue() == null) {
-                // 异步加载子节点，避免UI卡顿
-                new Thread(() -> loadChildren(treeItem)).start();
+            if (item.isDirectory() && treeItem != null && treeItem.isExpanded()
+                    && treeItem.getChildren().size() == 1 && treeItem.getChildren().get(0).getValue() == null) {
+                loadChildren(treeItem);
             }
         }
         
