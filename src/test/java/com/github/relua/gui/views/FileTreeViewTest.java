@@ -23,11 +23,12 @@ public class FileTreeViewTest {
 
     @BeforeAll
     public static void initJFX() {
-        // 初始化 JavaFX 工具包环境（避免依赖 Swing/JFXPanel）
+        // 初始化 JavaFX 工具包环境（反射调用兼顾 Java 8 与 11+ 跨版本安全启动）
         try {
-            Platform.startup(() -> {});
-        } catch (IllegalStateException ignored) {
-            // JavaFX 工具包已初始化时会抛出该异常，直接忽略
+            Method startupMethod = Platform.class.getMethod("startup", Runnable.class);
+            startupMethod.invoke(null, (Runnable) () -> {});
+        } catch (Throwable ignored) {
+            // 工具包已初始化或环境已具备时直接忽略
         }
     }
 

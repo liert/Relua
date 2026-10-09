@@ -4,9 +4,13 @@ import com.github.relua.log.LogLevel;
 import com.github.relua.log.LogOutput;
 import com.github.relua.log.Logger;
 import javafx.application.Platform;
+import javafx.scene.Cursor;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.TextArea;
+import org.fxmisc.flowless.VirtualizedScrollPane;
+import org.fxmisc.richtext.CodeArea;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -16,10 +20,13 @@ import java.util.logging.LogRecord;
 import java.util.logging.SimpleFormatter;
 
 /**
- * 日志视图类，统一展示 GUI 及反编译核心引擎的全部运行时日志输出
+ * 日志视图类，采用与主代码区域相同的 RichTextFX 高性能虚拟化渲染引擎，
+ * 彻底消除 JavaFX 原生 TextArea 及其内嵌 ScrollPane 带来的双层视口裁剪与亚像素模糊，
+ * 保证与反编译源码/字节码区域拥有完全相同的极致清晰锐利文字呈现。
  */
 public class LogView {
-    private final TextArea logTextArea;
+    private final CodeArea logCodeArea;
+    private final VirtualizedScrollPane<CodeArea> scrollPane;
     private ComboBox<String> logLevelComboBox;
     private Button clearLogButton;
     private LogHandler julLogHandler;
@@ -46,11 +53,7 @@ public class LogView {
             String formatted = String.format("[%s] [%s] [%s:%d] - %s%n",
                     timestamp, level.name(), fileName, lineNumber, message);
 
-            // 在 JavaFX UI 线程中追加显示
-            Platform.runLater(() -> {
-                logTextArea.appendText(formatted);
-                logTextArea.setScrollTop(Double.MAX_VALUE);
-            });
+            appendLogSafely(formatted);
         }
 
         @Override
@@ -62,12 +65,15 @@ public class LogView {
      * 构造函数
      */
     public LogView() {
-        // 初始化日志文本区域
-        logTextArea = new TextArea();
-        logTextArea.setEditable(false);
-        logTextArea.setWrapText(false); // 等宽日志保持原样排版，避免动态断行带来的字符重排与模糊
-        logTextArea.getStyleClass().add("log-text-area");
-        logTextArea.setMinHeight(50);
+        // 初始化日志代码文本区域（采用与主代码区域一致的 RichTextFX 引擎，像素级清晰）
+        logCodeArea = new CodeArea();
+        logCodeArea.setEditable(false);
+        logCodeArea.setWrapText(false); // 等宽日志保持原样排版，避免动态断行带来的字符重排与模糊
+        logCodeArea.setCursor(Cursor.TEXT);
+        logCodeArea.getStyleClass().add("log-code-area");
+        logCodeArea.setMinHeight(50);
+
+        scrollPane = new VirtualizedScrollPane<>(logCodeArea);
 
         // 初始化清空日志按钮
         clearLogButton = new Button("清空日志");
@@ -195,11 +201,35 @@ public class LogView {
      * 清空日志文本区
      */
     public void clearLog() {
-        logTextArea.clear();
+        if (Platform.isFxApplicationThread()) {
+            logCodeArea.clear();
+        } else {
+            Platform.runLater(logCodeArea::clear);
+        }
     }
 
+    /**
+     * 获取日志视图根节点（包含虚拟化滚动的 RichTextFX 视图）
+     * @return 视图节点
+     */
+    public Node getView() {
+        return scrollPane;
+    }
+
+    /**
+     * 获取 RichTextFX CodeArea 组件
+     * @return CodeArea 实例
+     */
+    public CodeArea getLogCodeArea() {
+        return logCodeArea;
+    }
+
+    /**
+     * 兼容旧接口，返回 null
+     */
+    @Deprecated
     public TextArea getLogTextArea() {
-        return logTextArea;
+        return null;
     }
 
     public ComboBox<String> getLogLevelComboBox() {
@@ -211,7 +241,28 @@ public class LogView {
     }
 
     /**
-     * 自定义 JUL 日志处理器，用于将日志输出到 TextArea
+     * 安全追加日志文本并自动滚动至底部
+     * @param text 要追加的文本
+     */
+    private void appendLogSafely(String text) {
+        Platform.runLater(() -> {
+            int paragraphCount = logCodeArea.getParagraphs().size();
+            // 防止长日志消耗过多内存，保留最多约 10000 行
+            if (paragraphCount > 10000) {
+                int trimLength = 0;
+                for (int i = 0; i < 2000 && i < paragraphCount; i++) {
+                    trimLength += logCodeArea.getParagraph(i).length() + 1;
+                }
+                logCodeArea.deleteText(0, trimLength);
+            }
+            logCodeArea.appendText(text);
+            logCodeArea.moveTo(logCodeArea.getLength());
+            logCodeArea.requestFollowCaret();
+        });
+    }
+
+    /**
+     * 自定义 JUL 日志处理器，用于将日志输出到 CodeArea
      */
     private class LogHandler extends Handler {
         @Override
@@ -221,12 +272,7 @@ public class LogView {
             }
 
             final String logMessage = getFormatter().format(record);
-
-            // 在 JavaFX 应用线程中更新 UI
-            Platform.runLater(() -> {
-                logTextArea.appendText(logMessage);
-                logTextArea.setScrollTop(Double.MAX_VALUE);
-            });
+            appendLogSafely(logMessage);
         }
 
         @Override

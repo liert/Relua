@@ -41,6 +41,7 @@ import javafx.scene.control.TextArea;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
+import javafx.scene.control.TreeView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
@@ -236,11 +237,14 @@ public class MainController {
      */
     @FXML
     public void initialize() {
-        // 初始化文件树视图
+        // 初始化文件树视图（直接作为 fileTreeContainer 的子组件，彻底消除 ScrollPane 视口嵌套引起的文字双线性模糊）
         fileTreeView = new FileTreeView();
-        fileTreeScrollPane.setContent(fileTreeView.getView());
-        fileTreeScrollPane.setFitToWidth(true);
-        fileTreeScrollPane.setFitToHeight(true);
+        TreeView<?> treeNode = fileTreeView.getView();
+        VBox.setVgrow(treeNode, Priority.ALWAYS);
+        if (fileTreeContainer != null) {
+            fileTreeContainer.getChildren().remove(fileTreeScrollPane);
+            fileTreeContainer.getChildren().add(treeNode);
+        }
         
         // 初始化标签页视图
         textEditorTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
@@ -255,15 +259,15 @@ public class MainController {
         // 初始化CFG到图形的转换器
         cfgGraphConverter = new CFGGraphConverter(graphVisualizationView);
         
-        // 初始化日志视图（直接作为 logContainer 的子组件，彻底消除外层 ScrollPane 视口嵌套引起的文字双线性模糊）
+        // 初始化日志视图（采用与代码区域相同的高清 RichTextFX 渲染引擎，杜绝普通 TextArea 与 ScrollPane 的嵌套模糊）
         logView = new LogView();
         logView.setLogLevelComboBox(logLevelComboBox);
         logView.setClearLogButton(btnClearLog);
-        TextArea logArea = logView.getLogTextArea();
-        VBox.setVgrow(logArea, Priority.ALWAYS);
+        Node logNode = logView.getView();
+        VBox.setVgrow(logNode, Priority.ALWAYS);
         if (logContainer != null) {
             logContainer.getChildren().remove(logScrollPane);
-            logContainer.getChildren().add(logArea);
+            logContainer.getChildren().add(logNode);
         }
         
         // 设置ScrollPane的fitToWidth和fitToHeight属性，确保内容自动调整到适合ScrollPane的尺寸

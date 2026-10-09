@@ -20,9 +20,10 @@ public class GraphLayoutEngineTest {
     @BeforeAll
     public static void initJFX() {
         try {
-            Platform.startup(() -> {});
-        } catch (IllegalStateException ignored) {
-            // JavaFX 环境已启动时忽略异常
+            java.lang.reflect.Method startupMethod = Platform.class.getMethod("startup", Runnable.class);
+            startupMethod.invoke(null, (Runnable) () -> {});
+        } catch (Throwable ignored) {
+            // JavaFX 环境已启动或具备时忽略异常
         }
     }
 

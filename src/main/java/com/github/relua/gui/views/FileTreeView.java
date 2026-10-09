@@ -50,6 +50,8 @@ public class FileTreeView {
         // 创建TreeView
         treeView = new TreeView<>(rootItem);
         treeView.setShowRoot(false);
+        treeView.setFixedCellSize(26.0); // 声明固定行高，整型像素绝对对齐，大幅提升虚拟滚动性能并杜绝浮点行高抖动与亚像素模糊
+        treeView.getStyleClass().add("file-tree-view");
         
         // 设置单元格工厂，用于显示不同类型的文件图标
         treeView.setCellFactory(param -> new FileTreeCell());

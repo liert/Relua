@@ -260,17 +260,22 @@
     -fx-border-width: 0 1px 0 0;
 }
 
-.tree-view {
+.tree-view, .file-tree-view {
     -fx-background-color: #f8f9fa;
     -fx-border-color: transparent;
-    -fx-padding: 4px 0;
+    -fx-padding: 0;
+    -fx-font-family: "Segoe UI", "Microsoft YaHei UI", -apple-system, sans-serif;
+    -fx-font-size: 13px;
+    -fx-font-smoothing-type: lcd;
 }
 
 .tree-cell {
     -fx-background-color: transparent;
-    -fx-text-fill: #333333;
-    -fx-padding: 3px 6px;
+    -fx-text-fill: #1f2937;
+    -fx-padding: 0 6px;
+    -fx-font-family: "Segoe UI", "Microsoft YaHei UI", -apple-system, sans-serif;
     -fx-font-size: 13px;
+    -fx-font-smoothing-type: lcd;
     -fx-background-radius: 4px;
 }
 
@@ -447,7 +452,7 @@
     -fx-background-color: #ffffff;
     -fx-text-fill: #1f2937;
     -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
-    -fx-font-size: 12.5px;
+    -fx-font-size: 13px;
     -fx-font-smoothing-type: lcd;
     -fx-border-color: transparent;
     -fx-highlight-fill: #add6ff;
@@ -491,13 +496,20 @@
 /* ==========================================================================
    代码编辑器与浅色语法高亮 (VSCode Light+)
    ========================================================================== */
-.code-area {
+.code-area, .log-code-area {
     -fx-background-color: #ffffff;
     -fx-text-fill: #000000;
     -fx-caret-fill: #000000;
     -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
-    -fx-font-size: 14px;
     -fx-font-smoothing-type: lcd;
+}
+
+.code-area {
+    -fx-font-size: 14px;
+}
+
+.log-code-area {
+    -fx-font-size: 13px;
 }
 
 .lineno {
