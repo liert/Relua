@@ -131,6 +131,7 @@ public class TextEditorView {
     private boolean refreshingStyles = false;
     private boolean rebuildingFolds = false;
     private static final Pattern LUA_TOKEN_PATTERN = Pattern.compile("\\b(function|end|repeat|until|if|for|while)\\b");
+    private boolean suppressNextKeyTyped = false;
 
     /**
      * 默认构造函数（显示欢迎文本）
@@ -243,63 +244,71 @@ public class TextEditorView {
                 event.consume();
                 return;
             }
-            // Shift+F6 或 Ctrl+R 触发变量重命名
+            // Shift+F6 或 Ctrl+R 触发符号重命名
             if ((event.isShiftDown() && event.getCode() == KeyCode.F6) ||
                 (event.isControlDown() && !event.isShiftDown() && !event.isAltDown() && event.getCode() == KeyCode.R)) {
-                promptRenameVariable();
                 event.consume();
+                suppressNextKeyTyped = true;
+                Platform.runLater(this::promptRenameVariable);
                 return;
             }
             // Alt+X 或 Ctrl+Shift+X 或 Shift+F7 触发交叉引用
             if ((event.isAltDown() && event.getCode() == KeyCode.X) ||
                 (event.isControlDown() && event.isShiftDown() && event.getCode() == KeyCode.X) ||
                 (event.isShiftDown() && event.getCode() == KeyCode.F7)) {
-                promptXrefs();
                 event.consume();
+                suppressNextKeyTyped = true;
+                Platform.runLater(this::promptXrefs);
                 return;
             }
             // Ctrl+; 或 Alt+; 触发添加/修改行注释
             if ((event.isControlDown() || event.isAltDown()) && event.getCode() == KeyCode.SEMICOLON) {
-                promptEditComment();
+                event.consume();
+                suppressNextKeyTyped = true;
+                Platform.runLater(this::promptEditComment);
+                return;
+            }
+            // 单按 'N' 键重命名（IDA 经典单键操作）
+            if (event.getCode() == KeyCode.N && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()) {
+                event.consume();
+                suppressNextKeyTyped = true;
+                SymbolRange symbolRange = getCurrentSymbolRange();
+                if (symbolRange != null) {
+                    Platform.runLater(this::promptRenameVariable);
+                }
+                return;
+            }
+            // 单按 'X' 键查看交叉引用（IDA 经典单键操作）
+            if (event.getCode() == KeyCode.X && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()) {
+                event.consume();
+                suppressNextKeyTyped = true;
+                SymbolRange symbolRange = getCurrentSymbolRange();
+                if (symbolRange != null) {
+                    Platform.runLater(this::promptXrefs);
+                }
+                return;
+            }
+            // 单按 ';' 键添加/修改行注释（IDA 经典单键操作）
+            if (event.getCode() == KeyCode.SEMICOLON && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()) {
+                event.consume();
+                suppressNextKeyTyped = true;
+                Platform.runLater(this::promptEditComment);
+                return;
+            }
+        });
+
+        // 拦截紧随快捷键派发的 KEY_TYPED 字符，防止字符漏入文本破坏反编译文件
+        codeArea.addEventFilter(KeyEvent.KEY_TYPED, event -> {
+            if (suppressNextKeyTyped) {
+                suppressNextKeyTyped = false;
                 event.consume();
                 return;
             }
-            // 单按 'N' 键重命名（符合 IDA 用户习惯）
-            if (event.getCode() == KeyCode.N && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()) {
-                if (!codeArea.isEditable()) {
-                    promptRenameVariable();
+            String ch = event.getCharacter();
+            if ("n".equalsIgnoreCase(ch) || "x".equalsIgnoreCase(ch) || ";".equals(ch)) {
+                SymbolRange symbolRange = getCurrentSymbolRange();
+                if (symbolRange != null) {
                     event.consume();
-                    return;
-                } else {
-                    String selected = codeArea.getSelectedText();
-                    if (selected != null && LuaVariableUtils.isValidIdentifier(selected.trim()) && !LuaVariableUtils.isKeyword(selected.trim())) {
-                        promptRenameVariable();
-                        event.consume();
-                        return;
-                    }
-                }
-            }
-            // 单按 'X' 键查看交叉引用（符合 IDA 用户习惯）
-            if (event.getCode() == KeyCode.X && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()) {
-                if (!codeArea.isEditable()) {
-                    promptXrefs();
-                    event.consume();
-                    return;
-                } else {
-                    String selected = codeArea.getSelectedText();
-                    if (selected != null && LuaVariableUtils.isValidIdentifier(selected.trim()) && !LuaVariableUtils.isKeyword(selected.trim())) {
-                        promptXrefs();
-                        event.consume();
-                        return;
-                    }
-                }
-            }
-            // 单按 ';' 键添加/修改行注释（符合 IDA 用户习惯）
-            if (event.getCode() == KeyCode.SEMICOLON && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()) {
-                if (!codeArea.isEditable()) {
-                    promptEditComment();
-                    event.consume();
-                    return;
                 }
             }
         });
