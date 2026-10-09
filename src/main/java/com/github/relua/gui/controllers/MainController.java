@@ -19,6 +19,7 @@ import com.github.relua.model.Constant;
 import com.github.relua.model.LocalVar;
 import com.github.relua.util.BytecodeFormatter;
 import com.github.relua.gui.theme.ThemeManager;
+import com.github.relua.gui.theme.WindowsTitleBarUtil;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
@@ -1117,6 +1118,7 @@ public class MainController {
     private void handleDarkTheme(ActionEvent event) {
         Scene scene = (mainBorderPane != null) ? mainBorderPane.getScene() : null;
         ThemeManager.getInstance().setTheme(ThemeManager.Theme.DARK, scene);
+        updateStageTitleBarTheme(scene, true);
     }
 
     /**
@@ -1126,6 +1128,7 @@ public class MainController {
     private void handleLightTheme(ActionEvent event) {
         Scene scene = (mainBorderPane != null) ? mainBorderPane.getScene() : null;
         ThemeManager.getInstance().setTheme(ThemeManager.Theme.LIGHT, scene);
+        updateStageTitleBarTheme(scene, false);
     }
 
     /**
@@ -1134,7 +1137,15 @@ public class MainController {
     @FXML
     private void handleToggleTheme(ActionEvent event) {
         Scene scene = (mainBorderPane != null) ? mainBorderPane.getScene() : null;
-        ThemeManager.Theme next = ThemeManager.getInstance().isDark() ? ThemeManager.Theme.LIGHT : ThemeManager.Theme.DARK;
+        boolean nextDark = !ThemeManager.getInstance().isDark();
+        ThemeManager.Theme next = nextDark ? ThemeManager.Theme.DARK : ThemeManager.Theme.LIGHT;
         ThemeManager.getInstance().setTheme(next, scene);
+        updateStageTitleBarTheme(scene, nextDark);
+    }
+
+    private void updateStageTitleBarTheme(Scene scene, boolean isDark) {
+        if (scene != null && scene.getWindow() instanceof Stage) {
+            WindowsTitleBarUtil.applyTitleBarTheme((Stage) scene.getWindow(), isDark);
+        }
     }
 }

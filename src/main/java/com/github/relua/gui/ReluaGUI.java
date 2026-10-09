@@ -2,6 +2,7 @@ package com.github.relua.gui;
 
 import com.github.relua.gui.controllers.MainController;
 import com.github.relua.gui.theme.ThemeManager;
+import com.github.relua.gui.theme.WindowsTitleBarUtil;
 import com.github.relua.gui.utils.I18nUtil;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
@@ -51,6 +52,12 @@ public class ReluaGUI extends Application {
         primaryStage.setMinHeight(550);
         primaryStage.setScene(scene);
         primaryStage.show();
+
+        // 消除 Windows 原生亮蓝色边框，启用沉浸式暗色标题栏与边框自适应
+        WindowsTitleBarUtil.applyTitleBarTheme(primaryStage, ThemeManager.getInstance().isDark());
+        ThemeManager.getInstance().addListener(newTheme -> {
+            WindowsTitleBarUtil.applyTitleBarTheme(primaryStage, newTheme == ThemeManager.Theme.DARK);
+        });
     }
 
     public static void main(String[] args) {
