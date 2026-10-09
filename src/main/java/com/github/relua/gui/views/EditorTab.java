@@ -3,7 +3,9 @@ package com.github.relua.gui.views;
 import com.github.relua.model.LuacFile;
 import com.github.relua.model.LineRange;
 import com.github.relua.decompiler.pipeline.DecompilerResult;
+import com.github.relua.gui.utils.BytecodeSyncUtils;
 import com.github.relua.util.BytecodeFormatter;
+import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -39,6 +41,8 @@ public class EditorTab extends Tab {
 
     // 记录用户在该标签页内进行的所有符号重命名映射（oldName -> newName）
     private final Map<String, String> renamedVariables = new LinkedHashMap<>();
+    // 记录用户在该标签页内添加的行内分析注释（lineNumber -> comment）
+    private final Map<Integer, String> lineComments = new LinkedHashMap<>();
 
     private VBox loadingOverlay;
     private ProgressIndicator progressIndicator;
@@ -57,6 +61,15 @@ public class EditorTab extends Tab {
         // 监听变量重命名事件，维护符号重命名映射表
         this.textEditorView.setVariableRenameListener((oldName, newName) -> {
             this.renamedVariables.put(oldName, newName);
+        });
+
+        // 监听行注释变更事件，维护行注释映射表
+        this.textEditorView.setCommentChangeListener((lineNum, comment) -> {
+            if (comment != null && !comment.trim().isEmpty()) {
+                this.lineComments.put(lineNum, comment.trim());
+            } else {
+                this.lineComments.remove(lineNum);
+            }
         });
         
         // 创建字节码代码编辑器（与代码视图体验一致）
@@ -157,6 +170,7 @@ public class EditorTab extends Tab {
         Node bytecodeNode = bytecodeEditorView.getView();
 
         if (show) {
+            int currentLuaLine = textEditorView.getCurrentLineNumber();
             // 如果字节码尚未生成且有 luacFile，尝试即时生成
             if (luacFile != null && (bytecodeEditorView.getCodeArea().getText() == null || bytecodeEditorView.getCodeArea().getText().isEmpty())) {
                 refreshBytecodeContent();
@@ -168,7 +182,22 @@ public class EditorTab extends Tab {
             btnBytecodeView.setSelected(true);
             viewModeHintLabel.setText("字节码反汇编视图");
             setText(file != null ? file.getName() + " [字节码]" : "字节码");
+
+            // 同步光标跳转到对应字节码指令行
+            Platform.runLater(() -> {
+                String bytecodeText = bytecodeEditorView.getCodeArea().getText();
+                int targetParagraph = BytecodeSyncUtils.findBytecodeParagraphForSourceLine(bytecodeText, currentLuaLine);
+                if (targetParagraph >= 0) {
+                    bytecodeEditorView.jumpToLine(targetParagraph + 1);
+                }
+            });
         } else {
+            // 切回源码视图：提取当前指令行的源行号并跳转
+            int currentBytecodeParagraph = bytecodeEditorView.getCodeArea().getCurrentParagraph();
+            String lineText = (currentBytecodeParagraph >= 0 && currentBytecodeParagraph < bytecodeEditorView.getCodeArea().getParagraphs().size())
+                    ? bytecodeEditorView.getCodeArea().getParagraph(currentBytecodeParagraph).getText() : null;
+            int sourceLine = BytecodeSyncUtils.extractSourceLineFromBytecode(lineText);
+
             bytecodeNode.setVisible(false);
             bytecodeNode.setManaged(false);
             luaNode.setVisible(true);
@@ -176,6 +205,11 @@ public class EditorTab extends Tab {
             btnLuaView.setSelected(true);
             viewModeHintLabel.setText("Lua 源码视图");
             setText(file != null ? file.getName() : "未命名");
+
+            // 同步跳转到对应 Lua 源码行
+            if (sourceLine > 0) {
+                Platform.runLater(() -> textEditorView.jumpToLine(sourceLine));
+            }
         }
     }
 
@@ -286,5 +320,13 @@ public class EditorTab extends Tab {
      */
     public Map<String, String> getRenamedVariables() {
         return Collections.unmodifiableMap(renamedVariables);
+    }
+
+    /**
+     * 获取所有已记录的行注释映射（只读）
+     * @return 行号 -> 注释内容 映射
+     */
+    public Map<Integer, String> getLineComments() {
+        return Collections.unmodifiableMap(lineComments);
     }
 }

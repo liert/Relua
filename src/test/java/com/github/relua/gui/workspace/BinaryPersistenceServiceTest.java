@@ -28,11 +28,14 @@ public class BinaryPersistenceServiceTest {
         original.addOpenedTabPath("scripts/login.luac");
         original.addOpenedTabPath("common/network.luac");
 
-        // 构造文件 1 的修改
+        // 构造文件 1 的修改（含行注释）
         Map<String, String> vars1 = new HashMap<>();
         vars1.put("a0", "playerId");
         vars1.put("R1_2", "authToken");
-        FileMetadata meta1 = new FileMetadata("scripts/login.luac", "fake_sha256_hash_1", vars1, null);
+        Map<Integer, String> comments1 = new HashMap<>();
+        comments1.put(10, "验证登录 Token");
+        comments1.put(25, "处理网络超时重连");
+        FileMetadata meta1 = new FileMetadata("scripts/login.luac", "fake_sha256_hash_1", vars1, null, comments1);
         original.putFileMetadata("scripts/login.luac", meta1);
 
         // 构造文件 2 的修改（含编辑文本）
@@ -68,6 +71,10 @@ public class BinaryPersistenceServiceTest {
         assertEquals("playerId", loadedMeta1.getRenamedVariables().get("a0"));
         assertEquals("authToken", loadedMeta1.getRenamedVariables().get("R1_2"));
         assertNull(loadedMeta1.getEditedText());
+        // 验证行注释恢复
+        assertEquals(2, loadedMeta1.getLineComments().size());
+        assertEquals("验证登录 Token", loadedMeta1.getLineComments().get(10));
+        assertEquals("处理网络超时重连", loadedMeta1.getLineComments().get(25));
 
         FileMetadata loadedMeta2 = loaded.getFileMetadata("common/network.luac");
         assertNotNull(loadedMeta2);

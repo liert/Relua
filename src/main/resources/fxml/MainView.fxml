@@ -28,6 +28,10 @@
                     <items>
                         <MenuItem fx:id="menuItemOpen" onAction="#handleOpenFile" />
                         <MenuItem fx:id="menuItemOpenFolder" onAction="#handleOpenFolder" />
+                        <Menu fx:id="menuOpenRecent" text="打开最近 (Open Recent)" />
+                        <SeparatorMenuItem />
+                        <MenuItem fx:id="menuItemBatchExport" onAction="#handleBatchExport" text="批量反编译导出为工程..." accelerator="Shortcut+Shift+E" />
+                        <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemSave" onAction="#handleSaveFile" />
                         <MenuItem fx:id="menuItemSaveAs" onAction="#handleSaveAsFile" />
                         <SeparatorMenuItem />

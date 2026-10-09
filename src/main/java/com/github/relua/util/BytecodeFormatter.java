@@ -149,14 +149,21 @@ public class BytecodeFormatter {
     public static String formatInstruction(Chunk chunk, Instruction instruction, int index) {
         StringBuilder sb = new StringBuilder();
         
-        // 格式化指令基本信息：索引 [-]: 操作码 寄存器/常量
-        sb.append(String.format("%4d: %s\t", index, instruction.getOpcode().name()));
+        int srcLine = -1;
+        if (chunk != null && chunk.getLineNumbers() != null && index >= 0 && index < chunk.getLineNumbers().size()) {
+            srcLine = chunk.getLineNumbers().get(index);
+        }
+        if (srcLine > 0) {
+            sb.append(String.format("%4d [line %4d]: %-12s\t", index, srcLine, instruction.getOpcode().name()));
+        } else {
+            sb.append(String.format("%4d [line ----]: %-12s\t", index, instruction.getOpcode().name()));
+        }
         
         // 添加操作数信息
         appendOperands(instruction, sb);
         
         // 对齐格式
-        while (sb.length() < 35) {
+        while (sb.length() < 46) {
             sb.append(' ');
         }
         

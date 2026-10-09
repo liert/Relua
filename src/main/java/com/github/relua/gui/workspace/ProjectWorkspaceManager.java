@@ -110,6 +110,17 @@ public class ProjectWorkspaceManager {
      * @param editedText 用户编辑覆盖文本
      */
     public void recordFileModification(File file, Map<String, String> renamedVars, String editedText) {
+        recordFileModification(file, renamedVars, editedText, null);
+    }
+
+    /**
+     * 更新并缓存指定文件的修改数据（含行注释）
+     * @param file 文件对象
+     * @param renamedVars 重命名变量映射表
+     * @param editedText 用户编辑覆盖文本
+     * @param lineComments 行注释表
+     */
+    public void recordFileModification(File file, Map<String, String> renamedVars, String editedText, Map<Integer, String> lineComments) {
         if (file == null) {
             return;
         }
@@ -119,6 +130,9 @@ public class ProjectWorkspaceManager {
         meta.setRelativePath(relPath);
         meta.setRenamedVariables(renamedVars);
         meta.setEditedText(editedText);
+        if (lineComments != null) {
+            meta.setLineComments(lineComments);
+        }
         meta.setLastModifiedTime(System.currentTimeMillis());
 
         if (meta.getFileSha256() == null) {
@@ -132,14 +146,22 @@ public class ProjectWorkspaceManager {
      * @param activeTab 当前聚焦的 EditorTab
      */
     public synchronized void save(List<EditorTab> openedTabs, EditorTab activeTab) {
-        // 同步所有打开的 Tab 中最新的变量重命名与文本状态
+        // 同步所有打开的 Tab 中最新的变量重命名、行注释与文本状态
         if (openedTabs != null) {
             for (EditorTab tab : openedTabs) {
                 if (tab.getFile() != null) {
                     Map<String, String> renamed = tab.getRenamedVariables();
-                    String text = tab.getTextEditorView().getText();
-                    if (!renamed.isEmpty()) {
-                        recordFileModification(tab.getFile(), renamed, null);
+                    Map<Integer, String> comments = tab.getLineComments();
+                    if (!renamed.isEmpty() || !comments.isEmpty()) {
+                        String relPath = toRelativePath(tab.getFile());
+                        FileMetadata meta = memoryFileCache.computeIfAbsent(relPath, k -> new FileMetadata());
+                        meta.setRelativePath(relPath);
+                        meta.setRenamedVariables(renamed);
+                        meta.setLineComments(comments);
+                        meta.setLastModifiedTime(System.currentTimeMillis());
+                        if (meta.getFileSha256() == null) {
+                            meta.setFileSha256(computeSha256(tab.getFile()));
+                        }
                     }
                 }
             }
@@ -189,7 +211,8 @@ public class ProjectWorkspaceManager {
 
         FileMetadata meta = getFileMetadata(file);
         Map<String, String> renamed = tab.getRenamedVariables();
-        if ((meta == null || !meta.hasModifications()) && renamed.isEmpty()) {
+        Map<Integer, String> comments = tab.getLineComments();
+        if ((meta == null || !meta.hasModifications()) && renamed.isEmpty() && comments.isEmpty()) {
             return; // 无修改时不生成冗余伴生文件
         }
 
@@ -200,8 +223,10 @@ public class ProjectWorkspaceManager {
 
         if (meta == null) {
             meta = new FileMetadata(file.getName(), computeSha256(file), renamed, null);
+            meta.setLineComments(comments);
         } else {
             meta.setRenamedVariables(renamed);
+            meta.setLineComments(comments);
         }
         data.putFileMetadata(file.getName(), meta);
 

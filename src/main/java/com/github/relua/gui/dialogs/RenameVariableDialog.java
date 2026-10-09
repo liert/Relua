@@ -29,7 +29,7 @@ public class RenameVariableDialog extends Dialog<String> {
 
     public RenameVariableDialog(Window owner, String oldVariableName) {
         initOwner(owner);
-        setTitle("重命名变量 - Relua");
+        setTitle("重命名符号 - Relua");
         setHeaderText(null);
 
         // 设置按钮类型
@@ -45,7 +45,7 @@ public class RenameVariableDialog extends Dialog<String> {
         contentBox.setPadding(new Insets(15, 20, 10, 20));
         contentBox.setMinWidth(380);
 
-        Label promptLabel = new Label("将当前变量重命名为新名称（所有引用的出现位置将同步更新）：");
+        Label promptLabel = new Label("将当前符号（变量/函数名）重命名为新名称（所有引用的出现位置将同步更新）：");
         promptLabel.setWrapText(true);
         promptLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #333333;");
 
@@ -54,12 +54,12 @@ public class RenameVariableDialog extends Dialog<String> {
         grid.setVgap(8);
         grid.setAlignment(Pos.CENTER_LEFT);
 
-        Label currentLabel = new Label("原变量名:");
+        Label currentLabel = new Label("原符号名:");
         currentLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #555555;");
         Label currentVal = new Label(oldVariableName != null ? oldVariableName : "");
         currentVal.setStyle("-fx-font-family: 'Consolas'; -fx-font-weight: bold; -fx-text-fill: #0066cc;");
 
-        Label newLabel = new Label("新变量名:");
+        Label newLabel = new Label("新符号名:");
         newLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #555555;");
 
         nameInput = new TextField(oldVariableName != null ? oldVariableName : "");

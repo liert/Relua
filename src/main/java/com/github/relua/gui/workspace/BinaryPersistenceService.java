@@ -98,6 +98,14 @@ public final class BinaryPersistenceService {
                     out.writeUTF(entry.getValue());
                 }
 
+                // 行内注释字典
+                Map<Integer, String> lineComments = meta.getLineComments();
+                out.writeInt(lineComments.size());
+                for (Map.Entry<Integer, String> entry : lineComments.entrySet()) {
+                    out.writeInt(entry.getKey());
+                    out.writeUTF(entry.getValue());
+                }
+
                 // 用户编辑覆盖代码文本（采用 4 字节 int 长度支持超长代码，防 64KB writeUTF 溢出）
                 String editedText = meta.getEditedText();
                 if (editedText != null && !editedText.isEmpty()) {
@@ -191,12 +199,22 @@ public final class BinaryPersistenceService {
                     renamedVars.put(oldName, newName);
                 }
 
+                // 行内注释表
+                int commentCount = in.readInt();
+                Map<Integer, String> lineComments = new LinkedHashMap<>(commentCount);
+                for (int c = 0; c < commentCount; c++) {
+                    int lineNum = in.readInt();
+                    String commentText = in.readUTF();
+                    lineComments.put(lineNum, commentText);
+                }
+
                 // 编辑代码
                 boolean hasEdited = in.readBoolean();
                 String editedText = hasEdited ? readLongString(in) : null;
 
                 FileMetadata meta = new FileMetadata(relPath, sha256.isEmpty() ? null : sha256, renamedVars, editedText);
                 meta.setLastModifiedTime(lastModifiedTime);
+                meta.setLineComments(lineComments);
 
                 modifiedMap.put(relPath, meta);
             }

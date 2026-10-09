@@ -254,4 +254,98 @@ public final class LuaVariableUtils {
 
         return matches;
     }
+
+    /**
+     * 交叉引用项记录模型，包含行号、所属作用域/函数名、区间偏移与整行代码预览
+     */
+    public static class XrefItem {
+        public final int line;
+        public final int startOffset;
+        public final int endOffset;
+        public final String scope;
+        public final String linePreview;
+
+        public XrefItem(int line, int startOffset, int endOffset, String scope, String linePreview) {
+            this.line = line;
+            this.startOffset = startOffset;
+            this.endOffset = endOffset;
+            this.scope = scope != null && !scope.isEmpty() ? scope : "<global>";
+            this.linePreview = linePreview != null ? linePreview.trim() : "";
+        }
+
+        public int getLine() {
+            return line;
+        }
+
+        public String getScope() {
+            return scope;
+        }
+
+        public String getLinePreview() {
+            return linePreview;
+        }
+
+        @Override
+        public String toString() {
+            return "Line " + line + " [" + scope + "]: " + linePreview;
+        }
+    }
+
+    /**
+     * 检索指定符号在代码文本中的所有交叉引用 (Xrefs)，自动计算行号、外层函数作用域和代码预览
+     * @param text 完整代码
+     * @param symbol 符号名称
+     * @return 交叉引用列表
+     */
+    public static List<XrefItem> findXrefs(String text, String symbol) {
+        List<XrefItem> xrefs = new ArrayList<>();
+        if (text == null || symbol == null || symbol.isEmpty()) {
+            return xrefs;
+        }
+
+        List<SymbolMatch> matches = findVariableOccurrences(text, symbol, -1);
+        if (matches.isEmpty()) {
+            return xrefs;
+        }
+
+        // 预计算换行符位置以实现快速行号计算与行文本提取
+        List<Integer> lineStartOffsets = new ArrayList<>();
+        lineStartOffsets.add(0);
+        for (int i = 0; i < text.length(); i++) {
+            if (text.charAt(i) == '\n') {
+                lineStartOffsets.add(i + 1);
+            }
+        }
+
+        Pattern funcPattern = Pattern.compile("function\\s+([A-Za-z0-9_.:]+)");
+
+        for (SymbolMatch match : matches) {
+            // 计算所属行号（1-based）
+            int lineIdx = Collections.binarySearch(lineStartOffsets, match.start);
+            if (lineIdx < 0) {
+                lineIdx = -lineIdx - 2;
+            }
+            int lineNum = lineIdx + 1;
+
+            // 提取该行的整行文本
+            int lineStart = lineStartOffsets.get(lineIdx);
+            int lineEnd = (lineIdx + 1 < lineStartOffsets.size()) ? lineStartOffsets.get(lineIdx + 1) - 1 : text.length();
+            if (lineEnd > lineStart && text.charAt(lineEnd - 1) == '\r') {
+                lineEnd--;
+            }
+            String linePreview = (lineStart <= lineEnd && lineEnd <= text.length()) ? text.substring(lineStart, lineEnd) : "";
+
+            // 向前扫描最近的外层函数名
+            String scope = "<global>";
+            String textBefore = text.substring(0, match.start);
+            Matcher funcMatcher = funcPattern.matcher(textBefore);
+            while (funcMatcher.find()) {
+                scope = funcMatcher.group(1);
+            }
+
+            xrefs.add(new XrefItem(lineNum, match.start, match.end, scope, linePreview));
+        }
+
+        return xrefs;
+    }
 }

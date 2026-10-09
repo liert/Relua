@@ -28,9 +28,14 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
+import com.github.relua.gui.dialogs.BatchExportDialog;
+import com.github.relua.gui.services.BatchExportService;
+import com.github.relua.gui.utils.BytecodeSyncUtils;
 import com.github.relua.gui.workspace.ProjectWorkspaceManager;
+import com.github.relua.gui.workspace.RecentHistoryManager;
 
 import java.io.File;
 import java.io.IOException;
@@ -79,6 +84,10 @@ public class MainController {
     private MenuItem menuItemOpen;
     @FXML
     private MenuItem menuItemOpenFolder;
+    @FXML
+    private Menu menuOpenRecent;
+    @FXML
+    private MenuItem menuItemBatchExport;
     @FXML
     private MenuItem menuItemSave;
     @FXML
@@ -164,6 +173,7 @@ public class MainController {
     private ToggleButton btnScopeCurrentChunk;
     private ToggleButton btnScopeFullFile;
     private boolean bytecodeShowFullFile = false;
+    private boolean isSynchronizingTrace = false;
     
     // AST到图形的转换器
     private ASTGraphConverter astGraphConverter;
@@ -231,6 +241,34 @@ public class MainController {
         // 初始化字节码代码编辑器（作为子视图代码呈现，与主代码视图体验一致）
         bytecodeSubViewEditor = new TextEditorView(false);
         bytecodeSubViewEditor.getCodeArea().setEditable(false);
+
+        // 注册字节码子视图光标联动：点击某指令行时，自动高亮定位到左侧主编辑器的 Lua 源码对应行
+        bytecodeSubViewEditor.getCodeArea().caretPositionProperty().addListener((obs, oldVal, newVal) -> {
+            if (isSynchronizingTrace || !graphContainer.isVisible() || currentSubViewType != SubViewType.BYTECODE) {
+                return;
+            }
+            if (newVal == null) {
+                return;
+            }
+            int paragraph = bytecodeSubViewEditor.getCodeArea().getCurrentParagraph();
+            if (paragraph < 0 || paragraph >= bytecodeSubViewEditor.getCodeArea().getParagraphs().size()) {
+                return;
+            }
+            String lineText = bytecodeSubViewEditor.getCodeArea().getParagraph(paragraph).getText();
+            int sourceLine = BytecodeSyncUtils.extractSourceLineFromBytecode(lineText);
+            if (sourceLine > 0) {
+                TextEditorView activeEditor = getActiveTextEditorView();
+                if (activeEditor != null) {
+                    isSynchronizingTrace = true;
+                    activeEditor.jumpToLine(sourceLine);
+                    int pc = BytecodeSyncUtils.extractPcFromBytecode(lineText);
+                    String pcSuffix = (pc >= 0) ? " (指令 PC " + pc + ")" : "";
+                    updateStatus("双向联动追踪：已定位至 Lua 源码第 " + sourceLine + " 行" + pcSuffix);
+                    Platform.runLater(() -> isSynchronizingTrace = false);
+                }
+            }
+        });
+
         Node bytecodeNode = bytecodeSubViewEditor.getView();
         VBox.setVgrow(bytecodeNode, Priority.ALWAYS);
 
@@ -266,6 +304,7 @@ public class MainController {
         fileMenuHandler = new FileMenuHandler(textEditorTabPane, astGraphConverter, cfgGraphConverter, statusLabel, fileLabel, fileTreeView);
         fileMenuHandler.setOnFileOpenedCallback(() -> {
             handleCaretPositionChanged(true);
+            refreshRecentMenu();
         });
         fileMenuHandler.setOnCaretPositionChangedCallback(() -> {
             handleCaretPositionChanged();
@@ -278,6 +317,7 @@ public class MainController {
         // 设置文件树的文件打开回调
         fileTreeView.setOnFileOpenCallback(fileNode -> {
             fileMenuHandler.openFile(fileNode.getFile());
+            refreshRecentMenu();
         });
         
         textEditorTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
@@ -286,6 +326,9 @@ public class MainController {
 
         // 确保主内容区域和日志的垂直分割比例稳定，避免日志区域在初次渲染或拉伸时挤占编辑区
         SplitPane.setResizableWithParent(logContainer, false);
+
+        // 刷新最近打开记录菜单
+        refreshRecentMenu();
 
         // 窗口关闭时自动执行工程与工作区持久化保存
         Platform.runLater(() -> {
@@ -308,20 +351,39 @@ public class MainController {
         }
         for (File file : files) {
             if (file.isDirectory()) {
-                // 重置反编译状态并切换工作区
-                fileMenuHandler.resetLoadingState();
-                ProjectWorkspaceManager.getInstance().openFolderWorkspace(file);
-                fileTreeView.loadFolder(file);
-                updateStatus("Folder opened: " + file.getName());
-
-                // 自动无感恢复历史打开的标签页
-                List<File> historyFiles = ProjectWorkspaceManager.getInstance().getHistoricalOpenedFiles();
-                for (File historyFile : historyFiles) {
-                    fileMenuHandler.openFile(historyFile);
-                }
+                openFolder(file);
             } else if (file.isFile()) {
                 fileMenuHandler.openFile(file);
+                refreshRecentMenu();
             }
+        }
+    }
+
+    /**
+     * 打开指定的工程文件夹
+     * @param folder 目标文件夹
+     */
+    public void openFolder(File folder) {
+        if (folder == null || !folder.exists()) {
+            return;
+        }
+        // 保存旧工作区
+        ProjectWorkspaceManager.getInstance().save(fileMenuHandler.collectOpenedTabs(), fileMenuHandler.getActiveTab());
+        // 重置反编译状态
+        fileMenuHandler.resetLoadingState();
+        // 加载新工作区数据库
+        ProjectWorkspaceManager.getInstance().openFolderWorkspace(folder);
+        // 加载文件夹内容到文件树
+        fileTreeView.loadFolder(folder);
+        updateStatus("Folder opened: " + folder.getName());
+
+        RecentHistoryManager.getInstance().addRecentPath(folder.getAbsolutePath());
+        refreshRecentMenu();
+
+        // 自动无感恢复历史打开的标签页
+        List<File> historyFiles = ProjectWorkspaceManager.getInstance().getHistoricalOpenedFiles();
+        for (File historyFile : historyFiles) {
+            fileMenuHandler.openFile(historyFile);
         }
     }
 
@@ -338,22 +400,120 @@ public class MainController {
         // 显示文件夹选择对话框
         File selectedFolder = directoryChooser.showDialog(new Stage());
         if (selectedFolder != null) {
-            // 保存旧工作区
-            ProjectWorkspaceManager.getInstance().save(fileMenuHandler.collectOpenedTabs(), fileMenuHandler.getActiveTab());
-            // 重置反编译状态
-            fileMenuHandler.resetLoadingState();
-            // 加载新工作区数据库
-            ProjectWorkspaceManager.getInstance().openFolderWorkspace(selectedFolder);
-            // 加载文件夹内容到文件树
-            fileTreeView.loadFolder(selectedFolder);
-            updateStatus("Folder opened: " + selectedFolder.getName());
+            openFolder(selectedFolder);
+        }
+    }
 
-            // 自动无感恢复历史打开的标签页
-            List<File> historyFiles = ProjectWorkspaceManager.getInstance().getHistoricalOpenedFiles();
-            for (File historyFile : historyFiles) {
-                fileMenuHandler.openFile(historyFile);
+    /**
+     * 刷新“打开最近 (Open Recent)”历史菜单
+     */
+    private void refreshRecentMenu() {
+        if (menuOpenRecent == null) {
+            return;
+        }
+        menuOpenRecent.getItems().clear();
+        List<String> paths = RecentHistoryManager.getInstance().getRecentPaths();
+        if (paths.isEmpty()) {
+            MenuItem emptyItem = new MenuItem("无最近打开记录");
+            emptyItem.setDisable(true);
+            menuOpenRecent.getItems().add(emptyItem);
+            return;
+        }
+
+        for (String path : paths) {
+            File f = new File(path);
+            String label = f.getName();
+            if (label.isEmpty()) {
+                label = path;
+            }
+            if (!f.exists()) {
+                label += " (已不存在)";
+            }
+            MenuItem item = new MenuItem(label + "  [" + path + "]");
+            item.setOnAction(e -> {
+                if (!f.exists()) {
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    Window window = (mainBorderPane != null && mainBorderPane.getScene() != null) ? mainBorderPane.getScene().getWindow() : null;
+                    alert.initOwner(window);
+                    alert.setTitle("路径不存在");
+                    alert.setHeaderText(null);
+                    alert.setContentText("指定的路径已不存在: " + path + "\n已自动从历史列表中移除。");
+                    alert.showAndWait();
+                    RecentHistoryManager.getInstance().removeRecentPath(path);
+                    refreshRecentMenu();
+                    return;
+                }
+                if (f.isDirectory()) {
+                    openFolder(f);
+                } else if (f.isFile()) {
+                    fileMenuHandler.openFile(f);
+                    RecentHistoryManager.getInstance().addRecentPath(path);
+                    refreshRecentMenu();
+                }
+            });
+            menuOpenRecent.getItems().add(item);
+        }
+
+        menuOpenRecent.getItems().add(new SeparatorMenuItem());
+        MenuItem clearItem = new MenuItem("清空最近记录 (Clear Recent)");
+        clearItem.setOnAction(e -> {
+            RecentHistoryManager.getInstance().clearRecentPaths();
+            refreshRecentMenu();
+        });
+        menuOpenRecent.getItems().add(clearItem);
+    }
+
+    /**
+     * 处理一键批量反编译导出工程
+     */
+    @FXML
+    private void handleBatchExport(ActionEvent event) {
+        Window window = (mainBorderPane != null && mainBorderPane.getScene() != null) ? mainBorderPane.getScene().getWindow() : null;
+        File sourceRoot = ProjectWorkspaceManager.getInstance().getCurrentRootFolder();
+
+        // 如果未打开文件夹工程，尝试使用当前打开的文件所在目录或弹窗提示选择
+        if (sourceRoot == null || !sourceRoot.isDirectory()) {
+            EditorTab activeTab = fileMenuHandler.getActiveTab();
+            if (activeTab != null && activeTab.getFile() != null && activeTab.getFile().getParentFile() != null) {
+                sourceRoot = activeTab.getFile().getParentFile();
+            } else {
+                DirectoryChooser srcChooser = new DirectoryChooser();
+                srcChooser.setTitle("选择要批量反编译导出的源文件夹");
+                srcChooser.setInitialDirectory(new File(System.getProperty("user.home")));
+                File selected = srcChooser.showDialog(window != null ? window : new Stage());
+                if (selected == null) {
+                    return;
+                }
+                sourceRoot = selected;
             }
         }
+
+        // 扫描候选文件
+        BatchExportService service = new BatchExportService();
+        List<File> candidates = service.scanCandidateFiles(sourceRoot);
+        if (candidates.isEmpty()) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.initOwner(window);
+            alert.setTitle("未找到有效文件");
+            alert.setHeaderText(null);
+            alert.setContentText("在目录 " + sourceRoot.getAbsolutePath() + " 下未找到任何可反编译的 Lua 源码或二进制字节码文件。");
+            alert.showAndWait();
+            return;
+        }
+
+        // 提示选择导出目标根目录
+        DirectoryChooser targetChooser = new DirectoryChooser();
+        targetChooser.setTitle("选择工程导出保存目录");
+        File initialDir = sourceRoot.getParentFile() != null ? sourceRoot.getParentFile() : new File(System.getProperty("user.home"));
+        targetChooser.setInitialDirectory(initialDir);
+        File targetRoot = targetChooser.showDialog(window != null ? window : new Stage());
+        if (targetRoot == null) {
+            return;
+        }
+
+        // 弹出批量导出进度对话框并开始执行
+        BatchExportDialog dialog = new BatchExportDialog(window, sourceRoot, targetRoot, candidates);
+        dialog.showAndWait();
     }
     
     /**
@@ -610,6 +770,16 @@ public class MainController {
      * @param chunk 目标代码块
      */
     private void executeSubViewConversionForChunk(SubViewType subViewType, Chunk chunk) {
+        executeSubViewConversionForChunk(subViewType, chunk, -1);
+    }
+
+    /**
+     * 执行子视图转换并支持指定行号的即时联动定位
+     * @param subViewType 子视图类型
+     * @param chunk 目标代码块
+     * @param targetSourceLine 需同步定位的源码行号（<=0 表示不定位）
+     */
+    private void executeSubViewConversionForChunk(SubViewType subViewType, Chunk chunk, int targetSourceLine) {
         if (chunk == null) {
             return;
         }
@@ -635,6 +805,9 @@ public class MainController {
                         }
                         Platform.runLater(() -> {
                             bytecodeSubViewEditor.setText(bytecodeText);
+                            if (targetSourceLine > 0) {
+                                syncBytecodeSubViewToSourceLine(targetSourceLine);
+                            }
                         });
                         break;
                     case AST:
@@ -670,6 +843,32 @@ public class MainController {
         Thread thread = new Thread(task);
         thread.setDaemon(true);
         thread.start();
+    }
+
+    /**
+     * 将右侧字节码子视图平滑滚动并高亮至指定的 Lua 源码行对应的指令
+     * @param sourceLine 目标 Lua 源码行号（1-based）
+     */
+    private void syncBytecodeSubViewToSourceLine(int sourceLine) {
+        if (bytecodeSubViewEditor == null || isSynchronizingTrace) {
+            return;
+        }
+        if (!graphContainer.isVisible() || currentSubViewType != SubViewType.BYTECODE) {
+            return;
+        }
+        String bytecodeText = bytecodeSubViewEditor.getCodeArea().getText();
+        if (bytecodeText == null || bytecodeText.isEmpty()) {
+            return;
+        }
+        int targetParagraph = BytecodeSyncUtils.findBytecodeParagraphForSourceLine(bytecodeText, sourceLine);
+        if (targetParagraph >= 0 && targetParagraph < bytecodeSubViewEditor.getCodeArea().getParagraphs().size()) {
+            isSynchronizingTrace = true;
+            try {
+                bytecodeSubViewEditor.jumpToLine(targetParagraph + 1);
+            } finally {
+                Platform.runLater(() -> isSynchronizingTrace = false);
+            }
+        }
     }
     
     /**
@@ -732,8 +931,11 @@ public class MainController {
             // 如果图形可视化视图处于显示状态，则执行更新
             if (graphContainer.isVisible()) {
                 updateSubViewTitle(currentSubViewType);
-                executeSubViewConversionForChunk(currentSubViewType, targetChunk);
+                executeSubViewConversionForChunk(currentSubViewType, targetChunk, currentLine);
             }
+        } else if (graphContainer.isVisible() && currentSubViewType == SubViewType.BYTECODE) {
+            // 同一个 Chunk 内部换行，即时同步高亮对应的字节码指令
+            syncBytecodeSubViewToSourceLine(currentLine);
         }
     }
 

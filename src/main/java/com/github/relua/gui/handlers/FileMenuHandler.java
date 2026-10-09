@@ -28,6 +28,7 @@ import com.github.relua.decompiler.pipeline.DecompilerResult;
 import com.github.relua.model.LineRange;
 import com.github.relua.gui.workspace.FileMetadata;
 import com.github.relua.gui.workspace.ProjectWorkspaceManager;
+import com.github.relua.gui.workspace.RecentHistoryManager;
 
 import java.io.File;
 import java.io.IOException;
@@ -157,10 +158,13 @@ public class FileMenuHandler {
                     if (fileTreeView != null) {
                         fileTreeView.selectFile(file);
                     }
+                    RecentHistoryManager.getInstance().addRecentPath(file.getAbsolutePath());
                     return;
                 }
             }
         }
+
+        RecentHistoryManager.getInstance().addRecentPath(file.getAbsolutePath());
 
         // 创建新的文本编辑器和标签页
         TextEditorView textEditorView = new TextEditorView(false);
@@ -268,14 +272,21 @@ public class FileMenuHandler {
                     // 显示反编译结果
                     tab.getTextEditorView().setText(result.luaCode);
 
-                    // 自动应用历史持久化元数据（恢复变量重命名或用户编辑文本）
+                    // 自动应用历史持久化元数据（恢复变量重命名、行注释或用户编辑文本）
                     FileMetadata metadata = ProjectWorkspaceManager.getInstance().getFileMetadata(file);
                     if (metadata != null) {
                         if (metadata.getEditedText() != null && !metadata.getEditedText().isEmpty()) {
                             tab.getTextEditorView().setText(metadata.getEditedText());
-                        } else if (!metadata.getRenamedVariables().isEmpty()) {
-                            for (Map.Entry<String, String> entry : metadata.getRenamedVariables().entrySet()) {
-                                tab.getTextEditorView().renameVariable(entry.getKey(), entry.getValue());
+                        } else {
+                            if (!metadata.getRenamedVariables().isEmpty()) {
+                                for (Map.Entry<String, String> entry : metadata.getRenamedVariables().entrySet()) {
+                                    tab.getTextEditorView().renameVariable(entry.getKey(), entry.getValue());
+                                }
+                            }
+                            if (!metadata.getLineComments().isEmpty()) {
+                                for (Map.Entry<Integer, String> entry : metadata.getLineComments().entrySet()) {
+                                    tab.getTextEditorView().applyLineComment(entry.getKey() - 1, entry.getValue());
+                                }
                             }
                         }
                     }

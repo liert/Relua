@@ -158,4 +158,42 @@ public class LuaVariableUtilsTest {
         String expected = "local counter = 1\nif counter > 0 then\n    counter = counter + 1\nend\nreturn counter";
         assertEquals(expected, sb.toString());
     }
+
+    @Test
+    @DisplayName("验证交叉引用查找 (findXrefs) 精确解析行号、作用域与行预览")
+    public void testFindXrefs() {
+        String code = "local globalCounter = 0\n" +
+                "\n" +
+                "function calculateScore(bonus)\n" +
+                "    local score = globalCounter + bonus\n" +
+                "    return score\n" +
+                "end\n" +
+                "\n" +
+                "function resetScore()\n" +
+                "    globalCounter = 0\n" +
+                "end\n";
+
+        List<LuaVariableUtils.XrefItem> xrefs = LuaVariableUtils.findXrefs(code, "globalCounter");
+        assertNotNull(xrefs);
+        assertEquals(3, xrefs.size());
+
+        // 第 1 处：第 1 行定义，处于 <global>
+        LuaVariableUtils.XrefItem ref1 = xrefs.get(0);
+        assertEquals(1, ref1.getLine());
+        assertEquals("<global>", ref1.getScope());
+        assertTrue(ref1.getLinePreview().contains("local globalCounter = 0"));
+
+        // 第 2 处：第 4 行使用，处于 calculateScore 函数中
+        LuaVariableUtils.XrefItem ref2 = xrefs.get(1);
+        assertEquals(4, ref2.getLine());
+        assertEquals("calculateScore", ref2.getScope());
+        assertTrue(ref2.getLinePreview().contains("globalCounter + bonus"));
+
+        // 第 3 处：第 9 行赋值，处于 resetScore 函数中
+        LuaVariableUtils.XrefItem ref3 = xrefs.get(2);
+        assertEquals(9, ref3.getLine());
+        assertEquals("resetScore", ref3.getScope());
+        assertTrue(ref3.getLinePreview().contains("globalCounter = 0"));
+    }
 }
+

@@ -1,11 +1,14 @@
 package com.github.relua.gui.views;
 
 import com.github.relua.gui.controllers.LuaCodeIntelligenceController;
+import com.github.relua.gui.dialogs.EditCommentDialog;
 import com.github.relua.gui.dialogs.RenameVariableDialog;
+import com.github.relua.gui.dialogs.XrefsDialog;
 import com.github.relua.gui.utils.I18nUtil;
 import com.github.relua.gui.utils.LuaVariableUtils;
 import com.github.relua.gui.utils.LuaVariableUtils.SymbolMatch;
 import com.github.relua.gui.utils.LuaVariableUtils.SymbolRange;
+import com.github.relua.gui.utils.LuaVariableUtils.XrefItem;
 import javafx.application.Platform;
 import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
@@ -76,14 +79,17 @@ public class TextEditorView {
     private final Button collapseAllButton;
     private final Button expandAllButton;
 
-    // 右键上下文菜单与重命名菜单项
+    // 右键上下文菜单与重命名/交叉引用/行注释菜单项
     private ContextMenu contextMenu;
     private MenuItem renameMenuItem;
+    private MenuItem xrefsMenuItem;
+    private MenuItem commentMenuItem;
 
     // 符号联动高亮与变量重命名支持
     private final List<SymbolMatch> symbolHighlightMatches = new ArrayList<>();
     private String currentHighlightSymbol = null;
     private BiConsumer<String, String> variableRenameListener = null;
+    private BiConsumer<Integer, String> commentChangeListener = null;
     
     // Lua 语法高亮与字节码反汇编高亮的正则表达式
     private static final String KEYWORDS = "\\b(and|break|do|else|elseif|end|false|for|function|goto|if|in|local|nil|not|or|repeat|return|then|true|until|while)\\b";
@@ -244,18 +250,56 @@ public class TextEditorView {
                 event.consume();
                 return;
             }
+            // Alt+X 或 Ctrl+Shift+X 或 Shift+F7 触发交叉引用
+            if ((event.isAltDown() && event.getCode() == KeyCode.X) ||
+                (event.isControlDown() && event.isShiftDown() && event.getCode() == KeyCode.X) ||
+                (event.isShiftDown() && event.getCode() == KeyCode.F7)) {
+                promptXrefs();
+                event.consume();
+                return;
+            }
+            // Ctrl+; 或 Alt+; 触发添加/修改行注释
+            if ((event.isControlDown() || event.isAltDown()) && event.getCode() == KeyCode.SEMICOLON) {
+                promptEditComment();
+                event.consume();
+                return;
+            }
             // 单按 'N' 键重命名（符合 IDA 用户习惯）
-            // 触发条件：编辑器处于只读模式，或者当前选中的文本是合法变量名
             if (event.getCode() == KeyCode.N && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()) {
                 if (!codeArea.isEditable()) {
                     promptRenameVariable();
                     event.consume();
+                    return;
                 } else {
                     String selected = codeArea.getSelectedText();
                     if (selected != null && LuaVariableUtils.isValidIdentifier(selected.trim()) && !LuaVariableUtils.isKeyword(selected.trim())) {
                         promptRenameVariable();
                         event.consume();
+                        return;
                     }
+                }
+            }
+            // 单按 'X' 键查看交叉引用（符合 IDA 用户习惯）
+            if (event.getCode() == KeyCode.X && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()) {
+                if (!codeArea.isEditable()) {
+                    promptXrefs();
+                    event.consume();
+                    return;
+                } else {
+                    String selected = codeArea.getSelectedText();
+                    if (selected != null && LuaVariableUtils.isValidIdentifier(selected.trim()) && !LuaVariableUtils.isKeyword(selected.trim())) {
+                        promptXrefs();
+                        event.consume();
+                        return;
+                    }
+                }
+            }
+            // 单按 ';' 键添加/修改行注释（符合 IDA 用户习惯）
+            if (event.getCode() == KeyCode.SEMICOLON && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()) {
+                if (!codeArea.isEditable()) {
+                    promptEditComment();
+                    event.consume();
+                    return;
                 }
             }
         });
@@ -285,13 +329,19 @@ public class TextEditorView {
     }
 
     /**
-     * 安装右键上下文菜单，支持重命名变量以及常用文本操作
+     * 安装右键上下文菜单，支持重命名变量、交叉引用、行注释以及常用文本操作
      */
     private void installContextMenu() {
         contextMenu = new ContextMenu();
 
-        renameMenuItem = new MenuItem("重命名变量 (N / Shift+F6)...");
+        renameMenuItem = new MenuItem("重命名符号 (N / Shift+F6)...");
         renameMenuItem.setOnAction(event -> promptRenameVariable());
+
+        xrefsMenuItem = new MenuItem("查看交叉引用 (X)...");
+        xrefsMenuItem.setOnAction(event -> promptXrefs());
+
+        commentMenuItem = new MenuItem("添加/修改行注释 (;)...");
+        commentMenuItem.setOnAction(event -> promptEditComment());
 
         MenuItem undoItem = new MenuItem("撤销 (Undo)");
         undoItem.setOnAction(event -> undo());
@@ -313,6 +363,8 @@ public class TextEditorView {
 
         contextMenu.getItems().addAll(
                 renameMenuItem,
+                xrefsMenuItem,
+                commentMenuItem,
                 new SeparatorMenuItem(),
                 undoItem,
                 redoItem,
@@ -324,16 +376,23 @@ public class TextEditorView {
                 selectAllItem
         );
 
-        // 弹出前动态检查当前光标或选区是否位于有效标识符上
+        // 弹出前动态检查当前光标或选区是否位于有效标识符上并刷新提示
         contextMenu.setOnShowing(event -> {
             SymbolRange symbolRange = getCurrentSymbolRange();
             if (symbolRange != null) {
-                renameMenuItem.setText("重命名变量 '" + symbolRange.symbol + "' (N / Shift+F6)...");
+                renameMenuItem.setText("重命名符号 '" + symbolRange.symbol + "' (N / Shift+F6)...");
                 renameMenuItem.setDisable(false);
+                xrefsMenuItem.setText("查看交叉引用 '" + symbolRange.symbol + "' (X)...");
+                xrefsMenuItem.setDisable(false);
             } else {
-                renameMenuItem.setText("重命名变量 (N / Shift+F6)...");
+                renameMenuItem.setText("重命名符号 (N / Shift+F6)...");
                 renameMenuItem.setDisable(true);
+                xrefsMenuItem.setText("查看交叉引用 (X)...");
+                xrefsMenuItem.setDisable(true);
             }
+
+            int currentLine = codeArea.getCurrentParagraph() + 1;
+            commentMenuItem.setText("添加/修改行注释 (行 " + currentLine + ") (;)...");
         });
 
         // 鼠标右键按下时如果未选中文本，将光标自动定位至右击字符处
@@ -509,6 +568,146 @@ public class TextEditorView {
      */
     public void setVariableRenameListener(BiConsumer<String, String> listener) {
         this.variableRenameListener = listener;
+    }
+
+    /**
+     * 注册行注释变更事件监听器
+     * @param listener 监听器 (lineNumber, newComment)
+     */
+    public void setCommentChangeListener(BiConsumer<Integer, String> listener) {
+        this.commentChangeListener = listener;
+    }
+
+    /**
+     * 弹出当前符号的交叉引用 (Xrefs) 对话框并支持双击跳转
+     */
+    public void promptXrefs() {
+        SymbolRange symbolRange = getCurrentSymbolRange();
+        if (symbolRange == null) {
+            return;
+        }
+
+        List<XrefItem> xrefs = LuaVariableUtils.findXrefs(codeArea.getText(), symbolRange.symbol);
+        Window window = codeArea.getScene() != null ? codeArea.getScene().getWindow() : null;
+
+        Optional<XrefItem> result = XrefsDialog.show(window, symbolRange.symbol, xrefs);
+        if (result.isPresent()) {
+            XrefItem target = result.get();
+            jumpToRange(target.startOffset, target.endOffset);
+        }
+    }
+
+    /**
+     * 精准平滑跳转并聚焦选中指定的字符偏移范围
+     * @param startOffset 起始偏移
+     * @param endOffset 结束偏移
+     */
+    public void jumpToRange(int startOffset, int endOffset) {
+        if (startOffset < 0 || endOffset > codeArea.getText().length()) {
+            return;
+        }
+        int paragraph = codeArea.offsetToPosition(startOffset, Bias.Forward).getMajor();
+        expandFoldsContaining(startOffset, endOffset);
+        codeArea.showParagraphAtTop(Math.max(0, paragraph - 3));
+        codeArea.moveTo(startOffset);
+        codeArea.selectRange(startOffset, endOffset);
+        codeArea.requestFollowCaret();
+        updateSymbolHighlighting(startOffset);
+    }
+
+    /**
+     * 平滑跳转到指定的行号（1-based），展开折叠并高亮选中整行
+     * @param lineNum 目标行号
+     */
+    public void jumpToLine(int lineNum) {
+        if (codeArea == null || codeArea.getParagraphs() == null || codeArea.getParagraphs().isEmpty()) {
+            return;
+        }
+        int totalParagraphs = codeArea.getParagraphs().size();
+        if (lineNum < 1 || lineNum > totalParagraphs) {
+            return;
+        }
+        int paragraphIdx = lineNum - 1;
+        int startOffset = codeArea.getAbsolutePosition(paragraphIdx, 0);
+        int lineLen = codeArea.getParagraph(paragraphIdx).getText().length();
+        jumpToRange(startOffset, startOffset + lineLen);
+    }
+
+    /**
+     * 获取当前光标所在的 1-based 行号
+     * @return 当前行号
+     */
+    public int getCurrentLineNumber() {
+        if (codeArea == null) {
+            return 1;
+        }
+        return codeArea.getCurrentParagraph() + 1;
+    }
+
+    /**
+     * 弹出添加或修改当前光标所在行的分析注释对话框
+     */
+    public void promptEditComment() {
+        int paragraphIdx = codeArea.getCurrentParagraph();
+        int lineNum = paragraphIdx + 1;
+        String lineText = codeArea.getParagraph(paragraphIdx).getText();
+
+        String existingComment = extractLineComment(lineText);
+
+        Window window = codeArea.getScene() != null ? codeArea.getScene().getWindow() : null;
+        Optional<String> result = EditCommentDialog.show(window, lineNum, lineText, existingComment);
+        if (result.isPresent()) {
+            String newComment = result.get();
+            applyLineComment(paragraphIdx, newComment);
+            if (commentChangeListener != null) {
+                commentChangeListener.accept(lineNum, newComment);
+            }
+        }
+    }
+
+    /**
+     * 从单行文本中提取已有的行注释内容
+     */
+    private String extractLineComment(String line) {
+        if (line == null) {
+            return "";
+        }
+        int idx = line.lastIndexOf("-- [Note] ");
+        if (idx >= 0) {
+            return line.substring(idx + 10).trim();
+        }
+        int generalIdx = line.lastIndexOf("--");
+        if (generalIdx >= 0) {
+            return line.substring(generalIdx + 2).trim();
+        }
+        return "";
+    }
+
+    /**
+     * 在指定行末尾追加或更新 -- [Note] 注释
+     * @param paragraphIdx 行索引（0-based）
+     * @param newComment 新注释内容，为空则清除该行已有注释
+     */
+    public void applyLineComment(int paragraphIdx, String newComment) {
+        if (paragraphIdx < 0 || paragraphIdx >= codeArea.getParagraphs().size()) {
+            return;
+        }
+        String line = codeArea.getParagraph(paragraphIdx).getText();
+        int commentIdx = line.lastIndexOf("-- [Note] ");
+        String baseLine = (commentIdx >= 0) ? line.substring(0, commentIdx).replaceAll("\\s+$", "") : line.replaceAll("\\s+$", "");
+
+        String updatedLine;
+        if (newComment != null && !newComment.trim().isEmpty()) {
+            updatedLine = baseLine + "  -- [Note] " + newComment.trim();
+        } else {
+            updatedLine = baseLine;
+        }
+
+        if (!updatedLine.equals(line)) {
+            int start = codeArea.getAbsolutePosition(paragraphIdx, 0);
+            int end = start + line.length();
+            codeArea.replaceText(start, end, updatedLine);
+        }
     }
     
     /**
