@@ -443,16 +443,20 @@
     -fx-text-fill: #475569;
 }
 
-.text-area {
+.text-area, .log-text-area {
     -fx-background-color: #ffffff;
     -fx-text-fill: #1f2937;
     -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
-    -fx-font-size: 12px;
+    -fx-font-size: 12.5px;
+    -fx-font-smoothing-type: lcd;
     -fx-border-color: transparent;
+    -fx-highlight-fill: #add6ff;
+    -fx-highlight-text-fill: #000000;
 }
 
-.text-area .content {
+.text-area .content, .log-text-area .content {
     -fx-background-color: #ffffff;
+    -fx-padding: 4px 6px;
 }
 
 .status-bar {
@@ -493,6 +497,7 @@
     -fx-caret-fill: #000000;
     -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
     -fx-font-size: 14px;
+    -fx-font-smoothing-type: lcd;
 }
 
 .lineno {

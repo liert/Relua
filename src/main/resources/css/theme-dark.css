@@ -488,16 +488,20 @@
     -fx-text-fill: #bbbbbb;
 }
 
-.text-area {
+.text-area, .log-text-area {
     -fx-background-color: #1e1e1e;
-    -fx-text-fill: #cccccc;
+    -fx-text-fill: #e6edf3;
     -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
-    -fx-font-size: 12px;
+    -fx-font-size: 12.5px;
+    -fx-font-smoothing-type: gray; /* 暗色背景下 gray 平滑杜绝次像素彩边与失焦虚化，字迹极其锐利干净 */
     -fx-border-color: transparent;
+    -fx-highlight-fill: #264f78;
+    -fx-highlight-text-fill: #ffffff;
 }
 
-.text-area .content {
+.text-area .content, .log-text-area .content {
     -fx-background-color: #1e1e1e;
+    -fx-padding: 4px 6px;
 }
 
 /* ==========================================================================
@@ -541,6 +545,7 @@
     -fx-caret-fill: #ffffff;
     -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
     -fx-font-size: 14px;
+    -fx-font-smoothing-type: gray;
 }
 
 .lineno {

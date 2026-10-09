@@ -65,8 +65,8 @@ public class LogView {
         // 初始化日志文本区域
         logTextArea = new TextArea();
         logTextArea.setEditable(false);
-        logTextArea.setWrapText(true);
-        logTextArea.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 12px;");
+        logTextArea.setWrapText(false); // 等宽日志保持原样排版，避免动态断行带来的字符重排与模糊
+        logTextArea.getStyleClass().add("log-text-area");
         logTextArea.setMinHeight(50);
 
         // 初始化清空日志按钮

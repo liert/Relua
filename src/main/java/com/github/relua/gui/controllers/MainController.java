@@ -37,6 +37,7 @@ import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
@@ -254,13 +255,16 @@ public class MainController {
         // 初始化CFG到图形的转换器
         cfgGraphConverter = new CFGGraphConverter(graphVisualizationView);
         
-        // 初始化日志视图
+        // 初始化日志视图（直接作为 logContainer 的子组件，彻底消除外层 ScrollPane 视口嵌套引起的文字双线性模糊）
         logView = new LogView();
         logView.setLogLevelComboBox(logLevelComboBox);
         logView.setClearLogButton(btnClearLog);
-        logScrollPane.setContent(logView.getLogTextArea());
-        logScrollPane.setFitToWidth(true);
-        logScrollPane.setFitToHeight(true);
+        TextArea logArea = logView.getLogTextArea();
+        VBox.setVgrow(logArea, Priority.ALWAYS);
+        if (logContainer != null) {
+            logContainer.getChildren().remove(logScrollPane);
+            logContainer.getChildren().add(logArea);
+        }
         
         // 设置ScrollPane的fitToWidth和fitToHeight属性，确保内容自动调整到适合ScrollPane的尺寸
         graphScrollPane.setFitToWidth(true);
