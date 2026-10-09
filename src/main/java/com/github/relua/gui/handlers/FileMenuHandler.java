@@ -24,11 +24,20 @@ import javafx.animation.KeyFrame;
 import javafx.util.Duration;
 import javafx.concurrent.Task;
 
+import com.github.relua.decompiler.pipeline.DecompilerResult;
+import com.github.relua.model.LineRange;
+import com.github.relua.gui.workspace.FileMetadata;
+import com.github.relua.gui.workspace.ProjectWorkspaceManager;
+
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
- * 文件菜单处理器，处理文件菜单的交互逻辑
+ * 文件菜单处理器，处理文件菜单的交互逻辑与工程持久化调度
  */
 public class FileMenuHandler {
     private TabPane textEditorTabPane;
@@ -45,11 +54,11 @@ public class FileMenuHandler {
     private static class DecompileResult {
         final String luaCode;
         final LuacFile luacFile;
-        final java.util.Map<String, com.github.relua.model.LineRange> chunkLineRanges;
+        final Map<String, LineRange> chunkLineRanges;
         final boolean isText;
-        final com.github.relua.decompiler.pipeline.DecompilerResult decompilerResult;
+        final DecompilerResult decompilerResult;
         
-        DecompileResult(String luaCode, LuacFile luacFile, java.util.Map<String, com.github.relua.model.LineRange> chunkLineRanges, boolean isText, com.github.relua.decompiler.pipeline.DecompilerResult decompilerResult) {
+        DecompileResult(String luaCode, LuacFile luacFile, Map<String, LineRange> chunkLineRanges, boolean isText, DecompilerResult decompilerResult) {
             this.luaCode = luaCode;
             this.luacFile = luacFile;
             this.chunkLineRanges = chunkLineRanges;
@@ -167,9 +176,10 @@ public class FileMenuHandler {
         
         EditorTab tab = new EditorTab(file, textEditorView);
         
-        // 注册关闭事件，取消运行中的任务
+        // 注册关闭事件，取消运行中的任务并自动持久化工作区修改
         tab.setOnCloseRequest(e -> {
             tab.cancelTask();
+            ProjectWorkspaceManager.getInstance().save(collectOpenedTabs(), tab);
         });
 
         // 注册光标监听器以实现 AST/CFG 同步
@@ -258,6 +268,18 @@ public class FileMenuHandler {
                     // 显示反编译结果
                     tab.getTextEditorView().setText(result.luaCode);
 
+                    // 自动应用历史持久化元数据（恢复变量重命名或用户编辑文本）
+                    FileMetadata metadata = ProjectWorkspaceManager.getInstance().getFileMetadata(file);
+                    if (metadata != null) {
+                        if (metadata.getEditedText() != null && !metadata.getEditedText().isEmpty()) {
+                            tab.getTextEditorView().setText(metadata.getEditedText());
+                        } else if (!metadata.getRenamedVariables().isEmpty()) {
+                            for (Map.Entry<String, String> entry : metadata.getRenamedVariables().entrySet()) {
+                                tab.getTextEditorView().renameVariable(entry.getKey(), entry.getValue());
+                            }
+                        }
+                    }
+
                     if (result.isText) {
                          updateStatus("Opened text file: " + file.getName());
                     } else {
@@ -301,16 +323,38 @@ public class FileMenuHandler {
     }
 
     /**
-     * 处理保存文件事件
+     * 处理保存文件事件（源码文件写回磁盘，反编译文件持久化到 .relua 数据库）
      * @param event 事件对象
      */
     public void handleSaveFile(ActionEvent event) {
         EditorTab activeTab = getActiveTab();
         if (activeTab != null) {
-            saveToFile(activeTab.getFile(), activeTab);
+            File file = activeTab.getFile();
+            // 如果是纯 Lua 源码文本文件，直接写回磁盘
+            if (isTextFile(file) || (file != null && file.getName().endsWith(".lua") && !file.getName().endsWith(".luac"))) {
+                saveToFile(file, activeTab);
+            } else {
+                // 如果是反编译二进制文件，执行工程持久化（保存变量重命名和工作区状态）
+                ProjectWorkspaceManager.getInstance().save(collectOpenedTabs(), activeTab);
+                updateStatus("已保存分析工程与变量重命名数据: " + (file != null ? file.getName() : ""));
+            }
         } else {
             handleSaveAsFile(event);
         }
+    }
+
+    /**
+     * 收集当前所有打开的 EditorTab 列表
+     * @return EditorTab 列表
+     */
+    public List<EditorTab> collectOpenedTabs() {
+        List<EditorTab> list = new ArrayList<>();
+        for (Tab t : textEditorTabPane.getTabs()) {
+            if (t instanceof EditorTab) {
+                list.add((EditorTab) t);
+            }
+        }
+        return list;
     }
 
     /**
@@ -426,7 +470,7 @@ public class FileMenuHandler {
      * 获取当前反编译结果对象
      * @return 当前反编译结果对象
      */
-    public com.github.relua.decompiler.pipeline.DecompilerResult getCurrentDecompilerResult() {
+    public DecompilerResult getCurrentDecompilerResult() {
         EditorTab activeTab = getActiveTab();
         return activeTab != null ? activeTab.getDecompilerResult() : null;
     }
@@ -435,9 +479,9 @@ public class FileMenuHandler {
      * 获取各个Chunk对应的代码行区间映射
      * @return 代码行区间映射
      */
-    public java.util.Map<String, com.github.relua.model.LineRange> getChunkLineRanges() {
+    public Map<String, LineRange> getChunkLineRanges() {
         EditorTab activeTab = getActiveTab();
-        return activeTab != null ? activeTab.getChunkLineRanges() : new java.util.HashMap<>();
+        return activeTab != null ? activeTab.getChunkLineRanges() : new HashMap<>();
     }
 
     private boolean isTextFile(File file) {

@@ -4,7 +4,9 @@ import com.github.relua.model.LuacFile;
 import com.github.relua.model.LineRange;
 import com.github.relua.decompiler.pipeline.DecompilerResult;
 import com.github.relua.util.BytecodeFormatter;
-import javafx.scene.control.Button;
+import javafx.concurrent.Task;
+import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Tab;
@@ -15,16 +17,18 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.concurrent.Task;
+
 import java.io.File;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 标签页类，用于管理单个打开的文件的状态和视图（支持在Lua代码与字节码视图之间切换）
+ * 标签页类，用于管理单个打开文件的状态和视图（支持在 Lua 代码与字节码视图之间切换，维护反编译符号重命名映射表）
  */
 public class EditorTab extends Tab {
     private File file;
-    private final TextEditorView textEditorView; // Lua代码编辑器视图
+    private final TextEditorView textEditorView; // Lua 代码编辑器视图
     private final TextEditorView bytecodeEditorView; // 字节码代码编辑器视图
     private boolean showingBytecode = false;
     
@@ -32,6 +36,9 @@ public class EditorTab extends Tab {
     private DecompilerResult decompilerResult;
     private Map<String, LineRange> chunkLineRanges;
     private Task<?> activeTask;
+
+    // 记录用户在该标签页内进行的所有符号重命名映射（oldName -> newName）
+    private final Map<String, String> renamedVariables = new LinkedHashMap<>();
 
     private VBox loadingOverlay;
     private ProgressIndicator progressIndicator;
@@ -46,6 +53,11 @@ public class EditorTab extends Tab {
         super(file.getName());
         this.file = file;
         this.textEditorView = textEditorView;
+
+        // 监听变量重命名事件，维护符号重命名映射表
+        this.textEditorView.setVariableRenameListener((oldName, newName) -> {
+            this.renamedVariables.put(oldName, newName);
+        });
         
         // 创建字节码代码编辑器（与代码视图体验一致）
         this.bytecodeEditorView = new TextEditorView(false);
@@ -58,12 +70,12 @@ public class EditorTab extends Tab {
         HBox headerBar = createHeaderBar();
         tabContentBox.getChildren().add(headerBar);
 
-        // 编辑器堆叠区域（Lua代码与字节码视图切换显示）
+        // 编辑器堆叠区域（Lua 代码与字节码视图切换显示）
         StackPane editorStackPane = new StackPane();
         VBox.setVgrow(editorStackPane, Priority.ALWAYS);
 
-        javafx.scene.Node luaNode = textEditorView.getView();
-        javafx.scene.Node bytecodeNode = bytecodeEditorView.getView();
+        Node luaNode = textEditorView.getView();
+        Node bytecodeNode = bytecodeEditorView.getView();
 
         bytecodeNode.setVisible(false);
         bytecodeNode.setManaged(false);
@@ -77,7 +89,7 @@ public class EditorTab extends Tab {
 
         // 初始化加载状态覆盖层
         loadingOverlay = new VBox();
-        loadingOverlay.setAlignment(javafx.geometry.Pos.CENTER);
+        loadingOverlay.setAlignment(Pos.CENTER);
         loadingOverlay.setSpacing(15);
         loadingOverlay.setStyle("-fx-background-color: rgba(255, 255, 255, 0.85);");
 
@@ -100,7 +112,7 @@ public class EditorTab extends Tab {
 
     private HBox createHeaderBar() {
         HBox bar = new HBox(8);
-        bar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        bar.setAlignment(Pos.CENTER_LEFT);
         bar.setStyle("-fx-background-color: #f7f9fa; -fx-border-color: #e2e8f0; -fx-border-width: 0 0 1 0; -fx-padding: 3 8 3 8;");
 
         viewModeHintLabel = new Label("Lua 源码视图");
@@ -141,8 +153,8 @@ public class EditorTab extends Tab {
      */
     public void setShowingBytecode(boolean show) {
         this.showingBytecode = show;
-        javafx.scene.Node luaNode = textEditorView.getView();
-        javafx.scene.Node bytecodeNode = bytecodeEditorView.getView();
+        Node luaNode = textEditorView.getView();
+        Node bytecodeNode = bytecodeEditorView.getView();
 
         if (show) {
             // 如果字节码尚未生成且有 luacFile，尝试即时生成
@@ -266,5 +278,13 @@ public class EditorTab extends Tab {
         if (this.activeTask != null) {
             this.activeTask.cancel();
         }
+    }
+
+    /**
+     * 获取所有已记录的变量重命名映射（只读）
+     * @return 原变量名 -> 新变量名 映射
+     */
+    public Map<String, String> getRenamedVariables() {
+        return Collections.unmodifiableMap(renamedVariables);
     }
 }

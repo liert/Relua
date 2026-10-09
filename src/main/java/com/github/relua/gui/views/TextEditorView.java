@@ -1,22 +1,36 @@
 package com.github.relua.gui.views;
 
+import com.github.relua.gui.controllers.LuaCodeIntelligenceController;
+import com.github.relua.gui.dialogs.RenameVariableDialog;
 import com.github.relua.gui.utils.I18nUtil;
+import com.github.relua.gui.utils.LuaVariableUtils;
+import com.github.relua.gui.utils.LuaVariableUtils.SymbolMatch;
+import com.github.relua.gui.utils.LuaVariableUtils.SymbolRange;
 import javafx.application.Platform;
+import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.stage.Popup;
+import javafx.stage.Window;
 import org.fxmisc.flowless.VirtualizedScrollPane;
+import org.fxmisc.richtext.CharacterHit;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.LineNumberFactory;
 import org.fxmisc.richtext.model.StyleSpans;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
+import org.fxmisc.richtext.model.TwoDimensional.Bias;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -26,21 +40,27 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.function.IntFunction;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 /**
- * 文本编辑器视图类，使用RichTextFX实现高级文本编辑功能
+ * 文本编辑器视图类，使用 RichTextFX 实现高级文本编辑、语法高亮与 IDA Pro 风格变量重命名与符号联动高亮
  */
 public class TextEditorView {
-    // RichTextFX的CodeArea组件
+    private static final Logger LOGGER = Logger.getLogger(TextEditorView.class.getName());
+
+    // RichTextFX 的 CodeArea 组件
     private final FoldableCodeArea codeArea;
     private final VirtualizedScrollPane<CodeArea> virtualizedScrollPane;
     private final Popup searchPopup;
@@ -55,8 +75,17 @@ public class TextEditorView {
     private final Button closeSearchButton;
     private final Button collapseAllButton;
     private final Button expandAllButton;
+
+    // 右键上下文菜单与重命名菜单项
+    private ContextMenu contextMenu;
+    private MenuItem renameMenuItem;
+
+    // 符号联动高亮与变量重命名支持
+    private final List<SymbolMatch> symbolHighlightMatches = new ArrayList<>();
+    private String currentHighlightSymbol = null;
+    private BiConsumer<String, String> variableRenameListener = null;
     
-    // Lua语法高亮与字节码反汇编高亮的正则表达式
+    // Lua 语法高亮与字节码反汇编高亮的正则表达式
     private static final String KEYWORDS = "\\b(and|break|do|else|elseif|end|false|for|function|goto|if|in|local|nil|not|or|repeat|return|then|true|until|while)\\b";
     private static final String OPCODES = "\\b(MOVE|LOADK|LOADBOOL|LOADNIL|GETUPVAL|GETGLOBAL|GETTABLE|SETGLOBAL|SETUPVAL|SETTABLE|NEWTABLE|SELF|ADD|SUB|MUL|DIV|MOD|POW|UNM|NOT|LEN|CONCAT|JMP|EQ|LT|LE|TEST|TESTSET|CALL|TAILCALL|RETURN|FORLOOP|FORPREP|TFORLOOP|SETLIST|CLOSE|CLOSURE|VARARG)\\b";
     private static final String STRINGS = "\\\"([^\\\\\"\\r\\n]|\\\\.)*\\\"|\\'([^\\\\\\'\\r\\n]|\\\\.)*\\'";
@@ -88,7 +117,7 @@ public class TextEditorView {
         + "|(?<OPERATORS>" + OPERATORS + ")";
     private static final Pattern SYNTAX_PATTERN = Pattern.compile(PATTERN);
     
-    private com.github.relua.gui.controllers.LuaCodeIntelligenceController codeIntelligenceController;
+    private LuaCodeIntelligenceController codeIntelligenceController;
     private final List<SearchMatch> searchMatches = new ArrayList<>();
     private final List<FunctionFold> functionFolds = new ArrayList<>();
     private final Set<Integer> foldedFunctionStarts = new HashSet<>();
@@ -109,7 +138,7 @@ public class TextEditorView {
      * @param showWelcome 是否显示欢迎文本
      */
     public TextEditorView(boolean showWelcome) {
-        // 初始化CodeArea
+        // 初始化 CodeArea
         codeArea = new FoldableCodeArea();
         codeArea.setWrapText(false); // 禁用自动换行，长行出现水平滚动条
         virtualizedScrollPane = new VirtualizedScrollPane<>(codeArea);
@@ -138,30 +167,40 @@ public class TextEditorView {
             codeArea.getStylesheets().add(cssPath);
             searchBar.getStylesheets().add(cssPath);
         } catch (Exception e) {
-            java.util.logging.Logger.getLogger("TextEditorView").warning("无法加载 Lua 语法高亮样式表: " + e.getMessage());
+            LOGGER.warning("无法加载 Lua 语法高亮样式表: " + e.getMessage());
         }
         
-        // 启用撤销/重做功能（使用默认 of UndoManager）
-        
-        // 启用语法高亮
+        // 监听文本变化以更新折叠、搜索和高亮
         codeArea.textProperty().addListener((obs, oldText, newText) -> {
             if (!refreshingStyles) {
                 rebuildFunctionFolds();
                 updateSearchMatches(false);
+                updateSymbolHighlighting(codeArea.getCaretPosition());
                 refreshHighlighting();
             }
         });
+
+        // 监听光标移动，实现 IDA Pro 风格的同名变量联动高亮
+        codeArea.caretPositionProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                updateSymbolHighlighting(newVal);
+            }
+        });
+
         // 设置字体和字体大小
         codeArea.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 14px;");
         
-        // 设置CodeArea的尺寸约束，确保它能够扩展到可用空间
+        // 设置 CodeArea 的尺寸约束
         codeArea.setMaxWidth(Double.MAX_VALUE);
         codeArea.setMaxHeight(Double.MAX_VALUE);
         codeArea.setMinHeight(200);
 
         virtualizedScrollPane.setMaxWidth(Double.MAX_VALUE);
         virtualizedScrollPane.setMaxHeight(Double.MAX_VALUE);
+        
+        // 安装快捷键与右键菜单
         installSearchHandlers();
+        installContextMenu();
         
         // 设置初始文本
         if (showWelcome) {
@@ -192,11 +231,35 @@ public class TextEditorView {
 
     private void installSearchHandlers() {
         codeArea.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            // Ctrl+F 搜索
             if (event.isControlDown() && event.getCode() == KeyCode.F) {
                 openSearch();
                 event.consume();
+                return;
+            }
+            // Shift+F6 或 Ctrl+R 触发变量重命名
+            if ((event.isShiftDown() && event.getCode() == KeyCode.F6) ||
+                (event.isControlDown() && !event.isShiftDown() && !event.isAltDown() && event.getCode() == KeyCode.R)) {
+                promptRenameVariable();
+                event.consume();
+                return;
+            }
+            // 单按 'N' 键重命名（符合 IDA 用户习惯）
+            // 触发条件：编辑器处于只读模式，或者当前选中的文本是合法变量名
+            if (event.getCode() == KeyCode.N && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()) {
+                if (!codeArea.isEditable()) {
+                    promptRenameVariable();
+                    event.consume();
+                } else {
+                    String selected = codeArea.getSelectedText();
+                    if (selected != null && LuaVariableUtils.isValidIdentifier(selected.trim()) && !LuaVariableUtils.isKeyword(selected.trim())) {
+                        promptRenameVariable();
+                        event.consume();
+                    }
+                }
             }
         });
+
         searchField.addEventHandler(KeyEvent.KEY_PRESSED, event -> {
             if (event.getCode() == KeyCode.ENTER) {
                 if (event.isShiftDown()) {
@@ -219,6 +282,74 @@ public class TextEditorView {
         closeSearchButton.setOnAction(event -> closeSearch());
         collapseAllButton.setOnAction(event -> collapseAllFunctions());
         expandAllButton.setOnAction(event -> expandAllFunctions());
+    }
+
+    /**
+     * 安装右键上下文菜单，支持重命名变量以及常用文本操作
+     */
+    private void installContextMenu() {
+        contextMenu = new ContextMenu();
+
+        renameMenuItem = new MenuItem("重命名变量 (N / Shift+F6)...");
+        renameMenuItem.setOnAction(event -> promptRenameVariable());
+
+        MenuItem undoItem = new MenuItem("撤销 (Undo)");
+        undoItem.setOnAction(event -> undo());
+
+        MenuItem redoItem = new MenuItem("重做 (Redo)");
+        redoItem.setOnAction(event -> redo());
+
+        MenuItem cutItem = new MenuItem("剪切 (Cut)");
+        cutItem.setOnAction(event -> cut());
+
+        MenuItem copyItem = new MenuItem("复制 (Copy)");
+        copyItem.setOnAction(event -> copy());
+
+        MenuItem pasteItem = new MenuItem("粘贴 (Paste)");
+        pasteItem.setOnAction(event -> paste());
+
+        MenuItem selectAllItem = new MenuItem("全选 (Select All)");
+        selectAllItem.setOnAction(event -> selectAll());
+
+        contextMenu.getItems().addAll(
+                renameMenuItem,
+                new SeparatorMenuItem(),
+                undoItem,
+                redoItem,
+                new SeparatorMenuItem(),
+                cutItem,
+                copyItem,
+                pasteItem,
+                new SeparatorMenuItem(),
+                selectAllItem
+        );
+
+        // 弹出前动态检查当前光标或选区是否位于有效标识符上
+        contextMenu.setOnShowing(event -> {
+            SymbolRange symbolRange = getCurrentSymbolRange();
+            if (symbolRange != null) {
+                renameMenuItem.setText("重命名变量 '" + symbolRange.symbol + "' (N / Shift+F6)...");
+                renameMenuItem.setDisable(false);
+            } else {
+                renameMenuItem.setText("重命名变量 (N / Shift+F6)...");
+                renameMenuItem.setDisable(true);
+            }
+        });
+
+        // 鼠标右键按下时如果未选中文本，将光标自动定位至右击字符处
+        codeArea.addEventHandler(MouseEvent.MOUSE_PRESSED, event -> {
+            if (event.getButton() == MouseButton.SECONDARY) {
+                if (codeArea.getSelectedText().isEmpty()) {
+                    CharacterHit hit = codeArea.hit(event.getX(), event.getY());
+                    hit.getCharacterIndex().ifPresent(idx -> {
+                        codeArea.moveTo(idx);
+                        updateSymbolHighlighting(idx);
+                    });
+                }
+            }
+        });
+
+        codeArea.setContextMenu(contextMenu);
     }
 
     private void installParagraphGraphics() {
@@ -246,17 +377,142 @@ public class TextEditorView {
      * 初始化代码智能提示与跳转功能
      * @param statusLabel 状态栏标签
      */
-    public void initCodeIntelligence(javafx.scene.control.Label statusLabel) {
-        this.codeIntelligenceController = new com.github.relua.gui.controllers.LuaCodeIntelligenceController(codeArea, statusLabel);
+    public void initCodeIntelligence(Label statusLabel) {
+        this.codeIntelligenceController = new LuaCodeIntelligenceController(codeArea, statusLabel);
         this.codeIntelligenceController.rebuildIndex();
     }
     
-    public com.github.relua.gui.controllers.LuaCodeIntelligenceController getCodeIntelligenceController() {
+    public LuaCodeIntelligenceController getCodeIntelligenceController() {
         return codeIntelligenceController;
+    }
+
+    /**
+     * 更新符号联动高亮（光标移动或文本变动时调用）
+     * @param caretOffset 当前光标字符偏移
+     */
+    private void updateSymbolHighlighting(int caretOffset) {
+        if (refreshingStyles) {
+            return;
+        }
+        String text = codeArea.getText();
+        SymbolRange range = LuaVariableUtils.getSymbolAt(text, caretOffset);
+        if (range == null) {
+            if (currentHighlightSymbol != null || !symbolHighlightMatches.isEmpty()) {
+                currentHighlightSymbol = null;
+                symbolHighlightMatches.clear();
+                refreshHighlighting();
+            }
+            return;
+        }
+
+        String symbol = range.symbol;
+        // 如果处于同一个符号上，仅更新 isCurrent 标志以提升光标移动性能
+        if (symbol.equals(currentHighlightSymbol) && !symbolHighlightMatches.isEmpty()) {
+            boolean stateChanged = false;
+            for (int i = 0; i < symbolHighlightMatches.size(); i++) {
+                SymbolMatch oldMatch = symbolHighlightMatches.get(i);
+                boolean nowCurrent = (caretOffset >= oldMatch.start && caretOffset <= oldMatch.end);
+                if (oldMatch.isCurrent != nowCurrent) {
+                    symbolHighlightMatches.set(i, new SymbolMatch(oldMatch.start, oldMatch.end, nowCurrent));
+                    stateChanged = true;
+                }
+            }
+            if (stateChanged) {
+                refreshHighlighting();
+            }
+            return;
+        }
+
+        // 识别出新符号，全文检索该符号的所有引用位置
+        currentHighlightSymbol = symbol;
+        symbolHighlightMatches.clear();
+        symbolHighlightMatches.addAll(LuaVariableUtils.findVariableOccurrences(text, symbol, caretOffset));
+        refreshHighlighting();
+    }
+
+    /**
+     * 获取当前光标位置或选中文本处的变量符号
+     * @return 符号信息，若不在合法变量上则返回 null
+     */
+    public SymbolRange getCurrentSymbolRange() {
+        String selected = codeArea.getSelectedText();
+        if (selected != null && !selected.isEmpty()) {
+            String trimmed = selected.trim();
+            if (LuaVariableUtils.isValidIdentifier(trimmed) && !LuaVariableUtils.isKeyword(trimmed)) {
+                int selStart = codeArea.getSelection().getStart();
+                int selEnd = codeArea.getSelection().getEnd();
+                if (!LuaVariableUtils.isInIgnoredLiteral(codeArea.getText(), selStart, selEnd)) {
+                    return new SymbolRange(trimmed, selStart, selEnd);
+                }
+            }
+        }
+        return LuaVariableUtils.getSymbolAt(codeArea.getText(), codeArea.getCaretPosition());
+    }
+
+    /**
+     * 弹出变量重命名对话框并执行批量替换
+     */
+    public void promptRenameVariable() {
+        SymbolRange symbolRange = getCurrentSymbolRange();
+        if (symbolRange == null) {
+            return;
+        }
+
+        Window window = null;
+        if (codeArea.getScene() != null) {
+            window = codeArea.getScene().getWindow();
+        }
+
+        Optional<String> result = RenameVariableDialog.show(window, symbolRange.symbol);
+        if (result.isPresent()) {
+            String newName = result.get();
+            if (!newName.equals(symbolRange.symbol)) {
+                renameVariable(symbolRange.symbol, newName);
+            }
+        }
+    }
+
+    /**
+     * 执行变量全局重命名替换（倒序安全替换，支持撤销/重做）
+     * @param oldName 原变量名
+     * @param newName 新变量名
+     */
+    public void renameVariable(String oldName, String newName) {
+        if (oldName == null || newName == null || oldName.equals(newName)) {
+            return;
+        }
+        String text = codeArea.getText();
+        List<SymbolMatch> matches = LuaVariableUtils.findVariableOccurrences(text, oldName, -1);
+        if (matches.isEmpty()) {
+            return;
+        }
+
+        // 倒序替换以保持前面所有匹配项的起始索引不变
+        for (int i = matches.size() - 1; i >= 0; i--) {
+            SymbolMatch match = matches.get(i);
+            codeArea.replaceText(match.start, match.end, newName);
+        }
+
+        // 触发外部重命名监听器
+        if (variableRenameListener != null) {
+            variableRenameListener.accept(oldName, newName);
+        }
+
+        // 刷新符号联动高亮
+        currentHighlightSymbol = null;
+        updateSymbolHighlighting(codeArea.getCaretPosition());
+    }
+
+    /**
+     * 注册变量重命名事件监听器
+     * @param listener 监听器 (oldName, newName)
+     */
+    public void setVariableRenameListener(BiConsumer<String, String> listener) {
+        this.variableRenameListener = listener;
     }
     
     /**
-     * 计算语法高亮样式
+     * 计算语法高亮与符号联动高亮样式
      * @param text 文本内容
      * @return 样式跨度
      */
@@ -295,10 +551,16 @@ public class TextEditorView {
                 ranges.add(new StyleRange(matcher.start(), matcher.end(), styleClass));
             }
         }
+        // 搜索高亮区间
         for (int i = 0; i < searchMatches.size(); i++) {
             SearchMatch match = searchMatches.get(i);
             ranges.add(new StyleRange(match.start, match.end, i == currentSearchIndex ? "search-current" : "search-hit"));
         }
+        // IDA Pro 风格符号联动高亮区间
+        for (SymbolMatch match : symbolHighlightMatches) {
+            ranges.add(new StyleRange(match.start, match.end, match.isCurrent ? "symbol-current" : "symbol-highlight"));
+        }
+
         TreeMap<Integer, List<StyleEvent>> events = new TreeMap<>();
         events.put(0, new ArrayList<>());
         events.put(text.length(), new ArrayList<>());
@@ -309,7 +571,7 @@ public class TextEditorView {
             }
         }
         StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
-        Map<String, Integer> active = new java.util.HashMap<>();
+        Map<String, Integer> active = new HashMap<>();
         Integer pos = events.firstKey();
         while (pos != null && pos < text.length()) {
             for (StyleEvent event : events.getOrDefault(pos, Collections.emptyList())) {
@@ -343,10 +605,10 @@ public class TextEditorView {
     }
     
     /**
-     * 获取RichTextFX的CodeArea组件
-     * @return CodeArea组件
+     * 获取 RichTextFX 的 CodeArea 组件
+     * @return CodeArea 组件
      */
-    public org.fxmisc.richtext.CodeArea getCodeArea() {
+    public CodeArea getCodeArea() {
         return codeArea;
     }
     
@@ -356,6 +618,8 @@ public class TextEditorView {
      */
     public void setText(String text) {
         clearFoldState();
+        currentHighlightSymbol = null;
+        symbolHighlightMatches.clear();
         codeArea.replaceText(text);
         codeArea.moveTo(0);
         codeArea.requestFollowCaret();
@@ -369,7 +633,7 @@ public class TextEditorView {
 
     private void openSearch() {
         if (!searchPopup.isShowing() && virtualizedScrollPane.getScene() != null) {
-            javafx.geometry.Point2D point = virtualizedScrollPane.localToScreen(8, 8);
+            Point2D point = virtualizedScrollPane.localToScreen(8, 8);
             if (point != null) {
                 searchPopup.show(virtualizedScrollPane.getScene().getWindow(), point.getX(), point.getY());
             }
@@ -572,7 +836,7 @@ public class TextEditorView {
     }
 
     private void expandFoldsContaining(int startOffset, int endOffset) {
-        int startLine = codeArea.offsetToPosition(startOffset, org.fxmisc.richtext.model.TwoDimensional.Bias.Forward).getMajor();
+        int startLine = codeArea.offsetToPosition(startOffset, Bias.Forward).getMajor();
         List<FunctionFold> toOpen = new ArrayList<>();
         for (FunctionFold fold : functionFolds) {
             if (foldedFunctionStarts.contains(fold.startLine) && startLine > fold.startLine && startLine <= fold.endLine) {

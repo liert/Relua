@@ -26,9 +26,11 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.stage.DirectoryChooser;
 import javafx.stage.Stage;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
+import com.github.relua.gui.workspace.ProjectWorkspaceManager;
 
 import java.io.File;
 import java.io.IOException;
@@ -284,6 +286,16 @@ public class MainController {
 
         // 确保主内容区域和日志的垂直分割比例稳定，避免日志区域在初次渲染或拉伸时挤占编辑区
         SplitPane.setResizableWithParent(logContainer, false);
+
+        // 窗口关闭时自动执行工程与工作区持久化保存
+        Platform.runLater(() -> {
+            Node node = (mainBorderPane != null) ? mainBorderPane : textEditorTabPane;
+            if (node != null && node.getScene() != null && node.getScene().getWindow() != null) {
+                node.getScene().getWindow().setOnCloseRequest(e -> {
+                    ProjectWorkspaceManager.getInstance().save(fileMenuHandler.collectOpenedTabs(), fileMenuHandler.getActiveTab());
+                });
+            }
+        });
     }
     
     /**
@@ -296,10 +308,17 @@ public class MainController {
         }
         for (File file : files) {
             if (file.isDirectory()) {
-                // 重置反编译状态并加载文件夹内容到文件树
+                // 重置反编译状态并切换工作区
                 fileMenuHandler.resetLoadingState();
+                ProjectWorkspaceManager.getInstance().openFolderWorkspace(file);
                 fileTreeView.loadFolder(file);
                 updateStatus("Folder opened: " + file.getName());
+
+                // 自动无感恢复历史打开的标签页
+                List<File> historyFiles = ProjectWorkspaceManager.getInstance().getHistoricalOpenedFiles();
+                for (File historyFile : historyFiles) {
+                    fileMenuHandler.openFile(historyFile);
+                }
             } else if (file.isFile()) {
                 fileMenuHandler.openFile(file);
             }
@@ -312,19 +331,28 @@ public class MainController {
      */
     @FXML
     private void handleOpenFolder(ActionEvent event) {
-        // 使用DirectoryChooser来选择文件夹，而不是FileChooser
-        javafx.stage.DirectoryChooser directoryChooser = new javafx.stage.DirectoryChooser();
+        DirectoryChooser directoryChooser = new DirectoryChooser();
         directoryChooser.setTitle("Open Folder");
         directoryChooser.setInitialDirectory(new File(System.getProperty("user.home")));
         
         // 显示文件夹选择对话框
         File selectedFolder = directoryChooser.showDialog(new Stage());
         if (selectedFolder != null) {
+            // 保存旧工作区
+            ProjectWorkspaceManager.getInstance().save(fileMenuHandler.collectOpenedTabs(), fileMenuHandler.getActiveTab());
             // 重置反编译状态
             fileMenuHandler.resetLoadingState();
+            // 加载新工作区数据库
+            ProjectWorkspaceManager.getInstance().openFolderWorkspace(selectedFolder);
             // 加载文件夹内容到文件树
             fileTreeView.loadFolder(selectedFolder);
             updateStatus("Folder opened: " + selectedFolder.getName());
+
+            // 自动无感恢复历史打开的标签页
+            List<File> historyFiles = ProjectWorkspaceManager.getInstance().getHistoricalOpenedFiles();
+            for (File historyFile : historyFiles) {
+                fileMenuHandler.openFile(historyFile);
+            }
         }
     }
     
@@ -363,8 +391,12 @@ public class MainController {
     
     @FXML
     private void handleExit(ActionEvent event) {
-        Stage stage = (Stage) mainBorderPane.getScene().getWindow();
-        stage.close();
+        ProjectWorkspaceManager.getInstance().save(fileMenuHandler.collectOpenedTabs(), fileMenuHandler.getActiveTab());
+        Node node = (mainBorderPane != null) ? mainBorderPane : textEditorTabPane;
+        if (node != null && node.getScene() != null && node.getScene().getWindow() != null) {
+            Stage stage = (Stage) node.getScene().getWindow();
+            stage.close();
+        }
     }
     
     // 编辑菜单事件处理方法

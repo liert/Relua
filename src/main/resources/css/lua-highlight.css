@@ -109,3 +109,14 @@
 .collapse {
     visibility: collapse;
 }
+
+/* IDA Pro 风格变量符号联动高亮样式 */
+.symbol-highlight {
+    -rtfx-background-color: #fff1b8;
+    -fx-font-weight: bold;
+}
+
+.symbol-current {
+    -rtfx-background-color: #ffd666;
+    -fx-font-weight: bold;
+}
