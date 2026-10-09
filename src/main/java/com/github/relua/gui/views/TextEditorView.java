@@ -12,6 +12,7 @@ import com.github.relua.gui.utils.LuaVariableUtils.XrefItem;
 import javafx.application.Platform;
 import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
@@ -148,6 +149,8 @@ public class TextEditorView {
         // 初始化 CodeArea
         codeArea = new FoldableCodeArea();
         codeArea.setWrapText(false); // 禁用自动换行，长行出现水平滚动条
+        codeArea.setEditable(false); // 正常情况下不可直接编辑反编译代码，只允许选择、复制与逆向操作
+        codeArea.setCursor(Cursor.TEXT); // 保持文字选择工字光标，便于用户划词与复制
         virtualizedScrollPane = new VirtualizedScrollPane<>(codeArea);
         searchPopup = new Popup();
         searchField = new TextField();
@@ -402,6 +405,13 @@ public class TextEditorView {
 
             int currentLine = codeArea.getCurrentParagraph() + 1;
             commentMenuItem.setText("添加/修改行注释 (行 " + currentLine + ") (;)...");
+
+            // 只读保护：当不可直接编辑时，剪切和粘贴禁用，仅支持选择复制
+            boolean editable = codeArea.isEditable();
+            boolean hasSelection = !codeArea.getSelectedText().isEmpty();
+            cutItem.setDisable(!editable || !hasSelection);
+            pasteItem.setDisable(!editable);
+            copyItem.setDisable(!hasSelection);
         });
 
         // 鼠标右键按下时如果未选中文本，将光标自动定位至右击字符处
@@ -452,6 +462,22 @@ public class TextEditorView {
     
     public LuaCodeIntelligenceController getCodeIntelligenceController() {
         return codeIntelligenceController;
+    }
+
+    /**
+     * 设置代码区域是否允许直接键盘编辑
+     * @param editable 是否可编辑
+     */
+    public void setEditable(boolean editable) {
+        codeArea.setEditable(editable);
+    }
+
+    /**
+     * 检查当前代码区域是否允许直接编辑
+     * @return 是否可编辑
+     */
+    public boolean isEditable() {
+        return codeArea.isEditable();
     }
 
     /**

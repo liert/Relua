@@ -45,7 +45,7 @@ public class EditMenuHandler {
      */
     public void handleCut(ActionEvent event) {
         TextEditorView textEditorView = editorSupplier.get();
-        if (textEditorView != null) {
+        if (textEditorView != null && textEditorView.isEditable()) {
             textEditorView.cut();
         }
     }
@@ -67,7 +67,7 @@ public class EditMenuHandler {
      */
     public void handlePaste(ActionEvent event) {
         TextEditorView textEditorView = editorSupplier.get();
-        if (textEditorView != null) {
+        if (textEditorView != null && textEditorView.isEditable()) {
             textEditorView.paste();
         }
     }

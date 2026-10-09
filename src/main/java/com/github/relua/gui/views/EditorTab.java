@@ -57,6 +57,7 @@ public class EditorTab extends Tab {
         super(file.getName());
         this.file = file;
         this.textEditorView = textEditorView;
+        this.textEditorView.setEditable(false); // 确保 Lua 源码视图只读不可直接编辑，保护反编译成果
 
         // 监听变量重命名事件，维护符号重命名映射表
         this.textEditorView.setVariableRenameListener((oldName, newName) -> {
