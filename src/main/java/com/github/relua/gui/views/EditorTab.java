@@ -105,16 +105,16 @@ public class EditorTab extends Tab {
         loadingOverlay = new VBox();
         loadingOverlay.setAlignment(Pos.CENTER);
         loadingOverlay.setSpacing(15);
-        loadingOverlay.setStyle("-fx-background-color: rgba(255, 255, 255, 0.85);");
+        loadingOverlay.getStyleClass().add("loading-overlay");
 
         progressIndicator = new ProgressIndicator();
         progressIndicator.setMinSize(50, 50);
 
         loadingLabel = new Label("正在反编译，请稍候...");
-        loadingLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #333333;");
+        loadingLabel.getStyleClass().add("loading-label");
 
         warningLabel = new Label("");
-        warningLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #666666;");
+        warningLabel.setStyle("-fx-font-size: 12px; -fx-opacity: 0.75;");
 
         loadingOverlay.getChildren().addAll(progressIndicator, loadingLabel, warningLabel);
         loadingOverlay.setVisible(false);
@@ -127,10 +127,10 @@ public class EditorTab extends Tab {
     private HBox createHeaderBar() {
         HBox bar = new HBox(8);
         bar.setAlignment(Pos.CENTER_LEFT);
-        bar.setStyle("-fx-background-color: #f7f9fa; -fx-border-color: #e2e8f0; -fx-border-width: 0 0 1 0; -fx-padding: 3 8 3 8;");
+        bar.getStyleClass().add("editor-tab-header");
 
         viewModeHintLabel = new Label("Lua 源码视图");
-        viewModeHintLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #4a5568; -fx-font-weight: bold;");
+        viewModeHintLabel.getStyleClass().add("view-mode-hint");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -142,10 +142,6 @@ public class EditorTab extends Tab {
         btnLuaView.setToggleGroup(group);
         btnBytecodeView.setToggleGroup(group);
         btnLuaView.setSelected(true);
-
-        String btnStyle = "-fx-font-size: 11px; -fx-padding: 2 8 2 8; -fx-cursor: hand;";
-        btnLuaView.setStyle(btnStyle);
-        btnBytecodeView.setStyle(btnStyle);
 
         btnLuaView.setOnAction(e -> setShowingBytecode(false));
         btnBytecodeView.setOnAction(e -> setShowingBytecode(true));

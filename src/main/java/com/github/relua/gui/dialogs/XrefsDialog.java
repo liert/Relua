@@ -1,5 +1,6 @@
 package com.github.relua.gui.dialogs;
 
+import com.github.relua.gui.theme.ThemeManager;
 import com.github.relua.gui.utils.LuaVariableUtils.XrefItem;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleIntegerProperty;
@@ -40,6 +41,9 @@ public class XrefsDialog extends Dialog<XrefItem> {
         setHeaderText(null);
         setResizable(true);
 
+        // 应用现代化主题
+        ThemeManager.getInstance().applyTheme(this);
+
         ButtonType jumpButtonType = new ButtonType("跳转 (Enter)", ButtonData.OK_DONE);
         ButtonType closeButtonType = new ButtonType("关闭 (Esc)", ButtonData.CANCEL_CLOSE);
         getDialogPane().getButtonTypes().addAll(jumpButtonType, closeButtonType);
@@ -53,7 +57,7 @@ public class XrefsDialog extends Dialog<XrefItem> {
         contentBox.setPrefHeight(420);
 
         Label headerLabel = new Label("符号 '" + symbol + "' 的交叉引用 (共 " + (xrefs != null ? xrefs.size() : 0) + " 处)：");
-        headerLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #333333;");
+        headerLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 13px;");
 
         filterField = new TextField();
         filterField.setPromptText("快速过滤代码或作用域 (输入关键词)...");

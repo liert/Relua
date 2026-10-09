@@ -2,11 +2,20 @@ package com.github.relua.gui.views;
 
 import com.github.relua.gui.model.FileNode;
 import javafx.application.Platform;
-import javafx.scene.control.*;
+import javafx.scene.SnapshotParameters;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.control.TreeCell;
+import javafx.scene.control.TreeItem;
+import javafx.scene.control.TreeView;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.paint.Color;
 
 import java.io.File;
 import java.io.InputStream;
@@ -50,25 +59,19 @@ public class FileTreeView {
     }
     
     /**
-     * 初始化图标映射
+     * 初始化图标映射，优先加载外部资源，若无则自动生成高质感现代化矢量图标
      */
     private void initializeIcons() {
         iconMap = new HashMap<>();
-        
-        // 尝试加载图标，如果失败则跳过，不设置图标
-        try {
-            // 文件夹图标
-            loadIcon("folder", "/icons/folder.png");
-            loadIcon("folder-open", "/icons/folder-open.png");
-            
-            // 文件图标
-            loadIcon("file", "/icons/file.png");
-            loadIcon("lua", "/icons/lua.png");
-            loadIcon("image", "/icons/image.png");
-            loadIcon("document", "/icons/document.png");
-        } catch (Exception e) {
-            // 如果图标加载失败，忽略异常
-            e.printStackTrace();
+        String[] iconKeys = {"folder", "folder-open", "file", "lua", "image", "document", "archive"};
+        for (String key : iconKeys) {
+            loadIcon(key, "/icons/" + key + ".png");
+            if (!iconMap.containsKey(key)) {
+                Image vectorIcon = createModernVectorIcon(key);
+                if (vectorIcon != null) {
+                    iconMap.put(key, vectorIcon);
+                }
+            }
         }
     }
     
@@ -84,8 +87,93 @@ public class FileTreeView {
                 iconMap.put(key, new Image(stream));
                 stream.close();
             }
-        } catch (Exception e) {
-            // 如果图标加载失败，忽略异常
+        } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * 自动绘制高质感 16x16 现代 IDE 风格矢量图标
+     * @param type 图标类型标识
+     * @return 生成的内存 Image 图标
+     */
+    private Image createModernVectorIcon(String type) {
+        try {
+            Canvas canvas = new Canvas(16, 16);
+            GraphicsContext gc = canvas.getGraphicsContext2D();
+
+            switch (type) {
+                case "folder":
+                    // 现代金黄色文件夹（闭合态）
+                    gc.setFill(Color.web("#e5a93b"));
+                    gc.fillRoundRect(1.5, 2.5, 6, 3.5, 2, 2);
+                    gc.fillRoundRect(1.5, 4.5, 13, 9, 2.5, 2.5);
+                    gc.setStroke(Color.web("#fcd34d"));
+                    gc.setLineWidth(0.8);
+                    gc.strokeLine(2.5, 5.5, 13.5, 5.5);
+                    break;
+                case "folder-open":
+                    // 现代金黄色文件夹（展开态）
+                    gc.setFill(Color.web("#d97706"));
+                    gc.fillRoundRect(1.5, 2.5, 6, 3.5, 2, 2);
+                    gc.fillRoundRect(1.5, 4.5, 13, 9, 2.5, 2.5);
+                    gc.setFill(Color.web("#fbbf24"));
+                    gc.fillPolygon(new double[]{0.5, 3.5, 15.5, 12.5}, new double[]{13.5, 7.5, 7.5, 13.5}, 4);
+                    break;
+                case "lua":
+                    // 专业 Lua 脚本标志（深青蓝底 + 经典星月结构）
+                    gc.setFill(Color.web("#0284c7"));
+                    gc.fillRoundRect(1.5, 1.5, 13, 13, 3, 3);
+                    gc.setFill(Color.WHITE);
+                    gc.fillOval(3.5, 3.5, 7, 7);
+                    gc.setFill(Color.web("#0369a1"));
+                    gc.fillOval(5.0, 5.0, 4, 4);
+                    gc.setFill(Color.WHITE);
+                    gc.fillOval(10.5, 3.0, 2.5, 2.5);
+                    break;
+                case "image":
+                    // 现代紫粉色图片卡片
+                    gc.setFill(Color.web("#a855f7"));
+                    gc.fillRoundRect(2, 2, 12, 12, 2, 2);
+                    gc.setFill(Color.WHITE);
+                    gc.fillOval(4, 4, 2.5, 2.5);
+                    gc.fillPolygon(new double[]{3, 7, 10, 13, 13, 3}, new double[]{12, 8, 10, 7, 12, 12}, 6);
+                    break;
+                case "document":
+                    // 天蓝色文档
+                    gc.setFill(Color.web("#38bdf8"));
+                    gc.fillRoundRect(2, 1.5, 11, 13, 2, 2);
+                    gc.setFill(Color.WHITE);
+                    gc.fillRect(4, 4, 7, 1.5);
+                    gc.fillRect(4, 7, 7, 1.5);
+                    gc.fillRect(4, 10, 5, 1.5);
+                    break;
+                case "archive":
+                    // 暖橙色归档包
+                    gc.setFill(Color.web("#ea580c"));
+                    gc.fillRoundRect(2, 2, 12, 12, 2, 2);
+                    gc.setStroke(Color.web("#ffedd5"));
+                    gc.setLineWidth(1);
+                    gc.strokeLine(8, 2, 8, 14);
+                    gc.strokeLine(5, 7, 11, 7);
+                    break;
+                default: // "file"
+                    // 现代银灰色代码文档（带折角）
+                    gc.setFill(Color.web("#94a3b8"));
+                    gc.fillRoundRect(2.5, 1.5, 11, 13, 2, 2);
+                    gc.setFill(Color.web("#cbd5e1"));
+                    gc.fillPolygon(new double[]{9.5, 13.5, 9.5}, new double[]{1.5, 5.5, 5.5}, 3);
+                    gc.setFill(Color.web("#475569"));
+                    gc.fillRect(4.5, 6, 6, 1.2);
+                    gc.fillRect(4.5, 8.5, 6, 1.2);
+                    gc.fillRect(4.5, 11, 4, 1.2);
+                    break;
+            }
+
+            SnapshotParameters params = new SnapshotParameters();
+            params.setFill(Color.TRANSPARENT);
+            return canvas.snapshot(params, null);
+        } catch (Throwable ignored) {
+            return null;
         }
     }
     
@@ -633,18 +721,31 @@ public class FileTreeView {
                 // 根据文件扩展名选择图标
                 switch (extension) {
                     case "lua":
+                    case "luac":
+                    case "out":
                         fileIcon = iconMap.get("lua");
                         break;
                     case "png":
                     case "jpg":
                     case "jpeg":
                     case "gif":
+                    case "ico":
+                    case "svg":
                         fileIcon = iconMap.get("image");
                         break;
                     case "txt":
                     case "md":
                     case "pdf":
+                    case "json":
+                    case "xml":
                         fileIcon = iconMap.get("document");
+                        break;
+                    case "zip":
+                    case "tar":
+                    case "gz":
+                    case "7z":
+                    case "rar":
+                        fileIcon = iconMap.get("archive");
                         break;
                     default:
                         fileIcon = iconMap.get("file");

@@ -1,5 +1,6 @@
 package com.github.relua.gui.dialogs;
 
+import com.github.relua.gui.theme.ThemeManager;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -28,6 +29,9 @@ public class EditCommentDialog extends Dialog<String> {
         setTitle("添加/修改行注释 - 行 " + lineNumber);
         setHeaderText(null);
 
+        // 应用现代化主题
+        ThemeManager.getInstance().applyTheme(this);
+
         ButtonType okButtonType = new ButtonType("确定 (Enter)", ButtonData.OK_DONE);
         ButtonType cancelButtonType = new ButtonType("取消 (Esc)", ButtonData.CANCEL_CLOSE);
         getDialogPane().getButtonTypes().addAll(okButtonType, cancelButtonType);
@@ -45,12 +49,12 @@ public class EditCommentDialog extends Dialog<String> {
         grid.setAlignment(Pos.CENTER_LEFT);
 
         Label lineLabel = new Label("当前行代码:");
-        lineLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #555555;");
+        lineLabel.setStyle("-fx-font-weight: bold;");
         Label lineVal = new Label(lineText != null ? lineText.trim() : "");
-        lineVal.setStyle("-fx-font-family: 'Consolas'; -fx-text-fill: #333333;");
+        lineVal.setStyle("-fx-font-family: 'Consolas';");
 
         Label commentLabel = new Label("分析注释:");
-        commentLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #555555;");
+        commentLabel.setStyle("-fx-font-weight: bold;");
 
         commentInput = new TextField(existingComment != null ? existingComment : "");
         commentInput.setPromptText("输入该行分析笔记（留空确定将清除现有注释）");

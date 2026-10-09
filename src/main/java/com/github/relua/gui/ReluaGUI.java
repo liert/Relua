@@ -1,6 +1,7 @@
 package com.github.relua.gui;
 
 import com.github.relua.gui.controllers.MainController;
+import com.github.relua.gui.theme.ThemeManager;
 import com.github.relua.gui.utils.I18nUtil;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
@@ -38,11 +39,16 @@ public class ReluaGUI extends Application {
             controller.openStartupFiles(startupFiles);
         }
 
-        // 设置场景
-        Scene scene = new Scene(root, 800, 600);
+        // 设置场景（采用适合现代屏幕的舒适尺寸）
+        Scene scene = new Scene(root, 1100, 720);
+
+        // 应用现代化设计主题系统（默认专业暗色，支持偏好持久化）
+        ThemeManager.getInstance().applyTheme(scene);
 
         // 设置主舞台
-        primaryStage.setTitle("Relua - Lua字节码反编译器");
+        primaryStage.setTitle("Relua - Lua 字节码反编译与逆向分析套件");
+        primaryStage.setMinWidth(850);
+        primaryStage.setMinHeight(550);
         primaryStage.setScene(scene);
         primaryStage.show();
     }

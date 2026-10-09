@@ -18,10 +18,27 @@ import com.github.relua.model.Instruction;
 import com.github.relua.model.Constant;
 import com.github.relua.model.LocalVar;
 import com.github.relua.util.BytecodeFormatter;
+import com.github.relua.gui.theme.ThemeManager;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
-import javafx.scene.control.*;
+import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Separator;
+import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.control.SplitPane;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
@@ -131,7 +148,11 @@ public class MainController {
     @FXML
     private Button btnOpen;
     @FXML
+    private Button btnOpenFolder;
+    @FXML
     private Button btnSave;
+    @FXML
+    private Button btnBatchExport;
     @FXML
     private Button btnToggleBytecode;
     @FXML
@@ -144,6 +165,12 @@ public class MainController {
     private Button btnZoomOut;
     @FXML
     private Button btnResetZoom;
+    @FXML
+    private Button btnToggleTheme;
+    @FXML
+    private MenuItem menuItemDarkTheme;
+    @FXML
+    private MenuItem menuItemLightTheme;
     
     // 文件树相关
     @FXML
@@ -635,10 +662,10 @@ public class MainController {
     private void initSubViewHeader() {
         subViewHeaderBar = new javafx.scene.layout.HBox(8);
         subViewHeaderBar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        subViewHeaderBar.setStyle("-fx-padding: 3 6 3 6; -fx-background-color: #f7f9fa; -fx-border-color: #e2e8f0; -fx-border-width: 0 0 1 0;");
+        subViewHeaderBar.getStyleClass().add("editor-tab-header");
 
         graphContainer.getChildren().remove(astGraphLabel);
-        astGraphLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 12px;");
+        astGraphLabel.getStyleClass().add("view-mode-hint");
         subViewHeaderBar.getChildren().add(astGraphLabel);
 
         javafx.scene.layout.Region spacer = new javafx.scene.layout.Region();
@@ -651,10 +678,6 @@ public class MainController {
         btnScopeCurrentChunk.setToggleGroup(scopeGroup);
         btnScopeFullFile.setToggleGroup(scopeGroup);
         btnScopeCurrentChunk.setSelected(true);
-
-        String scopeBtnStyle = "-fx-font-size: 11px; -fx-padding: 1 6 1 6; -fx-cursor: hand;";
-        btnScopeCurrentChunk.setStyle(scopeBtnStyle);
-        btnScopeFullFile.setStyle(scopeBtnStyle);
 
         btnScopeCurrentChunk.setOnAction(e -> {
             bytecodeShowFullFile = false;
@@ -1042,16 +1065,76 @@ public class MainController {
 
         menuItemAbout.setText(I18nUtil.getString("menu.help.about"));
 
-        btnOpen.setText(I18nUtil.getString("toolbar.open"));
-        btnSave.setText(I18nUtil.getString("toolbar.save"));
-        btnUndo.setText(I18nUtil.getString("toolbar.undo"));
-        btnRedo.setText(I18nUtil.getString("toolbar.redo"));
-        btnZoomIn.setText(I18nUtil.getString("toolbar.zoomIn"));
-        btnZoomOut.setText(I18nUtil.getString("toolbar.zoomOut"));
-        btnResetZoom.setText(I18nUtil.getString("toolbar.resetZoom"));
+        btnOpen.setText("📂 " + I18nUtil.getString("toolbar.open"));
+        btnOpen.setTooltip(new Tooltip("打开单个 Lua 字节码或源码文件 (Ctrl+O)"));
+
+        if (btnOpenFolder != null) {
+            btnOpenFolder.setText("📁 打开工程");
+            btnOpenFolder.setTooltip(new Tooltip("打开并分析整个工程文件夹"));
+        }
+
+        btnSave.setText("💾 " + I18nUtil.getString("toolbar.save"));
+        btnSave.setTooltip(new Tooltip("保存当前反编译或分析文本 (Ctrl+S)"));
+
+        if (btnBatchExport != null) {
+            btnBatchExport.setText("📦 批量导出");
+            btnBatchExport.setTooltip(new Tooltip("批量反编译导出整个工程项目 (Ctrl+Shift+E)"));
+        }
+
+        btnToggleBytecode.setText("⇄ 源码/字节码");
+        btnToggleBytecode.setTooltip(new Tooltip("切换当前文件的 Lua 源码与字节码反汇编视图 (Ctrl+B)"));
+
+        btnUndo.setText("↶ " + I18nUtil.getString("toolbar.undo"));
+        btnUndo.setTooltip(new Tooltip("撤销操作 (Ctrl+Z)"));
+
+        btnRedo.setText("↷ " + I18nUtil.getString("toolbar.redo"));
+        btnRedo.setTooltip(new Tooltip("重做操作 (Ctrl+Y)"));
+
+        btnZoomIn.setText("🔍+ " + I18nUtil.getString("toolbar.zoomIn"));
+        btnZoomIn.setTooltip(new Tooltip("放大可视化分析图"));
+
+        btnZoomOut.setText("🔍- " + I18nUtil.getString("toolbar.zoomOut"));
+        btnZoomOut.setTooltip(new Tooltip("缩小可视化分析图"));
+
+        btnResetZoom.setText("⟲ " + I18nUtil.getString("toolbar.resetZoom"));
+        btnResetZoom.setTooltip(new Tooltip("重置可视化视图缩放至 100%"));
+
+        if (btnToggleTheme != null) {
+            btnToggleTheme.setText("🌓 切换主题");
+            btnToggleTheme.setTooltip(new Tooltip("在现代暗色与现代浅色主题之间快速切换"));
+        }
 
         astGraphLabel.setText(I18nUtil.getString("label.astGraph"));
         logLabel.setText(I18nUtil.getString("label.log"));
         btnClearLog.setText(I18nUtil.getString("btn.clearLog"));
+        btnClearLog.setTooltip(new Tooltip("清空运行控制台日志输出"));
+    }
+
+    /**
+     * 切换到现代暗色主题
+     */
+    @FXML
+    private void handleDarkTheme(ActionEvent event) {
+        Scene scene = (mainBorderPane != null) ? mainBorderPane.getScene() : null;
+        ThemeManager.getInstance().setTheme(ThemeManager.Theme.DARK, scene);
+    }
+
+    /**
+     * 切换到现代浅色主题
+     */
+    @FXML
+    private void handleLightTheme(ActionEvent event) {
+        Scene scene = (mainBorderPane != null) ? mainBorderPane.getScene() : null;
+        ThemeManager.getInstance().setTheme(ThemeManager.Theme.LIGHT, scene);
+    }
+
+    /**
+     * 快速循环切换主题
+     */
+    @FXML
+    private void handleToggleTheme(ActionEvent event) {
+        Scene scene = (mainBorderPane != null) ? mainBorderPane.getScene() : null;
+        ThemeManager.Theme next = ThemeManager.getInstance().isDark() ? ThemeManager.Theme.LIGHT : ThemeManager.Theme.DARK;
+        ThemeManager.getInstance().setTheme(next, scene);
     }
 }

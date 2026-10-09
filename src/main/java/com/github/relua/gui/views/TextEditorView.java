@@ -4,6 +4,7 @@ import com.github.relua.gui.controllers.LuaCodeIntelligenceController;
 import com.github.relua.gui.dialogs.EditCommentDialog;
 import com.github.relua.gui.dialogs.RenameVariableDialog;
 import com.github.relua.gui.dialogs.XrefsDialog;
+import com.github.relua.gui.theme.ThemeManager;
 import com.github.relua.gui.utils.I18nUtil;
 import com.github.relua.gui.utils.LuaVariableUtils;
 import com.github.relua.gui.utils.LuaVariableUtils.SymbolMatch;
@@ -171,14 +172,9 @@ public class TextEditorView {
         // 延迟设置行号和折叠标识，避免在组件未渲染或未显示时计算 Visible paragraphs 导致 RichTextFX 崩溃
         Platform.runLater(this::installParagraphGraphics);
         
-        // 加载 Lua 语法高亮样式表
-        try {
-            String cssPath = getClass().getResource("/css/lua-highlight.css").toExternalForm();
-            codeArea.getStylesheets().add(cssPath);
-            searchBar.getStylesheets().add(cssPath);
-        } catch (Exception e) {
-            LOGGER.warning("无法加载 Lua 语法高亮样式表: " + e.getMessage());
-        }
+        // 加载当前现代化主题样式表并注册主题动态切换监听
+        applyThemeStyles();
+        ThemeManager.getInstance().addListener(newTheme -> Platform.runLater(this::applyThemeStyles));
         
         // 监听文本变化以更新折叠、搜索和高亮
         codeArea.textProperty().addListener((obs, oldText, newText) -> {
@@ -196,9 +192,6 @@ public class TextEditorView {
                 updateSymbolHighlighting(newVal);
             }
         });
-
-        // 设置字体和字体大小
-        codeArea.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 14px;");
         
         // 设置 CodeArea 的尺寸约束
         codeArea.setMaxWidth(Double.MAX_VALUE);
@@ -1256,6 +1249,24 @@ public class TextEditorView {
                 next.remove("collapse");
                 return next;
             });
+        }
+    }
+
+    /**
+     * 应用当前主题的语法高亮与组件样式表
+     */
+    private void applyThemeStyles() {
+        try {
+            codeArea.getStylesheets().clear();
+            searchBar.getStylesheets().clear();
+            java.net.URL url = getClass().getResource("/css/" + ThemeManager.getInstance().getCurrentTheme().getCssFileName());
+            if (url != null) {
+                String cssPath = url.toExternalForm();
+                codeArea.getStylesheets().add(cssPath);
+                searchBar.getStylesheets().add(cssPath);
+            }
+        } catch (Exception e) {
+            LOGGER.warning("无法加载主题样式表: " + e.getMessage());
         }
     }
 }

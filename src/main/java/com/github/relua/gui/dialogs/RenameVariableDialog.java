@@ -1,5 +1,6 @@
 package com.github.relua.gui.dialogs;
-
+ 
+import com.github.relua.gui.theme.ThemeManager;
 import com.github.relua.gui.utils.LuaVariableUtils;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -32,6 +33,9 @@ public class RenameVariableDialog extends Dialog<String> {
         setTitle("重命名符号 - Relua");
         setHeaderText(null);
 
+        // 应用现代化主题
+        ThemeManager.getInstance().applyTheme(this);
+
         // 设置按钮类型
         ButtonType okButtonType = new ButtonType("确定", ButtonData.OK_DONE);
         ButtonType cancelButtonType = new ButtonType("取消", ButtonData.CANCEL_CLOSE);
@@ -47,7 +51,7 @@ public class RenameVariableDialog extends Dialog<String> {
 
         Label promptLabel = new Label("将当前符号（变量/函数名）重命名为新名称（所有引用的出现位置将同步更新）：");
         promptLabel.setWrapText(true);
-        promptLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #333333;");
+        promptLabel.setStyle("-fx-font-size: 13px;");
 
         GridPane grid = new GridPane();
         grid.setHgap(10);
@@ -55,12 +59,12 @@ public class RenameVariableDialog extends Dialog<String> {
         grid.setAlignment(Pos.CENTER_LEFT);
 
         Label currentLabel = new Label("原符号名:");
-        currentLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #555555;");
+        currentLabel.setStyle("-fx-font-weight: bold;");
         Label currentVal = new Label(oldVariableName != null ? oldVariableName : "");
-        currentVal.setStyle("-fx-font-family: 'Consolas'; -fx-font-weight: bold; -fx-text-fill: #0066cc;");
+        currentVal.setStyle("-fx-font-family: 'Consolas'; -fx-font-weight: bold; -fx-text-fill: #007acc;");
 
         Label newLabel = new Label("新符号名:");
-        newLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #555555;");
+        newLabel.setStyle("-fx-font-weight: bold;");
 
         nameInput = new TextField(oldVariableName != null ? oldVariableName : "");
         nameInput.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 13px;");

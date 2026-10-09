@@ -10,6 +10,7 @@
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ScrollPane?>
@@ -19,7 +20,7 @@
 <?import javafx.scene.control.TabPane?>
 
 <BorderPane fx:id="mainBorderPane" xmlns="http://javafx.com/javafx/11.0.2" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.github.relua.gui.controllers.MainController">
-    <!-- 菜单栏 -->
+    <!-- 顶部现代化菜单栏 -->
     <top>
         <MenuBar>
             <menus>
@@ -56,12 +57,20 @@
                     <items>
                         <MenuItem fx:id="menuItemToggleTabBytecode" onAction="#handleToggleCurrentTabBytecode" text="切换当前文件字节码/源码" accelerator="Shortcut+B" />
                         <SeparatorMenuItem />
+                        <!-- 界面主题子菜单 -->
+                        <Menu text="界面主题 (Theme)">
+                            <items>
+                                <MenuItem fx:id="menuItemDarkTheme" onAction="#handleDarkTheme" text="🌓 现代暗色 (Modern Dark)" />
+                                <MenuItem fx:id="menuItemLightTheme" onAction="#handleLightTheme" text="☀️ 现代浅色 (Modern Light)" />
+                            </items>
+                        </Menu>
+                        <SeparatorMenuItem />
                         <!-- 子视图子菜单 -->
-                        <Menu text="子视图">
+                        <Menu text="分析子视图">
                             <items>
                                 <MenuItem fx:id="menuItemBytecodeView" onAction="#handleBytecodeView" text="字节码子视图" />
-                                <MenuItem fx:id="menuItemAstView" onAction="#handleAstView" text="AST视图" />
-                                <MenuItem fx:id="menuItemCfgView" onAction="#handleCfgView" text="CFG视图" />
+                                <MenuItem fx:id="menuItemAstView" onAction="#handleAstView" text="AST 语法树视图" />
+                                <MenuItem fx:id="menuItemCfgView" onAction="#handleCfgView" text="CFG 控制流图视图" />
                             </items>
                         </Menu>
                         <SeparatorMenuItem />
@@ -82,14 +91,17 @@
         </MenuBar>
     </top>
     
-    <!-- 工具栏 -->
+    <!-- 中央核心工作区 -->
     <center>
         <VBox>
+            <!-- 现代化快捷操作工具栏 -->
             <ToolBar>
                 <Button fx:id="btnOpen" onAction="#handleOpenFile" />
+                <Button fx:id="btnOpenFolder" onAction="#handleOpenFolder" text="📁 打开工程" />
                 <Button fx:id="btnSave" onAction="#handleSaveFile" />
+                <Button fx:id="btnBatchExport" onAction="#handleBatchExport" text="📦 批量导出" />
                 <Separator orientation="VERTICAL" />
-                <Button fx:id="btnToggleBytecode" onAction="#handleToggleCurrentTabBytecode" text="源码/字节码" />
+                <Button fx:id="btnToggleBytecode" onAction="#handleToggleCurrentTabBytecode" text="⇄ 源码/字节码" />
                 <Separator orientation="VERTICAL" />
                 <Button fx:id="btnUndo" onAction="#handleUndo" />
                 <Button fx:id="btnRedo" onAction="#handleRedo" />
@@ -99,55 +111,68 @@
                 <Button fx:id="btnResetZoom" onAction="#handleResetZoom" />
                 <Separator orientation="VERTICAL" />
                 
+                <Region HBox.hgrow="ALWAYS" />
+                
+                <!-- 快速主题切换按钮 -->
+                <Button fx:id="btnToggleTheme" onAction="#handleToggleTheme" text="🌓 主题" />
             </ToolBar>
             
             <!-- 主内容区域和日志窗口的垂直分割面板 -->
             <SplitPane fx:id="verticalSplitPane" orientation="VERTICAL" VBox.vgrow="ALWAYS" dividerPositions="0.8">
                 <!-- 主内容区域 - 水平分割面板 -->
                 <SplitPane fx:id="mainSplitPane" orientation="HORIZONTAL" VBox.vgrow="ALWAYS" dividerPositions="0.2, 0.6">
-                    <!-- 左侧：文件树导航区域 -->
-                    <VBox fx:id="fileTreeContainer" prefWidth="250" minWidth="150" maxWidth="500">
-                        <ScrollPane fx:id="fileTreeScrollPane" VBox.vgrow="ALWAYS" prefHeight="0">
-                            <!-- 文件树控件将通过代码添加 -->
+                    <!-- 左侧：现代化资源管理器与文件树 -->
+                    <VBox fx:id="fileTreeContainer" prefWidth="260" minWidth="160" maxWidth="500" styleClass="file-tree-container">
+                        <HBox alignment="CENTER_LEFT" styleClass="sidebar-header">
+                            <Label text="项目资源管理器 (EXPLORER)" />
+                        </HBox>
+                        <ScrollPane fx:id="fileTreeScrollPane" VBox.vgrow="ALWAYS" fitToWidth="true" fitToHeight="true" prefHeight="0">
+                            <!-- 文件树控件通过代码动态装载 -->
                         </ScrollPane>
                     </VBox>
                     
-                    <!-- 中间：文本编辑区域 -->
+                    <!-- 中间：代码与字节码分析编辑器区域 -->
                     <VBox fx:id="textEditorContainer">
                         <StackPane fx:id="textEditorStackPane" VBox.vgrow="ALWAYS">
                             <TabPane fx:id="textEditorTabPane" VBox.vgrow="ALWAYS">
-                                <!-- 标签页将通过代码动态添加 -->
+                                <!-- 标签页通过代码动态装载 -->
                             </TabPane>
                         </StackPane>
                     </VBox>
                     
-                    <!-- 右侧：图形可视化区域 -->
+                    <!-- 右侧：图形可视化/字节码比对分析子视图区域 -->
                     <VBox fx:id="graphContainer">
                         <Label fx:id="astGraphLabel" style="-fx-font-weight: bold;" />
                         <ScrollPane fx:id="graphScrollPane" VBox.vgrow="ALWAYS" HBox.hgrow="ALWAYS" fitToWidth="true" fitToHeight="true">
-                            <!-- 图形可视化组件将通过代码添加 -->
+                            <!-- 图形可视化组件通过代码动态装载 -->
                         </ScrollPane>
                     </VBox>
                 </SplitPane>
                 
-                <!-- 日志输出窗口区域 -->
-                <VBox fx:id="logContainer">
-                    <HBox style="-fx-padding: 5px; -fx-background-color: #f0f0f0; -fx-border-color: #d0d0d0; -fx-border-width: 1px 0 0 0;">
-                        <Label fx:id="logLabel" style="-fx-font-weight: bold;" />
-                        <ComboBox fx:id="logLevelComboBox" style="-fx-margin-left: 10px; -fx-min-width: 100px;" />
-                        <Button fx:id="btnClearLog" style="-fx-margin-left: auto;" />
+                <!-- 底部：运行时日志与控制台面板 -->
+                <VBox fx:id="logContainer" styleClass="log-container">
+                    <HBox alignment="CENTER_LEFT" spacing="10" styleClass="log-header-bar">
+                        <Label fx:id="logLabel" />
+                        <ComboBox fx:id="logLevelComboBox" style="-fx-min-width: 110px;" />
+                        <Region HBox.hgrow="ALWAYS" />
+                        <Button fx:id="btnClearLog" />
                     </HBox>
-                    <ScrollPane fx:id="logScrollPane" VBox.vgrow="ALWAYS" prefHeight="0" minHeight="50">
-                        <!-- 日志文本区域将通过代码添加 -->
+                    <ScrollPane fx:id="logScrollPane" VBox.vgrow="ALWAYS" prefHeight="0" minHeight="50" fitToWidth="true" fitToHeight="true">
+                        <!-- 日志文本区域通过代码动态装载 -->
                     </ScrollPane>
                 </VBox>
             </SplitPane>
             
-            <!-- 状态栏 -->
-            <HBox style="-fx-background-color: #f0f0f0; -fx-padding: 5px;" BorderPane.alignment="CENTER">
+            <!-- 现代化 IDE 底部状态栏 -->
+            <HBox styleClass="status-bar" BorderPane.alignment="CENTER">
+                <Region styleClass="status-dot-ready" />
                 <Label fx:id="statusLabel" />
-                <Label text=" | " />
+                <Label text=" | " opacity="0.5" />
                 <Label fx:id="fileLabel" />
+                <Region HBox.hgrow="ALWAYS" />
+                <Label text="🔒 只读分析模式" styleClass="status-bar-pill" />
+                <Label text="UTF-8" styleClass="status-bar-pill" />
+                <Label text="Lua 逆向套件" styleClass="status-bar-pill" />
             </HBox>
         </VBox>
     </center>

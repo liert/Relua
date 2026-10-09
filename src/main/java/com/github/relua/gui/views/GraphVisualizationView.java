@@ -4,8 +4,10 @@ import com.github.relua.gui.model.GraphEdge;
 import com.github.relua.gui.model.GraphModel;
 import com.github.relua.gui.model.GraphNode;
 import com.github.relua.gui.model.GraphNodeType;
+import com.github.relua.gui.theme.ThemeManager;
 import com.github.relua.gui.views.graph.GraphLayoutEngine;
 import com.github.relua.gui.views.graph.InstructionDescriptionPanel;
+import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
@@ -98,6 +100,9 @@ public class GraphVisualizationView {
             }
             drawGraph();
         });
+
+        // 注册主题变更监听器，当切换暗色/浅色时自动自适应重绘流图
+        ThemeManager.getInstance().addListener(newTheme -> Platform.runLater(this::drawGraph));
 
         // 注册鼠标拖拽、平移与滚轮交互事件
         setupMouseEventHandlers();
@@ -260,25 +265,46 @@ public class GraphVisualizationView {
                 .anyMatch(node -> node.getLabel() != null && node.getLabel().startsWith("BB"));
         descriptionPanel.setVisible(isCFG);
 
-        // 清空画布
-        gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
+        boolean isDark = ThemeManager.getInstance().isDark();
 
-        // 保存并应用缩放平移矩阵
+        // 1. 填充现代化底色
+        Color bgColor = isDark ? Color.web("#1e1e1e") : Color.web("#f8f9fa");
+        gc.setFill(bgColor);
+        gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
+
+        // 2. 绘制微点阵网格（Subtle Dot Grid）营造专业 IDE 流图氛围
+        Color dotColor = isDark ? Color.web("#2c2c30") : Color.web("#e2e8f0");
+        gc.setFill(dotColor);
+        double gridStep = 24.0;
+        double offsetX = (translationX * currentScale) % gridStep;
+        if (offsetX < 0) offsetX += gridStep;
+        double offsetY = (translationY * currentScale) % gridStep;
+        if (offsetY < 0) offsetY += gridStep;
+
+        for (double gx = offsetX; gx < canvas.getWidth(); gx += gridStep) {
+            for (double gy = offsetY; gy < canvas.getHeight(); gy += gridStep) {
+                gc.fillRect(gx, gy, 1.2, 1.2);
+            }
+        }
+
+        // 3. 保存并应用缩放平移矩阵
         gc.save();
         gc.scale(currentScale, currentScale);
         gc.translate(translationX, translationY);
 
-        drawGraphContent();
+        drawGraphContent(isDark);
 
         gc.restore();
     }
 
     /**
-     * 绘制图形的核心内容（边、箭头和节点矩形）
+     * 绘制图形的核心内容（边、箭头和现代圆角卡片）
      */
-    private void drawGraphContent() {
+    private void drawGraphContent(boolean isDark) {
         List<GraphNode> nodes = model.getNodes();
         List<GraphEdge> edges = model.getEdges();
+
+        Color edgeColor = isDark ? Color.web("#858585") : Color.web("#64748b");
 
         // 1. 绘制正交折线边与箭头
         for (GraphEdge edge : edges) {
@@ -291,8 +317,8 @@ public class GraphVisualizationView {
             double endX = targetNode.getX() + targetNode.getWidth() / 2.0;
             double endY = targetNode.getY();
 
-            gc.setStroke(Color.BLACK);
-            gc.setLineWidth(1.5);
+            gc.setStroke(edgeColor);
+            gc.setLineWidth(1.6);
 
             if (startY < endY) {
                 // 正向边：在两层垂直正中间折线
@@ -322,35 +348,75 @@ public class GraphVisualizationView {
             }
 
             // 绘制正交箭头（垂直向下指示）
-            drawDownwardArrow(endX, endY);
+            drawDownwardArrow(endX, endY, edgeColor);
         }
 
-        // 2. 绘制节点卡片
+        // 2. 绘制节点卡片（圆角矩形）
+        double cornerRadius = 6.0;
         for (GraphNode node : nodes) {
-            gc.setStroke(Color.BLACK);
-            gc.setLineWidth(1.0);
+            Color cardFill;
+            Color cardBorder;
+            Color textColor;
 
-            // 根据类型着色
-            switch (node.getType()) {
-                case IF_BLOCK:
-                    gc.setFill(Color.LIGHTBLUE);
-                    break;
-                case LOOP_BLOCK:
-                    gc.setFill(Color.LIGHTGREEN);
-                    break;
-                case ELSE_BLOCK:
-                    gc.setFill(Color.LIGHTYELLOW);
-                    break;
-                default:
-                    gc.setFill(Color.WHITE);
-                    break;
+            if (isDark) {
+                switch (node.getType()) {
+                    case IF_BLOCK:
+                        cardFill = Color.web("#142d42");
+                        cardBorder = Color.web("#007acc");
+                        textColor = Color.web("#9cdcfe");
+                        break;
+                    case LOOP_BLOCK:
+                        cardFill = Color.web("#153322");
+                        cardBorder = Color.web("#38a169");
+                        textColor = Color.web("#a8ffcc");
+                        break;
+                    case ELSE_BLOCK:
+                        cardFill = Color.web("#382f18");
+                        cardBorder = Color.web("#d97706");
+                        textColor = Color.web("#fde68a");
+                        break;
+                    default:
+                        cardFill = Color.web("#252526");
+                        cardBorder = Color.web("#474747");
+                        textColor = Color.web("#cccccc");
+                        break;
+                }
+            } else {
+                switch (node.getType()) {
+                    case IF_BLOCK:
+                        cardFill = Color.web("#e0f2fe");
+                        cardBorder = Color.web("#0284c7");
+                        textColor = Color.web("#0369a1");
+                        break;
+                    case LOOP_BLOCK:
+                        cardFill = Color.web("#dcfce7");
+                        cardBorder = Color.web("#16a34a");
+                        textColor = Color.web("#15803d");
+                        break;
+                    case ELSE_BLOCK:
+                        cardFill = Color.web("#fef9c3");
+                        cardBorder = Color.web("#ca8a04");
+                        textColor = Color.web("#854d0e");
+                        break;
+                    default:
+                        cardFill = Color.web("#ffffff");
+                        cardBorder = Color.web("#cbd5e1");
+                        textColor = Color.web("#1e293b");
+                        break;
+                }
             }
 
-            gc.fillRect(node.getX(), node.getY(), node.getWidth(), node.getHeight());
-            gc.strokeRect(node.getX(), node.getY(), node.getWidth(), node.getHeight());
+            // 绘制卡片圆角背景
+            gc.setFill(cardFill);
+            gc.fillRoundRect(node.getX(), node.getY(), node.getWidth(), node.getHeight(), cornerRadius, cornerRadius);
+
+            // 绘制卡片外边框
+            gc.setStroke(cardBorder);
+            gc.setLineWidth(1.2);
+            gc.strokeRoundRect(node.getX(), node.getY(), node.getWidth(), node.getHeight(), cornerRadius, cornerRadius);
 
             // 绘制多行文本
-            gc.setFill(Color.BLACK);
+            gc.setFill(textColor);
             gc.setFont(NODE_FONT);
 
             String[] lines = node.getLabel().split("\\n");
@@ -379,9 +445,9 @@ public class GraphVisualizationView {
     /**
      * 绘制垂直向下指示的实心箭头
      */
-    private void drawDownwardArrow(double x, double y) {
-        double arrowSize = 6.0;
-        gc.setFill(Color.BLACK);
+    private void drawDownwardArrow(double x, double y, Color arrowColor) {
+        double arrowSize = 5.5;
+        gc.setFill(arrowColor);
         gc.fillPolygon(
             new double[]{x, x - arrowSize, x + arrowSize},
             new double[]{y, y - arrowSize, y - arrowSize},

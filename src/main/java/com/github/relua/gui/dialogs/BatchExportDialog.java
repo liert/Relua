@@ -1,6 +1,7 @@
 package com.github.relua.gui.dialogs;
 
 import com.github.relua.gui.services.BatchExportService;
+import com.github.relua.gui.theme.ThemeManager;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -47,20 +48,20 @@ public class BatchExportDialog extends Stage {
         root.setMinWidth(480);
 
         Label titleLabel = new Label("正在批量反编译并导出为 Lua 工程...");
-        titleLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #222222;");
+        titleLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
 
         Label pathInfoLabel = new Label("输出目标: " + targetRoot.getAbsolutePath());
-        pathInfoLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #666666;");
+        pathInfoLabel.setStyle("-fx-font-size: 11px; -fx-opacity: 0.75;");
         pathInfoLabel.setWrapText(true);
 
         progressBar.setPrefWidth(440);
         progressBar.setMaxWidth(Double.MAX_VALUE);
 
-        statusLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #444444;");
+        statusLabel.setStyle("-fx-font-size: 12px;");
         statusLabel.setWrapText(true);
         statusLabel.setMinHeight(36);
 
-        statsLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #0066cc;");
+        statsLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #007acc;");
 
         btnOpenDir.setVisible(false);
         btnOpenDir.setManaged(false);
@@ -96,6 +97,7 @@ public class BatchExportDialog extends Stage {
 
         root.getChildren().addAll(titleLabel, pathInfoLabel, progressBar, statusLabel, statsLabel, btnBox);
         Scene scene = new Scene(root);
+        ThemeManager.getInstance().applyTheme(scene);
         setScene(scene);
 
         // 启动后台线程执行批量导出
