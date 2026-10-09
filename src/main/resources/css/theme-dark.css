@@ -544,22 +544,49 @@
 /* ==========================================================================
    代码编辑器 (RichTextFX CodeArea) 与现代高亮样式 (VSCode Dark+)
    ========================================================================== */
-.code-area, .log-code-area {
+.styled-text-area,
+.code-area,
+.log-code-area {
     -fx-background-color: #1e1e1e;
-    -fx-text-fill: #e6edf3;
     -fx-caret-fill: #ffffff;
     -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
     -fx-font-smoothing-type: lcd;
 }
 
+/* 核心：确保 RichTextFX 的 Text 节点默认文本填充色适应暗色主题 */
+.styled-text-area .text,
+.code-area .text,
+.log-code-area .text,
+.log-default {
+    -fx-fill: #e6edf3;
+}
+
 .code-area {
     -fx-font-size: 14px;
-    -fx-text-fill: #d4d4d4;
 }
 
 .log-code-area {
     -fx-font-size: 13px;
-    -fx-text-fill: #e6edf3;
+}
+
+/* 日志级别高对比度着色 (暗色模式) */
+.log-info {
+    -fx-fill: #4ec9b0;
+    -fx-font-weight: bold;
+}
+
+.log-warning {
+    -fx-fill: #e5c07b;
+    -fx-font-weight: bold;
+}
+
+.log-error, .log-severe {
+    -fx-fill: #f44747;
+    -fx-font-weight: bold;
+}
+
+.log-debug {
+    -fx-fill: #9cdcfe;
 }
 
 .lineno {

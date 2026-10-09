@@ -1,5 +1,6 @@
 package com.github.relua.gui.views;
 
+import com.github.relua.gui.theme.ThemeManager;
 import com.github.relua.log.LogLevel;
 import com.github.relua.log.LogOutput;
 import com.github.relua.log.Logger;
@@ -12,7 +13,9 @@ import javafx.scene.control.TextArea;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
 
+import java.net.URL;
 import java.text.SimpleDateFormat;
+import java.util.Collections;
 import java.util.Date;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -22,7 +25,8 @@ import java.util.logging.SimpleFormatter;
 /**
  * 日志视图类，采用与主代码区域相同的 RichTextFX 高性能虚拟化渲染引擎，
  * 彻底消除 JavaFX 原生 TextArea 及其内嵌 ScrollPane 带来的双层视口裁剪与亚像素模糊，
- * 保证与反编译源码/字节码区域拥有完全相同的极致清晰锐利文字呈现。
+ * 保证与反编译源码/字节码区域拥有完全相同的极致清晰锐利文字呈现，
+ * 并支持随系统/用户界面主题热切换自动更新文本填充色与语法高亮。
  */
 public class LogView {
     private final CodeArea logCodeArea;
@@ -87,6 +91,24 @@ public class LogView {
 
         // 设置默认日志级别为 DEBUG
         setLogLevel(Level.FINE);
+
+        // 初始化并监听主题变更，确保字体前景色与背景色随主题无缝热适配
+        applyThemeStyles();
+        ThemeManager.getInstance().addListener(newTheme -> Platform.runLater(this::applyThemeStyles));
+    }
+
+    /**
+     * 应用当前主题的样式表到日志代码区域
+     */
+    private void applyThemeStyles() {
+        try {
+            logCodeArea.getStylesheets().clear();
+            URL url = getClass().getResource("/css/" + ThemeManager.getInstance().getCurrentTheme().getCssFileName());
+            if (url != null) {
+                logCodeArea.getStylesheets().add(url.toExternalForm());
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     /**
@@ -241,7 +263,7 @@ public class LogView {
     }
 
     /**
-     * 安全追加日志文本并自动滚动至底部
+     * 安全追加日志文本并自动滚动至底部，同时针对不同级别应用主题感知的高对比高亮
      * @param text 要追加的文本
      */
     private void appendLogSafely(String text) {
@@ -255,8 +277,28 @@ public class LogView {
                 }
                 logCodeArea.deleteText(0, trimLength);
             }
+            int start = logCodeArea.getLength();
             logCodeArea.appendText(text);
-            logCodeArea.moveTo(logCodeArea.getLength());
+            int end = logCodeArea.getLength();
+
+            // 识别日志级别并赋予与主题深度契合的色彩样式
+            String levelClass = "log-default";
+            if (text.contains("[INFO]")) {
+                levelClass = "log-info";
+            } else if (text.contains("[WARNING]")) {
+                levelClass = "log-warning";
+            } else if (text.contains("[ERROR]") || text.contains("[SEVERE]")) {
+                levelClass = "log-error";
+            } else if (text.contains("[DEBUG]")) {
+                levelClass = "log-debug";
+            }
+
+            try {
+                logCodeArea.setStyle(start, end, Collections.singleton(levelClass));
+            } catch (Throwable ignored) {
+            }
+
+            logCodeArea.moveTo(end);
             logCodeArea.requestFollowCaret();
         });
     }

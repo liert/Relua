@@ -496,12 +496,21 @@
 /* ==========================================================================
    代码编辑器与浅色语法高亮 (VSCode Light+)
    ========================================================================== */
-.code-area, .log-code-area {
+.styled-text-area,
+.code-area,
+.log-code-area {
     -fx-background-color: #ffffff;
-    -fx-text-fill: #000000;
     -fx-caret-fill: #000000;
     -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
     -fx-font-smoothing-type: lcd;
+}
+
+/* 核心：确保 RichTextFX 的 Text 节点默认文本填充色适应浅色主题 */
+.styled-text-area .text,
+.code-area .text,
+.log-code-area .text,
+.log-default {
+    -fx-fill: #1f2937;
 }
 
 .code-area {
@@ -510,6 +519,26 @@
 
 .log-code-area {
     -fx-font-size: 13px;
+}
+
+/* 日志级别高对比度着色 (浅色模式) */
+.log-info {
+    -fx-fill: #0284c7;
+    -fx-font-weight: bold;
+}
+
+.log-warning {
+    -fx-fill: #d97706;
+    -fx-font-weight: bold;
+}
+
+.log-error, .log-severe {
+    -fx-fill: #dc2626;
+    -fx-font-weight: bold;
+}
+
+.log-debug {
+    -fx-fill: #64748b;
 }
 
 .lineno {
