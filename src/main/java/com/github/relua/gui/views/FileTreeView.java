@@ -13,10 +13,13 @@ import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
 
+import java.awt.Desktop;
 import java.io.File;
 import java.io.InputStream;
 import java.math.BigInteger;
@@ -213,11 +216,15 @@ public class FileTreeView {
      * @param y 鼠标Y坐标
      */
     private void showContextMenu(TreeItem<FileNode> item, double x, double y) {
+        if (item == null || item.getValue() == null) {
+            return;
+        }
         ContextMenu contextMenu = new ContextMenu();
         FileNode fileNode = item.getValue();
+        File file = fileNode.getFile();
         
         // 打开菜单项
-        MenuItem openItem = new MenuItem("打开");
+        MenuItem openItem = new MenuItem(fileNode.isDirectory() ? "展开/折叠 (Expand/Collapse)" : "在编辑器中打开 (Open)");
         openItem.setOnAction(e -> {
             if (fileNode.isDirectory()) {
                 item.setExpanded(!item.isExpanded());
@@ -226,9 +233,28 @@ public class FileTreeView {
             }
         });
         contextMenu.getItems().add(openItem);
+        contextMenu.getItems().add(new SeparatorMenuItem());
+
+        // 复制绝对路径
+        MenuItem copyPathItem = new MenuItem("复制绝对路径 (Copy Full Path)");
+        copyPathItem.setOnAction(e -> copyTextToClipboard(file.getAbsolutePath()));
+        contextMenu.getItems().add(copyPathItem);
+
+        // 复制文件名
+        MenuItem copyNameItem = new MenuItem("复制文件名 (Copy Name)");
+        copyNameItem.setOnAction(e -> copyTextToClipboard(file.getName()));
+        contextMenu.getItems().add(copyNameItem);
+
+        contextMenu.getItems().add(new SeparatorMenuItem());
+
+        // 在文件资源管理器中显示
+        MenuItem revealItem = new MenuItem("在文件资源管理器中显示 (Reveal in Explorer)");
+        revealItem.setOnAction(e -> revealInSystemExplorer(file));
+        contextMenu.getItems().add(revealItem);
         
         // 如果是文件夹，添加新建菜单项
         if (fileNode.isDirectory()) {
+            contextMenu.getItems().add(new SeparatorMenuItem());
             MenuItem newFolderItem = new MenuItem("新建文件夹");
             newFolderItem.setOnAction(e -> handleNewFolder(fileNode));
             contextMenu.getItems().add(newFolderItem);
@@ -238,6 +264,8 @@ public class FileTreeView {
             contextMenu.getItems().add(newFileItem);
         }
         
+        contextMenu.getItems().add(new SeparatorMenuItem());
+
         // 重命名菜单项
         MenuItem renameItem = new MenuItem("重命名");
         renameItem.setOnAction(e -> handleRename(fileNode));
@@ -248,8 +276,63 @@ public class FileTreeView {
         deleteItem.setOnAction(e -> handleDelete(fileNode));
         contextMenu.getItems().add(deleteItem);
         
-        // 显示上下文菜单
-        contextMenu.show(treeView, x, y);
+        // 显示上下文菜单（确保拥有活动的 Scene 和 Window）
+        if (treeView.getScene() != null && treeView.getScene().getWindow() != null) {
+            contextMenu.show(treeView, x, y);
+        }
+    }
+
+    /**
+     * 将指定文本复制到系统剪贴板
+     * @param text 要复制的文本
+     */
+    private void copyTextToClipboard(String text) {
+        if (text == null) {
+            return;
+        }
+        try {
+            Clipboard clipboard = Clipboard.getSystemClipboard();
+            ClipboardContent content = new ClipboardContent();
+            content.putString(text);
+            clipboard.setContent(content);
+        } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * 在操作系统的文件管理器中定位并选中文件
+     * @param file 目标文件或文件夹
+     */
+    private void revealInSystemExplorer(File file) {
+        if (file == null || !file.exists()) {
+            return;
+        }
+        new Thread(() -> {
+            try {
+                String osName = System.getProperty("os.name", "").toLowerCase();
+                if (osName.contains("win")) {
+                    // Windows 下精准选中该文件
+                    new ProcessBuilder("explorer.exe", "/select,", file.getAbsolutePath()).start();
+                } else if (osName.contains("mac")) {
+                    // macOS 下定位文件
+                    new ProcessBuilder("open", "-R", file.getAbsolutePath()).start();
+                } else {
+                    // Linux 或其它平台打开父目录
+                    File target = file.isDirectory() ? file : file.getParentFile();
+                    if (target != null && Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                        Desktop.getDesktop().open(target);
+                    }
+                }
+            } catch (Exception e) {
+                try {
+                    File target = file.isDirectory() ? file : file.getParentFile();
+                    if (target != null && Desktop.isDesktopSupported()) {
+                        Desktop.getDesktop().open(target);
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        }, "RevealInExplorerThread").start();
     }
     
     /**

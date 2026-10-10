@@ -11,6 +11,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
@@ -26,12 +27,33 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 标签页类，用于管理单个打开文件的状态和视图（支持在 Lua 代码与字节码视图之间切换，维护反编译符号重命名映射表）
+ * 标签页类，用于管理单个打开文件的状态和视图（支持 Lua 源码、源码/字节码并排分屏、纯字节码三态视图切换，维护反编译符号重命名映射表与双向联动）
  */
 public class EditorTab extends Tab {
+
+    /**
+     * 视图展示模式枚举
+     */
+    public enum ViewMode {
+        LUA_SOURCE("Lua 源码"),
+        SIDE_BY_SIDE("并排分屏"),
+        BYTECODE("字节码");
+
+        private final String displayName;
+
+        ViewMode(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+    }
+
     private File file;
     private final TextEditorView textEditorView; // Lua 代码编辑器视图
     private final TextEditorView bytecodeEditorView; // 字节码代码编辑器视图
+    private ViewMode viewMode = ViewMode.LUA_SOURCE;
     private boolean showingBytecode = false;
     
     private LuacFile luacFile;
@@ -44,17 +66,32 @@ public class EditorTab extends Tab {
     // 记录用户在该标签页内添加的行内分析注释（lineNumber -> comment）
     private final Map<Integer, String> lineComments = new LinkedHashMap<>();
 
+    // 左右分屏容器与子面板
+    private final SplitPane contentSplitPane;
+    private final VBox luaContainer;
+    private final VBox bytecodeContainer;
+    private HBox luaSubHeader;
+    private HBox bytecodeSubHeader;
+
+    // 双向光标同步防重入与去重
+    private int lastSyncedLuaLine = -1;
+    private int lastSyncedBytecodeParagraph = -1;
+    private boolean isSyncingCaret = false;
+
     private VBox loadingOverlay;
     private ProgressIndicator progressIndicator;
     private Label loadingLabel;
     private Label warningLabel;
     
     private ToggleButton btnLuaView;
+    private ToggleButton btnSideBySideView;
     private ToggleButton btnBytecodeView;
     private Label viewModeHintLabel;
 
+    private Runnable onCaretOrSelectionChanged;
+
     public EditorTab(File file, TextEditorView textEditorView) {
-        super(file.getName());
+        super(file != null ? file.getName() : "未命名");
         this.file = file;
         this.textEditorView = textEditorView;
         this.textEditorView.setEditable(false); // 确保 Lua 源码视图只读不可直接编辑，保护反编译成果
@@ -84,17 +121,34 @@ public class EditorTab extends Tab {
         HBox headerBar = createHeaderBar();
         tabContentBox.getChildren().add(headerBar);
 
-        // 编辑器堆叠区域（Lua 代码与字节码视图切换显示）
-        StackPane editorStackPane = new StackPane();
-        VBox.setVgrow(editorStackPane, Priority.ALWAYS);
+        // 初始化分屏容器与子容器
+        contentSplitPane = new SplitPane();
+        VBox.setVgrow(contentSplitPane, Priority.ALWAYS);
 
+        luaSubHeader = createSubHeader("📄 Lua 源码 (反编译)");
+        bytecodeSubHeader = createSubHeader("⚙️ 字节码反汇编 (Disassembly)");
+
+        luaSubHeader.setVisible(false);
+        luaSubHeader.setManaged(false);
+        bytecodeSubHeader.setVisible(false);
+        bytecodeSubHeader.setManaged(false);
+
+        luaContainer = new VBox();
         Node luaNode = textEditorView.getView();
+        VBox.setVgrow(luaNode, Priority.ALWAYS);
+        luaContainer.getChildren().addAll(luaSubHeader, luaNode);
+
+        bytecodeContainer = new VBox();
         Node bytecodeNode = bytecodeEditorView.getView();
+        VBox.setVgrow(bytecodeNode, Priority.ALWAYS);
+        bytecodeContainer.getChildren().addAll(bytecodeSubHeader, bytecodeNode);
 
-        bytecodeNode.setVisible(false);
-        bytecodeNode.setManaged(false);
+        SplitPane.setResizableWithParent(luaContainer, true);
+        SplitPane.setResizableWithParent(bytecodeContainer, true);
 
-        editorStackPane.getChildren().addAll(luaNode, bytecodeNode);
+        // 初始为纯源码模式
+        contentSplitPane.getItems().setAll(luaContainer);
+        tabContentBox.getChildren().add(contentSplitPane);
 
         // StackPane 包含编辑器和加载覆盖层
         StackPane container = new StackPane();
@@ -119,9 +173,45 @@ public class EditorTab extends Tab {
         loadingOverlay.getChildren().addAll(progressIndicator, loadingLabel, warningLabel);
         loadingOverlay.setVisible(false);
 
-        tabContentBox.getChildren().add(editorStackPane);
         container.getChildren().add(loadingOverlay);
         setContent(container);
+
+        // 监听光标与选区变化，支持状态栏实时更新及分屏模式双向联动
+        textEditorView.getCodeArea().caretPositionProperty().addListener((obs, o, n) -> {
+            notifyCaretOrSelectionChanged();
+            if (viewMode == ViewMode.SIDE_BY_SIDE) {
+                syncBytecodeFromLua(false);
+            }
+        });
+        textEditorView.getCodeArea().selectionProperty().addListener((obs, o, n) -> notifyCaretOrSelectionChanged());
+
+        bytecodeEditorView.getCodeArea().caretPositionProperty().addListener((obs, o, n) -> {
+            notifyCaretOrSelectionChanged();
+            if (viewMode == ViewMode.SIDE_BY_SIDE) {
+                syncLuaFromBytecode(false);
+            }
+        });
+        bytecodeEditorView.getCodeArea().selectionProperty().addListener((obs, o, n) -> notifyCaretOrSelectionChanged());
+    }
+
+    private HBox createSubHeader(String title) {
+        HBox subHeader = new HBox(6);
+        subHeader.setAlignment(Pos.CENTER_LEFT);
+        subHeader.getStyleClass().add("editor-sub-header");
+        Label label = new Label(title);
+        label.getStyleClass().add("editor-sub-header-label");
+        subHeader.getChildren().add(label);
+        return subHeader;
+    }
+
+    public void setOnCaretOrSelectionChanged(Runnable callback) {
+        this.onCaretOrSelectionChanged = callback;
+    }
+
+    private void notifyCaretOrSelectionChanged() {
+        if (onCaretOrSelectionChanged != null) {
+            onCaretOrSelectionChanged.run();
+        }
     }
 
     private HBox createHeaderBar() {
@@ -137,75 +227,183 @@ public class EditorTab extends Tab {
 
         ToggleGroup group = new ToggleGroup();
         btnLuaView = new ToggleButton("Lua 源码");
+        btnSideBySideView = new ToggleButton("◫ 并排分屏");
         btnBytecodeView = new ToggleButton("字节码");
 
         btnLuaView.setToggleGroup(group);
+        btnSideBySideView.setToggleGroup(group);
         btnBytecodeView.setToggleGroup(group);
         btnLuaView.setSelected(true);
 
-        btnLuaView.setOnAction(e -> setShowingBytecode(false));
-        btnBytecodeView.setOnAction(e -> setShowingBytecode(true));
+        btnLuaView.setOnAction(e -> setViewMode(ViewMode.LUA_SOURCE));
+        btnSideBySideView.setOnAction(e -> setViewMode(ViewMode.SIDE_BY_SIDE));
+        btnBytecodeView.setOnAction(e -> setViewMode(ViewMode.BYTECODE));
 
-        bar.getChildren().addAll(viewModeHintLabel, spacer, btnLuaView, btnBytecodeView);
+        bar.getChildren().addAll(viewModeHintLabel, spacer, btnLuaView, btnSideBySideView, btnBytecodeView);
         return bar;
     }
 
     /**
-     * 切换代码视图和字节码视图
+     * 循环切换视图模式 (LUA_SOURCE -> SIDE_BY_SIDE -> BYTECODE -> LUA_SOURCE)
      */
     public void toggleBytecodeView() {
-        setShowingBytecode(!showingBytecode);
+        switch (viewMode) {
+            case LUA_SOURCE:
+                setViewMode(ViewMode.SIDE_BY_SIDE);
+                break;
+            case SIDE_BY_SIDE:
+                setViewMode(ViewMode.BYTECODE);
+                break;
+            case BYTECODE:
+            default:
+                setViewMode(ViewMode.LUA_SOURCE);
+                break;
+        }
     }
 
     /**
-     * 设置是否显示字节码视图
+     * 设置是否显示纯字节码视图（兼容旧接口）
      * @param show 是否显示字节码
      */
     public void setShowingBytecode(boolean show) {
-        this.showingBytecode = show;
-        Node luaNode = textEditorView.getView();
-        Node bytecodeNode = bytecodeEditorView.getView();
+        setViewMode(show ? ViewMode.BYTECODE : ViewMode.LUA_SOURCE);
+    }
 
-        if (show) {
-            int currentLuaLine = textEditorView.getCurrentLineNumber();
-            // 如果字节码尚未生成且有 luacFile，尝试即时生成
-            if (luacFile != null && (bytecodeEditorView.getCodeArea().getText() == null || bytecodeEditorView.getCodeArea().getText().isEmpty())) {
-                refreshBytecodeContent();
-            }
-            luaNode.setVisible(false);
-            luaNode.setManaged(false);
-            bytecodeNode.setVisible(true);
-            bytecodeNode.setManaged(true);
-            btnBytecodeView.setSelected(true);
-            viewModeHintLabel.setText("字节码反汇编视图");
-            setText(file != null ? file.getName() + " [字节码]" : "字节码");
+    /**
+     * 设置视图展示模式
+     * @param mode 视图模式 (LUA_SOURCE, SIDE_BY_SIDE, BYTECODE)
+     */
+    public void setViewMode(ViewMode mode) {
+        if (mode == null) {
+            mode = ViewMode.LUA_SOURCE;
+        }
+        ViewMode oldMode = this.viewMode;
+        this.viewMode = mode;
+        this.showingBytecode = (mode == ViewMode.BYTECODE);
 
-            // 同步光标跳转到对应字节码指令行
-            Platform.runLater(() -> {
-                String bytecodeText = bytecodeEditorView.getCodeArea().getText();
-                int targetParagraph = BytecodeSyncUtils.findBytecodeParagraphForSourceLine(bytecodeText, currentLuaLine);
-                if (targetParagraph >= 0) {
-                    bytecodeEditorView.jumpToLine(targetParagraph + 1);
+        // 如果需要字节码且尚未生成且有 luacFile，尝试即时生成
+        if ((mode == ViewMode.BYTECODE || mode == ViewMode.SIDE_BY_SIDE)
+                && luacFile != null
+                && (bytecodeEditorView.getCodeArea().getText() == null || bytecodeEditorView.getCodeArea().getText().isEmpty())) {
+            refreshBytecodeContent();
+        }
+
+        switch (mode) {
+            case LUA_SOURCE:
+                luaSubHeader.setVisible(false);
+                luaSubHeader.setManaged(false);
+                bytecodeSubHeader.setVisible(false);
+                bytecodeSubHeader.setManaged(false);
+                contentSplitPane.getItems().setAll(luaContainer);
+                btnLuaView.setSelected(true);
+                viewModeHintLabel.setText("Lua 源码视图");
+                setText(file != null ? file.getName() : "未命名");
+
+                if (oldMode == ViewMode.BYTECODE) {
+                    int currentBytecodeParagraph = bytecodeEditorView.getCodeArea().getCurrentParagraph();
+                    String lineText = (currentBytecodeParagraph >= 0 && currentBytecodeParagraph < bytecodeEditorView.getCodeArea().getParagraphs().size())
+                            ? bytecodeEditorView.getCodeArea().getParagraph(currentBytecodeParagraph).getText() : null;
+                    int sourceLine = BytecodeSyncUtils.extractSourceLineFromBytecode(lineText);
+                    if (sourceLine > 0) {
+                        Platform.runLater(() -> textEditorView.jumpToLine(sourceLine));
+                    }
                 }
-            });
-        } else {
-            // 切回源码视图：提取当前指令行的源行号并跳转
-            int currentBytecodeParagraph = bytecodeEditorView.getCodeArea().getCurrentParagraph();
-            String lineText = (currentBytecodeParagraph >= 0 && currentBytecodeParagraph < bytecodeEditorView.getCodeArea().getParagraphs().size())
-                    ? bytecodeEditorView.getCodeArea().getParagraph(currentBytecodeParagraph).getText() : null;
-            int sourceLine = BytecodeSyncUtils.extractSourceLineFromBytecode(lineText);
+                break;
 
-            bytecodeNode.setVisible(false);
-            bytecodeNode.setManaged(false);
-            luaNode.setVisible(true);
-            luaNode.setManaged(true);
-            btnLuaView.setSelected(true);
-            viewModeHintLabel.setText("Lua 源码视图");
-            setText(file != null ? file.getName() : "未命名");
+            case BYTECODE:
+                luaSubHeader.setVisible(false);
+                luaSubHeader.setManaged(false);
+                bytecodeSubHeader.setVisible(false);
+                bytecodeSubHeader.setManaged(false);
+                contentSplitPane.getItems().setAll(bytecodeContainer);
+                btnBytecodeView.setSelected(true);
+                viewModeHintLabel.setText("字节码反汇编视图");
+                setText(file != null ? file.getName() + " [字节码]" : "字节码");
 
-            // 同步跳转到对应 Lua 源码行
-            if (sourceLine > 0) {
-                Platform.runLater(() -> textEditorView.jumpToLine(sourceLine));
+                int currentLuaLine = textEditorView.getCurrentLineNumber();
+                Platform.runLater(() -> {
+                    String bytecodeText = bytecodeEditorView.getCodeArea().getText();
+                    int targetParagraph = BytecodeSyncUtils.findBytecodeParagraphForSourceLine(bytecodeText, currentLuaLine);
+                    if (targetParagraph >= 0) {
+                        bytecodeEditorView.jumpToLine(targetParagraph + 1);
+                    }
+                });
+                break;
+
+            case SIDE_BY_SIDE:
+                luaSubHeader.setVisible(true);
+                luaSubHeader.setManaged(true);
+                bytecodeSubHeader.setVisible(true);
+                bytecodeSubHeader.setManaged(true);
+                contentSplitPane.getItems().setAll(luaContainer, bytecodeContainer);
+                contentSplitPane.setDividerPositions(0.5);
+                btnSideBySideView.setSelected(true);
+                viewModeHintLabel.setText("源码与字节码分屏对照 (Side-by-Side)");
+                setText(file != null ? file.getName() + " [分屏]" : "分屏");
+
+                Platform.runLater(() -> syncBytecodeFromLua(true));
+                break;
+        }
+        notifyCaretOrSelectionChanged();
+    }
+
+    /**
+     * 在分屏模式下，根据 Lua 源码行号同步定位字节码反汇编指令
+     * @param force 是否强制更新跳转
+     */
+    public void syncBytecodeFromLua(boolean force) {
+        if (isSyncingCaret && !force) {
+            return;
+        }
+        int currentLuaLine = textEditorView.getCurrentLineNumber();
+        if (!force && currentLuaLine == lastSyncedLuaLine) {
+            return;
+        }
+        if (currentLuaLine <= 0) {
+            return;
+        }
+        lastSyncedLuaLine = currentLuaLine;
+        String bytecodeText = bytecodeEditorView.getCodeArea().getText();
+        if (bytecodeText == null || bytecodeText.isEmpty()) {
+            return;
+        }
+        int targetParagraph = BytecodeSyncUtils.findBytecodeParagraphForSourceLine(bytecodeText, currentLuaLine);
+        if (targetParagraph >= 0 && (force || targetParagraph != lastSyncedBytecodeParagraph)) {
+            lastSyncedBytecodeParagraph = targetParagraph;
+            try {
+                isSyncingCaret = true;
+                bytecodeEditorView.jumpToLine(targetParagraph + 1);
+            } finally {
+                isSyncingCaret = false;
+            }
+        }
+    }
+
+    /**
+     * 在分屏模式下，根据当前字节码指令提取源行号并同步定位 Lua 源码
+     * @param force 是否强制更新跳转
+     */
+    public void syncLuaFromBytecode(boolean force) {
+        if (isSyncingCaret && !force) {
+            return;
+        }
+        int paragraph = bytecodeEditorView.getCodeArea().getCurrentParagraph();
+        if (!force && paragraph == lastSyncedBytecodeParagraph) {
+            return;
+        }
+        if (paragraph < 0 || paragraph >= bytecodeEditorView.getCodeArea().getParagraphs().size()) {
+            return;
+        }
+        lastSyncedBytecodeParagraph = paragraph;
+        String lineText = bytecodeEditorView.getCodeArea().getParagraph(paragraph).getText();
+        int sourceLine = BytecodeSyncUtils.extractSourceLineFromBytecode(lineText);
+        if (sourceLine > 0 && (force || sourceLine != lastSyncedLuaLine)) {
+            lastSyncedLuaLine = sourceLine;
+            try {
+                isSyncingCaret = true;
+                textEditorView.jumpToLine(sourceLine);
+            } finally {
+                isSyncingCaret = false;
             }
         }
     }
@@ -220,8 +418,16 @@ public class EditorTab extends Tab {
         }
     }
 
+    public ViewMode getViewMode() {
+        return viewMode;
+    }
+
+    public boolean isSideBySide() {
+        return viewMode == ViewMode.SIDE_BY_SIDE;
+    }
+
     public boolean isShowingBytecode() {
-        return showingBytecode;
+        return viewMode == ViewMode.BYTECODE;
     }
 
     public TextEditorView getLuaEditorView() {
@@ -233,7 +439,13 @@ public class EditorTab extends Tab {
     }
 
     public TextEditorView getActiveEditorView() {
-        return showingBytecode ? bytecodeEditorView : textEditorView;
+        if (viewMode == ViewMode.BYTECODE) {
+            return bytecodeEditorView;
+        } else if (viewMode == ViewMode.SIDE_BY_SIDE) {
+            return bytecodeEditorView.getCodeArea().isFocused() ? bytecodeEditorView : textEditorView;
+        } else {
+            return textEditorView;
+        }
     }
 
     public File getFile() {
@@ -255,7 +467,7 @@ public class EditorTab extends Tab {
 
     public void setLuacFile(LuacFile luacFile) {
         this.luacFile = luacFile;
-        if (luacFile != null) {
+        if (luacFile != null && (viewMode == ViewMode.BYTECODE || viewMode == ViewMode.SIDE_BY_SIDE)) {
             refreshBytecodeContent();
         }
     }

@@ -42,6 +42,10 @@ import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.TreeView;
+import javafx.scene.control.IndexRange;
+import javafx.scene.input.Dragboard;
+import javafx.scene.input.TransferMode;
+import javafx.scene.input.DragEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
@@ -52,6 +56,7 @@ import javafx.stage.Window;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import com.github.relua.gui.dialogs.BatchExportDialog;
+import com.github.relua.gui.dialogs.FindInFilesDialog;
 import com.github.relua.gui.services.BatchExportService;
 import com.github.relua.gui.utils.BytecodeSyncUtils;
 import com.github.relua.gui.workspace.ProjectWorkspaceManager;
@@ -84,6 +89,8 @@ public class MainController {
     private VBox graphContainer;
     @FXML
     private Label statusLabel;
+    @FXML
+    private Label cursorPositionLabel;
     @FXML
     private Label fileLabel;
     @FXML
@@ -126,8 +133,14 @@ public class MainController {
     private MenuItem menuItemCopy;
     @FXML
     private MenuItem menuItemPaste;
+    @FXML
+    private MenuItem menuItemFind;
+    @FXML
+    private MenuItem menuItemFindInFiles;
     
     // 视图菜单项
+    @FXML
+    private MenuItem menuItemSideBySide;
     @FXML
     private MenuItem menuItemToggleTabBytecode;
     @FXML
@@ -157,6 +170,10 @@ public class MainController {
     @FXML
     private Button btnBatchExport;
     @FXML
+    private Button btnFindInFiles;
+    @FXML
+    private Button btnSideBySide;
+    @FXML
     private Button btnToggleBytecode;
     @FXML
     private Button btnUndo;
@@ -181,6 +198,13 @@ public class MainController {
     @FXML
     private ScrollPane fileTreeScrollPane;
     private FileTreeView fileTreeView;
+    
+    // 资源管理器宽度范围约束常量与状态
+    private static final double FILE_TREE_MIN_WIDTH = 180.0;
+    private static final double FILE_TREE_DEFAULT_WIDTH = 260.0;
+    private static final double FILE_TREE_MAX_WIDTH = 420.0;
+    private boolean isAdjustingDivider = false;
+    private double currentFileTreeWidth = FILE_TREE_DEFAULT_WIDTH;
     
     // 日志相关
     @FXML
@@ -329,8 +353,9 @@ public class MainController {
         // 默认隐藏右侧图形视图，仅保留文件树和代码视图
         mainSplitPane.getItems().remove(graphContainer);
         graphContainer.setVisible(false);
-        // 重新分配主分割线位置，防止移除 graph 节点后左侧树被挤扁成 0 宽度
-        mainSplitPane.setDividerPosition(0, 0.25);
+
+        // 初始化资源管理器面板宽度范围约束与防全屏自动膨胀
+        initFileTreePaneConstraints();
         
         // 设置初始状态
         updateStatus(I18nUtil.getString("status.ready"));
@@ -365,6 +390,12 @@ public class MainController {
 
         // 刷新最近打开记录菜单
         refreshRecentMenu();
+
+        // 初始化外部文件与工程目录拖拽即开交互 (Drag & Drop)
+        initDragAndDrop();
+
+        // 初始状态栏光标指示
+        updateCursorPositionStatus(null);
 
         // 窗口关闭时自动执行工程与工作区持久化保存
         Platform.runLater(() -> {
@@ -622,6 +653,79 @@ public class MainController {
         editMenuHandler.handlePaste(event);
     }
     
+    @FXML
+    private void handleFind(ActionEvent event) {
+        editMenuHandler.handleFind(event);
+    }
+
+    /**
+     * 处理全局项目查找 (Find in Files... 快捷键 Shortcut+Shift+F)
+     */
+    @FXML
+    private void handleFindInFiles(ActionEvent event) {
+        Window window = (mainBorderPane != null && mainBorderPane.getScene() != null) ? mainBorderPane.getScene().getWindow() : null;
+
+        // 获取工程根目录
+        File rootFolder = (fileTreeView != null) ? fileTreeView.getRootFolder() : null;
+        if (rootFolder == null) {
+            rootFolder = ProjectWorkspaceManager.getInstance().getCurrentRootFolder();
+        }
+
+        // 收集所有打开标签页的实时内存文本 (优先检索最新编辑和反编译文本)
+        java.util.Map<File, String> openTabTexts = new java.util.LinkedHashMap<>();
+        for (Tab tab : textEditorTabPane.getTabs()) {
+            if (tab instanceof EditorTab) {
+                EditorTab et = (EditorTab) tab;
+                if (et.getFile() != null) {
+                    openTabTexts.put(et.getFile(), et.getLuaEditorView().getCodeArea().getText());
+                }
+            }
+        }
+
+        // 获取当前编辑器选中的文本作为初始检索词
+        String initialQuery = null;
+        TextEditorView activeEditor = getActiveTextEditorView();
+        if (activeEditor != null && activeEditor.getCodeArea() != null) {
+            String selected = activeEditor.getCodeArea().getSelectedText();
+            if (selected != null && !selected.trim().isEmpty() && !selected.contains("\n")) {
+                initialQuery = selected.trim();
+            }
+        }
+
+        FindInFilesDialog dialog = new FindInFilesDialog(
+                window,
+                rootFolder,
+                openTabTexts,
+                initialQuery,
+                (targetFile, line, startCol, endCol) -> {
+                    openFileAndJump(targetFile, line, startCol, endCol);
+                }
+        );
+        dialog.show();
+    }
+
+    /**
+     * 打开目标文件并平滑跳转至指定的行号和列区间
+     * @param targetFile 目标文件
+     * @param line 目标行号 (1-based)
+     * @param startCol 起始列偏移 (0-based)
+     * @param endCol 结束列偏移 (0-based)
+     */
+    public void openFileAndJump(File targetFile, int line, int startCol, int endCol) {
+        if (targetFile == null) {
+            return;
+        }
+        fileMenuHandler.openFile(targetFile, openedTab -> {
+            Platform.runLater(() -> {
+                TextEditorView editor = openedTab.getActiveEditorView();
+                if (editor != null) {
+                    editor.jumpToLineAndColumn(line, startCol, endCol);
+                    updateStatus("全局检索导航：已定位至 " + targetFile.getName() + " 第 " + line + " 行");
+                }
+            });
+        });
+    }
+    
     // 视图菜单事件处理方法
     
     
@@ -710,14 +814,33 @@ public class MainController {
     }
 
     /**
-     * 切换当前激活标签页的代码/字节码视图 (快捷键 Shortcut+B)
+     * 切换当前激活标签页的源码与字节码并排分屏对照模式 (快捷键 Shortcut+Alt+B)
+     */
+    @FXML
+    private void handleSideBySideView(ActionEvent event) {
+        EditorTab activeTab = getActiveEditorTab();
+        if (activeTab != null) {
+            if (activeTab.isSideBySide()) {
+                activeTab.setViewMode(EditorTab.ViewMode.LUA_SOURCE);
+                updateStatus("当前标签页已切回 Lua 源码视图");
+            } else {
+                activeTab.setViewMode(EditorTab.ViewMode.SIDE_BY_SIDE);
+                updateStatus("当前标签页已切换为源码与字节码并排分屏对照模式 (Side-by-Side)");
+            }
+        } else {
+            updateStatus("无打开的文件标签页");
+        }
+    }
+
+    /**
+     * 循环切换当前激活标签页的视图模式 (快捷键 Shortcut+B)
      */
     @FXML
     private void handleToggleCurrentTabBytecode(ActionEvent event) {
         EditorTab activeTab = getActiveEditorTab();
         if (activeTab != null) {
             activeTab.toggleBytecodeView();
-            updateStatus(activeTab.isShowingBytecode() ? "当前标签页已切换为字节码反汇编视图" : "当前标签页已切换为Lua源码视图");
+            updateStatus("当前标签页视图已切换为: " + activeTab.getViewMode().getDisplayName());
         } else {
             updateStatus("无打开的文件标签页");
         }
@@ -754,6 +877,7 @@ public class MainController {
                 mainSplitPane.getItems().add(graphContainer);
             }
             graphContainer.setVisible(true);
+            Platform.runLater(this::applyFileTreeDividerPosition);
         }
         
         // 强制根据当前光标位置渲染对应的 Chunk
@@ -767,6 +891,7 @@ public class MainController {
         currentSubViewType = SubViewType.NONE;
         mainSplitPane.getItems().remove(graphContainer);
         graphContainer.setVisible(false);
+        Platform.runLater(this::applyFileTreeDividerPosition);
         updateStatus("子视图已关闭");
     }
     
@@ -933,6 +1058,9 @@ public class MainController {
     }
 
     private void handleCaretPositionChanged(boolean force) {
+        TextEditorView activeEditor = getActiveTextEditorView();
+        updateCursorPositionStatus(activeEditor);
+
         LuacFile luacFile = fileMenuHandler.getCurrentLuacFile();
         if (luacFile == null) {
             currentDisplayedChunk = null;
@@ -946,7 +1074,6 @@ public class MainController {
             force = true;
         }
 
-        TextEditorView activeEditor = getActiveTextEditorView();
         if (activeEditor == null) {
             return;
         }
@@ -993,18 +1120,176 @@ public class MainController {
                 fileTreeView.selectFile(activeTab.getFile());
             }
 
-            // 同步子视图
+            // 同步子视图与光标指示
             handleCaretPositionChanged(true);
         } else {
             // 没有打开的标签页
             updateFileLabel(I18nUtil.getString("status.noFileOpened"));
             updateStatus(I18nUtil.getString("status.ready"));
+            updateCursorPositionStatus(null);
 
             // 关闭当前子视图
             if (graphContainer.isVisible()) {
                 closeSubView();
             }
         }
+    }
+
+    /**
+     * 更新底部状态栏光标行列与选区信息
+     * @param activeEditor 当前活跃的代码/字节码编辑器视图
+     */
+    private void updateCursorPositionStatus(TextEditorView activeEditor) {
+        if (cursorPositionLabel == null) {
+            return;
+        }
+        if (activeEditor == null || activeEditor.getCodeArea() == null) {
+            cursorPositionLabel.setText("Ln 1, Col 1");
+            return;
+        }
+        int paragraph = activeEditor.getCodeArea().getCurrentParagraph() + 1;
+        int column = activeEditor.getCodeArea().getCaretColumn() + 1;
+        IndexRange selection = activeEditor.getCodeArea().getSelection();
+        int selLength = (selection != null) ? selection.getLength() : 0;
+        if (selLength > 0) {
+            cursorPositionLabel.setText(String.format("Ln %d, Col %d (%d 已选)", paragraph, column, selLength));
+        } else {
+            cursorPositionLabel.setText(String.format("Ln %d, Col %d", paragraph, column));
+        }
+    }
+
+    /**
+     * 初始化外部文件与工程目录拖拽即开交互 (Drag & Drop)
+     */
+    private void initDragAndDrop() {
+        if (mainBorderPane == null) {
+            return;
+        }
+
+        mainBorderPane.setOnDragOver(event -> {
+            if (event.getDragboard().hasFiles()) {
+                event.acceptTransferModes(TransferMode.COPY_OR_MOVE);
+            }
+            event.consume();
+        });
+
+        mainBorderPane.setOnDragEntered(event -> {
+            if (event.getDragboard().hasFiles()) {
+                if (!mainBorderPane.getStyleClass().contains("drag-over")) {
+                    mainBorderPane.getStyleClass().add("drag-over");
+                }
+            }
+            event.consume();
+        });
+
+        mainBorderPane.setOnDragExited(event -> {
+            mainBorderPane.getStyleClass().remove("drag-over");
+            event.consume();
+        });
+
+        mainBorderPane.setOnDragDropped(event -> {
+            Dragboard db = event.getDragboard();
+            boolean success = false;
+            if (db.hasFiles()) {
+                List<File> files = db.getFiles();
+                if (files != null && !files.isEmpty()) {
+                    File firstFile = files.get(0);
+                    if (firstFile.isDirectory()) {
+                        openFolder(firstFile);
+                        success = true;
+                    } else {
+                        for (File f : files) {
+                            if (f.isFile()) {
+                                fileMenuHandler.openFile(f);
+                                RecentHistoryManager.getInstance().addRecentPath(f.getAbsolutePath());
+                                success = true;
+                            }
+                        }
+                        if (success) {
+                            refreshRecentMenu();
+                        }
+                    }
+                }
+            }
+            mainBorderPane.getStyleClass().remove("drag-over");
+            event.setDropCompleted(success);
+            event.consume();
+        });
+    }
+
+    /**
+     * 初始化资源管理器面板宽度范围约束与防全屏自动膨胀
+     */
+    private void initFileTreePaneConstraints() {
+        if (fileTreeContainer == null || mainSplitPane == null) {
+            return;
+        }
+
+        // 设置不可随父容器按比例拉伸（全屏或拉大窗口时，多余空间全部分配给代码编辑区）
+        SplitPane.setResizableWithParent(fileTreeContainer, false);
+        fileTreeContainer.setMinWidth(FILE_TREE_MIN_WIDTH);
+        fileTreeContainer.setPrefWidth(FILE_TREE_DEFAULT_WIDTH);
+        fileTreeContainer.setMaxWidth(FILE_TREE_MAX_WIDTH);
+
+        // 监听实际宽度变化，记录用户手动调整后的有效宽度
+        fileTreeContainer.widthProperty().addListener((obs, oldW, newW) -> {
+            if (newW != null && newW.doubleValue() >= FILE_TREE_MIN_WIDTH && newW.doubleValue() <= FILE_TREE_MAX_WIDTH) {
+                currentFileTreeWidth = newW.doubleValue();
+            }
+        });
+
+        // 监听 mainSplitPane 宽度变化（窗口拉大、最大化全屏等），保持左侧栏像素宽度稳定
+        mainSplitPane.widthProperty().addListener((obs, oldW, newW) -> {
+            applyFileTreeDividerPosition();
+        });
+
+        // 延迟至初次布局完成后初始化分割线位置，并注册用户手动拖拽范围约束监听器
+        Platform.runLater(() -> {
+            if (!mainSplitPane.getDividers().isEmpty()) {
+                mainSplitPane.getDividers().get(0).positionProperty().addListener((obs, oldVal, newVal) -> {
+                    if (isAdjustingDivider || newVal == null) {
+                        return;
+                    }
+                    double totalWidth = mainSplitPane.getWidth();
+                    if (totalWidth <= 0) {
+                        return;
+                    }
+                    double targetPx = newVal.doubleValue() * totalWidth;
+                    if (targetPx < FILE_TREE_MIN_WIDTH) {
+                        isAdjustingDivider = true;
+                        mainSplitPane.setDividerPosition(0, FILE_TREE_MIN_WIDTH / totalWidth);
+                        currentFileTreeWidth = FILE_TREE_MIN_WIDTH;
+                        isAdjustingDivider = false;
+                    } else if (targetPx > FILE_TREE_MAX_WIDTH) {
+                        isAdjustingDivider = true;
+                        mainSplitPane.setDividerPosition(0, FILE_TREE_MAX_WIDTH / totalWidth);
+                        currentFileTreeWidth = FILE_TREE_MAX_WIDTH;
+                        isAdjustingDivider = false;
+                    } else {
+                        currentFileTreeWidth = targetPx;
+                    }
+                });
+            }
+            applyFileTreeDividerPosition();
+        });
+    }
+
+    /**
+     * 将资源管理器分割线位置锚定在 [FILE_TREE_MIN_WIDTH, FILE_TREE_MAX_WIDTH] 的绝对像素范围
+     */
+    private void applyFileTreeDividerPosition() {
+        if (isAdjustingDivider || mainSplitPane == null || mainSplitPane.getDividers().isEmpty()) {
+            return;
+        }
+        double totalWidth = mainSplitPane.getWidth();
+        if (totalWidth <= 0) {
+            return;
+        }
+        double targetWidth = Math.max(FILE_TREE_MIN_WIDTH, Math.min(FILE_TREE_MAX_WIDTH, currentFileTreeWidth));
+        double targetPos = targetWidth / totalWidth;
+        isAdjustingDivider = true;
+        mainSplitPane.setDividerPosition(0, targetPos);
+        isAdjustingDivider = false;
     }
 
     private Chunk findTargetChunkForLine(Chunk mainChunk, int line) {
@@ -1090,8 +1375,18 @@ public class MainController {
             btnBatchExport.setTooltip(new Tooltip("批量反编译导出整个工程项目 (Ctrl+Shift+E)"));
         }
 
-        btnToggleBytecode.setText("⇄ 源码/字节码");
-        btnToggleBytecode.setTooltip(new Tooltip("切换当前文件的 Lua 源码与字节码反汇编视图 (Ctrl+B)"));
+        if (btnFindInFiles != null) {
+            btnFindInFiles.setText("🔍 全局查找");
+            btnFindInFiles.setTooltip(new Tooltip("在当前工程与所有打开的文件中全文检索 (Ctrl+Shift+F)"));
+        }
+
+        if (btnSideBySide != null) {
+            btnSideBySide.setText("◫ 并排分屏");
+            btnSideBySide.setTooltip(new Tooltip("开启或关闭源码与字节码并排分屏对照模式 (Ctrl+Alt+B)"));
+        }
+
+        btnToggleBytecode.setText("⇄ 切换视图");
+        btnToggleBytecode.setTooltip(new Tooltip("循环切换 Lua 源码、分屏对照与字节码反汇编视图 (Ctrl+B)"));
 
         btnUndo.setText("↶ " + I18nUtil.getString("toolbar.undo"));
         btnUndo.setTooltip(new Tooltip("撤销操作 (Ctrl+Z)"));

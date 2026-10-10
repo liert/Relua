@@ -589,13 +589,19 @@
     -fx-fill: #9cdcfe;
 }
 
+/* 代码编辑器行号与折叠槽 (VSCode 现代化风格，无缝融入编辑区背景) */
+.editor-gutter-line {
+    -fx-alignment: center-right;
+    -fx-background-color: #1e1e1e;
+}
+
 .lineno {
     -fx-text-fill: #6e7681;
     -fx-background-color: #1e1e1e;
-    -fx-padding: 0 12px 0 12px;
+    -fx-padding: 0 4px 0 16px;
     -fx-alignment: center-right;
-    -fx-border-color: transparent #2d2d30 transparent transparent;
-    -fx-border-width: 1px;
+    -fx-border-width: 0;
+    -fx-border-color: transparent;
     -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
     -fx-font-size: 13px;
 }
@@ -686,10 +692,10 @@
     -fx-min-width: 54px;
 }
 
-/* 折叠小按钮 */
+/* 折叠小箭头 (VSCode 风格无边框悬浮小图标) */
 .fold-marker {
     -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
-    -fx-font-size: 10px;
+    -fx-font-size: 11px;
     -fx-min-width: 14px;
     -fx-pref-width: 14px;
     -fx-max-width: 14px;
@@ -698,16 +704,26 @@
     -fx-max-height: 14px;
     -fx-padding: 0;
     -fx-background-color: transparent;
-    -fx-border-color: #555555;
-    -fx-border-radius: 2px;
-    -fx-background-radius: 2px;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-background-radius: 0;
     -fx-text-fill: #858585;
     -fx-cursor: hand;
+    -fx-alignment: center;
 }
 
 .fold-marker:hover {
-    -fx-border-color: #007acc;
-    -fx-text-fill: #007acc;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: #38bdf8;
+}
+
+.fold-marker-collapsed {
+    -fx-text-fill: #e5a93b;
+}
+
+.fold-marker-collapsed:hover {
+    -fx-text-fill: #fcd34d;
 }
 
 /* Tab 内部 Header 条（源码/字节码切换栏） */
@@ -759,3 +775,47 @@
     -fx-text-fill: #ffffff;
     -fx-font-weight: bold;
 }
+
+/* 外部文件拖拽悬停反馈 (Drag & Drop) */
+.drag-over {
+    -fx-border-color: #007acc;
+    -fx-border-width: 2px;
+    -fx-border-style: dashed;
+}
+
+/* 折叠隐藏段落样式 */
+.styled-text-area .collapse,
+.code-area .collapse {
+    -fx-font-size: 0px;
+    -fx-max-height: 0px;
+    -fx-pref-height: 0px;
+    -fx-min-height: 0px;
+    -fx-padding: 0;
+    -fx-opacity: 0;
+}
+
+/* 源码与字节码分屏子面板标题栏 (Side-by-Side Sub Header) */
+.editor-sub-header {
+    -fx-background-color: #202020;
+    -fx-border-color: #333333;
+    -fx-border-width: 0 0 1px 0;
+    -fx-padding: 3px 8px;
+    -fx-alignment: CENTER_LEFT;
+}
+
+.editor-sub-header-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #9cdcfe;
+    -fx-font-weight: bold;
+}
+
+/* 全局搜索窗口样式 (Find In Files) */
+.global-search-dialog {
+    -fx-background-color: #1e1e1e;
+}
+
+.global-search-table {
+    -fx-background-color: #252526;
+    -fx-font-size: 12px;
+}
+

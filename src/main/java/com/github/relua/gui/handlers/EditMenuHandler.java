@@ -71,4 +71,15 @@ public class EditMenuHandler {
             textEditorView.paste();
         }
     }
+
+    /**
+     * 处理查找事件
+     * @param event 事件对象
+     */
+    public void handleFind(ActionEvent event) {
+        TextEditorView textEditorView = editorSupplier.get();
+        if (textEditorView != null) {
+            textEditorView.openSearch();
+        }
+    }
 }

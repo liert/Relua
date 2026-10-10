@@ -116,4 +116,25 @@ public class FileTreeViewTest {
         });
         latch.await();
     }
+
+    @Test
+    public void testContextMenuItems() throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        Platform.runLater(() -> {
+            try {
+                FileTreeView ftv = new FileTreeView();
+                File file = new File("pom.xml");
+                TreeItem<FileNode> item = new TreeItem<>(new FileNode(file));
+
+                Method showContextMenuMethod = FileTreeView.class.getDeclaredMethod("showContextMenu", TreeItem.class, double.class, double.class);
+                showContextMenuMethod.setAccessible(true);
+                assertDoesNotThrow(() -> showContextMenuMethod.invoke(ftv, item, 100.0, 100.0));
+            } catch (Exception e) {
+                fail(e);
+            } finally {
+                latch.countDown();
+            }
+        });
+        latch.await();
+    }
 }

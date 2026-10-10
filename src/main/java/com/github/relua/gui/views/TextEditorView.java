@@ -22,17 +22,22 @@ import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Region;
 import javafx.stage.Popup;
 import javafx.stage.Window;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CharacterHit;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.LineNumberFactory;
+import org.fxmisc.richtext.StyledTextArea;
+import org.fxmisc.richtext.model.Codec;
+import org.fxmisc.richtext.model.SimpleEditableStyledDocument;
 import org.fxmisc.richtext.model.StyleSpans;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
 import org.fxmisc.richtext.model.TwoDimensional.Bias;
@@ -67,7 +72,7 @@ public class TextEditorView {
 
     // RichTextFX 的 CodeArea 组件
     private final FoldableCodeArea codeArea;
-    private final VirtualizedScrollPane<CodeArea> virtualizedScrollPane;
+    private final VirtualizedScrollPane<FoldableCodeArea> virtualizedScrollPane;
     private final Popup searchPopup;
     private final HBox searchBar;
     private final TextField searchField;
@@ -169,8 +174,8 @@ public class TextEditorView {
         searchPopup.setAutoFix(true);
         searchPopup.setHideOnEscape(false);
         
-        // 延迟设置行号和折叠标识，避免在组件未渲染或未显示时计算 Visible paragraphs 导致 RichTextFX 崩溃
-        Platform.runLater(this::installParagraphGraphics);
+        // 初始化行号和折叠标识
+        installParagraphGraphics();
         
         // 加载当前现代化主题样式表并注册主题动态切换监听
         applyThemeStyles();
@@ -215,17 +220,23 @@ public class TextEditorView {
         HBox bar = new HBox(6);
         bar.setAlignment(Pos.CENTER_LEFT);
         bar.getStyleClass().add("editor-search-bar");
-        searchField.setPromptText("搜索当前文件");
+        searchField.setPromptText("搜索 (Enter 下一个 / Shift+Enter 上一个)");
         searchField.getStyleClass().add("editor-search-field");
-        searchField.setPrefColumnCount(28);
+        searchField.setPrefColumnCount(22);
         previousButton.getStyleClass().add("editor-search-button");
+        previousButton.setTooltip(new Tooltip("上一个匹配项 (Shift+Enter)"));
         nextButton.getStyleClass().add("editor-search-button");
+        nextButton.setTooltip(new Tooltip("下一个匹配项 (Enter)"));
         closeSearchButton.getStyleClass().add("editor-search-button");
+        closeSearchButton.setTooltip(new Tooltip("关闭搜索 (Esc)"));
+        matchCaseCheck.setTooltip(new Tooltip("区分大小写 (Match Case)"));
+        wholeWordCheck.setTooltip(new Tooltip("全字匹配 (Whole Word)"));
+        regexCheck.setTooltip(new Tooltip("正则表达式 (Regex)"));
         collapseAllButton.getStyleClass().add("editor-search-button");
         expandAllButton.getStyleClass().add("editor-search-button");
         searchStatusLabel.getStyleClass().add("editor-search-status");
         bar.getChildren().addAll(
-                new Label("查找"), searchField,
+                new Label("查找:"), searchField,
                 previousButton, nextButton,
                 matchCaseCheck, wholeWordCheck, regexCheck,
                 searchStatusLabel, collapseAllButton, expandAllButton, closeSearchButton);
@@ -237,6 +248,12 @@ public class TextEditorView {
             // Ctrl+F 搜索
             if (event.isControlDown() && event.getCode() == KeyCode.F) {
                 openSearch();
+                event.consume();
+                return;
+            }
+            // ESC 关闭搜索浮层
+            if (event.getCode() == KeyCode.ESCAPE && searchPopup.isShowing()) {
+                closeSearch();
                 event.consume();
                 return;
             }
@@ -426,22 +443,62 @@ public class TextEditorView {
     private void installParagraphGraphics() {
         IntFunction<Node> lineNumbers = LineNumberFactory.get(codeArea);
         codeArea.setParagraphGraphicFactory(paragraph -> {
-            HBox box = new HBox(2);
-            box.setAlignment(Pos.CENTER_LEFT);
-            Button foldButton = new Button("");
-            foldButton.getStyleClass().add("fold-marker");
+            if (isParagraphCollapsed(paragraph)) {
+                Region empty = new Region();
+                empty.setVisible(false);
+                empty.setManaged(false);
+                empty.setMinSize(0, 0);
+                empty.setPrefSize(0, 0);
+                empty.setMaxSize(0, 0);
+                return empty;
+            }
+
+            HBox gutterBox = new HBox(0);
+            gutterBox.setAlignment(Pos.CENTER_RIGHT);
+            gutterBox.getStyleClass().add("editor-gutter-line");
+
+            Node lineNumNode = lineNumbers.apply(paragraph);
+
             FunctionFold fold = findFoldStartingAt(paragraph);
             if (fold != null && fold.endLine > fold.startLine) {
-                foldButton.setText(foldedFunctionStarts.contains(fold.startLine) ? "+" : "-");
-                foldButton.setOnAction(event -> toggleFold(fold));
+                boolean isFolded = foldedFunctionStarts.contains(fold.startLine);
+                Button foldButton = new Button(isFolded ? "▸" : "▾");
+                foldButton.getStyleClass().add("fold-marker");
+
+                if (isFolded) {
+                    foldButton.getStyleClass().add("fold-marker-collapsed");
+                    foldButton.setOpacity(1.0);
+                } else {
+                    foldButton.setOpacity(0.0);
+                    // VSCode 体验：展开状态下默认空白，仅当鼠标移入该行行号区域时显示折叠箭头
+                    gutterBox.setOnMouseEntered(e -> foldButton.setOpacity(1.0));
+                    gutterBox.setOnMouseExited(e -> foldButton.setOpacity(0.0));
+                }
+
+                foldButton.setOnAction(event -> {
+                    event.consume();
+                    toggleFold(fold);
+                });
+                gutterBox.getChildren().addAll(lineNumNode, foldButton);
             } else {
-                foldButton.setText(" ");
-                foldButton.setDisable(true);
-                foldButton.setMouseTransparent(true);
+                // 普通不可折叠行：行号右侧填充透明占位空间（宽14px），鼠标悬浮时不显示任何按钮
+                Region spacer = new Region();
+                spacer.setMinWidth(14);
+                spacer.setPrefWidth(14);
+                spacer.setMaxWidth(14);
+                spacer.setMouseTransparent(true);
+                gutterBox.getChildren().addAll(lineNumNode, spacer);
             }
-            box.getChildren().addAll(foldButton, lineNumbers.apply(paragraph));
-            return box;
+
+            return gutterBox;
         });
+    }
+
+    private boolean isParagraphCollapsed(int paragraph) {
+        if (paragraph >= 0 && paragraph < codeArea.getParagraphs().size()) {
+            return codeArea.getParagraph(paragraph).getParagraphStyle().contains("collapse");
+        }
+        return false;
     }
     
     /**
@@ -662,6 +719,28 @@ public class TextEditorView {
     }
 
     /**
+     * 平滑跳转到指定的行号和列范围（1-based 行号，0-based 列偏移），并选中高亮该匹配区间
+     * @param lineNum 目标行号 (1-based)
+     * @param startCol 起始列偏移 (0-based)
+     * @param endCol 结束列偏移 (0-based)
+     */
+    public void jumpToLineAndColumn(int lineNum, int startCol, int endCol) {
+        if (codeArea == null || codeArea.getParagraphs() == null || codeArea.getParagraphs().isEmpty()) {
+            return;
+        }
+        int totalParagraphs = codeArea.getParagraphs().size();
+        if (lineNum < 1 || lineNum > totalParagraphs) {
+            return;
+        }
+        int paragraphIdx = lineNum - 1;
+        int lineStartOffset = codeArea.getAbsolutePosition(paragraphIdx, 0);
+        int lineLen = codeArea.getParagraph(paragraphIdx).getText().length();
+        int clampedStart = Math.min(Math.max(0, startCol), lineLen);
+        int clampedEnd = Math.min(Math.max(clampedStart, endCol), lineLen);
+        jumpToRange(lineStartOffset + clampedStart, lineStartOffset + clampedEnd);
+    }
+
+    /**
      * 获取当前光标所在的 1-based 行号
      * @return 当前行号
      */
@@ -835,7 +914,7 @@ public class TextEditorView {
      * 获取 RichTextFX 的 CodeArea 组件
      * @return CodeArea 组件
      */
-    public CodeArea getCodeArea() {
+    public FoldableCodeArea getCodeArea() {
         return codeArea;
     }
     
@@ -858,13 +937,31 @@ public class TextEditorView {
         }
     }
 
-    private void openSearch() {
-        if (!searchPopup.isShowing() && virtualizedScrollPane.getScene() != null) {
-            Point2D point = virtualizedScrollPane.localToScreen(8, 8);
-            if (point != null) {
-                searchPopup.show(virtualizedScrollPane.getScene().getWindow(), point.getX(), point.getY());
+    /**
+     * 打开浮动搜索栏 (Ctrl+F)
+     */
+    public void openSearch() {
+        if (virtualizedScrollPane.getScene() == null) {
+            return;
+        }
+        Window window = virtualizedScrollPane.getScene().getWindow();
+        if (window == null) {
+            return;
+        }
+
+        double scrollWidth = virtualizedScrollPane.getWidth();
+        double barWidth = (searchBar != null && searchBar.getWidth() > 0) ? searchBar.getWidth() : 530;
+        double targetX = Math.max(16, scrollWidth - barWidth - 30);
+        Point2D point = virtualizedScrollPane.localToScreen(targetX, 10);
+        if (point != null) {
+            if (!searchPopup.isShowing()) {
+                searchPopup.show(window, point.getX(), point.getY());
+            } else {
+                searchPopup.setX(point.getX());
+                searchPopup.setY(point.getY());
             }
         }
+
         String selected = codeArea.getSelectedText();
         if (selected != null && !selected.isEmpty() && !selected.contains("\n") && selected.length() <= 80) {
             searchField.setText(selected);
@@ -877,8 +974,13 @@ public class TextEditorView {
         });
     }
 
-    private void closeSearch() {
-        searchPopup.hide();
+    /**
+     * 关闭浮动搜索栏
+     */
+    public void closeSearch() {
+        if (searchPopup.isShowing()) {
+            searchPopup.hide();
+        }
         codeArea.requestFocus();
     }
 
@@ -1105,8 +1207,10 @@ public class TextEditorView {
 
     private void refreshFoldGraphics() {
         for (FunctionFold fold : functionFolds) {
-            if (fold.startLine >= 0 && fold.startLine < codeArea.getParagraphs().size()) {
-                codeArea.recreateParagraphGraphic(fold.startLine);
+            int start = Math.max(0, fold.startLine);
+            int end = Math.min(fold.endLine, codeArea.getParagraphs().size() - 1);
+            for (int i = start; i <= end; i++) {
+                codeArea.recreateParagraphGraphic(i);
             }
         }
     }
@@ -1230,9 +1334,32 @@ public class TextEditorView {
         }
     }
 
-    private static class FoldableCodeArea extends CodeArea {
-        void foldFunctionParagraphs(int startParagraph, int endParagraph, String marker) {
-            if (startParagraph <= endParagraph) {
+    public static class FoldableCodeArea extends StyledTextArea<Collection<String>, Collection<String>> {
+        public FoldableCodeArea() {
+            super(
+                Collections.emptyList(),
+                (textFlow, styles) -> {
+                    textFlow.getStyleClass().addAll(styles);
+                    boolean collapsed = styles.contains("collapse");
+                    textFlow.setVisible(!collapsed);
+                    textFlow.setManaged(!collapsed);
+                },
+                Collections.emptyList(),
+                (text, styles) -> text.getStyleClass().addAll(styles),
+                new SimpleEditableStyledDocument<>(Collections.emptyList(), Collections.emptyList()),
+                false
+            );
+            getStyleClass().add("code-area");
+            getStylesheets().add(CodeArea.class.getResource("code-area.css").toExternalForm());
+            setUseInitialStyleForInsertion(true);
+            setStyleCodecs(
+                Codec.collectionCodec(Codec.STRING_CODEC),
+                Codec.styledTextCodec(Codec.collectionCodec(Codec.STRING_CODEC))
+            );
+        }
+
+        public void foldFunctionParagraphs(int startParagraph, int endParagraph, String marker) {
+            if (startParagraph < endParagraph) {
                 foldParagraphs(startParagraph, endParagraph, styles -> {
                     Set<String> next = new HashSet<>(styles);
                     next.add(marker);
@@ -1242,7 +1369,7 @@ public class TextEditorView {
             }
         }
 
-        void unfoldFunctionParagraphs(int paragraph, String marker) {
+        public void unfoldFunctionParagraphs(int paragraph, String marker) {
             unfoldParagraphs(paragraph, styles -> styles.contains(marker), styles -> {
                 Set<String> next = new HashSet<>(styles);
                 next.remove(marker);

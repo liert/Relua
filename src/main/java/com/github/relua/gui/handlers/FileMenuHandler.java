@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * 文件菜单处理器，处理文件菜单的交互逻辑与工程持久化调度
@@ -144,6 +145,15 @@ public class FileMenuHandler {
      * @param file 文件对象
      */
     public void openFile(File file) {
+        openFile(file, null);
+    }
+
+    /**
+     * 直接打开指定文件，并在文件加载/反编译就绪后触发回调
+     * @param file 文件对象
+     * @param onReady 就绪回调 (可为 null)
+     */
+    public void openFile(File file, Consumer<EditorTab> onReady) {
         if (file == null) {
             return;
         }
@@ -159,6 +169,9 @@ public class FileMenuHandler {
                         fileTreeView.selectFile(file);
                     }
                     RecentHistoryManager.getInstance().addRecentPath(file.getAbsolutePath());
+                    if (onReady != null) {
+                        onReady.accept(editorTab);
+                    }
                     return;
                 }
             }
@@ -186,8 +199,8 @@ public class FileMenuHandler {
             ProjectWorkspaceManager.getInstance().save(collectOpenedTabs(), tab);
         });
 
-        // 注册光标监听器以实现 AST/CFG 同步
-        textEditorView.getCodeArea().caretPositionProperty().addListener((obs, oldVal, newVal) -> {
+        // 注册光标与选区监听器以实现 AST/CFG 同步及状态栏位置更新
+        tab.setOnCaretOrSelectionChanged(() -> {
             if (textEditorTabPane.getSelectionModel().getSelectedItem() == tab) {
                 if (onCaretPositionChangedCallback != null) {
                     onCaretPositionChangedCallback.run();
@@ -299,6 +312,10 @@ public class FileMenuHandler {
 
                     if (onFileOpenedCallback != null) {
                         onFileOpenedCallback.run();
+                    }
+
+                    if (onReady != null) {
+                        onReady.accept(tab);
                     }
                 }
             }

@@ -14,7 +14,7 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.stage.Popup;
-import org.fxmisc.richtext.CodeArea;
+import org.fxmisc.richtext.GenericStyledArea;
 import org.fxmisc.richtext.event.MouseOverTextEvent;
 
 import java.util.*;
@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
 public class LuaCodeIntelligenceController {
-    private final CodeArea codeArea;
+    private final GenericStyledArea<Collection<String>, String, Collection<String>> codeArea;
     private final LuaSymbolIndexer indexer;
     private final Label statusLabel;
     
@@ -65,7 +65,7 @@ public class LuaCodeIntelligenceController {
         "true", "until", "while"
     ));
 
-    public LuaCodeIntelligenceController(CodeArea codeArea, Label statusLabel) {
+    public LuaCodeIntelligenceController(GenericStyledArea<Collection<String>, String, Collection<String>> codeArea, Label statusLabel) {
         this.codeArea = codeArea;
         this.statusLabel = statusLabel;
         this.indexer = new LuaSymbolIndexer();

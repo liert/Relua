@@ -49,13 +49,17 @@
                         <MenuItem fx:id="menuItemCut" onAction="#handleCut" />
                         <MenuItem fx:id="menuItemCopy" onAction="#handleCopy" />
                         <MenuItem fx:id="menuItemPaste" onAction="#handlePaste" />
+                        <SeparatorMenuItem />
+                        <MenuItem fx:id="menuItemFind" onAction="#handleFind" text="查找 (Find...)" accelerator="Shortcut+F" />
+                        <MenuItem fx:id="menuItemFindInFiles" onAction="#handleFindInFiles" text="全局项目查找 (Find in Files...)" accelerator="Shortcut+Shift+F" />
                     </items>
                 </Menu>
                 
                 <!-- 视图菜单 -->
                 <Menu fx:id="menuView">
                     <items>
-                        <MenuItem fx:id="menuItemToggleTabBytecode" onAction="#handleToggleCurrentTabBytecode" text="切换当前文件字节码/源码" accelerator="Shortcut+B" />
+                        <MenuItem fx:id="menuItemSideBySide" onAction="#handleSideBySideView" text="◫ 源码与字节码并排分屏" accelerator="Shortcut+Alt+B" />
+                        <MenuItem fx:id="menuItemToggleTabBytecode" onAction="#handleToggleCurrentTabBytecode" text="⇄ 循环切换视图模式 (源码/分屏/字节码)" accelerator="Shortcut+B" />
                         <SeparatorMenuItem />
                         <!-- 界面主题子菜单 -->
                         <Menu text="界面主题 (Theme)">
@@ -101,7 +105,10 @@
                 <Button fx:id="btnSave" onAction="#handleSaveFile" />
                 <Button fx:id="btnBatchExport" onAction="#handleBatchExport" text="📦 批量导出" />
                 <Separator orientation="VERTICAL" />
-                <Button fx:id="btnToggleBytecode" onAction="#handleToggleCurrentTabBytecode" text="⇄ 源码/字节码" />
+                <Button fx:id="btnFindInFiles" onAction="#handleFindInFiles" text="🔍 全局查找" />
+                <Separator orientation="VERTICAL" />
+                <Button fx:id="btnSideBySide" onAction="#handleSideBySideView" text="◫ 并排分屏" />
+                <Button fx:id="btnToggleBytecode" onAction="#handleToggleCurrentTabBytecode" text="⇄ 切换视图" />
                 <Separator orientation="VERTICAL" />
                 <Button fx:id="btnUndo" onAction="#handleUndo" />
                 <Button fx:id="btnRedo" onAction="#handleRedo" />
@@ -120,9 +127,9 @@
             <!-- 主内容区域和日志窗口的垂直分割面板 -->
             <SplitPane fx:id="verticalSplitPane" orientation="VERTICAL" VBox.vgrow="ALWAYS" dividerPositions="0.8">
                 <!-- 主内容区域 - 水平分割面板 -->
-                <SplitPane fx:id="mainSplitPane" orientation="HORIZONTAL" VBox.vgrow="ALWAYS" dividerPositions="0.2, 0.6">
-                    <!-- 左侧：现代化资源管理器与文件树 -->
-                    <VBox fx:id="fileTreeContainer" prefWidth="260" minWidth="160" maxWidth="500" styleClass="file-tree-container">
+                <SplitPane fx:id="mainSplitPane" orientation="HORIZONTAL" VBox.vgrow="ALWAYS">
+                    <!-- 左侧：现代化资源管理器与文件树（像素范围约束） -->
+                    <VBox fx:id="fileTreeContainer" prefWidth="260" minWidth="180" maxWidth="420" styleClass="file-tree-container">
                         <HBox alignment="CENTER_LEFT" styleClass="sidebar-header">
                             <Label text="项目资源管理器 (EXPLORER)" />
                         </HBox>
@@ -170,6 +177,7 @@
                 <Label text=" | " opacity="0.5" />
                 <Label fx:id="fileLabel" />
                 <Region HBox.hgrow="ALWAYS" />
+                <Label fx:id="cursorPositionLabel" text="Ln 1, Col 1" styleClass="status-bar-pill" />
                 <Label text="🔒 只读分析模式" styleClass="status-bar-pill" />
                 <Label text="UTF-8" styleClass="status-bar-pill" />
                 <Label text="Lua 逆向套件" styleClass="status-bar-pill" />
