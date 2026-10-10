@@ -10,6 +10,8 @@ import com.github.relua.gui.views.EditorTab;
 import com.github.relua.gui.views.GraphVisualizationView;
 import com.github.relua.gui.views.FileTreeView;
 import com.github.relua.gui.views.LogView;
+import com.github.relua.gui.views.OutlineView;
+import javafx.geometry.Orientation;
 import com.github.relua.gui.utils.ASTGraphConverter;
 import com.github.relua.gui.utils.CFGGraphConverter;
 import com.github.relua.model.LuacFile;
@@ -47,6 +49,7 @@ import javafx.scene.input.Dragboard;
 import javafx.scene.input.TransferMode;
 import javafx.scene.input.DragEvent;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -144,6 +147,8 @@ public class MainController {
     @FXML
     private MenuItem menuItemToggleTabBytecode;
     @FXML
+    private MenuItem menuItemToggleOutline;
+    @FXML
     private MenuItem menuItemBytecodeView;
     @FXML
     private MenuItem menuItemAstView;
@@ -198,6 +203,8 @@ public class MainController {
     @FXML
     private ScrollPane fileTreeScrollPane;
     private FileTreeView fileTreeView;
+    private OutlineView outlineView;
+    private SplitPane sidebarSplitPane;
     
     // 资源管理器宽度范围约束常量与状态
     private static final double FILE_TREE_MIN_WIDTH = 180.0;
@@ -261,13 +268,40 @@ public class MainController {
      */
     @FXML
     public void initialize() {
-        // 初始化文件树视图（直接作为 fileTreeContainer 的子组件，彻底消除 ScrollPane 视口嵌套引起的文字双线性模糊）
+        // 初始化文件树与结构大纲视图
         fileTreeView = new FileTreeView();
         TreeView<?> treeNode = fileTreeView.getView();
         VBox.setVgrow(treeNode, Priority.ALWAYS);
+
+        outlineView = new OutlineView();
+        outlineView.setOnNavigate(targetLine -> {
+            TextEditorView activeEditor = getActiveTextEditorView();
+            if (activeEditor != null) {
+                activeEditor.jumpToLine(targetLine);
+                updateStatus("大纲导航：已跳转至第 " + targetLine + " 行");
+            }
+        });
+        Node outlineNode = outlineView.getView();
+        VBox.setVgrow(outlineNode, Priority.ALWAYS);
+
+        // 创建左侧栏垂直分割容器：上方为资源管理器，下方为函数符号大纲
+        VBox explorerBox = new VBox();
+        VBox.setVgrow(explorerBox, Priority.ALWAYS);
+        HBox explorerHeader = new HBox();
+        explorerHeader.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        explorerHeader.getStyleClass().add("sidebar-header");
+        explorerHeader.getChildren().add(new Label("项目资源管理器 (EXPLORER)"));
+        explorerBox.getChildren().addAll(explorerHeader, treeNode);
+
+        sidebarSplitPane = new SplitPane();
+        sidebarSplitPane.setOrientation(Orientation.VERTICAL);
+        sidebarSplitPane.getItems().addAll(explorerBox, outlineNode);
+        sidebarSplitPane.setDividerPositions(0.55);
+        VBox.setVgrow(sidebarSplitPane, Priority.ALWAYS);
+
         if (fileTreeContainer != null) {
-            fileTreeContainer.getChildren().remove(fileTreeScrollPane);
-            fileTreeContainer.getChildren().add(treeNode);
+            fileTreeContainer.getChildren().clear();
+            fileTreeContainer.getChildren().add(sidebarSplitPane);
         }
         
         // 初始化标签页视图
@@ -366,6 +400,9 @@ public class MainController {
         fileMenuHandler.setOnFileOpenedCallback(() -> {
             handleCaretPositionChanged(true);
             refreshRecentMenu();
+            if (outlineView != null) {
+                outlineView.updateOutline(fileMenuHandler.getActiveTab());
+            }
         });
         fileMenuHandler.setOnCaretPositionChangedCallback(() -> {
             handleCaretPositionChanged();
@@ -1080,6 +1117,9 @@ public class MainController {
 
         // 获取当前光标所在的行号（1-based）
         int currentLine = activeEditor.getCodeArea().getCurrentParagraph() + 1;
+        if (outlineView != null) {
+            outlineView.highlightEnclosingFunction(currentLine);
+        }
 
         // 根据行号寻找匹配的最深层 Chunk
         Chunk targetChunk = findTargetChunkForLine(luacFile.getMainChunk(), currentLine);
@@ -1115,6 +1155,11 @@ public class MainController {
             updateFileLabel(activeTab.getFile().getName());
             updateStatus("Active file: " + activeTab.getFile().getName());
 
+            // 更新左侧结构大纲
+            if (outlineView != null) {
+                outlineView.updateOutline(activeTab);
+            }
+
             // 在文件树中高亮选中
             if (fileTreeView != null) {
                 fileTreeView.selectFile(activeTab.getFile());
@@ -1128,10 +1173,33 @@ public class MainController {
             updateStatus(I18nUtil.getString("status.ready"));
             updateCursorPositionStatus(null);
 
+            if (outlineView != null) {
+                outlineView.updateOutline(null);
+            }
+
             // 关闭当前子视图
             if (graphContainer.isVisible()) {
                 closeSubView();
             }
+        }
+    }
+
+    /**
+     * 切换显示或隐藏左侧结构大纲面板 (快捷键 Shortcut+Alt+O)
+     */
+    @FXML
+    private void handleToggleOutline(ActionEvent event) {
+        if (sidebarSplitPane == null || outlineView == null) {
+            return;
+        }
+        Node outlineNode = outlineView.getView();
+        if (sidebarSplitPane.getItems().contains(outlineNode)) {
+            sidebarSplitPane.getItems().remove(outlineNode);
+            updateStatus("已隐藏结构大纲面板");
+        } else {
+            sidebarSplitPane.getItems().add(outlineNode);
+            sidebarSplitPane.setDividerPositions(0.55);
+            updateStatus("已显示结构大纲面板");
         }
     }
 

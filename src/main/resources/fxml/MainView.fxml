@@ -60,6 +60,7 @@
                     <items>
                         <MenuItem fx:id="menuItemSideBySide" onAction="#handleSideBySideView" text="◫ 源码与字节码并排分屏" accelerator="Shortcut+Alt+B" />
                         <MenuItem fx:id="menuItemToggleTabBytecode" onAction="#handleToggleCurrentTabBytecode" text="⇄ 循环切换视图模式 (源码/分屏/字节码)" accelerator="Shortcut+B" />
+                        <MenuItem fx:id="menuItemToggleOutline" onAction="#handleToggleOutline" text="显示/隐藏结构大纲 (Outline)" accelerator="Shortcut+Alt+O" />
                         <SeparatorMenuItem />
                         <!-- 界面主题子菜单 -->
                         <Menu text="界面主题 (Theme)">

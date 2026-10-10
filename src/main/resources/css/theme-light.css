@@ -744,3 +744,16 @@
     -fx-font-size: 12px;
 }
 
+/* 结构大纲面板 (Outline) */
+.outline-container {
+    -fx-background-color: #f8f9fa;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 1px 0 0 0;
+}
+
+.outline-container .tree-view {
+    -fx-background-color: #f8f9fa;
+    -fx-font-size: 11px;
+}
+
+
