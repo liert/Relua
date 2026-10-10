@@ -12,6 +12,10 @@ import com.github.relua.gui.views.FileTreeView;
 import com.github.relua.gui.views.LogView;
 import com.github.relua.gui.views.OutlineView;
 import com.github.relua.gui.views.HexView;
+import com.github.relua.gui.navigation.Bookmark;
+import com.github.relua.gui.navigation.BookmarkManager;
+import com.github.relua.gui.navigation.NavigationHistoryManager;
+import com.github.relua.gui.navigation.NavigationLocation;
 import javafx.geometry.Orientation;
 import com.github.relua.gui.utils.ASTGraphConverter;
 import com.github.relua.gui.utils.CFGGraphConverter;
@@ -141,6 +145,22 @@ public class MainController {
     private MenuItem menuItemFind;
     @FXML
     private MenuItem menuItemFindInFiles;
+
+    // 导航与书签菜单项
+    @FXML
+    private Menu menuNavigate;
+    @FXML
+    private MenuItem menuItemNavigateBack;
+    @FXML
+    private MenuItem menuItemNavigateForward;
+    @FXML
+    private MenuItem menuItemToggleBookmark;
+    @FXML
+    private MenuItem menuItemNextBookmark;
+    @FXML
+    private MenuItem menuItemPreviousBookmark;
+    @FXML
+    private MenuItem menuItemClearBookmarks;
     
     // 视图菜单项
     @FXML
@@ -183,6 +203,12 @@ public class MainController {
     private Button btnSideBySide;
     @FXML
     private Button btnToggleBytecode;
+    @FXML
+    private Button btnNavBack;
+    @FXML
+    private Button btnNavForward;
+    @FXML
+    private Button btnToggleBookmark;
     @FXML
     private Button btnUndo;
     @FXML
@@ -409,10 +435,14 @@ public class MainController {
         // 初始化菜单处理器
         fileMenuHandler = new FileMenuHandler(textEditorTabPane, astGraphConverter, cfgGraphConverter, statusLabel, fileLabel, fileTreeView);
         fileMenuHandler.setOnFileOpenedCallback(() -> {
+            EditorTab tab = fileMenuHandler.getActiveTab();
+            if (tab != null) {
+                wireTabNavigationCallbacks(tab);
+            }
             handleCaretPositionChanged(true);
             refreshRecentMenu();
             if (outlineView != null) {
-                outlineView.updateOutline(fileMenuHandler.getActiveTab());
+                outlineView.updateOutline(tab);
             }
         });
         fileMenuHandler.setOnCaretPositionChangedCallback(() -> {
@@ -444,6 +474,11 @@ public class MainController {
 
         // 初始状态栏光标指示
         updateCursorPositionStatus(null);
+
+        // 设置导航工具栏按钮提示
+        if (btnNavBack != null) btnNavBack.setTooltip(new Tooltip("向后导航 (Alt+Left)"));
+        if (btnNavForward != null) btnNavForward.setTooltip(new Tooltip("向前导航 (Alt+Right)"));
+        if (btnToggleBookmark != null) btnToggleBookmark.setTooltip(new Tooltip("切换当前行书签 (Ctrl+F11)"));
 
         // 窗口关闭时自动执行工程与工作区持久化保存
         Platform.runLater(() -> {
@@ -765,13 +800,132 @@ public class MainController {
         }
         fileMenuHandler.openFile(targetFile, openedTab -> {
             Platform.runLater(() -> {
+                wireTabNavigationCallbacks(openedTab);
                 TextEditorView editor = openedTab.getActiveEditorView();
                 if (editor != null) {
                     editor.jumpToLineAndColumn(line, startCol, endCol);
-                    updateStatus("全局检索导航：已定位至 " + targetFile.getName() + " 第 " + line + " 行");
+                    updateStatus("代码导航：已定位至 " + targetFile.getName() + " 第 " + line + " 行");
                 }
             });
         });
+    }
+
+    // 导航与书签事件处理方法
+
+    private void wireTabNavigationCallbacks(EditorTab tab) {
+        if (tab == null) return;
+        if (tab.getLuaEditorView() != null) {
+            tab.getLuaEditorView().setOnNavigateHistoryRequested(isBack -> {
+                if (isBack) handleNavigateBack(null);
+                else handleNavigateForward(null);
+            });
+            tab.getLuaEditorView().setOnNavigateRequested((f, line) -> openFileAndJump(f, line, 0, 0));
+        }
+        if (tab.getBytecodeEditorView() != null) {
+            tab.getBytecodeEditorView().setOnNavigateHistoryRequested(isBack -> {
+                if (isBack) handleNavigateBack(null);
+                else handleNavigateForward(null);
+            });
+            tab.getBytecodeEditorView().setOnNavigateRequested((f, line) -> openFileAndJump(f, line, 0, 0));
+        }
+    }
+
+    @FXML
+    private void handleNavigateBack(ActionEvent event) {
+        TextEditorView activeEditor = getActiveTextEditorView();
+        EditorTab activeTab = getActiveEditorTab();
+        NavigationLocation currentLoc = null;
+        if (activeEditor != null && activeTab != null && activeTab.getFile() != null) {
+            currentLoc = new NavigationLocation(
+                    activeTab.getFile(),
+                    activeEditor.getCodeArea().getCurrentParagraph() + 1,
+                    activeEditor.getCodeArea().getCaretColumn()
+            );
+        }
+        NavigationLocation target = NavigationHistoryManager.getInstance().navigateBack(currentLoc);
+        if (target != null) {
+            navigateToLocation(target);
+        } else {
+            updateStatus("已到达导航历史最起点");
+        }
+    }
+
+    @FXML
+    private void handleNavigateForward(ActionEvent event) {
+        TextEditorView activeEditor = getActiveTextEditorView();
+        EditorTab activeTab = getActiveEditorTab();
+        NavigationLocation currentLoc = null;
+        if (activeEditor != null && activeTab != null && activeTab.getFile() != null) {
+            currentLoc = new NavigationLocation(
+                    activeTab.getFile(),
+                    activeEditor.getCodeArea().getCurrentParagraph() + 1,
+                    activeEditor.getCodeArea().getCaretColumn()
+            );
+        }
+        NavigationLocation target = NavigationHistoryManager.getInstance().navigateForward(currentLoc);
+        if (target != null) {
+            navigateToLocation(target);
+        } else {
+            updateStatus("已到达导航历史最新点");
+        }
+    }
+
+    private void navigateToLocation(NavigationLocation target) {
+        if (target == null || target.getFile() == null) {
+            return;
+        }
+        openFileAndJump(target.getFile(), target.getLine(), target.getColumn(), target.getColumn());
+        updateStatus("向后/向前导航：已跳转至 " + target.getFile().getName() + " 第 " + target.getLine() + " 行");
+    }
+
+    @FXML
+    private void handleToggleBookmark(ActionEvent event) {
+        TextEditorView activeEditor = getActiveTextEditorView();
+        EditorTab activeTab = getActiveEditorTab();
+        if (activeEditor == null || activeTab == null || activeTab.getFile() == null) {
+            updateStatus("无打开的编辑文件");
+            return;
+        }
+        int line = activeEditor.getCodeArea().getCurrentParagraph() + 1;
+        String lineText = activeEditor.getCodeArea().getParagraph(line - 1).getText();
+        boolean added = BookmarkManager.getInstance().toggleBookmark(activeTab.getFile(), line, lineText);
+        updateStatus(added ? "已在第 " + line + " 行添加书签 (🔖)" : "已移除第 " + line + " 行书签");
+    }
+
+    @FXML
+    private void handleNextBookmark(ActionEvent event) {
+        TextEditorView activeEditor = getActiveTextEditorView();
+        EditorTab activeTab = getActiveEditorTab();
+        File currentFile = activeTab != null ? activeTab.getFile() : null;
+        int currentLine = activeEditor != null ? activeEditor.getCodeArea().getCurrentParagraph() + 1 : 1;
+        Bookmark next = BookmarkManager.getInstance().getNextBookmark(currentFile, currentLine);
+        if (next != null) {
+            openFileAndJump(next.getFile(), next.getLine(), 0, 0);
+            updateStatus("跳转至下一个书签: " + next.getFile().getName() + " 第 " + next.getLine() + " 行");
+        } else {
+            updateStatus("当前没有设置任何书签");
+        }
+    }
+
+    @FXML
+    private void handlePreviousBookmark(ActionEvent event) {
+        TextEditorView activeEditor = getActiveTextEditorView();
+        EditorTab activeTab = getActiveEditorTab();
+        File currentFile = activeTab != null ? activeTab.getFile() : null;
+        int currentLine = activeEditor != null ? activeEditor.getCodeArea().getCurrentParagraph() + 1 : 1;
+        Bookmark prev = BookmarkManager.getInstance().getPreviousBookmark(currentFile, currentLine);
+        if (prev != null) {
+            openFileAndJump(prev.getFile(), prev.getLine(), 0, 0);
+            updateStatus("跳转至上一个书签: " + prev.getFile().getName() + " 第 " + prev.getLine() + " 行");
+        } else {
+            updateStatus("当前没有设置任何书签");
+        }
+    }
+
+    @FXML
+    private void handleClearAllBookmarks(ActionEvent event) {
+        BookmarkManager.getInstance().clearAll();
+        updateStatus("已清除所有书签");
     }
     
     // 视图菜单事件处理方法
@@ -1200,6 +1354,7 @@ public class MainController {
     private void handleActiveTabChanged(Tab newTab) {
         if (newTab instanceof EditorTab) {
             EditorTab activeTab = (EditorTab) newTab;
+            wireTabNavigationCallbacks(activeTab);
             // 更新文件名和状态栏
             updateFileLabel(activeTab.getFile().getName());
             updateStatus("Active file: " + activeTab.getFile().getName());

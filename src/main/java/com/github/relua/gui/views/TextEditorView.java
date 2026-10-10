@@ -4,6 +4,10 @@ import com.github.relua.gui.controllers.LuaCodeIntelligenceController;
 import com.github.relua.gui.dialogs.EditCommentDialog;
 import com.github.relua.gui.dialogs.RenameVariableDialog;
 import com.github.relua.gui.dialogs.XrefsDialog;
+import com.github.relua.gui.navigation.Bookmark;
+import com.github.relua.gui.navigation.BookmarkManager;
+import com.github.relua.gui.navigation.NavigationHistoryManager;
+import com.github.relua.gui.navigation.NavigationLocation;
 import com.github.relua.gui.theme.ThemeManager;
 import com.github.relua.gui.utils.I18nUtil;
 import com.github.relua.gui.utils.LuaVariableUtils;
@@ -54,6 +58,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
@@ -139,6 +144,9 @@ public class TextEditorView {
     private boolean rebuildingFolds = false;
     private static final Pattern LUA_TOKEN_PATTERN = Pattern.compile("\\b(function|end|repeat|until|if|for|while)\\b");
     private boolean suppressNextKeyTyped = false;
+    private File currentFile;
+    private java.util.function.Consumer<Boolean> onNavigateHistoryRequested; // true = back, false = forward
+    private java.util.function.BiConsumer<File, Integer> onNavigateRequested; // (file, line)
 
     /**
      * 默认构造函数（显示欢迎文本）
@@ -180,6 +188,9 @@ public class TextEditorView {
         // 加载当前现代化主题样式表并注册主题动态切换监听
         applyThemeStyles();
         ThemeManager.getInstance().addListener(newTheme -> Platform.runLater(this::applyThemeStyles));
+
+        // 注册书签变动全局监听
+        BookmarkManager.getInstance().addListener(this::handleBookmarksChanged);
         
         // 监听文本变化以更新折叠、搜索和高亮
         codeArea.textProperty().addListener((obs, oldText, newText) -> {
@@ -191,10 +202,15 @@ public class TextEditorView {
             }
         });
 
-        // 监听光标移动，实现 IDA Pro 风格的同名变量联动高亮
+        // 监听光标移动，实现同名变量联动高亮与光标导航历史记录 (Alt+Left/Right)
         codeArea.caretPositionProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
                 updateSymbolHighlighting(newVal);
+                if (currentFile != null) {
+                    int paragraph = codeArea.getCurrentParagraph() + 1;
+                    int column = codeArea.getCaretColumn();
+                    NavigationHistoryManager.getInstance().recordLocation(currentFile, paragraph, column);
+                }
             }
         });
         
@@ -308,6 +324,85 @@ public class TextEditorView {
                 Platform.runLater(this::promptEditComment);
                 return;
             }
+
+            // Alt+Left / Alt+Right 触发光标导航历史后退与前进
+            if (event.isAltDown() && !event.isControlDown() && !event.isShiftDown() &&
+                    (event.getCode() == KeyCode.LEFT || event.getCode() == KeyCode.RIGHT)) {
+                event.consume();
+                suppressNextKeyTyped = true;
+                if (onNavigateHistoryRequested != null) {
+                    onNavigateHistoryRequested.accept(event.getCode() == KeyCode.LEFT);
+                }
+                return;
+            }
+
+            // Ctrl+F11 触发切换当前行书签
+            if (event.isControlDown() && !event.isAltDown() && event.getCode() == KeyCode.F11) {
+                event.consume();
+                suppressNextKeyTyped = true;
+                if (currentFile != null) {
+                    int line = codeArea.getCurrentParagraph() + 1;
+                    String lineText = codeArea.getParagraph(line - 1).getText();
+                    BookmarkManager.getInstance().toggleBookmark(currentFile, line, lineText);
+                }
+                return;
+            }
+
+            // F2 / Shift+F2 跳转到下一个/上一个书签
+            if (event.getCode() == KeyCode.F2 && !event.isControlDown() && !event.isAltDown()) {
+                event.consume();
+                suppressNextKeyTyped = true;
+                int currentLine = codeArea.getCurrentParagraph() + 1;
+                Bookmark target = event.isShiftDown()
+                        ? BookmarkManager.getInstance().getPreviousBookmark(currentFile, currentLine)
+                        : BookmarkManager.getInstance().getNextBookmark(currentFile, currentLine);
+                if (target != null) {
+                    if (Objects.equals(target.getFile(), currentFile)) {
+                        jumpToLine(target.getLine());
+                    } else if (onNavigateRequested != null) {
+                        onNavigateRequested.accept(target.getFile(), target.getLine());
+                    }
+                }
+                return;
+            }
+
+            // Ctrl+1~9 或 Ctrl+Shift+1~9 助记符书签跳转与设置
+            if (event.isControlDown() && !event.isAltDown() && event.getCode().isDigitKey()) {
+                int digit = -1;
+                switch (event.getCode()) {
+                    case DIGIT1: case NUMPAD1: digit = 1; break;
+                    case DIGIT2: case NUMPAD2: digit = 2; break;
+                    case DIGIT3: case NUMPAD3: digit = 3; break;
+                    case DIGIT4: case NUMPAD4: digit = 4; break;
+                    case DIGIT5: case NUMPAD5: digit = 5; break;
+                    case DIGIT6: case NUMPAD6: digit = 6; break;
+                    case DIGIT7: case NUMPAD7: digit = 7; break;
+                    case DIGIT8: case NUMPAD8: digit = 8; break;
+                    case DIGIT9: case NUMPAD9: digit = 9; break;
+                    default: break;
+                }
+                if (digit >= 1 && digit <= 9) {
+                    event.consume();
+                    suppressNextKeyTyped = true;
+                    if (event.isShiftDown()) {
+                        if (currentFile != null) {
+                            int line = codeArea.getCurrentParagraph() + 1;
+                            String lineText = codeArea.getParagraph(line - 1).getText();
+                            BookmarkManager.getInstance().setMnemonicBookmark(currentFile, line, digit, lineText);
+                        }
+                    } else {
+                        Bookmark b = BookmarkManager.getInstance().getBookmarkByMnemonic(digit);
+                        if (b != null) {
+                            if (Objects.equals(b.getFile(), currentFile)) {
+                                jumpToLine(b.getLine());
+                            } else if (onNavigateRequested != null) {
+                                onNavigateRequested.accept(b.getFile(), b.getLine());
+                            }
+                        }
+                    }
+                    return;
+                }
+            }
         });
 
         // 拦截紧随快捷键派发的 KEY_TYPED 字符，防止字符漏入文本破坏反编译文件
@@ -365,6 +460,15 @@ public class TextEditorView {
         commentMenuItem = new MenuItem("添加/修改行注释 (;)...");
         commentMenuItem.setOnAction(event -> promptEditComment());
 
+        MenuItem bookmarkMenuItem = new MenuItem("切换当前行书签 (Ctrl+F11)");
+        bookmarkMenuItem.setOnAction(event -> {
+            if (currentFile != null) {
+                int line = codeArea.getCurrentParagraph() + 1;
+                String lineText = codeArea.getParagraph(line - 1).getText();
+                BookmarkManager.getInstance().toggleBookmark(currentFile, line, lineText);
+            }
+        });
+
         MenuItem undoItem = new MenuItem("撤销 (Undo)");
         undoItem.setOnAction(event -> undo());
 
@@ -387,6 +491,7 @@ public class TextEditorView {
                 renameMenuItem,
                 xrefsMenuItem,
                 commentMenuItem,
+                bookmarkMenuItem,
                 new SeparatorMenuItem(),
                 undoItem,
                 redoItem,
@@ -415,6 +520,8 @@ public class TextEditorView {
 
             int currentLine = codeArea.getCurrentParagraph() + 1;
             commentMenuItem.setText("添加/修改行注释 (行 " + currentLine + ") (;)...");
+            boolean hasBookmark = (currentFile != null && BookmarkManager.getInstance().getBookmark(currentFile, currentLine) != null);
+            bookmarkMenuItem.setText(hasBookmark ? "移除当前行书签 (行 " + currentLine + ") (Ctrl+F11)" : "切换当前行书签 (行 " + currentLine + ") (Ctrl+F11)");
 
             // 只读保护：当不可直接编辑时，剪切和粘贴禁用，仅支持选择复制
             boolean editable = codeArea.isEditable();
@@ -457,8 +564,43 @@ public class TextEditorView {
             gutterBox.setAlignment(Pos.CENTER_RIGHT);
             gutterBox.getStyleClass().add("editor-gutter-line");
 
+            // 1. 书签指示图标或占位符 (宽14px)
+            Bookmark bookmark = (currentFile != null)
+                    ? BookmarkManager.getInstance().getBookmark(currentFile, paragraph + 1)
+                    : null;
+
+            Label bookmarkBadge = new Label();
+            bookmarkBadge.setMinWidth(14);
+            bookmarkBadge.setPrefWidth(14);
+            bookmarkBadge.setMaxWidth(14);
+            bookmarkBadge.setAlignment(Pos.CENTER);
+
+            if (bookmark != null) {
+                if (bookmark.getMnemonic() != null) {
+                    bookmarkBadge.setText(String.valueOf(bookmark.getMnemonic()));
+                    bookmarkBadge.getStyleClass().add("bookmark-mnemonic-marker");
+                } else {
+                    bookmarkBadge.setText("🔖");
+                    bookmarkBadge.getStyleClass().add("bookmark-marker");
+                }
+                Tooltip.install(bookmarkBadge, new Tooltip("书签: 第 " + (paragraph + 1) + " 行" +
+                        (bookmark.getMnemonic() != null ? " [助记符 " + bookmark.getMnemonic() + "]" : "")));
+            } else {
+                bookmarkBadge.getStyleClass().add("bookmark-slot");
+            }
+
+            bookmarkBadge.setOnMouseClicked(e -> {
+                if (currentFile != null && e.getButton() == MouseButton.PRIMARY) {
+                    e.consume();
+                    String lineText = codeArea.getParagraph(paragraph).getText();
+                    BookmarkManager.getInstance().toggleBookmark(currentFile, paragraph + 1, lineText);
+                }
+            });
+
+            // 2. 行号文本
             Node lineNumNode = lineNumbers.apply(paragraph);
 
+            // 3. 折叠标识或右侧占位符
             FunctionFold fold = findFoldStartingAt(paragraph);
             if (fold != null && fold.endLine > fold.startLine) {
                 boolean isFolded = foldedFunctionStarts.contains(fold.startLine);
@@ -479,7 +621,7 @@ public class TextEditorView {
                     event.consume();
                     toggleFold(fold);
                 });
-                gutterBox.getChildren().addAll(lineNumNode, foldButton);
+                gutterBox.getChildren().addAll(bookmarkBadge, lineNumNode, foldButton);
             } else {
                 // 普通不可折叠行：行号右侧填充透明占位空间（宽14px），鼠标悬浮时不显示任何按钮
                 Region spacer = new Region();
@@ -487,7 +629,7 @@ public class TextEditorView {
                 spacer.setPrefWidth(14);
                 spacer.setMaxWidth(14);
                 spacer.setMouseTransparent(true);
-                gutterBox.getChildren().addAll(lineNumNode, spacer);
+                gutterBox.getChildren().addAll(bookmarkBadge, lineNumNode, spacer);
             }
 
             return gutterBox;
@@ -528,6 +670,33 @@ public class TextEditorView {
      */
     public boolean isEditable() {
         return codeArea.isEditable();
+    }
+
+    private void handleBookmarksChanged(File file) {
+        if (file == null || file.equals(currentFile)) {
+            Platform.runLater(() -> {
+                for (int i = 0; i < codeArea.getParagraphs().size(); i++) {
+                    codeArea.recreateParagraphGraphic(i);
+                }
+            });
+        }
+    }
+
+    public void setCurrentFile(File file) {
+        this.currentFile = file;
+        handleBookmarksChanged(file);
+    }
+
+    public File getCurrentFile() {
+        return currentFile;
+    }
+
+    public void setOnNavigateHistoryRequested(java.util.function.Consumer<Boolean> cb) {
+        this.onNavigateHistoryRequested = cb;
+    }
+
+    public void setOnNavigateRequested(java.util.function.BiConsumer<File, Integer> cb) {
+        this.onNavigateRequested = cb;
     }
 
     /**

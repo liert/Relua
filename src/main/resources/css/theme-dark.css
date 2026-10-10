@@ -897,5 +897,35 @@
     -fx-font-weight: bold;
 }
 
+/* 书签样式 (Bookmarks) */
+.bookmark-slot {
+    -fx-opacity: 0.0;
+    -fx-cursor: hand;
+}
+
+.bookmark-slot:hover {
+    -fx-opacity: 0.4;
+    -fx-text-fill: #9cdcfe;
+}
+
+.bookmark-marker {
+    -fx-font-size: 10px;
+    -fx-cursor: hand;
+    -fx-alignment: CENTER;
+}
+
+.bookmark-mnemonic-marker {
+    -fx-font-family: 'Consolas', 'Courier New', monospace;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #ffffff;
+    -fx-background-color: #0e639c;
+    -fx-background-radius: 3px;
+    -fx-alignment: CENTER;
+    -fx-cursor: hand;
+    -fx-padding: 0 2px;
+}
+
+
 
 

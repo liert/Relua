@@ -55,6 +55,19 @@
                     </items>
                 </Menu>
                 
+                <!-- 导航与书签菜单 -->
+                <Menu fx:id="menuNavigate" text="导航 (Navigate)">
+                    <items>
+                        <MenuItem fx:id="menuItemNavigateBack" onAction="#handleNavigateBack" text="向后导航 (Back)" accelerator="Alt+Left" />
+                        <MenuItem fx:id="menuItemNavigateForward" onAction="#handleNavigateForward" text="向前导航 (Forward)" accelerator="Alt+Right" />
+                        <SeparatorMenuItem />
+                        <MenuItem fx:id="menuItemToggleBookmark" onAction="#handleToggleBookmark" text="切换当前行书签 (Toggle Bookmark)" accelerator="Shortcut+F11" />
+                        <MenuItem fx:id="menuItemNextBookmark" onAction="#handleNextBookmark" text="下一个书签 (Next Bookmark)" accelerator="F2" />
+                        <MenuItem fx:id="menuItemPreviousBookmark" onAction="#handlePreviousBookmark" text="上一个书签 (Previous Bookmark)" accelerator="Shift+F2" />
+                        <MenuItem fx:id="menuItemClearBookmarks" onAction="#handleClearAllBookmarks" text="清除所有书签 (Clear All Bookmarks)" />
+                    </items>
+                </Menu>
+                
                 <!-- 视图菜单 -->
                 <Menu fx:id="menuView">
                     <items>
@@ -111,6 +124,10 @@
                 <Separator orientation="VERTICAL" />
                 <Button fx:id="btnSideBySide" onAction="#handleSideBySideView" text="◫ 并排分屏" />
                 <Button fx:id="btnToggleBytecode" onAction="#handleToggleCurrentTabBytecode" text="⇄ 切换视图" />
+                <Separator orientation="VERTICAL" />
+                <Button fx:id="btnNavBack" onAction="#handleNavigateBack" text="←" />
+                <Button fx:id="btnNavForward" onAction="#handleNavigateForward" text="→" />
+                <Button fx:id="btnToggleBookmark" onAction="#handleToggleBookmark" text="🔖 书签" />
                 <Separator orientation="VERTICAL" />
                 <Button fx:id="btnUndo" onAction="#handleUndo" />
                 <Button fx:id="btnRedo" onAction="#handleRedo" />

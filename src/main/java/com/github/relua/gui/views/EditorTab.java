@@ -94,6 +94,7 @@ public class EditorTab extends Tab {
         super(file != null ? file.getName() : "未命名");
         this.file = file;
         this.textEditorView = textEditorView;
+        this.textEditorView.setCurrentFile(file);
         this.textEditorView.setEditable(false); // 确保 Lua 源码视图只读不可直接编辑，保护反编译成果
 
         // 监听变量重命名事件，维护符号重命名映射表
@@ -112,6 +113,7 @@ public class EditorTab extends Tab {
         
         // 创建字节码代码编辑器（与代码视图体验一致）
         this.bytecodeEditorView = new TextEditorView(false);
+        this.bytecodeEditorView.setCurrentFile(file);
         this.bytecodeEditorView.getCodeArea().setEditable(false); // 字节码只读
 
         // 顶层主容器（包含顶部模式切换栏与编辑器内容区）
@@ -455,6 +457,12 @@ public class EditorTab extends Tab {
     public void setFile(File file) {
         this.file = file;
         this.setText(file.getName());
+        if (textEditorView != null) {
+            textEditorView.setCurrentFile(file);
+        }
+        if (bytecodeEditorView != null) {
+            bytecodeEditorView.setCurrentFile(file);
+        }
     }
 
     public TextEditorView getTextEditorView() {
