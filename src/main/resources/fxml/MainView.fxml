@@ -74,6 +74,7 @@
                         <Menu text="分析子视图">
                             <items>
                                 <MenuItem fx:id="menuItemBytecodeView" onAction="#handleBytecodeView" text="字节码子视图" />
+                                <MenuItem fx:id="menuItemHexView" onAction="#handleHexView" text="十六进制 Hex 视窗" accelerator="Shortcut+Alt+H" />
                                 <MenuItem fx:id="menuItemAstView" onAction="#handleAstView" text="AST 语法树视图" />
                                 <MenuItem fx:id="menuItemCfgView" onAction="#handleCfgView" text="CFG 控制流图视图" />
                             </items>

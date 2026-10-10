@@ -11,6 +11,7 @@ import com.github.relua.gui.views.GraphVisualizationView;
 import com.github.relua.gui.views.FileTreeView;
 import com.github.relua.gui.views.LogView;
 import com.github.relua.gui.views.OutlineView;
+import com.github.relua.gui.views.HexView;
 import javafx.geometry.Orientation;
 import com.github.relua.gui.utils.ASTGraphConverter;
 import com.github.relua.gui.utils.CFGGraphConverter;
@@ -151,6 +152,8 @@ public class MainController {
     @FXML
     private MenuItem menuItemBytecodeView;
     @FXML
+    private MenuItem menuItemHexView;
+    @FXML
     private MenuItem menuItemAstView;
     @FXML
     private MenuItem menuItemCfgView;
@@ -229,6 +232,7 @@ public class MainController {
     // 视图组件
     private GraphVisualizationView graphVisualizationView;
     private TextEditorView bytecodeSubViewEditor;
+    private HexView hexView;
     private StackPane subViewStackPane;
     private javafx.scene.layout.HBox subViewHeaderBar;
     private ToggleButton btnScopeCurrentChunk;
@@ -244,7 +248,7 @@ public class MainController {
     
     // 子视图类型枚举
     private enum SubViewType {
-        NONE, BYTECODE, AST, CFG
+        NONE, BYTECODE, AST, CFG, HEX
     }
     
     // 当前激活的子视图类型
@@ -366,13 +370,20 @@ public class MainController {
         Node bytecodeNode = bytecodeSubViewEditor.getView();
         VBox.setVgrow(bytecodeNode, Priority.ALWAYS);
 
+        // 初始化十六进制 Hex 视图组件
+        hexView = new HexView();
+        Node hexNode = hexView.getView();
+        VBox.setVgrow(hexNode, Priority.ALWAYS);
+        hexNode.setVisible(false);
+        hexNode.setManaged(false);
+
         // 初始化子视图内容堆叠容器
         subViewStackPane = new StackPane();
         VBox.setVgrow(subViewStackPane, Priority.ALWAYS);
 
-        // 将原有的 graphScrollPane 移入 subViewStackPane
+        // 将原有的 graphScrollPane、bytecodeNode 和 hexNode 移入 subViewStackPane
         graphContainer.getChildren().remove(graphScrollPane);
-        subViewStackPane.getChildren().addAll(graphScrollPane, bytecodeNode);
+        subViewStackPane.getChildren().addAll(graphScrollPane, bytecodeNode, hexNode);
         bytecodeNode.setVisible(false);
         bytecodeNode.setManaged(false);
 
@@ -808,6 +819,15 @@ public class MainController {
     private void handleCfgView(ActionEvent event) {
         toggleSubView(SubViewType.CFG);
     }
+
+    /**
+     * 处理十六进制Hex视图事件
+     * @param event 事件对象
+     */
+    @FXML
+    private void handleHexView(ActionEvent event) {
+        toggleSubView(SubViewType.HEX);
+    }
     
     private void initSubViewHeader() {
         subViewHeaderBar = new javafx.scene.layout.HBox(8);
@@ -898,10 +918,15 @@ public class MainController {
         currentSubViewType = subViewType;
         
         boolean isBytecode = (subViewType == SubViewType.BYTECODE);
-        graphScrollPane.setVisible(!isBytecode);
-        graphScrollPane.setManaged(!isBytecode);
+        boolean isHex = (subViewType == SubViewType.HEX);
+        boolean isGraph = (subViewType == SubViewType.AST || subViewType == SubViewType.CFG);
+
+        graphScrollPane.setVisible(isGraph);
+        graphScrollPane.setManaged(isGraph);
         bytecodeSubViewEditor.getView().setVisible(isBytecode);
         bytecodeSubViewEditor.getView().setManaged(isBytecode);
+        hexView.getView().setVisible(isHex);
+        hexView.getView().setManaged(isHex);
 
         btnScopeCurrentChunk.setVisible(isBytecode);
         btnScopeCurrentChunk.setManaged(isBytecode);
@@ -917,8 +942,19 @@ public class MainController {
             Platform.runLater(this::applyFileTreeDividerPosition);
         }
         
-        // 强制根据当前光标位置渲染对应的 Chunk
-        handleCaretPositionChanged(true);
+        if (subViewType == SubViewType.HEX) {
+            updateSubViewTitle(SubViewType.HEX);
+            EditorTab activeTab = getActiveEditorTab();
+            if (activeTab != null && activeTab.getFile() != null) {
+                hexView.loadFile(activeTab.getFile());
+            } else {
+                hexView.clear();
+            }
+            updateStatus("已打开十六进制 Hex 与底层二进制 Inspector 视窗");
+        } else {
+            // 强制根据当前光标位置渲染对应的 Chunk
+            handleCaretPositionChanged(true);
+        }
     }
     
     /**
@@ -952,6 +988,11 @@ public class MainController {
                 break;
             case CFG:
                 astGraphLabel.setText("CFG视图" + titleSuffix);
+                break;
+            case HEX:
+                EditorTab hexActiveTab = getActiveEditorTab();
+                String fileName = (hexActiveTab != null && hexActiveTab.getFile() != null) ? hexActiveTab.getFile().getName() : "";
+                astGraphLabel.setText("十六进制 Hex 视窗" + (fileName.isEmpty() ? "" : " - [" + fileName + "]"));
                 break;
             default:
                 astGraphLabel.setText("子视图" + titleSuffix);
@@ -1078,6 +1119,8 @@ public class MainController {
                 return "AST视图";
             case CFG:
                 return "CFG视图";
+            case HEX:
+                return "十六进制Hex视图";
             default:
                 return "子视图";
         }
@@ -1098,6 +1141,15 @@ public class MainController {
         TextEditorView activeEditor = getActiveTextEditorView();
         updateCursorPositionStatus(activeEditor);
 
+        if (activeEditor != null && outlineView != null) {
+            int currentLine = activeEditor.getCodeArea().getCurrentParagraph() + 1;
+            outlineView.highlightEnclosingFunction(currentLine);
+        }
+
+        if (graphContainer.isVisible() && currentSubViewType == SubViewType.HEX) {
+            return;
+        }
+
         LuacFile luacFile = fileMenuHandler.getCurrentLuacFile();
         if (luacFile == null) {
             currentDisplayedChunk = null;
@@ -1117,9 +1169,6 @@ public class MainController {
 
         // 获取当前光标所在的行号（1-based）
         int currentLine = activeEditor.getCodeArea().getCurrentParagraph() + 1;
-        if (outlineView != null) {
-            outlineView.highlightEnclosingFunction(currentLine);
-        }
 
         // 根据行号寻找匹配的最深层 Chunk
         Chunk targetChunk = findTargetChunkForLine(luacFile.getMainChunk(), currentLine);
@@ -1165,8 +1214,13 @@ public class MainController {
                 fileTreeView.selectFile(activeTab.getFile());
             }
 
-            // 同步子视图与光标指示
-            handleCaretPositionChanged(true);
+            if (graphContainer.isVisible() && currentSubViewType == SubViewType.HEX) {
+                updateSubViewTitle(SubViewType.HEX);
+                hexView.loadFile(activeTab.getFile());
+            } else {
+                // 同步子视图与光标指示
+                handleCaretPositionChanged(true);
+            }
         } else {
             // 没有打开的标签页
             updateFileLabel(I18nUtil.getString("status.noFileOpened"));
@@ -1175,6 +1229,10 @@ public class MainController {
 
             if (outlineView != null) {
                 outlineView.updateOutline(null);
+            }
+
+            if (hexView != null) {
+                hexView.clear();
             }
 
             // 关闭当前子视图

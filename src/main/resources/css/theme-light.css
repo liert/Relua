@@ -756,4 +756,71 @@
     -fx-font-size: 11px;
 }
 
+/* 十六进制 Hex 查看器与 Binary Inspector */
+.hex-view-container {
+    -fx-background-color: #ffffff;
+}
+
+.hex-top-bar {
+    -fx-background-color: #f1f5f9;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 0 0 1px 0;
+}
+
+.hex-info-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #0284c7;
+    -fx-font-weight: bold;
+}
+
+.hex-jump-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #475569;
+}
+
+.hex-jump-field {
+    -fx-background-color: #ffffff;
+    -fx-text-fill: #1e293b;
+    -fx-border-color: #cbd5e1;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+    -fx-font-family: 'Consolas', 'Courier New', monospace;
+    -fx-font-size: 11px;
+    -fx-padding: 2px 5px;
+}
+
+.hex-jump-button {
+    -fx-background-color: #0284c7;
+    -fx-text-fill: #ffffff;
+    -fx-background-radius: 3px;
+    -fx-font-size: 11px;
+    -fx-padding: 3px 8px;
+    -fx-cursor: hand;
+}
+
+.hex-jump-button:hover {
+    -fx-background-color: #0369a1;
+}
+
+.hex-code-area {
+    -fx-font-family: 'Consolas', 'Courier New', monospace;
+    -fx-font-size: 12px;
+    -fx-background-color: #ffffff;
+    -fx-text-fill: #1e293b;
+}
+
+.hex-inspector-bar {
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 1px 0 0 0;
+}
+
+.hex-inspector-label {
+    -fx-font-family: 'Consolas', 'Courier New', monospace;
+    -fx-font-size: 11px;
+    -fx-text-fill: #0f766e;
+    -fx-font-weight: bold;
+}
+
+
 
