@@ -792,16 +792,21 @@
     -fx-font-size: 12px;
 }
 
-/* 结构大纲面板 (Outline) */
-.outline-container {
-    -fx-background-color: #f8f9fa;
-    -fx-border-color: #e2e8f0;
-    -fx-border-width: 1px 0 0 0;
+/* 文件内函数列表 */
+.file-tree-view .file-function-cell {
+    -fx-font-size: 12px;
 }
 
-.outline-container .tree-view {
-    -fx-background-color: #f8f9fa;
-    -fx-font-size: 11px;
+.file-function-badge {
+    -fx-text-fill: -theme-accent-hover;
+    -fx-font-weight: bold;
+    -fx-min-width: 16px;
+    -fx-alignment: center;
+}
+
+.file-tree-view .file-function-status {
+    -fx-font-size: 12px;
+    -fx-text-fill: -theme-fg-muted;
 }
 
 /* 十六进制 Hex 查看器与 Binary Inspector */

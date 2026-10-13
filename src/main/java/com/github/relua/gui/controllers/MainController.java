@@ -10,13 +10,11 @@ import com.github.relua.gui.views.EditorTab;
 import com.github.relua.gui.views.GraphVisualizationView;
 import com.github.relua.gui.views.FileTreeView;
 import com.github.relua.gui.views.LogView;
-import com.github.relua.gui.views.OutlineView;
 import com.github.relua.gui.views.HexView;
 import com.github.relua.gui.navigation.Bookmark;
 import com.github.relua.gui.navigation.BookmarkManager;
 import com.github.relua.gui.navigation.NavigationHistoryManager;
 import com.github.relua.gui.navigation.NavigationLocation;
-import javafx.geometry.Orientation;
 import com.github.relua.gui.utils.ASTGraphConverter;
 import com.github.relua.gui.utils.CFGGraphConverter;
 import com.github.relua.model.LuacFile;
@@ -166,8 +164,6 @@ public class MainController {
     @FXML
     private MenuItem menuItemToggleTabBytecode;
     @FXML
-    private MenuItem menuItemToggleOutline;
-    @FXML
     private MenuItem menuItemBytecodeView;
     @FXML
     private MenuItem menuItemHexView;
@@ -230,8 +226,6 @@ public class MainController {
     @FXML
     private ScrollPane fileTreeScrollPane;
     private FileTreeView fileTreeView;
-    private OutlineView outlineView;
-    private SplitPane sidebarSplitPane;
     
     // 资源管理器宽度范围约束常量与状态
     private static final double FILE_TREE_MIN_WIDTH = 180.0;
@@ -296,41 +290,12 @@ public class MainController {
      */
     @FXML
     public void initialize() {
-        // 初始化文件树与结构大纲视图
+        // 文件内函数直接显示在资源树中。
         fileTreeView = new FileTreeView();
         TreeView<?> treeNode = fileTreeView.getView();
         VBox.setVgrow(treeNode, Priority.ALWAYS);
 
-        outlineView = new OutlineView();
-        outlineView.setOnNavigate(targetLine -> {
-            TextEditorView activeEditor = getActiveTextEditorView();
-            if (activeEditor != null) {
-                activeEditor.jumpToLine(targetLine);
-                updateStatus("大纲导航：已跳转至第 " + targetLine + " 行");
-            }
-        });
-        Node outlineNode = outlineView.getView();
-        VBox.setVgrow(outlineNode, Priority.ALWAYS);
-
-        // 创建左侧栏垂直分割容器：上方为资源管理器，下方为函数符号大纲
-        VBox explorerBox = new VBox();
-        VBox.setVgrow(explorerBox, Priority.ALWAYS);
-        HBox explorerHeader = new HBox();
-        explorerHeader.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        explorerHeader.getStyleClass().add("sidebar-header");
-        explorerHeader.getChildren().add(new Label("项目资源管理器 (EXPLORER)"));
-        explorerBox.getChildren().addAll(explorerHeader, treeNode);
-
-        sidebarSplitPane = new SplitPane();
-        sidebarSplitPane.setOrientation(Orientation.VERTICAL);
-        sidebarSplitPane.getItems().addAll(explorerBox, outlineNode);
-        sidebarSplitPane.setDividerPositions(0.55);
-        VBox.setVgrow(sidebarSplitPane, Priority.ALWAYS);
-
-        if (fileTreeContainer != null) {
-            fileTreeContainer.getChildren().clear();
-            fileTreeContainer.getChildren().add(sidebarSplitPane);
-        }
+        fileTreeScrollPane.setContent(treeNode);
         
         // 初始化标签页视图
         textEditorTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
@@ -439,9 +404,6 @@ public class MainController {
             }
             handleCaretPositionChanged(true);
             refreshRecentMenu();
-            if (outlineView != null) {
-                outlineView.updateOutline(tab);
-            }
         });
         fileMenuHandler.setOnCaretPositionChangedCallback(() -> {
             handleCaretPositionChanged();
@@ -455,6 +417,20 @@ public class MainController {
         fileTreeView.setOnFileOpenCallback(fileNode -> {
             fileMenuHandler.openFile(fileNode.getFile());
             refreshRecentMenu();
+        });
+        fileTreeView.setOnFunctionNavigate((file, function) -> {
+            fileMenuHandler.openFile(file, tab -> {
+                // 函数行号对应 Lua 源码，即使原来显示 Bytecode 也定位到 Code。
+                if (tab.getPrimaryViewMode() != EditorTab.ViewMode.LUA_SOURCE) {
+                    tab.setPrimaryViewMode(EditorTab.ViewMode.LUA_SOURCE);
+                }
+                Platform.runLater(() -> {
+                    TextEditorView editor = tab.getLuaEditorView();
+                    editor.jumpToLine(function.getStartLine());
+                    editor.getCodeArea().requestFocus();
+                    updateStatus("函数导航：" + function.getName() + "，第 " + function.getStartLine() + " 行");
+                });
+            });
         });
         
         textEditorTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
@@ -1286,11 +1262,6 @@ public class MainController {
         TextEditorView activeEditor = getActiveTextEditorView();
         updateCursorPositionStatus(activeEditor);
 
-        if (activeEditor != null && outlineView != null) {
-            int currentLine = activeEditor.getCodeArea().getCurrentParagraph() + 1;
-            outlineView.highlightEnclosingFunction(currentLine);
-        }
-
         if (graphContainer.isVisible() && currentSubViewType == SubViewType.HEX) {
             return;
         }
@@ -1350,13 +1321,9 @@ public class MainController {
             updateFileLabel(activeTab.getFile().getName());
             updateStatus("Active file: " + activeTab.getFile().getName());
 
-            // 更新左侧结构大纲
-            if (outlineView != null) {
-                outlineView.updateOutline(activeTab);
-            }
-
             // 在文件树中高亮选中
             if (fileTreeView != null) {
+                fileTreeView.trackEditor(activeTab);
                 fileTreeView.selectFile(activeTab.getFile());
             }
 
@@ -1373,10 +1340,6 @@ public class MainController {
             updateStatus(I18nUtil.getString("status.ready"));
             updateCursorPositionStatus(null);
 
-            if (outlineView != null) {
-                outlineView.updateOutline(null);
-            }
-
             if (hexView != null) {
                 hexView.clear();
             }
@@ -1385,25 +1348,6 @@ public class MainController {
             if (graphContainer.isVisible()) {
                 closeSubView();
             }
-        }
-    }
-
-    /**
-     * 切换显示或隐藏左侧结构大纲面板 (快捷键 Shortcut+Alt+O)
-     */
-    @FXML
-    private void handleToggleOutline(ActionEvent event) {
-        if (sidebarSplitPane == null || outlineView == null) {
-            return;
-        }
-        Node outlineNode = outlineView.getView();
-        if (sidebarSplitPane.getItems().contains(outlineNode)) {
-            sidebarSplitPane.getItems().remove(outlineNode);
-            updateStatus("已隐藏结构大纲面板");
-        } else {
-            sidebarSplitPane.getItems().add(outlineNode);
-            sidebarSplitPane.setDividerPositions(0.55);
-            updateStatus("已显示结构大纲面板");
         }
     }
 

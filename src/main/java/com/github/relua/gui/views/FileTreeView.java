@@ -1,12 +1,19 @@
 package com.github.relua.gui.views;
 
 import com.github.relua.gui.model.FileNode;
+import com.github.relua.gui.model.OutlineItem;
+import com.github.relua.gui.services.FileFunctionService;
 import javafx.application.Platform;
+import javafx.animation.PauseTransition;
+import javafx.beans.value.ChangeListener;
+import javafx.concurrent.Task;
 import javafx.scene.SnapshotParameters;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.Label;
+import javafx.scene.control.Tooltip;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
@@ -18,6 +25,7 @@ import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
+import javafx.util.Duration;
 
 import java.awt.Desktop;
 import java.io.File;
@@ -25,10 +33,15 @@ import java.io.InputStream;
 import java.math.BigInteger;
 import java.text.Collator;
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.BiConsumer;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * 文件树视图类，用于显示文件系统的树状结构
@@ -38,6 +51,18 @@ public class FileTreeView {
     private TreeItem<FileNode> rootItem;
     private Map<String, Image> iconMap;
     private Consumer<FileNode> onFileOpenCallback;
+    private BiConsumer<File, OutlineItem> onFunctionNavigate;
+    private final FileFunctionService functionService = new FileFunctionService();
+    private final Map<String, TreeItem<FileNode>> fileItems = new HashMap<>();
+    private final Map<String, List<OutlineItem>> functionCache = new HashMap<>();
+    private final Map<String, Task<List<OutlineItem>>> functionTasks = new HashMap<>();
+    private final Map<String, EditorTracking> trackedEditors = new HashMap<>();
+    private final ExecutorService functionExecutor = Executors.newFixedThreadPool(2, task -> {
+        Thread thread = new Thread(task, "FileFunctionLoader");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private boolean updatingFunctions;
     
     /**
      * 构造函数
@@ -61,6 +86,13 @@ public class FileTreeView {
         
         // 添加鼠标事件监听器，处理节点点击和右键菜单
         treeView.setOnMouseClicked(this::handleMouseClick);
+        treeView.getSelectionModel().selectedItemProperty().addListener((obs, oldItem, newItem) -> {
+            if (!updatingFunctions && newItem != null && newItem.getValue() != null
+                    && newItem.getValue().isFunction() && onFunctionNavigate != null) {
+                FileNode node = newItem.getValue();
+                onFunctionNavigate.accept(node.getFile(), node.getFunction());
+            }
+        });
     }
     
     /**
@@ -195,10 +227,8 @@ public class FileTreeView {
         // 左键双击打开文件或文件夹
         if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
             FileNode fileNode = selectedItem.getValue();
-            if (fileNode.isDirectory()) {
-                // 切换文件夹展开/折叠状态
-                selectedItem.setExpanded(!selectedItem.isExpanded());
-            } else {
+            if (fileNode == null || fileNode.isStatus()) return;
+            if (!fileNode.isDirectory() && !fileNode.isFunction()) {
                 // 打开文件
                 handleFileOpen(fileNode);
             }
@@ -221,18 +251,27 @@ public class FileTreeView {
         }
         ContextMenu contextMenu = new ContextMenu();
         FileNode fileNode = item.getValue();
+        if (fileNode.isStatus()) return;
         File file = fileNode.getFile();
         
         // 打开菜单项
-        MenuItem openItem = new MenuItem(fileNode.isDirectory() ? "展开/折叠 (Expand/Collapse)" : "在编辑器中打开 (Open)");
+        MenuItem openItem = new MenuItem(fileNode.isFunction() ? "定位函数 (Go to Function)"
+                : fileNode.isDirectory() ? "展开/折叠 (Expand/Collapse)" : "在编辑器中打开 (Open)");
         openItem.setOnAction(e -> {
-            if (fileNode.isDirectory()) {
+            if (fileNode.isFunction()) {
+                if (onFunctionNavigate != null) onFunctionNavigate.accept(file, fileNode.getFunction());
+            } else if (fileNode.isDirectory()) {
                 item.setExpanded(!item.isExpanded());
             } else {
                 handleFileOpen(fileNode);
             }
         });
         contextMenu.getItems().add(openItem);
+        if (!fileNode.isDirectory() && !fileNode.isFunction() && supportsFunctions(file)) {
+            MenuItem functionsItem = new MenuItem("展开/折叠函数列表");
+            functionsItem.setOnAction(e -> item.setExpanded(!item.isExpanded()));
+            contextMenu.getItems().add(functionsItem);
+        }
         contextMenu.getItems().add(new SeparatorMenuItem());
 
         // 复制绝对路径
@@ -252,29 +291,6 @@ public class FileTreeView {
         revealItem.setOnAction(e -> revealInSystemExplorer(file));
         contextMenu.getItems().add(revealItem);
         
-        // 如果是文件夹，添加新建菜单项
-        if (fileNode.isDirectory()) {
-            contextMenu.getItems().add(new SeparatorMenuItem());
-            MenuItem newFolderItem = new MenuItem("新建文件夹");
-            newFolderItem.setOnAction(e -> handleNewFolder(fileNode));
-            contextMenu.getItems().add(newFolderItem);
-            
-            MenuItem newFileItem = new MenuItem("新建文件");
-            newFileItem.setOnAction(e -> handleNewFile(fileNode));
-            contextMenu.getItems().add(newFileItem);
-        }
-        
-        contextMenu.getItems().add(new SeparatorMenuItem());
-
-        // 重命名菜单项
-        MenuItem renameItem = new MenuItem("重命名");
-        renameItem.setOnAction(e -> handleRename(fileNode));
-        contextMenu.getItems().add(renameItem);
-        
-        // 删除菜单项
-        MenuItem deleteItem = new MenuItem("删除");
-        deleteItem.setOnAction(e -> handleDelete(fileNode));
-        contextMenu.getItems().add(deleteItem);
         
         // 显示上下文菜单（确保拥有活动的 Scene 和 Window）
         if (treeView.getScene() != null && treeView.getScene().getWindow() != null) {
@@ -353,41 +369,9 @@ public class FileTreeView {
     public void setOnFileOpenCallback(Consumer<FileNode> callback) {
         this.onFileOpenCallback = callback;
     }
-    
-    /**
-     * 处理新建文件夹事件
-     * @param parentNode 父文件夹节点
-     */
-    private void handleNewFolder(FileNode parentNode) {
-        // 这里可以添加新建文件夹的逻辑
-        System.out.println("新建文件夹: " + parentNode.getPath());
-    }
-    
-    /**
-     * 处理新建文件事件
-     * @param parentNode 父文件夹节点
-     */
-    private void handleNewFile(FileNode parentNode) {
-        // 这里可以添加新建文件的逻辑
-        System.out.println("新建文件: " + parentNode.getPath());
-    }
-    
-    /**
-     * 处理重命名事件
-     * @param fileNode 文件节点
-     */
-    private void handleRename(FileNode fileNode) {
-        // 这里可以添加重命名文件的逻辑
-        System.out.println("重命名: " + fileNode.getPath());
-    }
-    
-    /**
-     * 处理删除事件
-     * @param fileNode 文件节点
-     */
-    private void handleDelete(FileNode fileNode) {
-        // 这里可以添加删除文件的逻辑
-        System.out.println("删除: " + fileNode.getPath());
+
+    public void setOnFunctionNavigate(BiConsumer<File, OutlineItem> callback) {
+        onFunctionNavigate = callback;
     }
     
     /**
@@ -398,6 +382,7 @@ public class FileTreeView {
         if (!file.isDirectory()) {
             return;
         }
+        clearFunctionIndex();
         
         // 创建文件夹节点
         FileNode folderNode = new FileNode(file);
@@ -464,22 +449,167 @@ public class FileTreeView {
     private void updateChildren(TreeItem<FileNode> parentItem, File[] files) {
         parentItem.getChildren().clear();
         for (File file : files) {
-            FileNode childNode = new FileNode(file);
-            TreeItem<FileNode> childItem = new TreeItem<>(childNode);
-            
-            // 如果是文件夹，添加一个空的子节点作为占位符以显示展开箭头，并监听展开事件
-            if (file.isDirectory()) {
-                childItem.getChildren().add(new TreeItem<>(null));
-                // 监听子文件夹展开事件：当用户点击箭头展开且子节点尚未加载时，触发自动加载
-                childItem.expandedProperty().addListener((obs, wasExpanded, isExpanded) -> {
-                    if (isExpanded && childItem.getChildren().size() == 1 && childItem.getChildren().get(0).getValue() == null) {
-                        loadChildren(childItem);
-                    }
-                });
-            }
-            
+            TreeItem<FileNode> childItem = createFileItem(file);
             parentItem.getChildren().add(childItem);
         }
+    }
+
+    private String fileKey(File file) {
+        return file.toPath().toAbsolutePath().normalize().toString();
+    }
+
+    private boolean supportsFunctions(File file) {
+        String name = file.getName().toLowerCase(Locale.ROOT);
+        return !file.isDirectory() && (name.endsWith(".lua") || name.endsWith(".luac")
+                || name.endsWith(".out") || name.endsWith(".bin"));
+    }
+
+    private TreeItem<FileNode> createFileItem(File file) {
+        TreeItem<FileNode> item = new TreeItem<>(new FileNode(file));
+        if (file.isDirectory()) {
+            item.getChildren().add(new TreeItem<>(null));
+            item.expandedProperty().addListener((obs, oldValue, expanded) -> {
+                if (expanded && item.getChildren().size() == 1 && item.getChildren().get(0).getValue() == null) {
+                    loadChildren(item);
+                }
+            });
+        } else {
+            String key = fileKey(file);
+            fileItems.put(key, item);
+            if (functionCache.containsKey(key)) populateFunctions(item, functionCache.get(key));
+            else if (supportsFunctions(file)) setFunctionStatus(item, "展开查看函数");
+            item.expandedProperty().addListener((obs, oldValue, expanded) -> {
+                if (expanded) requestFunctions(item);
+            });
+        }
+        return item;
+    }
+
+    private void requestFunctions(TreeItem<FileNode> item) {
+        String key = fileKey(item.getValue().getFile());
+        if (functionCache.containsKey(key)) {
+            populateFunctions(item, functionCache.get(key));
+        } else if (!functionTasks.containsKey(key)) {
+            EditorTracking tracking = trackedEditors.get(key);
+            startFunctionTask(item.getValue().getFile(), tracking != null ? tracking.tab : null);
+        }
+    }
+
+    /** 跟踪已经加载的编辑器，以当前会话的源码刷新文件内函数。 */
+    public void trackEditor(EditorTab tab) {
+        if (tab == null || !tab.isFileLoaded() || tab.getFile() == null) return;
+        String key = fileKey(tab.getFile());
+        EditorTracking previous = trackedEditors.get(key);
+        if (previous != null && previous.tab == tab) return;
+        if (previous != null) previous.dispose();
+        EditorTracking tracking = new EditorTracking(tab);
+        trackedEditors.put(key, tracking);
+        startFunctionTask(tab.getFile(), tab);
+    }
+
+    public void untrackEditor(EditorTab tab) {
+        if (tab == null || tab.getFile() == null) return;
+        String key = fileKey(tab.getFile());
+        EditorTracking tracking = trackedEditors.get(key);
+        if (tracking != null && tracking.tab == tab) {
+            tracking.dispose();
+            trackedEditors.remove(key);
+            startFunctionTask(tab.getFile(), tab);
+        }
+    }
+
+    private final class EditorTracking {
+        private final EditorTab tab;
+        private final PauseTransition refresh = new PauseTransition(Duration.millis(200));
+        private final ChangeListener<String> listener;
+
+        private EditorTracking(EditorTab tab) {
+            this.tab = tab;
+            refresh.setOnFinished(e -> startFunctionTask(tab.getFile(), tab));
+            listener = (obs, oldText, newText) -> refresh.playFromStart();
+            tab.getLuaEditorView().getCodeArea().textProperty().addListener(listener);
+        }
+
+        private void dispose() {
+            refresh.stop();
+            tab.getLuaEditorView().getCodeArea().textProperty().removeListener(listener);
+        }
+    }
+
+    private void startFunctionTask(File file, EditorTab editor) {
+        String key = fileKey(file);
+        Task<List<OutlineItem>> previous = functionTasks.remove(key);
+        if (previous != null) previous.cancel();
+        // 编辑器状态只在 FX 线程取快照，后台任务不访问控件。
+        String source = editor != null ? editor.getLuaEditorView().getText() : null;
+        com.github.relua.model.LuacFile luacFile = editor != null ? editor.getLuacFile() : null;
+        Map<String, com.github.relua.model.LineRange> ranges = editor != null && editor.getChunkLineRanges() != null
+                ? new HashMap<>(editor.getChunkLineRanges()) : java.util.Collections.emptyMap();
+        Task<List<OutlineItem>> task = new Task<List<OutlineItem>>() {
+            @Override
+            protected List<OutlineItem> call() throws Exception {
+                return editor != null ? functionService.build(source, luacFile, ranges) : functionService.load(file);
+            }
+        };
+        functionTasks.put(key, task);
+        TreeItem<FileNode> item = fileItems.get(key);
+        if (item != null && !functionCache.containsKey(key)) setFunctionStatus(item, "正在加载函数…");
+        task.setOnSucceeded(e -> {
+            if (functionTasks.get(key) != task) return;
+            functionTasks.remove(key);
+            List<OutlineItem> functions = task.getValue();
+            functionCache.put(key, functions);
+            TreeItem<FileNode> currentItem = fileItems.get(key);
+            if (currentItem != null) populateFunctions(currentItem, functions);
+        });
+        task.setOnFailed(e -> {
+            if (functionTasks.get(key) != task) return;
+            functionTasks.remove(key);
+            TreeItem<FileNode> currentItem = fileItems.get(key);
+            if (currentItem != null) setFunctionStatus(currentItem, "无法加载函数，折叠后展开重试");
+        });
+        functionExecutor.execute(task);
+    }
+
+    private void setFunctionStatus(TreeItem<FileNode> item, String text) {
+        item.getChildren().setAll(new TreeItem<>(FileNode.status(item.getValue().getFile(), text)));
+    }
+
+    private void populateFunctions(TreeItem<FileNode> item, List<OutlineItem> functions) {
+        TreeItem<FileNode> selected = treeView.getSelectionModel().getSelectedItem();
+        int selectedLine = selected != null && selected.getValue() != null && selected.getValue().isFunction()
+                && fileKey(selected.getValue().getFile()).equals(fileKey(item.getValue().getFile()))
+                ? selected.getValue().getFunction().getStartLine() : -1;
+        List<TreeItem<FileNode>> children = new ArrayList<>();
+        for (OutlineItem function : functions) {
+            FileNode node = FileNode.function(item.getValue().getFile(), function);
+            node.setParent(item.getValue());
+            children.add(new TreeItem<>(node));
+        }
+        if (children.isEmpty()) children.add(new TreeItem<>(FileNode.status(item.getValue().getFile(), "无函数")));
+        updatingFunctions = true;
+        try {
+            item.getChildren().setAll(children);
+            if (selectedLine > 0) {
+                for (TreeItem<FileNode> child : children) {
+                    if (child.getValue().isFunction() && child.getValue().getFunction().getStartLine() == selectedLine) {
+                        treeView.getSelectionModel().select(child);
+                        break;
+                    }
+                }
+            }
+        } finally {
+            updatingFunctions = false;
+        }
+    }
+
+    private void clearFunctionIndex() {
+        for (Task<List<OutlineItem>> task : new ArrayList<>(functionTasks.values())) task.cancel();
+        functionTasks.clear();
+        for (EditorTracking tracking : trackedEditors.values()) tracking.dispose();
+        trackedEditors.clear();
+        functionCache.clear();
+        fileItems.clear();
     }
 
     /**
@@ -669,18 +799,7 @@ public class FileTreeView {
         }
         
         // 创建文件或文件夹节点
-        FileNode fileNode = new FileNode(file);
-        TreeItem<FileNode> fileItem = new TreeItem<>(fileNode);
-        
-        // 如果是文件夹，添加占位符并绑定展开监听器
-        if (file.isDirectory()) {
-            fileItem.getChildren().add(new TreeItem<>(null));
-            fileItem.expandedProperty().addListener((obs, wasExpanded, isExpanded) -> {
-                if (isExpanded && fileItem.getChildren().size() == 1 && fileItem.getChildren().get(0).getValue() == null) {
-                    loadChildren(fileItem);
-                }
-            });
-        }
+        TreeItem<FileNode> fileItem = createFileItem(file);
         
         // 添加到根节点
         rootItem.getChildren().add(fileItem);
@@ -721,14 +840,27 @@ public class FileTreeView {
         if (file == null || rootItem == null || rootItem.getChildren().isEmpty()) {
             return;
         }
+        TreeItem<FileNode> selected = treeView.getSelectionModel().getSelectedItem();
+        if (selected != null && selected.getValue() != null && selected.getValue().isFunction()
+                && fileKey(selected.getValue().getFile()).equals(fileKey(file))) return;
         selectFileRecursively(rootItem, file);
     }
 
     private boolean selectFileRecursively(TreeItem<FileNode> parentItem, File targetFile) {
+        if (parentItem == rootItem) {
+            for (TreeItem<FileNode> child : rootItem.getChildren()) {
+                if (selectFileRecursively(child, targetFile)) return true;
+            }
+            return false;
+        }
         FileNode parentNode = parentItem.getValue();
-        if (parentNode != null && parentNode.getFile().getAbsolutePath().equals(targetFile.getAbsolutePath())) {
+        if (parentNode != null && !parentNode.isFunction() && !parentNode.isStatus()
+                && parentNode.getFile().getAbsolutePath().equals(targetFile.getAbsolutePath())) {
             // 找到目标文件，选中并滚动
             Platform.runLater(() -> {
+                TreeItem<FileNode> selected = treeView.getSelectionModel().getSelectedItem();
+                if (selected != null && selected.getValue() != null && selected.getValue().isFunction()
+                        && fileKey(selected.getValue().getFile()).equals(fileKey(targetFile))) return;
                 treeView.getSelectionModel().select(parentItem);
                 int row = treeView.getRow(parentItem);
                 if (row >= 0) {
@@ -779,10 +911,29 @@ public class FileTreeView {
         @Override
         protected void updateItem(FileNode item, boolean empty) {
             super.updateItem(item, empty);
+            getStyleClass().removeAll("file-function-cell", "file-function-status");
+            setTooltip(null);
             
             if (empty || item == null) {
                 setText(null);
                 setGraphic(null);
+                return;
+            }
+            if (item.isFunction()) {
+                OutlineItem function = item.getFunction();
+                setText(function.getName() + function.getSignature());
+                Label badge = new Label(function.getType().getBadge());
+                badge.getStyleClass().add("file-function-badge");
+                setGraphic(badge);
+                getStyleClass().add("file-function-cell");
+                setTooltip(new Tooltip(function.getName() + function.getSignature()
+                        + "\n第 " + function.getStartLine() + " 行"));
+                return;
+            }
+            if (item.isStatus()) {
+                setText(item.getName());
+                setGraphic(null);
+                getStyleClass().add("file-function-status");
                 return;
             }
             

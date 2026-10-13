@@ -52,6 +52,7 @@ public class FileMenuHandler {
     private int currentTaskId = 0;
     private Runnable onFileOpenedCallback;
     private Runnable onCaretPositionChangedCallback;
+    private final Map<EditorTab, List<Consumer<EditorTab>>> pendingReadyCallbacks = new HashMap<>();
 
     private static class DecompileResult {
         final String luaCode;
@@ -113,6 +114,7 @@ public class FileMenuHandler {
             }
         }
         textEditorTabPane.getTabs().clear();
+        pendingReadyCallbacks.clear();
     }
 
     /**
@@ -170,7 +172,8 @@ public class FileMenuHandler {
                     }
                     RecentHistoryManager.getInstance().addRecentPath(file.getAbsolutePath());
                     if (onReady != null) {
-                        onReady.accept(editorTab);
+                        if (editorTab.isFileLoaded()) onReady.accept(editorTab);
+                        else pendingReadyCallbacks.computeIfAbsent(editorTab, key -> new ArrayList<>()).add(onReady);
                     }
                     return;
                 }
@@ -197,6 +200,7 @@ public class FileMenuHandler {
         tab.setOnCloseRequest(e -> {
             tab.cancelTask();
             ProjectWorkspaceManager.getInstance().save(collectOpenedTabs(), tab);
+            if (fileTreeView != null) fileTreeView.untrackEditor(tab);
         });
 
         // 注册光标与选区监听器以实现 AST/CFG 同步及状态栏位置更新
@@ -311,6 +315,7 @@ public class FileMenuHandler {
                          updateStatus("File opened successfully");
                     }
 
+                    if (fileTreeView != null) fileTreeView.trackEditor(tab);
                     if (onFileOpenedCallback != null) {
                         onFileOpenedCallback.run();
                     }
@@ -318,11 +323,16 @@ public class FileMenuHandler {
                     if (onReady != null) {
                         onReady.accept(tab);
                     }
+                    List<Consumer<EditorTab>> callbacks = pendingReadyCallbacks.remove(tab);
+                    if (callbacks != null) {
+                        for (Consumer<EditorTab> callback : callbacks) callback.accept(tab);
+                    }
                 }
             }
 
             @Override
             protected void failed() {
+                pendingReadyCallbacks.remove(tab);
                 warningTimeline.stop();
                 tab.unbindTaskMessage();
                 tab.hideLoading();
@@ -337,6 +347,7 @@ public class FileMenuHandler {
 
             @Override
             protected void cancelled() {
+                pendingReadyCallbacks.remove(tab);
                 warningTimeline.stop();
                 tab.unbindTaskMessage();
             }

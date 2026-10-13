@@ -4,20 +4,48 @@ import java.io.File;
 import java.util.Arrays;
 
 /**
- * 文件树节点模型类，用于表示文件系统中的文件和文件夹
+ * 资源树中的文件、文件夹、文件内函数与加载状态。
  */
 public class FileNode {
     private File file;
     private boolean isDirectory;
     private FileNode parent;
+    private final OutlineItem function;
+    private final String status;
     
     /**
      * 构造函数
      * @param file 文件对象
      */
     public FileNode(File file) {
+        this(file, null, null);
+    }
+
+    private FileNode(File file, OutlineItem function, String status) {
         this.file = file;
-        this.isDirectory = file.isDirectory();
+        this.function = function;
+        this.status = status;
+        this.isDirectory = function == null && status == null && file.isDirectory();
+    }
+
+    public static FileNode function(File file, OutlineItem function) {
+        return new FileNode(file, function, null);
+    }
+
+    public static FileNode status(File file, String message) {
+        return new FileNode(file, null, message);
+    }
+
+    public boolean isFunction() {
+        return function != null;
+    }
+
+    public OutlineItem getFunction() {
+        return function;
+    }
+
+    public boolean isStatus() {
+        return status != null;
     }
     
     /**
@@ -34,7 +62,7 @@ public class FileNode {
      */
     public void setFile(File file) {
         this.file = file;
-        this.isDirectory = file.isDirectory();
+        this.isDirectory = function == null && status == null && file.isDirectory();
     }
     
     /**
@@ -66,7 +94,7 @@ public class FileNode {
      * @return 文件名
      */
     public String getName() {
-        return file.getName();
+        return function != null ? function.getName() : status != null ? status : file.getName();
     }
     
     /**
@@ -130,11 +158,15 @@ public class FileNode {
             return false;
         }
         FileNode other = (FileNode) obj;
-        return file.equals(other.file);
+        return file.equals(other.file) && java.util.Objects.equals(status, other.status)
+                && (function == null ? other.function == null : other.function != null
+                && function.getStartLine() == other.function.getStartLine()
+                && function.getName().equals(other.function.getName()));
     }
     
     @Override
     public int hashCode() {
-        return file.hashCode();
+        return java.util.Objects.hash(file, status, function != null ? function.getStartLine() : null,
+                function != null ? function.getName() : null);
     }
 }

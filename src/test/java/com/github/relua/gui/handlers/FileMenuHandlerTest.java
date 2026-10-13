@@ -29,7 +29,9 @@ import static org.junit.jupiter.api.Assertions.*;
 class FileMenuHandlerTest {
     @BeforeAll
     static void initJavaFx() {
-        try { Platform.startup(() -> {}); } catch (IllegalStateException ignored) {}
+        try {
+            Platform.class.getMethod("startup", Runnable.class).invoke(null, (Runnable) () -> {});
+        } catch (Throwable ignored) {}
         I18nUtil.initialize(Locale.CHINA);
     }
 
@@ -53,6 +55,29 @@ class FileMenuHandlerTest {
         }));
         assertTrue(ready.await(10, TimeUnit.SECONDS), "File should load");
         return opened.get();
+    }
+
+    @Test
+    void navigationWaitsForAnAlreadyOpeningFile(@TempDir Path directory) throws Exception {
+        Path input = directory.resolve("pending.lua");
+        String source = "function ready()\nend\n";
+        Files.write(input, source.getBytes(StandardCharsets.UTF_8));
+        ProjectWorkspaceManager.getInstance().openFolderWorkspace(directory.toFile());
+        CountDownLatch ready = new CountDownLatch(1);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        onFx(() -> {
+            FileMenuHandler handler = new FileMenuHandler(new TabPane(), null, null, new Label(), new Label(), null);
+            handler.openFile(input.toFile());
+            handler.openFile(input.toFile(), tab -> {
+                try {
+                    assertTrue(tab.isFileLoaded());
+                    assertEquals(source, tab.getLuaEditorView().getText());
+                } catch (Throwable error) { failure.set(error); }
+                finally { ready.countDown(); }
+            });
+        });
+        assertTrue(ready.await(10, TimeUnit.SECONDS));
+        assertNull(failure.get());
     }
 
     @Test
