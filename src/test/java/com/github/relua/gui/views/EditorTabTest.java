@@ -98,9 +98,11 @@ public class EditorTabTest {
             HBox leftBar = (HBox) left.getChildren().get(1);
             ToggleButton code = (ToggleButton) leftBar.getChildren().get(0);
             ToggleButton bytecode = (ToggleButton) leftBar.getChildren().get(1);
-            CheckBox splitView = (CheckBox) leftBar.getChildren().get(3);
+            ToggleButton ast = (ToggleButton) leftBar.getChildren().get(2);
+            CheckBox splitView = (CheckBox) leftBar.getChildren().get(4);
             assertEquals("Code", code.getText());
             assertEquals("Bytecode", bytecode.getText());
+            assertEquals("AST", ast.getText());
             assertEquals("Split view", splitView.getText());
             assertTrue(code.isSelected());
             assertFalse(splitView.isSelected());
@@ -137,6 +139,53 @@ public class EditorTabTest {
             splitView.fire();
             assertTrue(rightBytecode.isSelected(), "Reopening split defaults to Bytecode");
             assertTrue(bytecode.isSelected(), "Primary view is preserved");
+
+            ToggleButton rightAst = (ToggleButton) rightBar.getChildren().get(2);
+            rightAst.fire();
+            assertEquals(EditorTab.ViewMode.AST, tab.getSecondaryViewMode());
+            assertTrue(splitView.isSelected());
+            ast.fire();
+            assertEquals(EditorTab.ViewMode.AST, tab.getPrimaryViewMode());
+            assertTrue(rightAst.isSelected());
+            assertNotSame(left.getChildren().get(0), right.getChildren().get(0), "Both AST panes need independent trees");
+            assertNull(tab.getActiveEditorView(), "AST is not a text editor");
+            code.fire();
+            assertSame(tab.getLuaEditorView(), tab.getActiveEditorView());
+        });
+    }
+
+    @Test
+    void loadsAstOnDemandFromCachedSourceWithoutReplacingAnalysisText() throws Exception {
+        com.github.relua.model.LuacFile input = new LuacParser().parse("src/test/resources/xiaomi/aeslua.lua");
+        com.github.relua.decompiler.Decompiler decompiler = new com.github.relua.decompiler.Decompiler();
+        String cached = decompiler.decompile(input) + "\n-- preserved analysis snapshot\n";
+        java.util.Map<String, com.github.relua.model.LineRange> ranges = new java.util.HashMap<>(decompiler.getChunkLineRanges());
+        CountDownLatch ready = new CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicReference<EditorTab> reference = new java.util.concurrent.atomic.AtomicReference<>();
+        runOnFxThread(() -> {
+            EditorTab tab = new EditorTab(new File("cached.lua"), new TextEditorView(false));
+            reference.set(tab);
+            tab.setLuacFile(input);
+            tab.setChunkLineRanges(ranges);
+            tab.getLuaEditorView().setText(cached);
+            assertNull(tab.getDecompilerResult());
+            tab.setSplitView(true);
+            AstTreeView ast = tab.getAstTreeView();
+            javafx.scene.control.ComboBox<?> functions = (javafx.scene.control.ComboBox<?>)ast.getView().lookup("#ast-functions");
+            functions.valueProperty().addListener((obs, old, value) -> { if (value != null) ready.countDown(); });
+            tab.setSecondaryViewMode(EditorTab.ViewMode.AST);
+            assertSame(tab.getLuaEditorView(), tab.getActiveEditorView());
+        });
+        assertTrue(ready.await(15, TimeUnit.SECONDS), "AST should finish loading in the background");
+        runOnFxThread(() -> {
+            EditorTab tab = reference.get();
+            assertNotNull(tab.getDecompilerResult());
+            assertNotNull(tab.getAstTreeView().getCurrentFunction());
+            assertEquals(cached, tab.getLuaEditorView().getText());
+            assertEquals(EditorTab.ViewMode.AST, tab.getSecondaryViewMode());
+            tab.setPrimaryViewMode(EditorTab.ViewMode.AST);
+            assertNull(tab.getActiveEditorView());
+            tab.cancelTask();
         });
     }
 

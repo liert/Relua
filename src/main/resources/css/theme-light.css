@@ -3,6 +3,17 @@
    ========================================================================== */
 
 /* 全局根变量与字体设置 */
+.ast-tree-view { -fx-background-color: -theme-bg-base; }
+.ast-toolbar {
+    -fx-padding: 7px 10px;
+    -fx-background-color: -theme-bg-toolbar;
+    -fx-border-color: -theme-border;
+    -fx-border-width: 0 0 1px 0;
+}
+.ast-structure-tree { -fx-background-color: -theme-bg-base; -fx-border-width: 0; }
+.ast-structure-tree .tree-cell { -fx-padding: 5px 8px; -fx-text-fill: -theme-fg-default; }
+.ast-structure-tree .tree-cell:filled:selected { -fx-background-color: -theme-bg-selected; }
+.ast-node-details { -fx-background-color: -theme-bg-sidebar; -fx-border-color: -theme-border; -fx-border-width: 1px 0 0 0; }
 .root {
     -fx-base: #f3f4f6;
     -fx-background: #ffffff;

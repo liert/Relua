@@ -15,7 +15,6 @@ import com.github.relua.gui.navigation.Bookmark;
 import com.github.relua.gui.navigation.BookmarkManager;
 import com.github.relua.gui.navigation.NavigationHistoryManager;
 import com.github.relua.gui.navigation.NavigationLocation;
-import com.github.relua.gui.utils.ASTGraphConverter;
 import com.github.relua.gui.utils.CFGGraphConverter;
 import com.github.relua.model.LuacFile;
 import com.github.relua.model.Chunk;
@@ -171,7 +170,7 @@ public class MainController {
     @FXML
     private CheckMenuItem menuItemHexView;
     @FXML
-    private CheckMenuItem menuItemAstView;
+    private RadioMenuItem menuItemAstView;
     @FXML
     private CheckMenuItem menuItemCfgView;
     @FXML
@@ -259,15 +258,12 @@ public class MainController {
     private HexView hexView;
     private StackPane subViewStackPane;
     
-    // AST到图形的转换器
-    private ASTGraphConverter astGraphConverter;
-    
     // CFG到图形的转换器
     private CFGGraphConverter cfgGraphConverter;
     
     // 子视图类型枚举
     private enum SubViewType {
-        NONE, AST, CFG, HEX
+        NONE, CFG, HEX
     }
     
     // 当前激活的子视图类型
@@ -311,9 +307,6 @@ public class MainController {
         // 初始化图形可视化视图
         graphVisualizationView = new GraphVisualizationView();
         graphScrollPane.setContent(graphVisualizationView.getView());
-        
-        // 初始化AST到图形的转换器
-        astGraphConverter = new ASTGraphConverter(graphVisualizationView);
         
         // 初始化CFG到图形的转换器
         cfgGraphConverter = new CFGGraphConverter(graphVisualizationView);
@@ -368,7 +361,7 @@ public class MainController {
         updateFileLabel(I18nUtil.getString("status.noFileOpened"));
 
         // 初始化菜单处理器
-        fileMenuHandler = new FileMenuHandler(textEditorTabPane, astGraphConverter, cfgGraphConverter, statusLabel, fileLabel, fileTreeView);
+        fileMenuHandler = new FileMenuHandler(textEditorTabPane, statusLabel, fileLabel, fileTreeView);
         fileMenuHandler.setOnFileOpenedCallback(() -> {
             EditorTab tab = fileMenuHandler.getActiveTab();
             if (tab != null) {
@@ -761,6 +754,7 @@ public class MainController {
         fileMenuHandler.openFile(targetFile, openedTab -> {
             Platform.runLater(() -> {
                 wireTabNavigationCallbacks(openedTab);
+                openedTab.setPrimaryViewMode(EditorTab.ViewMode.LUA_SOURCE);
                 TextEditorView editor = openedTab.getActiveEditorView();
                 if (editor != null) {
                     editor.jumpToLineAndColumn(line, startCol, endCol);
@@ -933,19 +927,19 @@ public class MainController {
         boolean ready = tab != null && tab.isFileLoaded();
         menuItemCodeView.setDisable(!ready);
         menuItemBytecodeView.setDisable(!ready);
+        menuItemAstView.setDisable(!ready);
         menuItemSplitView.setDisable(!ready);
         menuItemCodeView.setSelected(tab != null && tab.getPrimaryViewMode() == EditorTab.ViewMode.LUA_SOURCE);
         menuItemBytecodeView.setSelected(tab != null && tab.getPrimaryViewMode() == EditorTab.ViewMode.BYTECODE);
         menuItemSplitView.setSelected(tab != null && tab.isSideBySide());
         menuAnalysisPanel.setDisable(!ready);
         boolean bytecode = ready && tab.getLuacFile() != null;
-        menuItemAstView.setDisable(!bytecode);
         menuItemCfgView.setDisable(!bytecode);
         menuItemHexView.setSelected(currentSubViewType == SubViewType.HEX);
-        menuItemAstView.setSelected(currentSubViewType == SubViewType.AST);
+        menuItemAstView.setSelected(tab != null && tab.getPrimaryViewMode() == EditorTab.ViewMode.AST);
         menuItemCfgView.setSelected(currentSubViewType == SubViewType.CFG);
         menuItemCloseAnalysisPanel.setDisable(currentSubViewType == SubViewType.NONE);
-        boolean graph = currentSubViewType == SubViewType.AST || currentSubViewType == SubViewType.CFG;
+        boolean graph = currentSubViewType == SubViewType.CFG;
         menuGraphZoom.setDisable(!graph || !bytecode);
         btnZoomIn.setDisable(!graph || !bytecode);
         btnZoomOut.setDisable(!graph || !bytecode);
@@ -958,7 +952,7 @@ public class MainController {
      */
     @FXML
     private void handleAstView(ActionEvent event) {
-        toggleSubView(SubViewType.AST);
+        showEditorView(EditorTab.ViewMode.AST);
     }
     
     /**
@@ -1040,7 +1034,7 @@ public class MainController {
         currentSubViewType = subViewType;
         
         boolean isHex = (subViewType == SubViewType.HEX);
-        boolean isGraph = (subViewType == SubViewType.AST || subViewType == SubViewType.CFG);
+        boolean isGraph = subViewType == SubViewType.CFG;
 
         graphScrollPane.setVisible(isGraph);
         graphScrollPane.setManaged(isGraph);
@@ -1093,9 +1087,6 @@ public class MainController {
         String funcName = (currentDisplayedChunk != null) ? currentDisplayedChunk.getFunction() : "";
         String titleSuffix = (funcName == null || funcName.isEmpty()) ? "" : " - [" + funcName + "]";
         switch (subViewType) {
-            case AST:
-                astGraphLabel.setText("AST视图" + titleSuffix);
-                break;
             case CFG:
                 astGraphLabel.setText("CFG视图" + titleSuffix);
                 break;
@@ -1125,14 +1116,14 @@ public class MainController {
         
         EditorTab conversionTab = getActiveEditorTab();
         com.github.relua.decompiler.pipeline.DecompilerResult existingResult = conversionTab.getDecompilerResult();
-        // 缓存源码不加载 AST/CFG；用户打开图视图时再在后台生成。
+        // 缓存源码不加载 CFG；用户打开图视图时再在后台生成。
         // 创建并启动后台任务
         Task<Void> task = new Task<Void>() {
             @Override
             protected Void call() throws Exception {
                 updateMessage("正在生成" + getSubViewName(subViewType) + "...");
                 com.github.relua.decompiler.pipeline.DecompilerResult graphResult = existingResult;
-                if ((subViewType == SubViewType.AST || subViewType == SubViewType.CFG) && graphResult == null) {
+                if (subViewType == SubViewType.CFG && graphResult == null) {
                     com.github.relua.decompiler.Decompiler decompiler = new com.github.relua.decompiler.Decompiler();
                     decompiler.decompile(luacFile);
                     graphResult = decompiler.getLastResult();
@@ -1140,14 +1131,6 @@ public class MainController {
                 final com.github.relua.decompiler.pipeline.DecompilerResult preparedResult = graphResult;
                 
                 switch (subViewType) {
-                    case AST:
-                        updateMessage("正在生成AST视图...");
-                        Platform.runLater(() -> {
-                            if (conversionTab != getActiveEditorTab() || currentSubViewType != subViewType) return;
-                            conversionTab.setDecompilerResult(preparedResult);
-                            astGraphConverter.convertToGraph(chunk, preparedResult);
-                        });
-                        break;
                     case CFG:
                         updateMessage("正在生成CFG视图...");
                         javafx.application.Platform.runLater(() -> {
@@ -1186,8 +1169,6 @@ public class MainController {
      */
     private String getSubViewName(SubViewType subViewType) {
         switch (subViewType) {
-            case AST:
-                return "AST视图";
             case CFG:
                 return "CFG视图";
             case HEX:
@@ -1221,7 +1202,7 @@ public class MainController {
         if (luacFile == null) {
             currentDisplayedChunk = null;
             lastLoadedLuacFile = null;
-            if (currentSubViewType == SubViewType.AST || currentSubViewType == SubViewType.CFG) closeSubView();
+            if (currentSubViewType == SubViewType.CFG) closeSubView();
             return;
         }
 

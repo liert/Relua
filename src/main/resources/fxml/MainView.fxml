@@ -80,12 +80,12 @@
                             <toggleGroup><ToggleGroup fx:id="editorViewGroup" /></toggleGroup>
                         </RadioMenuItem>
                         <RadioMenuItem fx:id="menuItemBytecodeView" onAction="#handleBytecodeView" text="Bytecode" toggleGroup="$editorViewGroup" accelerator="Shortcut+B" />
+                        <RadioMenuItem fx:id="menuItemAstView" onAction="#handleAstView" text="AST" toggleGroup="$editorViewGroup" />
                         <CheckMenuItem fx:id="menuItemSplitView" onAction="#handleSideBySideView" text="Split view" accelerator="Shortcut+Alt+B" />
                         <SeparatorMenuItem />
                         <Menu fx:id="menuAnalysisPanel" text="分析面板">
                             <items>
                                 <CheckMenuItem fx:id="menuItemHexView" onAction="#handleHexView" text="Hex 十六进制" accelerator="Shortcut+Alt+H" />
-                                <CheckMenuItem fx:id="menuItemAstView" onAction="#handleAstView" text="AST 语法树" />
                                 <CheckMenuItem fx:id="menuItemCfgView" onAction="#handleCfgView" text="CFG 控制流图" />
                                 <SeparatorMenuItem />
                                 <MenuItem fx:id="menuItemCloseAnalysisPanel" onAction="#handleCloseAnalysisPanel" text="关闭分析面板" />

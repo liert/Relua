@@ -20,7 +20,7 @@ import javafx.scene.text.Text;
 import java.util.List;
 
 /**
- * 图形可视化视图，基于 JavaFX Canvas 负责 AST 与 CFG 的图形渲染与画布交互
+ * 图形可视化视图，基于 JavaFX Canvas 负责 CFG 的图形渲染与画布交互
  */
 public class GraphVisualizationView {
 

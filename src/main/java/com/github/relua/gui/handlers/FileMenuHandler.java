@@ -3,8 +3,6 @@ package com.github.relua.gui.handlers;
 import com.github.relua.gui.utils.I18nUtil;
 import com.github.relua.gui.views.TextEditorView;
 import com.github.relua.gui.views.FileTreeView;
-import com.github.relua.gui.utils.ASTGraphConverter;
-import com.github.relua.gui.utils.CFGGraphConverter;
 import com.github.relua.decompiler.Decompiler;
 import com.github.relua.parser.LuacParser;
 import com.github.relua.model.LuacFile;
@@ -43,8 +41,6 @@ import java.util.function.Consumer;
  */
 public class FileMenuHandler {
     private TabPane textEditorTabPane;
-    private ASTGraphConverter astGraphConverter;
-    private CFGGraphConverter cfgGraphConverter;
     private Label statusLabel;
     private Label fileLabel;
     private FileTreeView fileTreeView;
@@ -80,16 +76,12 @@ public class FileMenuHandler {
     /**
      * 构造函数
      * @param textEditorTabPane 标签页容器
-     * @param astGraphConverter AST到图形的转换器
-     * @param cfgGraphConverter CFG到图形的转换器
      * @param statusLabel 状态栏标签
      * @param fileLabel 文件标签
      * @param fileTreeView 文件树视图
      */
-    public FileMenuHandler(TabPane textEditorTabPane, ASTGraphConverter astGraphConverter, CFGGraphConverter cfgGraphConverter, Label statusLabel, Label fileLabel, FileTreeView fileTreeView) {
+    public FileMenuHandler(TabPane textEditorTabPane, Label statusLabel, Label fileLabel, FileTreeView fileTreeView) {
         this.textEditorTabPane = textEditorTabPane;
-        this.astGraphConverter = astGraphConverter;
-        this.cfgGraphConverter = cfgGraphConverter;
         this.statusLabel = statusLabel;
         this.fileLabel = fileLabel;
         this.fileTreeView = fileTreeView;
@@ -333,6 +325,7 @@ public class FileMenuHandler {
                         tab.getLuaEditorView().getCodeArea().moveTo(Math.min(metadata.getCaretPosition(),
                                 tab.getLuaEditorView().getText().length()));
                     }
+                    tab.refreshAstContent();
 
                     if (result.fromSnapshot) {
                          updateStatus("已恢复保存的源码: " + file.getName());

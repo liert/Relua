@@ -66,7 +66,7 @@ class FileMenuHandlerTest {
         CountDownLatch ready = new CountDownLatch(1);
         AtomicReference<Throwable> failure = new AtomicReference<>();
         onFx(() -> {
-            FileMenuHandler handler = new FileMenuHandler(new TabPane(), null, null, new Label(), new Label(), null);
+            FileMenuHandler handler = new FileMenuHandler(new TabPane(), new Label(), new Label(), null);
             handler.openFile(input.toFile());
             handler.openFile(input.toFile(), tab -> {
                 try {
@@ -91,7 +91,7 @@ class FileMenuHandlerTest {
         AtomicReference<Label> status = new AtomicReference<>();
         onFx(() -> {
             status.set(new Label());
-            handler.set(new FileMenuHandler(new TabPane(), null, null, status.get(), new Label(), null));
+            handler.set(new FileMenuHandler(new TabPane(), status.get(), new Label(), null));
         });
         EditorTab tab = open(handler.get(), input.toFile());
         AtomicReference<String> analyzed = new AtomicReference<>();
@@ -140,7 +140,7 @@ class FileMenuHandlerTest {
         AtomicReference<FileMenuHandler> handler = new AtomicReference<>();
         onFx(() -> {
             tabs.set(new TabPane());
-            handler.set(new FileMenuHandler(tabs.get(), null, null, new Label(), new Label(), null));
+            handler.set(new FileMenuHandler(tabs.get(), new Label(), new Label(), null));
         });
         EditorTab first = open(handler.get(), compiled.toFile());
         open(handler.get(), source.toFile());
@@ -196,7 +196,7 @@ class FileMenuHandlerTest {
         ProjectWorkspaceManager manager = ProjectWorkspaceManager.getInstance();
         manager.openFolderWorkspace(directory.toFile());
         AtomicReference<FileMenuHandler> handler = new AtomicReference<>();
-        onFx(() -> handler.set(new FileMenuHandler(new TabPane(), null, null, new Label(), new Label(), null)));
+        onFx(() -> handler.set(new FileMenuHandler(new TabPane(), new Label(), new Label(), null)));
         EditorTab first = open(handler.get(), input.toFile());
         onFx(() -> {
             first.getLuaEditorView().renameVariable("value", "oldResult");
@@ -221,7 +221,7 @@ class FileMenuHandlerTest {
         onFx(() -> {
             try {
                 TabPane tabs = new TabPane();
-                FileMenuHandler handler = new FileMenuHandler(tabs, null, null, new Label(), new Label(), null);
+                FileMenuHandler handler = new FileMenuHandler(tabs, new Label(), new Label(), null);
                 for (String folder : new String[] {"first", "second", "untouched"}) {
                     Path input = directory.resolve(folder).resolve("same.lua");
                     Files.createDirectories(input.getParent());
@@ -283,7 +283,7 @@ class FileMenuHandlerTest {
                 tab.setLuacFile(new LuacParser().parse(input.toString()));
                 editor.setText("return 42 -- 分析结果\n");
                 TabPane tabs = new TabPane(tab);
-                FileMenuHandler handler = new FileMenuHandler(tabs, null, null, new Label(), new Label(), null);
+                FileMenuHandler handler = new FileMenuHandler(tabs, new Label(), new Label(), null);
                 assertThrows(IOException.class, () -> handler.exportSource(input.toFile()));
                 Path exported = directory.resolve("exported.lua");
                 handler.exportSource(exported.toFile());

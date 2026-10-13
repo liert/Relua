@@ -6,6 +6,9 @@ import com.github.relua.decompiler.pipeline.DecompilerResult;
 import com.github.relua.gui.utils.BytecodeSyncUtils;
 import com.github.relua.gui.preferences.SettingsManager;
 import com.github.relua.util.BytecodeFormatter;
+import com.github.relua.gui.services.AstTreeService;
+import com.github.relua.gui.model.AstTreeNode;
+import com.github.relua.decompiler.Decompiler;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.geometry.Pos;
@@ -27,10 +30,11 @@ import java.io.File;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * 管理打开文件的 Code/Bytecode 视图、独立分屏选择、分析注释与双向联动。
+ * 管理打开文件的 Code/Bytecode/AST 视图、独立分屏选择、分析注释与双向联动。
  */
 public class EditorTab extends Tab {
 
@@ -40,7 +44,8 @@ public class EditorTab extends Tab {
     public enum ViewMode {
         LUA_SOURCE("Code"),
         SIDE_BY_SIDE("Split view"),
-        BYTECODE("Bytecode");
+        BYTECODE("Bytecode"),
+        AST("AST");
 
         private final String displayName;
 
@@ -68,6 +73,20 @@ public class EditorTab extends Tab {
     private DecompilerResult decompilerResult;
     private Map<String, LineRange> chunkLineRanges;
     private Task<?> activeTask;
+    private Task<AstAnalysis> astTask;
+    private List<AstTreeService.FunctionTree> astFunctions;
+    private int astGeneration;
+    private AstTreeView astView;
+    private AstTreeView duplicateAstView;
+    private boolean astNavigation;
+
+    private static final class AstAnalysis {
+        final DecompilerResult result;
+        final List<AstTreeService.FunctionTree> functions;
+        AstAnalysis(DecompilerResult result, List<AstTreeService.FunctionTree> functions) {
+            this.result = result; this.functions = functions;
+        }
+    }
 
     // 记录用户在该标签页内进行的所有符号重命名映射（oldName -> newName）
     private final Map<String, String> renamedVariables = new LinkedHashMap<>();
@@ -100,8 +119,10 @@ public class EditorTab extends Tab {
     
     private ToggleButton btnLuaView;
     private ToggleButton btnBytecodeView;
+    private ToggleButton btnAstView;
     private ToggleButton btnSecondaryLuaView;
     private ToggleButton btnSecondaryBytecodeView;
+    private ToggleButton btnSecondaryAstView;
     private CheckBox splitViewCheckBox;
 
     private Runnable onCaretOrSelectionChanged;
@@ -179,6 +200,7 @@ public class EditorTab extends Tab {
 
         observeEditor(textEditorView, ViewMode.LUA_SOURCE);
         observeEditor(bytecodeEditorView, ViewMode.BYTECODE);
+        textEditorView.getCodeArea().textProperty().addListener((obs, oldText, newText) -> invalidateAst());
         if (settingsManager.getSettings().isDefaultSplitView()) setSplitView(true);
     }
 
@@ -191,6 +213,7 @@ public class EditorTab extends Tab {
                 if (mode == ViewMode.LUA_SOURCE) syncBytecodeFromLua(false);
                 else syncLuaFromBytecode(false);
             }
+            if (mode == ViewMode.LUA_SOURCE && !astNavigation) followAstSource(editor.getCurrentLineNumber());
         });
         editor.getCodeArea().selectionProperty().addListener((obs, o, n) -> notifyCaretOrSelectionChanged());
         editor.getCodeArea().focusedProperty().addListener((obs, o, focused) -> {
@@ -229,14 +252,17 @@ public class EditorTab extends Tab {
         ToggleGroup group = new ToggleGroup();
         ToggleButton codeButton = createViewModeButton(ViewMode.LUA_SOURCE, group, secondary);
         ToggleButton bytecodeButton = createViewModeButton(ViewMode.BYTECODE, group, secondary);
-        bar.getChildren().addAll(codeButton, bytecodeButton);
+        ToggleButton astButton = createViewModeButton(ViewMode.AST, group, secondary);
+        bar.getChildren().addAll(codeButton, bytecodeButton, astButton);
         if (secondary) {
             btnSecondaryLuaView = codeButton;
             btnSecondaryBytecodeView = bytecodeButton;
+            btnSecondaryAstView = astButton;
             bytecodeButton.setSelected(true);
         } else {
             btnLuaView = codeButton;
             btnBytecodeView = bytecodeButton;
+            btnAstView = astButton;
             codeButton.setSelected(true);
             Region spacer = new Region();
             HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -272,7 +298,7 @@ public class EditorTab extends Tab {
     public void setPrimaryViewMode(ViewMode mode) {
         ViewMode oldMode = primaryViewMode;
         TextEditorView oldEditor = primaryEditor;
-        primaryViewMode = mode == ViewMode.BYTECODE ? ViewMode.BYTECODE : ViewMode.LUA_SOURCE;
+        primaryViewMode = normalizePaneMode(mode);
         updateViewLayout();
         alignCaretAfterViewChange(oldEditor, oldMode, primaryEditor, primaryViewMode);
         lastActiveEditor = primaryEditor;
@@ -282,7 +308,7 @@ public class EditorTab extends Tab {
     public void setSecondaryViewMode(ViewMode mode) {
         ViewMode oldMode = secondaryViewMode;
         TextEditorView oldEditor = secondaryEditor;
-        secondaryViewMode = mode == ViewMode.BYTECODE ? ViewMode.BYTECODE : ViewMode.LUA_SOURCE;
+        secondaryViewMode = normalizePaneMode(mode);
         updateViewLayout();
         alignCaretAfterViewChange(oldEditor, oldMode, secondaryEditor, secondaryViewMode);
         if (splitView) lastActiveEditor = secondaryEditor;
@@ -297,6 +323,10 @@ public class EditorTab extends Tab {
         notifyCaretOrSelectionChanged();
     }
 
+    private ViewMode normalizePaneMode(ViewMode mode) {
+        return mode == ViewMode.BYTECODE || mode == ViewMode.AST ? mode : ViewMode.LUA_SOURCE;
+    }
+
     private void updateViewLayout() {
         viewMode = splitView ? ViewMode.SIDE_BY_SIDE : primaryViewMode;
         splitViewCheckBox.setSelected(splitView);
@@ -305,22 +335,24 @@ public class EditorTab extends Tab {
             refreshBytecodeContent();
         }
 
-        primaryEditor = primaryViewMode == ViewMode.BYTECODE ? bytecodeEditorView : textEditorView;
+        primaryEditor = primaryViewMode == ViewMode.AST ? null : primaryViewMode == ViewMode.BYTECODE ? bytecodeEditorView : textEditorView;
         secondaryEditor = null;
         if (splitView) {
-            secondaryEditor = secondaryViewMode == primaryViewMode
+            secondaryEditor = secondaryViewMode == ViewMode.AST ? null : secondaryViewMode == primaryViewMode
                     ? getDuplicateEditor(secondaryViewMode)
                     : (secondaryViewMode == ViewMode.BYTECODE ? bytecodeEditorView : textEditorView);
         }
 
-        // 先释放两个面板的节点，允许 Code/Bytecode 在两侧之间移动。
+        // 先释放两个面板的节点，允许 Code/Bytecode/AST 在两侧之间移动。
         primaryContainer.getChildren().clear();
         secondaryContainer.getChildren().clear();
-        Node primaryNode = createEditorContent(primaryEditor, primaryViewMode);
+        Node primaryNode = primaryViewMode == ViewMode.AST
+                ? getAstView(false).getView() : createEditorContent(primaryEditor, primaryViewMode);
         VBox.setVgrow(primaryNode, Priority.ALWAYS);
         primaryContainer.getChildren().addAll(primaryNode, primaryViewModeBar);
         if (splitView) {
-            Node secondaryNode = createEditorContent(secondaryEditor, secondaryViewMode);
+            Node secondaryNode = secondaryViewMode == ViewMode.AST
+                    ? getAstView(primaryViewMode == ViewMode.AST).getView() : createEditorContent(secondaryEditor, secondaryViewMode);
             VBox.setVgrow(secondaryNode, Priority.ALWAYS);
             secondaryContainer.getChildren().addAll(secondaryNode, secondaryViewModeBar);
             if (contentSplitPane.getItems().size() != 2) {
@@ -333,13 +365,16 @@ public class EditorTab extends Tab {
 
         btnLuaView.setSelected(primaryViewMode == ViewMode.LUA_SOURCE);
         btnBytecodeView.setSelected(primaryViewMode == ViewMode.BYTECODE);
+        btnAstView.setSelected(primaryViewMode == ViewMode.AST);
         btnSecondaryLuaView.setSelected(secondaryViewMode == ViewMode.LUA_SOURCE);
         btnSecondaryBytecodeView.setSelected(secondaryViewMode == ViewMode.BYTECODE);
+        btnSecondaryAstView.setSelected(secondaryViewMode == ViewMode.AST);
         String title = file != null ? file.getName() : "未命名";
-        setText(title + (splitView ? " [分屏]" : primaryViewMode == ViewMode.BYTECODE ? " [字节码]" : ""));
+        setText(title + (splitView ? " [分屏]" : primaryViewMode == ViewMode.BYTECODE ? " [字节码]" : primaryViewMode == ViewMode.AST ? " [AST]" : ""));
         lastSyncedLuaLine = -1;
         lastSyncedBytecodeParagraph = -1;
         if (splitView) Platform.runLater(() -> syncBytecodeFromLua(true));
+        if (primaryViewMode == ViewMode.AST || (splitView && secondaryViewMode == ViewMode.AST)) refreshAstContent();
     }
 
     private Node createEditorContent(TextEditorView editor, ViewMode mode) {
@@ -403,6 +438,101 @@ public class EditorTab extends Tab {
         }
     }
 
+    private AstTreeView getAstView(boolean duplicate) {
+        AstTreeView current = duplicate ? duplicateAstView : astView;
+        if (current != null) return current;
+        current = new AstTreeView(settingsManager);
+        current.setOnNavigate(this::navigateAstSource);
+        if (duplicate) duplicateAstView = current; else astView = current;
+        if (astFunctions != null) current.setFunctions(astFunctions);
+        return current;
+    }
+
+    public AstTreeView getAstTreeView() { return getAstView(false); }
+
+    private void navigateAstSource(AstTreeNode node) {
+        TextEditorView editor = getVisibleEditor(ViewMode.LUA_SOURCE);
+        if (editor == null) {
+            setPrimaryViewMode(ViewMode.LUA_SOURCE);
+            editor = textEditorView;
+        }
+        astNavigation = true;
+        try {
+            editor.jumpToLine(node.sourceLine);
+            editor.getCodeArea().requestFocus();
+        } finally { astNavigation = false; }
+    }
+
+    private void followAstSource(int line) {
+        if (astView != null) astView.followSourceLine(line);
+        if (duplicateAstView != null) duplicateAstView.followSourceLine(line);
+    }
+
+    private void invalidateAst() {
+        astGeneration++;
+        if (astTask != null) astTask.cancel();
+        astTask = null;
+        astFunctions = null;
+        if (astView != null) astView.showMessage("AST 正在更新…");
+        if (duplicateAstView != null) duplicateAstView.showMessage("AST 正在更新…");
+        if (primaryViewMode == ViewMode.AST || (splitView && secondaryViewMode == ViewMode.AST)) {
+            Platform.runLater(this::refreshAstContent);
+        }
+    }
+
+    /** AST 单独后台加载，恢复源码快照时不强制重新反编译。 */
+    public void refreshAstContent() {
+        if (primaryViewMode != ViewMode.AST && !(splitView && secondaryViewMode == ViewMode.AST)) return;
+        if (!fileLoaded) return;
+        if (luacFile == null) {
+            if (astView != null) astView.showMessage("当前文件为 Lua 文本，没有字节码分析 AST。请打开原始编译文件。");
+            if (duplicateAstView != null) duplicateAstView.showMessage("当前文件为 Lua 文本，没有字节码分析 AST。请打开原始编译文件。");
+            return;
+        }
+        if (astFunctions != null || astTask != null) return;
+        final int generation = astGeneration;
+        final LuacFile input = luacFile;
+        final DecompilerResult existing = decompilerResult;
+        final String source = textEditorView.getText();
+        final Map<String, String> renamed = new LinkedHashMap<>(renamedVariables);
+        final Map<String, LineRange> ranges = chunkLineRanges == null ? Collections.emptyMap() : new LinkedHashMap<>(chunkLineRanges);
+        if (astView != null) astView.showMessage("正在加载 AST…");
+        if (duplicateAstView != null) duplicateAstView.showMessage("正在加载 AST…");
+        astTask = new Task<AstAnalysis>() {
+            @Override protected AstAnalysis call() {
+                DecompilerResult result = existing;
+                if (result == null) {
+                    Decompiler decompiler = new Decompiler();
+                    decompiler.decompile(input);
+                    result = decompiler.getLastResult();
+                }
+                if (isCancelled()) return null;
+                return new AstAnalysis(result, new AstTreeService(source, renamed).build(result, ranges));
+            }
+            @Override protected void succeeded() {
+                if (generation != astGeneration || input != luacFile || isCancelled()) return;
+                astTask = null;
+                AstAnalysis analysis = getValue();
+                if (analysis == null) return;
+                decompilerResult = analysis.result;
+                astFunctions = analysis.functions;
+                if (astView != null) astView.setFunctions(astFunctions);
+                if (duplicateAstView != null) duplicateAstView.setFunctions(astFunctions);
+                followAstSource(textEditorView.getCurrentLineNumber());
+            }
+            @Override protected void failed() {
+                if (generation != astGeneration) return;
+                astTask = null;
+                String message = "AST 加载失败: " + getException().getMessage();
+                if (astView != null) astView.showMessage(message);
+                if (duplicateAstView != null) duplicateAstView.showMessage(message);
+            }
+        };
+        Thread worker = new Thread(astTask, "relua-ast-analysis");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
     private void mirrorEditorText(TextEditorView target, String text) {
         if (syncingEditorText || target.getText().equals(text)) return;
         syncingEditorText = true;
@@ -451,7 +581,7 @@ public class EditorTab extends Tab {
         }
         ViewMode oldMode = this.viewMode;
         splitView = mode == ViewMode.SIDE_BY_SIDE;
-        primaryViewMode = mode == ViewMode.BYTECODE ? ViewMode.BYTECODE : ViewMode.LUA_SOURCE;
+        primaryViewMode = normalizePaneMode(mode);
         if (splitView && oldMode != ViewMode.SIDE_BY_SIDE) secondaryViewMode = ViewMode.BYTECODE;
         updateViewLayout();
         lastActiveEditor = primaryEditor;
@@ -589,8 +719,9 @@ public class EditorTab extends Tab {
 
     public TextEditorView getActiveEditorView() {
         if (secondaryEditor != null && secondaryEditor.getCodeArea().isFocused()) return secondaryEditor;
-        if (primaryEditor.getCodeArea().isFocused()) return primaryEditor;
-        return lastActiveEditor == secondaryEditor && secondaryEditor != null ? secondaryEditor : primaryEditor;
+        if (primaryEditor != null && primaryEditor.getCodeArea().isFocused()) return primaryEditor;
+        if (lastActiveEditor == secondaryEditor && secondaryEditor != null) return secondaryEditor;
+        return primaryEditor != null ? primaryEditor : secondaryEditor;
     }
 
     public File getFile() {
@@ -626,6 +757,7 @@ public class EditorTab extends Tab {
     }
 
     public void setLuacFile(LuacFile luacFile) {
+        invalidateAst();
         this.luacFile = luacFile;
         fileLoaded = true;
         // 文件类型由解析结果决定，清除之前显示的内容，避免误用旧字节码。
@@ -641,6 +773,7 @@ public class EditorTab extends Tab {
     }
 
     public void setDecompilerResult(DecompilerResult decompilerResult) {
+        if (this.decompilerResult != decompilerResult) invalidateAst();
         this.decompilerResult = decompilerResult;
     }
 
@@ -685,6 +818,9 @@ public class EditorTab extends Tab {
         if (this.activeTask != null) {
             this.activeTask.cancel();
         }
+        astGeneration++;
+        if (astTask != null) astTask.cancel();
+        astTask = null;
     }
 
     /**
