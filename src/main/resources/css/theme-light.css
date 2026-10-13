@@ -674,11 +674,59 @@
     -fx-text-fill: #b45309;
 }
 
-.editor-tab-header {
-    -fx-background-color: #f8f9fa;
-    -fx-border-color: #e2e8f0;
-    -fx-border-width: 0 0 1px 0;
-    -fx-padding: 4px 10px;
+/* 编辑器底部视图标签栏（JADX 风格） */
+.editor-view-mode-bar {
+    -fx-background-color: -theme-bg-sidebar;
+    -fx-border-color: -theme-border;
+    -fx-border-width: 1px 0 0 0;
+    -fx-padding: 0;
+}
+
+.editor-view-mode-tab {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 2px 0 0 0;
+    -fx-border-radius: 0;
+    -fx-padding: 5px 14px 7px 14px;
+    -fx-min-height: 32px;
+    -fx-font-size: 12px;
+    -fx-text-fill: -theme-fg-default;
+    -fx-cursor: hand;
+}
+
+.editor-view-mode-tab:hover,
+.editor-view-mode-tab:focused {
+    -fx-background-color: -theme-bg-hover;
+}
+
+.editor-view-mode-tab:selected {
+    -fx-background-color: -theme-bg-base;
+    -fx-border-color: -theme-accent transparent transparent transparent;
+    -fx-text-fill: -theme-fg-bold;
+}
+
+.editor-split-view-toggle {
+    -fx-padding: 0 12px;
+    -fx-font-size: 12px;
+    -fx-text-fill: -theme-fg-default;
+}
+
+.bytecode-unavailable {
+    -fx-background-color: -theme-bg-base;
+    -fx-padding: 24px;
+}
+
+.bytecode-unavailable-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -theme-fg-default;
+}
+
+.bytecode-unavailable-description {
+    -fx-text-fill: -theme-fg-muted;
+    -fx-text-alignment: center;
 }
 
 .view-mode-hint {

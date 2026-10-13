@@ -62,6 +62,22 @@ public class BatchExportServiceTest {
     }
 
     @Test
+    void testExportCannotWriteInsideSourceRoot(@TempDir Path directory) throws IOException {
+        Path input = directory.resolve("input.lua");
+        byte[] original = "return 1\n".getBytes(StandardCharsets.UTF_8);
+        Files.write(input, original);
+        BatchExportService service = new BatchExportService();
+        for (File target : new File[] {directory.toFile(), directory.resolve("export").toFile()}) {
+            BatchExportService.ExportResult result = service.exportBatch(directory.toFile(), target,
+                    java.util.Collections.singletonList(input.toFile()), new AtomicBoolean(false), null);
+            assertEquals(0, result.getSuccessCount());
+            assertEquals(1, result.getFailedCount());
+            assertArrayEquals(original, Files.readAllBytes(input));
+        }
+        assertFalse(Files.exists(directory.resolve("export")));
+    }
+
+    @Test
     @DisplayName("验证批量导出镜像目录结构与持久化修改合并")
     public void testBatchExportWithModifications(@TempDir Path tempDir) throws IOException {
         File sourceRoot = tempDir.resolve("source").toFile();

@@ -33,8 +33,7 @@
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemBatchExport" onAction="#handleBatchExport" text="批量反编译导出为工程..." accelerator="Shortcut+Shift+E" />
                         <SeparatorMenuItem />
-                        <MenuItem fx:id="menuItemSave" onAction="#handleSaveFile" />
-                        <MenuItem fx:id="menuItemSaveAs" onAction="#handleSaveAsFile" />
+                        <MenuItem fx:id="menuItemExportSource" onAction="#handleExportSource" accelerator="Shortcut+E" />
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemExit" onAction="#handleExit" />
                     </items>
@@ -117,7 +116,7 @@
             <ToolBar>
                 <Button fx:id="btnOpen" onAction="#handleOpenFile" />
                 <Button fx:id="btnOpenFolder" onAction="#handleOpenFolder" text="📁 打开工程" />
-                <Button fx:id="btnSave" onAction="#handleSaveFile" />
+                <Button fx:id="btnExportSource" onAction="#handleExportSource" />
                 <Button fx:id="btnBatchExport" onAction="#handleBatchExport" text="📦 批量导出" />
                 <Separator orientation="VERTICAL" />
                 <Button fx:id="btnFindInFiles" onAction="#handleFindInFiles" text="🔍 全局查找" />

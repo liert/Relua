@@ -1,16 +1,19 @@
 package com.github.relua.gui.views;
 
 import javafx.application.Platform;
-import javafx.scene.Scene;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.SplitPane;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
-import javafx.stage.Stage;
+import javafx.scene.layout.VBox;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.lang.reflect.Method;
+import com.github.relua.parser.LuacParser;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -81,6 +84,105 @@ public class EditorTabTest {
             // 循环切换：SIDE_BY_SIDE -> BYTECODE
             tab.toggleBytecodeView();
             assertEquals(EditorTab.ViewMode.BYTECODE, tab.getViewMode());
+        });
+    }
+
+    @Test
+    @DisplayName("底部 Code/Bytecode 独立切换，Split view 默认在右侧显示 Bytecode")
+    public void testBottomSelectorsAndSplitCheckbox() throws Exception {
+        runOnFxThread(() -> {
+            EditorTab tab = new EditorTab(new File("selectors.lua"), new TextEditorView(false));
+            VBox content = (VBox) ((StackPane) tab.getContent()).getChildren().get(0);
+            SplitPane split = (SplitPane) content.getChildren().get(0);
+            VBox left = (VBox) split.getItems().get(0);
+            HBox leftBar = (HBox) left.getChildren().get(1);
+            ToggleButton code = (ToggleButton) leftBar.getChildren().get(0);
+            ToggleButton bytecode = (ToggleButton) leftBar.getChildren().get(1);
+            CheckBox splitView = (CheckBox) leftBar.getChildren().get(3);
+            assertEquals("Code", code.getText());
+            assertEquals("Bytecode", bytecode.getText());
+            assertEquals("Split view", splitView.getText());
+            assertTrue(code.isSelected());
+            assertFalse(splitView.isSelected());
+
+            splitView.fire();
+            assertTrue(tab.isSideBySide());
+            assertEquals(2, split.getItems().size());
+            VBox right = (VBox) split.getItems().get(1);
+            HBox rightBar = (HBox) right.getChildren().get(1);
+            ToggleButton rightCode = (ToggleButton) rightBar.getChildren().get(0);
+            ToggleButton rightBytecode = (ToggleButton) rightBar.getChildren().get(1);
+            assertTrue(rightBytecode.isSelected());
+            assertEquals(EditorTab.ViewMode.BYTECODE, tab.getSecondaryViewMode());
+
+            rightCode.fire();
+            assertTrue(code.isSelected());
+            assertTrue(rightCode.isSelected());
+            assertNotSame(left.getChildren().get(0), right.getChildren().get(0));
+            bytecode.fire();
+            assertTrue(splitView.isSelected());
+            assertTrue(bytecode.isSelected());
+            assertTrue(rightCode.isSelected());
+            rightBytecode.fire();
+            assertTrue(bytecode.isSelected());
+            assertTrue(rightBytecode.isSelected());
+            assertNotSame(left.getChildren().get(0), right.getChildren().get(0));
+            rightBytecode.fire();
+            assertTrue(rightBytecode.isSelected());
+
+            rightCode.fire();
+            splitView.fire();
+            assertEquals(1, split.getItems().size());
+            assertEquals(EditorTab.ViewMode.BYTECODE, tab.getViewMode());
+            splitView.fire();
+            assertTrue(rightBytecode.isSelected(), "Reopening split defaults to Bytecode");
+            assertTrue(bytecode.isSelected(), "Primary view is preserved");
+        });
+    }
+
+    @Test
+    @DisplayName("两侧显示相同内容时使用独立编辑器，源码修改和分析记录保持同步")
+    public void testMatchingViewsShareContentAndAnalysis() throws Exception {
+        runOnFxThread(() -> {
+            TextEditorView source = new TextEditorView(false);
+            EditorTab tab = new EditorTab(new File("mirrors.lua"), source);
+            source.setText("local value = 1\nprint(value)\n");
+            tab.setSplitView(true);
+            tab.setSecondaryViewMode(EditorTab.ViewMode.LUA_SOURCE);
+            TextEditorView rightSource = tab.getActiveEditorView();
+            assertNotSame(source, rightSource);
+            assertEquals(source.getText(), rightSource.getText());
+            rightSource.renameVariable("value", "renamed");
+            assertEquals(rightSource.getText(), source.getText());
+            assertEquals("renamed", tab.getRenamedVariables().get("value"));
+            source.setText("return renamed\n");
+            assertEquals(source.getText(), rightSource.getText());
+
+            tab.setPrimaryViewMode(EditorTab.ViewMode.BYTECODE);
+            tab.setSecondaryViewMode(EditorTab.ViewMode.BYTECODE);
+            TextEditorView rightBytecode = tab.getActiveEditorView();
+            assertNotSame(tab.getBytecodeEditorView(), rightBytecode);
+            tab.getBytecodeEditorView().setText("   0 [line    1]: RETURN R0 1\n");
+            assertEquals(tab.getBytecodeEditorView().getText(), rightBytecode.getText());
+        });
+    }
+
+    @Test
+    @DisplayName("源码无字节码时显示说明，加载真实字节码后显示指令")
+    public void testBytecodeAvailabilityAfterLoading() throws Exception {
+        runOnFxThread(() -> {
+            try {
+                EditorTab tab = new EditorTab(new File("source.lua"), new TextEditorView(false));
+                tab.setSplitView(true);
+                tab.setLuacFile(null);
+                VBox content = (VBox) ((StackPane) tab.getContent()).getChildren().get(0);
+                SplitPane split = (SplitPane) content.getChildren().get(0);
+                VBox right = (VBox) split.getItems().get(1);
+                assertTrue(right.getChildren().get(0).getStyleClass().contains("bytecode-unavailable"));
+                tab.setLuacFile(new LuacParser().parse("src/test/resources/xiaomi/aeslua.lua"));
+                assertSame(tab.getBytecodeEditorView().getView(), right.getChildren().get(0));
+                assertTrue(tab.getBytecodeEditorView().getText().contains("; 指令列表"));
+            } catch (Exception e) { throw new RuntimeException(e); }
         });
     }
 

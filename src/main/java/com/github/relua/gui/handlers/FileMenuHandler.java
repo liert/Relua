@@ -193,7 +193,7 @@ public class FileMenuHandler {
         
         EditorTab tab = new EditorTab(file, textEditorView);
         
-        // 注册关闭事件，取消运行中的任务并自动持久化工作区修改
+        // 关闭时只保存 .relua 分析信息，不写回原始文件。
         tab.setOnCloseRequest(e -> {
             tab.cancelTask();
             ProjectWorkspaceManager.getInstance().save(collectOpenedTabs(), tab);
@@ -302,6 +302,7 @@ public class FileMenuHandler {
                                 }
                             }
                         }
+                        tab.restoreAnalysisState(metadata.getRenamedVariables(), metadata.getLineComments());
                     }
 
                     if (result.isText) {
@@ -351,27 +352,6 @@ public class FileMenuHandler {
     }
 
     /**
-     * 处理保存文件事件（源码文件写回磁盘，反编译文件持久化到 .relua 数据库）
-     * @param event 事件对象
-     */
-    public void handleSaveFile(ActionEvent event) {
-        EditorTab activeTab = getActiveTab();
-        if (activeTab != null) {
-            File file = activeTab.getFile();
-            // 如果是纯 Lua 源码文本文件，直接写回磁盘
-            if (isTextFile(file) || (file != null && file.getName().endsWith(".lua") && !file.getName().endsWith(".luac"))) {
-                saveToFile(file, activeTab);
-            } else {
-                // 如果是反编译二进制文件，执行工程持久化（保存变量重命名和工作区状态）
-                ProjectWorkspaceManager.getInstance().save(collectOpenedTabs(), activeTab);
-                updateStatus("已保存分析工程与变量重命名数据: " + (file != null ? file.getName() : ""));
-            }
-        } else {
-            handleSaveAsFile(event);
-        }
-    }
-
-    /**
      * 收集当前所有打开的 EditorTab 列表
      * @return EditorTab 列表
      */
@@ -385,43 +365,65 @@ public class FileMenuHandler {
         return list;
     }
 
+    public void saveAnalysis() {
+        ProjectWorkspaceManager.getInstance().save(collectOpenedTabs(), getActiveTab());
+    }
+
     /**
-     * 处理另存为文件事件
+     * 用户手动导出当前源码到独立文件。
      * @param event 事件对象
      */
-    public void handleSaveAsFile(ActionEvent event) {
+    public void handleExportSource(ActionEvent event) {
         EditorTab activeTab = getActiveTab();
         if (activeTab == null) {
             return;
         }
+        if (!activeTab.isFileLoaded()) {
+            updateStatus("文件仍在加载，请加载完成后再导出");
+            return;
+        }
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Save Lua File");
+        fileChooser.setTitle("导出 Lua 源码");
+        if (activeTab.getFile() != null) {
+            String name = activeTab.getFile().getName();
+            fileChooser.setInitialFileName(name.endsWith(".lua") ? name : name + ".lua");
+        }
         fileChooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("Lua Files", "*.lua"),
                 new FileChooser.ExtensionFilter("All Files", "*.*")
         );
 
-        File file = fileChooser.showSaveDialog(new Stage());
+        File file = fileChooser.showSaveDialog(textEditorTabPane.getScene() != null
+                ? textEditorTabPane.getScene().getWindow() : null);
         if (file != null) {
-            saveToFile(file, activeTab);
+            try {
+                exportSource(file);
+                updateStatus("源码已导出: " + file.getAbsolutePath());
+            } catch (IOException e) {
+                updateStatus("导出失败: " + e.getMessage());
+                showError(I18nUtil.getString("dialog.error.title"),
+                        I18nUtil.getString("dialog.error.fileExportFailed", e.getMessage()));
+            }
         }
     }
 
     /**
-     * 将文本保存到文件
-     * @param file 文件对象
-     * @param tab 标签页对象
+     * 显式导出入口；所有已打开的源文件均不可作为导出目标。
      */
-    private void saveToFile(File file, EditorTab tab) {
-        try {
-            tab.getTextEditorView().saveToFile(file);
-            tab.setFile(file);
-            updateFileLabel(file.getName());
-            updateStatus("File saved successfully");
-        } catch (IOException e) {
-            updateStatus("Error saving file: " + e.getMessage());
-            showError(I18nUtil.getString("dialog.error.title"), I18nUtil.getString("dialog.error.fileSaveFailed", e.getMessage()));
+    public void exportSource(File file) throws IOException {
+        EditorTab tab = getActiveTab();
+        if (tab == null || !tab.isFileLoaded()) {
+            throw new IOException("请先打开文件并等待加载完成");
         }
+        for (EditorTab openedTab : collectOpenedTabs()) {
+            File source = openedTab.getFile();
+            if (source != null && (file.getCanonicalFile().equals(source.getCanonicalFile())
+                    || (file.exists() && source.exists()
+                    && java.nio.file.Files.isSameFile(file.toPath(), source.toPath())))) {
+                throw new IOException("打开的文件为只读，请选择其他导出目标");
+            }
+        }
+        tab.getTextEditorView().exportToFile(file);
     }
 
     /**

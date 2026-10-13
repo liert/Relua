@@ -149,7 +149,7 @@ public class BatchExportService {
     }
 
     /**
-     * 探测文件是否包含 Lua 字节码魔数
+     * 探测标准 Lua 和 Xiaomi Fate 字节码魔数。
      */
     public static boolean isLuaBytecodeHeader(File file) {
         if (file == null || file.length() < 4) {
@@ -158,7 +158,9 @@ public class BatchExportService {
         try (FileInputStream fis = new FileInputStream(file)) {
             byte[] header = new byte[4];
             int read = fis.read(header);
-            return read == 4 && header[0] == 0x1B && header[1] == 'L' && header[2] == 'u' && header[3] == 'a';
+            return read == 4 && header[0] == 0x1B
+                    && ((header[1] == 'L' && header[2] == 'u' && header[3] == 'a')
+                    || (header[1] == 'F' && header[2] == 'a' && header[3] == 't'));
         } catch (Exception e) {
             return false;
         }
@@ -177,6 +179,16 @@ public class BatchExportService {
         long startTime = System.currentTimeMillis();
         if (files == null || files.isEmpty()) {
             return new ExportResult(0, 0, 0, 0, Collections.emptyList(), false);
+        }
+        try {
+            File sourceDirectory = sourceRoot.isDirectory() ? sourceRoot : sourceRoot.getParentFile();
+            if (targetRoot.getCanonicalFile().toPath().startsWith(sourceDirectory.getCanonicalFile().toPath())) {
+                return new ExportResult(files.size(), 0, files.size(), 0,
+                        Collections.singletonList("源目录为只读，请选择源目录之外的导出位置"), false);
+            }
+        } catch (IOException e) {
+            return new ExportResult(files.size(), 0, files.size(), 0,
+                    Collections.singletonList("无法检查导出路径: " + e.getMessage()), false);
         }
 
         int total = files.size();
@@ -257,6 +269,10 @@ public class BatchExportService {
         }
 
         File targetFile = new File(targetRoot, targetRelPath);
+        if (targetFile.getCanonicalFile().equals(sourceFile.getCanonicalFile())
+                || (targetFile.exists() && Files.isSameFile(targetFile.toPath(), sourceFile.toPath()))) {
+            throw new IOException("源文件为只读，不能覆盖: " + sourceFile.getAbsolutePath());
+        }
         File parent = targetFile.getParentFile();
         if (parent != null && !parent.exists()) {
             parent.mkdirs();

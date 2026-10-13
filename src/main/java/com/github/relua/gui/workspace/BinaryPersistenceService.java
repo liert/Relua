@@ -9,6 +9,9 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -118,21 +121,12 @@ public final class BinaryPersistenceService {
             out.flush();
         }
 
-        // 原子替换正式文件
-        if (targetFile.exists()) {
-            targetFile.delete();
-        }
-        if (!tempFile.renameTo(targetFile)) {
-            // 在某些 Windows 文件锁情况下重命名失败时，尝试普通覆盖
-            try (FileInputStream in = new FileInputStream(tempFile);
-                 FileOutputStream fos = new FileOutputStream(targetFile)) {
-                byte[] buf = new byte[8192];
-                int len;
-                while ((len = in.read(buf)) != -1) {
-                    fos.write(buf, 0, len);
-                }
-            }
-            tempFile.delete();
+        // 写完临时数据库再替换，替换前保留已有数据库。
+        try {
+            Files.move(tempFile.toPath(), targetFile.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(tempFile.toPath(), targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
         }
     }
 

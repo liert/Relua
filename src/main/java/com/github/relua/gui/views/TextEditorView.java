@@ -47,7 +47,7 @@ import org.fxmisc.richtext.model.StyleSpansBuilder;
 import org.fxmisc.richtext.model.TwoDimensional.Bias;
 
 import java.io.File;
-import java.io.FileWriter;
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -935,9 +935,6 @@ public class TextEditorView {
         if (result.isPresent()) {
             String newComment = result.get();
             applyLineComment(paragraphIdx, newComment);
-            if (commentChangeListener != null) {
-                commentChangeListener.accept(lineNum, newComment);
-            }
         }
     }
 
@@ -983,6 +980,9 @@ public class TextEditorView {
             int start = codeArea.getAbsolutePosition(paragraphIdx, 0);
             int end = start + line.length();
             codeArea.replaceText(start, end, updatedLine);
+        }
+        if (commentChangeListener != null) {
+            commentChangeListener.accept(paragraphIdx + 1, newComment);
         }
     }
     
@@ -1393,12 +1393,13 @@ public class TextEditorView {
     }
     
     /**
-     * 将文本保存到文件
+     * 用户手动导出文本到文件。
      * @param file 文件对象
      * @throws IOException IO异常
      */
-    public void saveToFile(File file) throws IOException {
-        try (FileWriter writer = new FileWriter(file)) {
+    public void exportToFile(File file) throws IOException {
+        try (BufferedWriter writer = java.nio.file.Files.newBufferedWriter(
+                file.toPath(), java.nio.charset.StandardCharsets.UTF_8)) {
             writer.write(codeArea.getText());
         }
     }

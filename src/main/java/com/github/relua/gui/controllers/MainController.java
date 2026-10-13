@@ -124,9 +124,7 @@ public class MainController {
     @FXML
     private MenuItem menuItemBatchExport;
     @FXML
-    private MenuItem menuItemSave;
-    @FXML
-    private MenuItem menuItemSaveAs;
+    private MenuItem menuItemExportSource;
     @FXML
     private MenuItem menuItemExit;
     
@@ -194,7 +192,7 @@ public class MainController {
     @FXML
     private Button btnOpenFolder;
     @FXML
-    private Button btnSave;
+    private Button btnExportSource;
     @FXML
     private Button btnBatchExport;
     @FXML
@@ -480,12 +478,13 @@ public class MainController {
         if (btnNavForward != null) btnNavForward.setTooltip(new Tooltip("向前导航 (Alt+Right)"));
         if (btnToggleBookmark != null) btnToggleBookmark.setTooltip(new Tooltip("切换当前行书签 (Ctrl+F11)"));
 
-        // 窗口关闭时自动执行工程与工作区持久化保存
+        // 仅持久化 .relua 分析数据，原始源码和字节码保持只读。
         Platform.runLater(() -> {
             Node node = (mainBorderPane != null) ? mainBorderPane : textEditorTabPane;
             if (node != null && node.getScene() != null && node.getScene().getWindow() != null) {
                 node.getScene().getWindow().setOnCloseRequest(e -> {
-                    ProjectWorkspaceManager.getInstance().save(fileMenuHandler.collectOpenedTabs(), fileMenuHandler.getActiveTab());
+                    fileMenuHandler.saveAnalysis();
+                    fileMenuHandler.resetLoadingState();
                 });
             }
         });
@@ -517,8 +516,7 @@ public class MainController {
         if (folder == null || !folder.exists()) {
             return;
         }
-        // 保存旧工作区
-        ProjectWorkspaceManager.getInstance().save(fileMenuHandler.collectOpenedTabs(), fileMenuHandler.getActiveTab());
+        fileMenuHandler.saveAnalysis();
         // 重置反编译状态
         fileMenuHandler.resetLoadingState();
         // 加载新工作区数据库
@@ -661,6 +659,14 @@ public class MainController {
             return;
         }
 
+        // 用户主动导出时只在内存中汇总本次会话的分析内容。
+        for (EditorTab tab : fileMenuHandler.collectOpenedTabs()) {
+            if (tab.isFileLoaded() && tab.getFile() != null) {
+                ProjectWorkspaceManager.getInstance().recordFileModification(tab.getFile(),
+                        tab.getRenamedVariables(), tab.getLuaEditorView().getText(), tab.getLineComments());
+            }
+        }
+
         // 弹出批量导出进度对话框并开始执行
         BatchExportDialog dialog = new BatchExportDialog(window, sourceRoot, targetRoot, candidates);
         dialog.showAndWait();
@@ -690,18 +696,14 @@ public class MainController {
     }
     
     @FXML
-    private void handleSaveFile(ActionEvent event) {
-        fileMenuHandler.handleSaveFile(event);
-    }
-    
-    @FXML
-    private void handleSaveAsFile(ActionEvent event) {
-        fileMenuHandler.handleSaveAsFile(event);
+    private void handleExportSource(ActionEvent event) {
+        fileMenuHandler.handleExportSource(event);
     }
     
     @FXML
     private void handleExit(ActionEvent event) {
-        ProjectWorkspaceManager.getInstance().save(fileMenuHandler.collectOpenedTabs(), fileMenuHandler.getActiveTab());
+        fileMenuHandler.saveAnalysis();
+        fileMenuHandler.resetLoadingState();
         Node node = (mainBorderPane != null) ? mainBorderPane : textEditorTabPane;
         if (node != null && node.getScene() != null && node.getScene().getWindow() != null) {
             Stage stage = (Stage) node.getScene().getWindow();
@@ -814,20 +816,13 @@ public class MainController {
 
     private void wireTabNavigationCallbacks(EditorTab tab) {
         if (tab == null) return;
-        if (tab.getLuaEditorView() != null) {
-            tab.getLuaEditorView().setOnNavigateHistoryRequested(isBack -> {
+        tab.setEditorConfigurator(editor -> {
+            editor.setOnNavigateHistoryRequested(isBack -> {
                 if (isBack) handleNavigateBack(null);
                 else handleNavigateForward(null);
             });
-            tab.getLuaEditorView().setOnNavigateRequested((f, line) -> openFileAndJump(f, line, 0, 0));
-        }
-        if (tab.getBytecodeEditorView() != null) {
-            tab.getBytecodeEditorView().setOnNavigateHistoryRequested(isBack -> {
-                if (isBack) handleNavigateBack(null);
-                else handleNavigateForward(null);
-            });
-            tab.getBytecodeEditorView().setOnNavigateRequested((f, line) -> openFileAndJump(f, line, 0, 0));
-        }
+            editor.setOnNavigateRequested((f, line) -> openFileAndJump(f, line, 0, 0));
+        });
     }
 
     @FXML
@@ -1031,13 +1026,9 @@ public class MainController {
     private void handleSideBySideView(ActionEvent event) {
         EditorTab activeTab = getActiveEditorTab();
         if (activeTab != null) {
-            if (activeTab.isSideBySide()) {
-                activeTab.setViewMode(EditorTab.ViewMode.LUA_SOURCE);
-                updateStatus("当前标签页已切回 Lua 源码视图");
-            } else {
-                activeTab.setViewMode(EditorTab.ViewMode.SIDE_BY_SIDE);
-                updateStatus("当前标签页已切换为源码与字节码并排分屏对照模式 (Side-by-Side)");
-            }
+            activeTab.setSplitView(!activeTab.isSideBySide());
+            updateStatus(activeTab.isSideBySide() ? "当前标签页已开启 Split view"
+                    : "当前标签页已关闭 Split view，保留 " + activeTab.getPrimaryViewMode().getDisplayName() + " 视图");
         } else {
             updateStatus("无打开的文件标签页");
         }
@@ -1624,8 +1615,7 @@ public class MainController {
 
         menuItemOpen.setText(I18nUtil.getString("menu.file.open"));
         menuItemOpenFolder.setText(I18nUtil.getString("menu.file.openFolder"));
-        menuItemSave.setText(I18nUtil.getString("menu.file.save"));
-        menuItemSaveAs.setText(I18nUtil.getString("menu.file.saveAs"));
+        menuItemExportSource.setText(I18nUtil.getString("menu.file.exportSource"));
         menuItemExit.setText(I18nUtil.getString("menu.file.exit"));
 
         menuItemUndo.setText(I18nUtil.getString("menu.edit.undo"));
@@ -1648,8 +1638,8 @@ public class MainController {
             btnOpenFolder.setTooltip(new Tooltip("打开并分析整个工程文件夹"));
         }
 
-        btnSave.setText("💾 " + I18nUtil.getString("toolbar.save"));
-        btnSave.setTooltip(new Tooltip("保存当前反编译或分析文本 (Ctrl+S)"));
+        btnExportSource.setText("⇩ " + I18nUtil.getString("toolbar.exportSource"));
+        btnExportSource.setTooltip(new Tooltip("将当前 Lua 源码导出到独立文件 (Ctrl+E)"));
 
         if (btnBatchExport != null) {
             btnBatchExport.setText("📦 批量导出");

@@ -76,12 +76,9 @@ public class ProjectWorkspaceManager {
         }
 
         // 1. 如果当前处于文件夹模式，优先从工程内存缓存中按相对路径检索
-        if (currentRootFolder != null) {
-            String relPath = toRelativePath(file);
-            FileMetadata cached = memoryFileCache.get(relPath);
-            if (cached != null) {
-                return cached;
-            }
+        FileMetadata cached = memoryFileCache.get(cacheKey(file));
+        if (cached != null) {
+            return cached;
         }
 
         // 2. 检查单文件同目录下是否存在独立的伴生库 (<name>.relua)
@@ -92,6 +89,7 @@ public class ProjectWorkspaceManager {
                 if (singleData != null) {
                     // 单文件伴生库中提取唯一的修改记录
                     for (FileMetadata meta : singleData.getModifiedFiles().values()) {
+                        memoryFileCache.put(cacheKey(file), meta);
                         return meta;
                     }
                 }
@@ -126,7 +124,7 @@ public class ProjectWorkspaceManager {
         }
 
         String relPath = toRelativePath(file);
-        FileMetadata meta = memoryFileCache.computeIfAbsent(relPath, k -> new FileMetadata());
+        FileMetadata meta = memoryFileCache.computeIfAbsent(cacheKey(file), k -> new FileMetadata());
         meta.setRelativePath(relPath);
         meta.setRenamedVariables(renamedVars);
         meta.setEditedText(editedText);
@@ -149,15 +147,17 @@ public class ProjectWorkspaceManager {
         // 同步所有打开的 Tab 中最新的变量重命名、行注释与文本状态
         if (openedTabs != null) {
             for (EditorTab tab : openedTabs) {
-                if (tab.getFile() != null) {
+                if (tab.getFile() != null && tab.isFileLoaded()) {
                     Map<String, String> renamed = tab.getRenamedVariables();
                     Map<Integer, String> comments = tab.getLineComments();
-                    if (!renamed.isEmpty() || !comments.isEmpty()) {
+                    if (!renamed.isEmpty() || !comments.isEmpty() || getFileMetadata(tab.getFile()) != null) {
                         String relPath = toRelativePath(tab.getFile());
-                        FileMetadata meta = memoryFileCache.computeIfAbsent(relPath, k -> new FileMetadata());
+                        FileMetadata meta = memoryFileCache.computeIfAbsent(cacheKey(tab.getFile()), k -> new FileMetadata());
                         meta.setRelativePath(relPath);
                         meta.setRenamedVariables(renamed);
                         meta.setLineComments(comments);
+                        // 保存实际展示文本，准确恢复重命名、注释以及撤销后的结果。
+                        meta.setEditedText(tab.getLuaEditorView().getText());
                         meta.setLastModifiedTime(System.currentTimeMillis());
                         if (meta.getFileSha256() == null) {
                             meta.setFileSha256(computeSha256(tab.getFile()));
@@ -170,9 +170,11 @@ public class ProjectWorkspaceManager {
         if (currentRootFolder != null && currentRootFolder.isDirectory()) {
             // 【文件夹工程模式】：写回根目录下的 .relua/project.relua
             saveFolderWorkspace(openedTabs, activeTab);
-        } else if (activeTab != null && activeTab.getFile() != null) {
-            // 【单文件模式】：写回当前文件的伴生库 <file>.relua
-            saveSingleFileCompanion(activeTab);
+        } else if (openedTabs != null) {
+            // 独立打开多个文件时，每个文件的分析结果都必须保存。
+            for (EditorTab tab : openedTabs) {
+                if (tab.isFileLoaded() && tab.getFile() != null) saveSingleFileCompanion(tab);
+            }
         }
     }
 
@@ -228,6 +230,7 @@ public class ProjectWorkspaceManager {
             meta.setRenamedVariables(renamed);
             meta.setLineComments(comments);
         }
+        meta.setEditedText(tab.getLuaEditorView().getText());
         data.putFileMetadata(file.getName(), meta);
 
         File companionFile = getCompanionFile(file);
@@ -236,6 +239,19 @@ public class ProjectWorkspaceManager {
             LOGGER.info("已保存单文件伴生数据库: " + companionFile.getAbsolutePath());
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, "保存单文件伴生数据库失败: " + e.getMessage(), e);
+        }
+    }
+
+    private String cacheKey(File file) {
+        try {
+            java.nio.file.Path filePath = file.getCanonicalFile().toPath();
+            if (currentRootFolder != null) {
+                java.nio.file.Path rootPath = currentRootFolder.getCanonicalFile().toPath();
+                if (filePath.startsWith(rootPath)) return rootPath.relativize(filePath).toString().replace('\\', '/');
+            }
+            return filePath.toString();
+        } catch (IOException e) {
+            return file.getAbsolutePath();
         }
     }
 
