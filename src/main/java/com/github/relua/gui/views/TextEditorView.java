@@ -9,6 +9,9 @@ import com.github.relua.gui.navigation.BookmarkManager;
 import com.github.relua.gui.navigation.NavigationHistoryManager;
 import com.github.relua.gui.navigation.NavigationLocation;
 import com.github.relua.gui.theme.ThemeManager;
+import com.github.relua.gui.preferences.AppSettings;
+import com.github.relua.gui.preferences.EditorAppearance;
+import com.github.relua.gui.preferences.SettingsManager;
 import com.github.relua.gui.utils.I18nUtil;
 import com.github.relua.gui.utils.LuaVariableUtils;
 import com.github.relua.gui.utils.LuaVariableUtils.SymbolMatch;
@@ -64,6 +67,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.IntFunction;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -79,6 +83,8 @@ public class TextEditorView {
     private final FoldableCodeArea codeArea;
     private final VirtualizedScrollPane<FoldableCodeArea> virtualizedScrollPane;
     private final Popup searchPopup;
+    private final SettingsManager settingsManager;
+    private final Consumer<AppSettings> settingsListener;
     private final HBox searchBar;
     private final TextField searchField;
     private final Label searchStatusLabel;
@@ -160,6 +166,15 @@ public class TextEditorView {
      * @param showWelcome 是否显示欢迎文本
      */
     public TextEditorView(boolean showWelcome) {
+        this(showWelcome, SettingsManager.getInstance());
+    }
+
+    public TextEditorView(boolean showWelcome, SettingsManager settingsManager) {
+        this.settingsManager = settingsManager;
+        settingsListener = settings -> {
+            if (Platform.isFxApplicationThread()) applyEditorSettings(settings);
+            else Platform.runLater(() -> applyEditorSettings(settings));
+        };
         // 初始化 CodeArea
         codeArea = new FoldableCodeArea();
         codeArea.setWrapText(false); // 禁用自动换行，长行出现水平滚动条
@@ -184,6 +199,8 @@ public class TextEditorView {
         
         // 初始化行号和折叠标识
         installParagraphGraphics();
+        applyEditorSettings(settingsManager.getSettings());
+        settingsManager.addListener(settingsListener);
         
         // 加载当前现代化主题样式表并注册主题动态切换监听
         applyThemeStyles();
@@ -230,6 +247,10 @@ public class TextEditorView {
         if (showWelcome) {
             codeArea.replaceText(I18nUtil.getString("editor.welcome"));
         }
+    }
+
+    SettingsManager getSettingsManager() {
+        return settingsManager;
     }
 
     private HBox createSearchBar() {
@@ -599,6 +620,10 @@ public class TextEditorView {
 
             // 2. 行号文本
             Node lineNumNode = lineNumbers.apply(paragraph);
+            AppSettings settings = settingsManager.getSettings();
+            lineNumNode.setStyle(EditorAppearance.fontStyle(settings));
+            lineNumNode.setVisible(settings.isShowLineNumbers());
+            lineNumNode.setManaged(settings.isShowLineNumbers());
 
             // 3. 折叠标识或右侧占位符
             FunctionFold fold = findFoldStartingAt(paragraph);
@@ -1565,5 +1590,11 @@ public class TextEditorView {
         } catch (Exception e) {
             LOGGER.warning("无法加载主题样式表: " + e.getMessage());
         }
+    }
+
+    private void applyEditorSettings(AppSettings settings) {
+        codeArea.setStyle(EditorAppearance.fontStyle(settings));
+        codeArea.setWrapText(settings.isWrapText());
+        installParagraphGraphics();
     }
 }

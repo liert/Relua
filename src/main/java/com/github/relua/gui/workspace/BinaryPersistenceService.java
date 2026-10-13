@@ -32,7 +32,7 @@ public final class BinaryPersistenceService {
     /**
      * 当前格式主版本号
      */
-    public static final short FORMAT_VERSION = 1;
+    public static final short FORMAT_VERSION = 2;
 
     private BinaryPersistenceService() {
     }
@@ -74,8 +74,7 @@ public final class BinaryPersistenceService {
                 out.writeUTF(tabPath != null ? tabPath : "");
             }
 
-            // 3. 修改文件增量区 (Modified Files Delta)
-            // 稀疏过滤：只写入实际有修改的文件
+            // 3. 文件分析记录与源码快照；无内容的占位元数据不写入。
             Map<String, FileMetadata> modifiedMap = data.getModifiedFiles();
             List<FileMetadata> validList = new ArrayList<>();
             for (FileMetadata meta : modifiedMap.values()) {
@@ -116,6 +115,14 @@ public final class BinaryPersistenceService {
                     writeLongString(out, editedText);
                 } else {
                     out.writeBoolean(false);
+                }
+                out.writeBoolean(meta.hasSourceSnapshot());
+                out.writeInt(meta.getCaretPosition());
+                out.writeInt(meta.getChunkLineRanges().size());
+                for (Map.Entry<String, com.github.relua.model.LineRange> range : meta.getChunkLineRanges().entrySet()) {
+                    out.writeUTF(range.getKey());
+                    out.writeInt(range.getValue().startLine);
+                    out.writeInt(range.getValue().endLine);
                 }
             }
             out.flush();
@@ -209,6 +216,18 @@ public final class BinaryPersistenceService {
                 FileMetadata meta = new FileMetadata(relPath, sha256.isEmpty() ? null : sha256, renamedVars, editedText);
                 meta.setLastModifiedTime(lastModifiedTime);
                 meta.setLineComments(lineComments);
+                if (version >= 2) {
+                    boolean snapshot = in.readBoolean();
+                    meta.setSourceSnapshot(snapshot);
+                    if (snapshot && editedText == null) meta.setEditedText("");
+                    meta.setCaretPosition(in.readInt());
+                    int rangeCount = in.readInt();
+                    Map<String, com.github.relua.model.LineRange> ranges = new LinkedHashMap<>();
+                    for (int r = 0; r < rangeCount; r++) {
+                        ranges.put(in.readUTF(), new com.github.relua.model.LineRange(in.readInt(), in.readInt()));
+                    }
+                    meta.setChunkLineRanges(ranges);
+                }
 
                 modifiedMap.put(relPath, meta);
             }

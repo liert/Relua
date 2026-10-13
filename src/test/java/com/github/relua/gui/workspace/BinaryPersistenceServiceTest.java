@@ -152,6 +152,44 @@ public class BinaryPersistenceServiceTest {
     }
 
     @Test
+    public void readsLegacyDatabaseAndUpgradesSnapshots(@TempDir Path tempDir) throws IOException {
+        File db = tempDir.resolve("legacy.relua").toFile();
+        byte[] source = "return 1\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        try (java.io.DataOutputStream out = new java.io.DataOutputStream(
+                new java.util.zip.GZIPOutputStream(new FileOutputStream(db)))) {
+            out.writeInt(BinaryPersistenceService.MAGIC_NUMBER);
+            out.writeShort(1);
+            out.writeLong(1);
+            out.writeUTF("source.lua");
+            out.writeInt(1);
+            out.writeUTF("source.lua");
+            out.writeInt(1);
+            out.writeUTF("source.lua");
+            out.writeUTF("legacy_hash");
+            out.writeLong(1);
+            out.writeInt(0);
+            out.writeInt(0);
+            out.writeBoolean(true);
+            out.writeInt(source.length);
+            out.write(source);
+        }
+        WorkspaceData legacy = BinaryPersistenceService.load(db);
+        assertEquals(1, legacy.getVersion());
+        FileMetadata meta = legacy.getFileMetadata("source.lua");
+        assertEquals("return 1\n", meta.getEditedText());
+        assertFalse(meta.hasSourceSnapshot());
+        meta.setSourceSnapshot(true);
+        meta.setCaretPosition(3);
+        meta.setChunkLineRanges(java.util.Collections.singletonMap("main_0", new com.github.relua.model.LineRange(2, 4)));
+        BinaryPersistenceService.save(db, legacy);
+        FileMetadata upgraded = BinaryPersistenceService.load(db).getFileMetadata("source.lua");
+        assertTrue(upgraded.hasSourceSnapshot());
+        assertEquals(3, upgraded.getCaretPosition());
+        assertEquals(2, upgraded.getChunkLineRanges().get("main_0").startLine);
+        assertEquals(4, upgraded.getChunkLineRanges().get("main_0").endLine);
+    }
+
+    @Test
     @DisplayName("验证伴生文件规则与相对路径计算")
     public void testCompanionFileAndRelativePath() {
         ProjectWorkspaceManager manager = ProjectWorkspaceManager.getInstance();

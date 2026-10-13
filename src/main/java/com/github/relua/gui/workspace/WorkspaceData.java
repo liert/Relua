@@ -10,7 +10,7 @@ import java.util.Map;
  * 工作区持久化容器模型，包含会话状态（激活与打开的标签页）及所有被修改文件的增量元数据
  */
 public class WorkspaceData {
-    public static final short CURRENT_VERSION = 1;
+    public static final short CURRENT_VERSION = BinaryPersistenceService.FORMAT_VERSION;
 
     private short version = CURRENT_VERSION;
     private long saveTime;

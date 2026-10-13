@@ -281,8 +281,8 @@ public class BatchExportService {
         String finalContent = null;
 
         // 1. 检查是否存在持久化修改元数据
-        FileMetadata meta = ProjectWorkspaceManager.getInstance().getFileMetadata(sourceFile);
-        if (meta != null && meta.getEditedText() != null && !meta.getEditedText().trim().isEmpty()) {
+        FileMetadata meta = ProjectWorkspaceManager.getInstance().getValidFileMetadata(sourceFile);
+        if (meta != null && meta.getEditedText() != null) {
             // 用户在 IDE 中编辑保存的代码优先输出
             finalContent = meta.getEditedText();
         } else {

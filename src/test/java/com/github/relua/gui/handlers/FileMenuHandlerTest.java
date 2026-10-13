@@ -88,14 +88,20 @@ class FileMenuHandlerTest {
         ProjectWorkspaceManager manager = ProjectWorkspaceManager.getInstance();
         manager.openFolderWorkspace(directory.toFile());
         AtomicReference<FileMenuHandler> handler = new AtomicReference<>();
-        onFx(() -> handler.set(new FileMenuHandler(new TabPane(), null, null, new Label(), new Label(), null)));
+        AtomicReference<Label> status = new AtomicReference<>();
+        onFx(() -> {
+            status.set(new Label());
+            handler.set(new FileMenuHandler(new TabPane(), null, null, status.get(), new Label(), null));
+        });
         EditorTab tab = open(handler.get(), input.toFile());
         AtomicReference<String> analyzed = new AtomicReference<>();
         onFx(() -> {
             tab.getLuaEditorView().renameVariable("value", "result");
             tab.getLuaEditorView().applyLineComment(0, "分析注释");
             analyzed.set(tab.getLuaEditorView().getText());
-            handler.get().saveAnalysis();
+            handler.get().handleSaveAnalysis(null);
+            assertTrue(status.get().getText().startsWith("分析已保存:"));
+            assertTrue(status.get().getText().contains("project.relua"));
             handler.get().resetLoadingState();
         });
         assertArrayEquals(original, Files.readAllBytes(input));
@@ -122,13 +128,101 @@ class FileMenuHandlerTest {
     }
 
     @Test
+    void restoresUnmodifiedBytecodeWithoutDecompilingAgain(@TempDir Path directory) throws Exception {
+        Path compiled = directory.resolve("compiled.lua");
+        byte[] original = Files.readAllBytes(new File("src/test/resources/xiaomi/aeslua.lua").toPath());
+        Files.write(compiled, original);
+        Path source = directory.resolve("second.lua");
+        Files.write(source, "return 2\n".getBytes(StandardCharsets.UTF_8));
+        ProjectWorkspaceManager manager = ProjectWorkspaceManager.getInstance();
+        manager.openFolderWorkspace(directory.toFile());
+        AtomicReference<TabPane> tabs = new AtomicReference<>();
+        AtomicReference<FileMenuHandler> handler = new AtomicReference<>();
+        onFx(() -> {
+            tabs.set(new TabPane());
+            handler.set(new FileMenuHandler(tabs.get(), null, null, new Label(), new Label(), null));
+        });
+        EditorTab first = open(handler.get(), compiled.toFile());
+        open(handler.get(), source.toFile());
+        AtomicReference<String> generated = new AtomicReference<>();
+        AtomicReference<java.util.Map<String, com.github.relua.model.LineRange>> ranges = new AtomicReference<>();
+        onFx(() -> {
+            assertNotNull(first.getDecompilerResult());
+            assertTrue(first.getRenamedVariables().isEmpty());
+            assertTrue(first.getLineComments().isEmpty());
+            generated.set(first.getLuaEditorView().getText());
+            ranges.set(new java.util.HashMap<>(first.getChunkLineRanges()));
+            first.getLuaEditorView().getCodeArea().moveTo(25);
+            tabs.get().getSelectionModel().select(first);
+            handler.get().saveAnalysis();
+            handler.get().resetLoadingState();
+        });
+        manager.openFolderWorkspace(directory.toFile());
+        assertEquals(2, manager.getCurrentWorkspace().getModifiedFiles().size());
+        assertNotNull(manager.getValidSourceSnapshot(compiled.toFile()));
+        CountDownLatch restored = new CountDownLatch(2);
+        onFx(() -> {
+            handler.get().setOnFileOpenedCallback(restored::countDown);
+            handler.get().restoreWorkspaceTabs();
+            assertEquals(0, tabs.get().getSelectionModel().getSelectedIndex());
+        });
+        assertTrue(restored.await(10, TimeUnit.SECONDS));
+        onFx(() -> {
+            EditorTab cached = (EditorTab) tabs.get().getSelectionModel().getSelectedItem();
+            assertEquals(compiled.toFile(), cached.getFile());
+            assertEquals(generated.get(), cached.getLuaEditorView().getText());
+            assertEquals(25, cached.getLuaEditorView().getCodeArea().getCaretPosition());
+            assertNull(cached.getDecompilerResult(), "Saved source should bypass the decompiler pipeline");
+            assertNotNull(cached.getLuacFile(), "Bytecode remains available");
+            cached.refreshBytecodeContent();
+            assertFalse(cached.getBytecodeEditorView().getText().isEmpty());
+            assertEquals(ranges.get().keySet(), cached.getChunkLineRanges().keySet());
+            ranges.get().forEach((name, range) -> {
+                assertEquals(range.startLine, cached.getChunkLineRanges().get(name).startLine);
+                assertEquals(range.endLine, cached.getChunkLineRanges().get(name).endLine);
+            });
+            handler.get().saveAnalysis();
+            handler.get().resetLoadingState();
+        });
+        manager.openFolderWorkspace(directory.toFile());
+        assertEquals(ranges.get().size(), manager.getValidSourceSnapshot(compiled.toFile()).getChunkLineRanges().size());
+        assertArrayEquals(original, Files.readAllBytes(compiled));
+    }
+
+    @Test
+    void ignoresSavedSourceAndAnnotationsWhenOriginalChanges(@TempDir Path directory) throws Exception {
+        Path input = directory.resolve("changed.lua");
+        Files.write(input, "local value = 1\n".getBytes(StandardCharsets.UTF_8));
+        ProjectWorkspaceManager manager = ProjectWorkspaceManager.getInstance();
+        manager.openFolderWorkspace(directory.toFile());
+        AtomicReference<FileMenuHandler> handler = new AtomicReference<>();
+        onFx(() -> handler.set(new FileMenuHandler(new TabPane(), null, null, new Label(), new Label(), null)));
+        EditorTab first = open(handler.get(), input.toFile());
+        onFx(() -> {
+            first.getLuaEditorView().renameVariable("value", "oldResult");
+            handler.get().saveAnalysis();
+            handler.get().resetLoadingState();
+        });
+        String changed = "local fresh = 2\nreturn fresh\n";
+        Files.write(input, changed.getBytes(StandardCharsets.UTF_8));
+        manager.openFolderWorkspace(directory.toFile());
+        assertNull(manager.getValidSourceSnapshot(input.toFile()));
+        EditorTab reopened = open(handler.get(), input.toFile());
+        onFx(() -> {
+            assertEquals(changed, reopened.getLuaEditorView().getText());
+            assertTrue(reopened.getRenamedVariables().isEmpty());
+            handler.get().resetLoadingState();
+        });
+    }
+
+    @Test
     void savesAllStandaloneFilesWithMatchingNames(@TempDir Path directory) throws Exception {
         ProjectWorkspaceManager.getInstance().openFolderWorkspace(null);
         onFx(() -> {
             try {
                 TabPane tabs = new TabPane();
                 FileMenuHandler handler = new FileMenuHandler(tabs, null, null, new Label(), new Label(), null);
-                for (String folder : new String[] {"first", "second"}) {
+                for (String folder : new String[] {"first", "second", "untouched"}) {
                     Path input = directory.resolve(folder).resolve("same.lua");
                     Files.createDirectories(input.getParent());
                     Files.write(input, "local value = 1\n".getBytes(StandardCharsets.UTF_8));
@@ -136,20 +230,45 @@ class FileMenuHandlerTest {
                     EditorTab tab = new EditorTab(input.toFile(), editor);
                     tab.setLuacFile(null);
                     editor.setText("local value = 1\n");
-                    editor.renameVariable("value", folder);
+                    if (!folder.equals("untouched")) editor.renameVariable("value", folder);
                     tabs.getTabs().add(tab);
                 }
                 handler.saveAnalysis();
-                for (String folder : new String[] {"first", "second"}) {
+                for (String folder : new String[] {"first", "second", "untouched"}) {
                     Path input = directory.resolve(folder).resolve("same.lua");
                     assertEquals("local value = 1\n", new String(Files.readAllBytes(input), StandardCharsets.UTF_8));
                     FileMetadata metadata = BinaryPersistenceService.load(new File(input.toString() + ".relua"))
                             .getModifiedFiles().get("same.lua");
-                    assertEquals(folder, metadata.getRenamedVariables().get("value"));
-                    assertEquals("local " + folder + " = 1\n", metadata.getEditedText());
+                    assertTrue(metadata.hasSourceSnapshot());
+                    if (folder.equals("untouched")) {
+                        assertTrue(metadata.getRenamedVariables().isEmpty());
+                        assertEquals("local value = 1\n", metadata.getEditedText());
+                    } else {
+                        assertEquals(folder, metadata.getRenamedVariables().get("value"));
+                        assertEquals("local " + folder + " = 1\n", metadata.getEditedText());
+                    }
                 }
             } catch (Exception e) { throw new RuntimeException(e); }
         });
+    }
+
+    @Test
+    void reportsPersistenceFailureWithoutWritingSource(@TempDir Path directory) throws Exception {
+        Path input = directory.resolve("source.lua");
+        byte[] original = "local value = 1\n".getBytes(StandardCharsets.UTF_8);
+        Files.write(input, original);
+        Files.write(directory.resolve(".relua"), new byte[] {1});
+        ProjectWorkspaceManager manager = ProjectWorkspaceManager.getInstance();
+        manager.openFolderWorkspace(directory.toFile());
+        onFx(() -> {
+            TextEditorView editor = new TextEditorView(false);
+            EditorTab tab = new EditorTab(input.toFile(), editor);
+            tab.setLuacFile(null);
+            editor.setText("local value = 1\n");
+            editor.renameVariable("value", "result");
+            assertThrows(IOException.class, () -> manager.saveChecked(java.util.Collections.singletonList(tab), tab));
+        });
+        assertArrayEquals(original, Files.readAllBytes(input));
     }
 
     @Test

@@ -54,7 +54,7 @@ public class ProjectWorkspaceManager {
                 this.currentWorkspace = BinaryPersistenceService.load(dbFile);
                 if (this.currentWorkspace != null) {
                     this.memoryFileCache.putAll(this.currentWorkspace.getModifiedFiles());
-                    LOGGER.info("成功加载工程数据库: " + dbFile.getAbsolutePath() + "，包含修改记录 " + memoryFileCache.size() + " 项");
+                    LOGGER.info("成功加载工程数据库: " + dbFile.getAbsolutePath() + "，包含分析记录 " + memoryFileCache.size() + " 项");
                 } else {
                     this.currentWorkspace = new WorkspaceData();
                 }
@@ -144,41 +144,62 @@ public class ProjectWorkspaceManager {
      * @param activeTab 当前聚焦的 EditorTab
      */
     public synchronized void save(List<EditorTab> openedTabs, EditorTab activeTab) {
+        try {
+            saveChecked(openedTabs, activeTab);
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE, "保存分析数据失败: " + e.getMessage(), e);
+        }
+    }
+
+    /** 保存并返回实际写入的数据库路径，写入失败时向调用方报告。 */
+    public synchronized List<File> saveChecked(List<EditorTab> openedTabs, EditorTab activeTab) throws IOException {
         // 同步所有打开的 Tab 中最新的变量重命名、行注释与文本状态
         if (openedTabs != null) {
             for (EditorTab tab : openedTabs) {
                 if (tab.getFile() != null && tab.isFileLoaded()) {
                     Map<String, String> renamed = tab.getRenamedVariables();
                     Map<Integer, String> comments = tab.getLineComments();
-                    if (!renamed.isEmpty() || !comments.isEmpty() || getFileMetadata(tab.getFile()) != null) {
-                        String relPath = toRelativePath(tab.getFile());
-                        FileMetadata meta = memoryFileCache.computeIfAbsent(cacheKey(tab.getFile()), k -> new FileMetadata());
-                        meta.setRelativePath(relPath);
-                        meta.setRenamedVariables(renamed);
-                        meta.setLineComments(comments);
-                        // 保存实际展示文本，准确恢复重命名、注释以及撤销后的结果。
-                        meta.setEditedText(tab.getLuaEditorView().getText());
-                        meta.setLastModifiedTime(System.currentTimeMillis());
-                        if (meta.getFileSha256() == null) {
-                            meta.setFileSha256(computeSha256(tab.getFile()));
-                        }
-                    }
+                    String relPath = toRelativePath(tab.getFile());
+                    FileMetadata meta = memoryFileCache.computeIfAbsent(cacheKey(tab.getFile()), k -> new FileMetadata());
+                    meta.setRelativePath(relPath);
+                    meta.setRenamedVariables(renamed);
+                    meta.setLineComments(comments);
+                    // 所有已加载文件保存源码快照，包括没有重命名或注释的文件。
+                    meta.setEditedText(tab.getLuaEditorView().getText());
+                    meta.setLastModifiedTime(System.currentTimeMillis());
+                    meta.setFileSha256(tab.getSourceFingerprint() != null
+                            ? tab.getSourceFingerprint() : computeSha256(tab.getFile()));
+                    meta.setSourceSnapshot(true);
+                    meta.setChunkLineRanges(tab.getChunkLineRanges());
+                    meta.setCaretPosition(tab.getLuaEditorView().getCodeArea().getCaretPosition());
                 }
             }
         }
 
+        List<File> savedFiles = new ArrayList<>();
         if (currentRootFolder != null && currentRootFolder.isDirectory()) {
             // 【文件夹工程模式】：写回根目录下的 .relua/project.relua
-            saveFolderWorkspace(openedTabs, activeTab);
+            savedFiles.add(saveFolderWorkspace(openedTabs, activeTab));
         } else if (openedTabs != null) {
             // 独立打开多个文件时，每个文件的分析结果都必须保存。
+            IOException failure = null;
             for (EditorTab tab : openedTabs) {
-                if (tab.isFileLoaded() && tab.getFile() != null) saveSingleFileCompanion(tab);
+                if (tab.isFileLoaded() && tab.getFile() != null) {
+                    try {
+                        File savedFile = saveSingleFileCompanion(tab);
+                        if (savedFile != null) savedFiles.add(savedFile);
+                    } catch (IOException e) {
+                        if (failure == null) failure = e;
+                        else failure.addSuppressed(e);
+                    }
+                }
             }
+            if (failure != null) throw failure;
         }
+        return savedFiles;
     }
 
-    private void saveFolderWorkspace(List<EditorTab> openedTabs, EditorTab activeTab) {
+    private File saveFolderWorkspace(List<EditorTab> openedTabs, EditorTab activeTab) throws IOException {
         WorkspaceData data = new WorkspaceData();
         data.setSaveTime(System.currentTimeMillis());
 
@@ -197,25 +218,23 @@ public class ProjectWorkspaceManager {
         data.setModifiedFiles(memoryFileCache);
 
         File targetFile = getWorkspaceDatabaseFile(currentRootFolder);
-        try {
-            BinaryPersistenceService.save(targetFile, data);
-            LOGGER.info("已保存工程数据库: " + targetFile.getAbsolutePath());
-        } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "保存工程数据库失败: " + e.getMessage(), e);
-        }
+        BinaryPersistenceService.save(targetFile, data);
+        currentWorkspace = data;
+        LOGGER.info("已保存工程数据库: " + targetFile.getAbsolutePath());
+        return targetFile;
     }
 
-    private void saveSingleFileCompanion(EditorTab tab) {
+    private File saveSingleFileCompanion(EditorTab tab) throws IOException {
         File file = tab.getFile();
         if (file == null) {
-            return;
+            return null;
         }
 
         FileMetadata meta = getFileMetadata(file);
         Map<String, String> renamed = tab.getRenamedVariables();
         Map<Integer, String> comments = tab.getLineComments();
         if ((meta == null || !meta.hasModifications()) && renamed.isEmpty() && comments.isEmpty()) {
-            return; // 无修改时不生成冗余伴生文件
+            return null; // 无修改时不生成冗余伴生文件
         }
 
         WorkspaceData data = new WorkspaceData();
@@ -234,12 +253,9 @@ public class ProjectWorkspaceManager {
         data.putFileMetadata(file.getName(), meta);
 
         File companionFile = getCompanionFile(file);
-        try {
-            BinaryPersistenceService.save(companionFile, data);
-            LOGGER.info("已保存单文件伴生数据库: " + companionFile.getAbsolutePath());
-        } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "保存单文件伴生数据库失败: " + e.getMessage(), e);
-        }
+        BinaryPersistenceService.save(companionFile, data);
+        LOGGER.info("已保存单文件伴生数据库: " + companionFile.getAbsolutePath());
+        return companionFile;
     }
 
     private String cacheKey(File file) {
@@ -316,6 +332,20 @@ public class ProjectWorkspaceManager {
     public File getCompanionFile(File singleFile) {
         return new File(singleFile.getParentFile(), singleFile.getName() + COMPANION_EXT);
     }
+
+    /** 只复用与当前原文件 SHA-256 一致的完整源码快照。调用方应在后台线程执行。 */
+    public FileMetadata getValidSourceSnapshot(File file) {
+        FileMetadata metadata = getValidFileMetadata(file);
+        return metadata != null && metadata.hasSourceSnapshot() ? metadata : null;
+    }
+
+    public FileMetadata getValidFileMetadata(File file) {
+        FileMetadata metadata = getFileMetadata(file);
+        return metadata != null && metadata.getFileSha256() != null
+                && metadata.getFileSha256().equals(computeSha256(file)) ? metadata : null;
+    }
+
+    public String getFileFingerprint(File file) { return computeSha256(file); }
 
     private String computeSha256(File file) {
         if (file == null || !file.exists() || !file.isFile()) {

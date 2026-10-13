@@ -61,12 +61,35 @@ public class AstPrinter implements AstVisitor<String> {
     @Override
     public String visit(Block node) {
         StringBuilder sb = new StringBuilder();
+        boolean previousIsFunction = false;
         for (Statement stmt : node.statements) {
+            boolean currentIsFunction = isFunctionDefinition(stmt);
+            if (sb.length() > 0 && (previousIsFunction || currentIsFunction)) {
+                sb.append("\n");
+            }
             sb.append(getIndent());
             sb.append(stmt.accept(this));
             sb.append("\n");
+            previousIsFunction = currentIsFunction;
         }
         return sb.toString();
+    }
+
+    private boolean isFunctionDefinition(Statement statement) {
+        if (statement instanceof FunctionDeclaration) {
+            return true;
+        }
+        List<Expression> values;
+        if (statement instanceof LocalAssign) {
+            values = ((LocalAssign) statement).right;
+        } else if (statement instanceof Assign) {
+            values = ((Assign) statement).right;
+        } else if (statement instanceof GlobalAssign) {
+            values = ((GlobalAssign) statement).right;
+        } else {
+            return false;
+        }
+        return values.stream().anyMatch(value -> value instanceof FunctionLiteral);
     }
     
     @Override

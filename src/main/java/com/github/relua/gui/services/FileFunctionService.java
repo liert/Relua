@@ -21,6 +21,7 @@ import java.util.Map;
 /** 文件函数索引；读取、反编译和函数提取不写入源文件或工作区。 */
 public class FileFunctionService {
     public List<OutlineItem> load(File file) throws IOException {
+        FileMetadata snapshot = ProjectWorkspaceManager.getInstance().getValidSourceSnapshot(file);
         LuacFile luacFile;
         String source;
         Map<String, LineRange> ranges = Collections.emptyMap();
@@ -35,6 +36,9 @@ public class FileFunctionService {
             source = new String(bytes, StandardCharsets.UTF_8);
             return build(restoredSource(file, source), null, ranges);
         }
+        if (snapshot != null) {
+            return build(snapshot.getEditedText(), luacFile, snapshot.getChunkLineRanges());
+        }
         Decompiler decompiler = new Decompiler();
         source = decompiler.decompile(luacFile, false);
         ranges = decompiler.getChunkLineRanges();
@@ -42,8 +46,8 @@ public class FileFunctionService {
     }
 
     private String restoredSource(File file, String source) {
-        FileMetadata metadata = ProjectWorkspaceManager.getInstance().getFileMetadata(file);
-        return metadata != null && metadata.getEditedText() != null && !metadata.getEditedText().isEmpty()
+        FileMetadata metadata = ProjectWorkspaceManager.getInstance().getValidFileMetadata(file);
+        return metadata != null && metadata.getEditedText() != null
                 ? metadata.getEditedText() : source;
     }
 

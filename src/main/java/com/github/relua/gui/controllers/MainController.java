@@ -22,7 +22,6 @@ import com.github.relua.model.Chunk;
 import com.github.relua.model.Instruction;
 import com.github.relua.model.Constant;
 import com.github.relua.model.LocalVar;
-import com.github.relua.util.BytecodeFormatter;
 import com.github.relua.gui.theme.ThemeManager;
 import com.github.relua.gui.theme.WindowsTitleBarUtil;
 import javafx.event.ActionEvent;
@@ -43,8 +42,8 @@ import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
-import javafx.scene.control.ToggleButton;
-import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.RadioMenuItem;
+import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.TreeView;
 import javafx.scene.control.IndexRange;
@@ -63,8 +62,8 @@ import javafx.application.Platform;
 import javafx.concurrent.Task;
 import com.github.relua.gui.dialogs.BatchExportDialog;
 import com.github.relua.gui.dialogs.FindInFilesDialog;
+import com.github.relua.gui.dialogs.PreferencesDialog;
 import com.github.relua.gui.services.BatchExportService;
-import com.github.relua.gui.utils.BytecodeSyncUtils;
 import com.github.relua.gui.workspace.ProjectWorkspaceManager;
 import com.github.relua.gui.workspace.RecentHistoryManager;
 
@@ -124,6 +123,10 @@ public class MainController {
     @FXML
     private MenuItem menuItemExportSource;
     @FXML
+    private MenuItem menuItemSaveAnalysis;
+    @FXML
+    private MenuItem menuItemPreferences;
+    @FXML
     private MenuItem menuItemExit;
     
     // 编辑菜单项
@@ -160,17 +163,23 @@ public class MainController {
     
     // 视图菜单项
     @FXML
-    private MenuItem menuItemSideBySide;
+    private RadioMenuItem menuItemCodeView;
     @FXML
-    private MenuItem menuItemToggleTabBytecode;
+    private CheckMenuItem menuItemSplitView;
     @FXML
-    private MenuItem menuItemBytecodeView;
+    private RadioMenuItem menuItemBytecodeView;
     @FXML
-    private MenuItem menuItemHexView;
+    private CheckMenuItem menuItemHexView;
     @FXML
-    private MenuItem menuItemAstView;
+    private CheckMenuItem menuItemAstView;
     @FXML
-    private MenuItem menuItemCfgView;
+    private CheckMenuItem menuItemCfgView;
+    @FXML
+    private Menu menuAnalysisPanel;
+    @FXML
+    private Menu menuGraphZoom;
+    @FXML
+    private MenuItem menuItemCloseAnalysisPanel;
     @FXML
     private MenuItem menuItemZoomIn;
     @FXML
@@ -189,6 +198,8 @@ public class MainController {
     private Button btnOpenFolder;
     @FXML
     private Button btnExportSource;
+    @FXML
+    private Button btnSaveAnalysis;
     @FXML
     private Button btnBatchExport;
     @FXML
@@ -215,10 +226,6 @@ public class MainController {
     private Button btnResetZoom;
     @FXML
     private Button btnToggleTheme;
-    @FXML
-    private MenuItem menuItemDarkTheme;
-    @FXML
-    private MenuItem menuItemLightTheme;
     
     // 文件树相关
     @FXML
@@ -249,14 +256,8 @@ public class MainController {
     
     // 视图组件
     private GraphVisualizationView graphVisualizationView;
-    private TextEditorView bytecodeSubViewEditor;
     private HexView hexView;
     private StackPane subViewStackPane;
-    private javafx.scene.layout.HBox subViewHeaderBar;
-    private ToggleButton btnScopeCurrentChunk;
-    private ToggleButton btnScopeFullFile;
-    private boolean bytecodeShowFullFile = false;
-    private boolean isSynchronizingTrace = false;
     
     // AST到图形的转换器
     private ASTGraphConverter astGraphConverter;
@@ -266,7 +267,7 @@ public class MainController {
     
     // 子视图类型枚举
     private enum SubViewType {
-        NONE, BYTECODE, AST, CFG, HEX
+        NONE, AST, CFG, HEX
     }
     
     // 当前激活的子视图类型
@@ -296,6 +297,13 @@ public class MainController {
         VBox.setVgrow(treeNode, Priority.ALWAYS);
 
         fileTreeScrollPane.setContent(treeNode);
+        ThemeManager.getInstance().addListener(theme -> {
+            Runnable update = () -> {
+                if (mainBorderPane.getScene() != null) ThemeManager.getInstance().applyTheme(mainBorderPane.getScene());
+            };
+            if (Platform.isFxApplicationThread()) update.run();
+            else Platform.runLater(update);
+        });
         
         // 初始化标签页视图
         textEditorTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
@@ -325,40 +333,6 @@ public class MainController {
         graphScrollPane.setFitToWidth(true);
         graphScrollPane.setFitToHeight(true);
         
-        // 初始化字节码代码编辑器（作为子视图代码呈现，与主代码视图体验一致）
-        bytecodeSubViewEditor = new TextEditorView(false);
-        bytecodeSubViewEditor.getCodeArea().setEditable(false);
-
-        // 注册字节码子视图光标联动：点击某指令行时，自动高亮定位到左侧主编辑器的 Lua 源码对应行
-        bytecodeSubViewEditor.getCodeArea().caretPositionProperty().addListener((obs, oldVal, newVal) -> {
-            if (isSynchronizingTrace || !graphContainer.isVisible() || currentSubViewType != SubViewType.BYTECODE) {
-                return;
-            }
-            if (newVal == null) {
-                return;
-            }
-            int paragraph = bytecodeSubViewEditor.getCodeArea().getCurrentParagraph();
-            if (paragraph < 0 || paragraph >= bytecodeSubViewEditor.getCodeArea().getParagraphs().size()) {
-                return;
-            }
-            String lineText = bytecodeSubViewEditor.getCodeArea().getParagraph(paragraph).getText();
-            int sourceLine = BytecodeSyncUtils.extractSourceLineFromBytecode(lineText);
-            if (sourceLine > 0) {
-                TextEditorView activeEditor = getActiveTextEditorView();
-                if (activeEditor != null) {
-                    isSynchronizingTrace = true;
-                    activeEditor.jumpToLine(sourceLine);
-                    int pc = BytecodeSyncUtils.extractPcFromBytecode(lineText);
-                    String pcSuffix = (pc >= 0) ? " (指令 PC " + pc + ")" : "";
-                    updateStatus("双向联动追踪：已定位至 Lua 源码第 " + sourceLine + " 行" + pcSuffix);
-                    Platform.runLater(() -> isSynchronizingTrace = false);
-                }
-            }
-        });
-
-        Node bytecodeNode = bytecodeSubViewEditor.getView();
-        VBox.setVgrow(bytecodeNode, Priority.ALWAYS);
-
         // 初始化十六进制 Hex 视图组件
         hexView = new HexView();
         Node hexNode = hexView.getView();
@@ -370,13 +344,11 @@ public class MainController {
         subViewStackPane = new StackPane();
         VBox.setVgrow(subViewStackPane, Priority.ALWAYS);
 
-        // 将原有的 graphScrollPane、bytecodeNode 和 hexNode 移入 subViewStackPane
+        // 图形和十六进制共用分析面板；字节码统一由编辑器显示。
         graphContainer.getChildren().remove(graphScrollPane);
-        subViewStackPane.getChildren().addAll(graphScrollPane, bytecodeNode, hexNode);
-        bytecodeNode.setVisible(false);
-        bytecodeNode.setManaged(false);
+        subViewStackPane.getChildren().addAll(graphScrollPane, hexNode);
 
-        // 初始化子视图顶部标题栏及范围控制按钮
+        // 初始化分析面板标题栏
         initSubViewHeader();
 
         graphContainer.getChildren().add(subViewStackPane);
@@ -412,6 +384,8 @@ public class MainController {
         editMenuHandler = new EditMenuHandler(this::getActiveTextEditorView);
         viewMenuHandler = new ViewMenuHandler(graphVisualizationView, mainSplitPane, graphContainer);
         helpMenuHandler = new HelpMenuHandler();
+        menuView.setOnShowing(event -> refreshViewMenuState());
+        refreshViewMenuState();
         
         // 设置文件树的文件打开回调
         fileTreeView.setOnFileOpenCallback(fileNode -> {
@@ -505,10 +479,7 @@ public class MainController {
         refreshRecentMenu();
 
         // 自动无感恢复历史打开的标签页
-        List<File> historyFiles = ProjectWorkspaceManager.getInstance().getHistoricalOpenedFiles();
-        for (File historyFile : historyFiles) {
-            fileMenuHandler.openFile(historyFile);
-        }
+        fileMenuHandler.restoreWorkspaceTabs();
     }
 
     /**
@@ -674,6 +645,17 @@ public class MainController {
     @FXML
     private void handleExportSource(ActionEvent event) {
         fileMenuHandler.handleExportSource(event);
+    }
+
+    @FXML
+    private void handleSaveAnalysis(ActionEvent event) {
+        fileMenuHandler.handleSaveAnalysis(event);
+    }
+
+    @FXML
+    private void handlePreferences(ActionEvent event) {
+        Window owner = mainBorderPane.getScene() != null ? mainBorderPane.getScene().getWindow() : null;
+        new PreferencesDialog(owner).showAndWait();
     }
     
     @FXML
@@ -923,8 +905,51 @@ public class MainController {
      * @param event 事件对象
      */
     @FXML
+    private void handleCodeView(ActionEvent event) {
+        showEditorView(EditorTab.ViewMode.LUA_SOURCE);
+    }
+
+    @FXML
     private void handleBytecodeView(ActionEvent event) {
-        toggleSubView(SubViewType.BYTECODE);
+        showEditorView(EditorTab.ViewMode.BYTECODE);
+    }
+
+    private void showEditorView(EditorTab.ViewMode mode) {
+        EditorTab tab = getActiveEditorTab();
+        if (tab != null) {
+            tab.setPrimaryViewMode(mode);
+            updateStatus("当前标签页已显示 " + mode.getDisplayName());
+        }
+        refreshViewMenuState();
+    }
+
+    @FXML
+    private void handleCloseAnalysisPanel(ActionEvent event) {
+        closeSubView();
+    }
+
+    private void refreshViewMenuState() {
+        EditorTab tab = getActiveEditorTab();
+        boolean ready = tab != null && tab.isFileLoaded();
+        menuItemCodeView.setDisable(!ready);
+        menuItemBytecodeView.setDisable(!ready);
+        menuItemSplitView.setDisable(!ready);
+        menuItemCodeView.setSelected(tab != null && tab.getPrimaryViewMode() == EditorTab.ViewMode.LUA_SOURCE);
+        menuItemBytecodeView.setSelected(tab != null && tab.getPrimaryViewMode() == EditorTab.ViewMode.BYTECODE);
+        menuItemSplitView.setSelected(tab != null && tab.isSideBySide());
+        menuAnalysisPanel.setDisable(!ready);
+        boolean bytecode = ready && tab.getLuacFile() != null;
+        menuItemAstView.setDisable(!bytecode);
+        menuItemCfgView.setDisable(!bytecode);
+        menuItemHexView.setSelected(currentSubViewType == SubViewType.HEX);
+        menuItemAstView.setSelected(currentSubViewType == SubViewType.AST);
+        menuItemCfgView.setSelected(currentSubViewType == SubViewType.CFG);
+        menuItemCloseAnalysisPanel.setDisable(currentSubViewType == SubViewType.NONE);
+        boolean graph = currentSubViewType == SubViewType.AST || currentSubViewType == SubViewType.CFG;
+        menuGraphZoom.setDisable(!graph || !bytecode);
+        btnZoomIn.setDisable(!graph || !bytecode);
+        btnZoomOut.setDisable(!graph || !bytecode);
+        btnResetZoom.setDisable(!graph || !bytecode);
     }
     
     /**
@@ -955,7 +980,7 @@ public class MainController {
     }
     
     private void initSubViewHeader() {
-        subViewHeaderBar = new javafx.scene.layout.HBox(8);
+        HBox subViewHeaderBar = new HBox(8);
         subViewHeaderBar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         subViewHeaderBar.getStyleClass().add("editor-tab-header");
 
@@ -967,31 +992,6 @@ public class MainController {
         javafx.scene.layout.HBox.setHgrow(spacer, Priority.ALWAYS);
         subViewHeaderBar.getChildren().add(spacer);
 
-        ToggleGroup scopeGroup = new ToggleGroup();
-        btnScopeCurrentChunk = new ToggleButton("当前函数");
-        btnScopeFullFile = new ToggleButton("完整文件");
-        btnScopeCurrentChunk.setToggleGroup(scopeGroup);
-        btnScopeFullFile.setToggleGroup(scopeGroup);
-        btnScopeCurrentChunk.setSelected(true);
-
-        btnScopeCurrentChunk.setOnAction(e -> {
-            bytecodeShowFullFile = false;
-            updateSubViewTitle(SubViewType.BYTECODE);
-            handleCaretPositionChanged(true);
-        });
-        btnScopeFullFile.setOnAction(e -> {
-            bytecodeShowFullFile = true;
-            updateSubViewTitle(SubViewType.BYTECODE);
-            handleCaretPositionChanged(true);
-        });
-
-        // 默认隐藏范围切换按钮（仅在字节码视图模式下显示）
-        btnScopeCurrentChunk.setVisible(false);
-        btnScopeCurrentChunk.setManaged(false);
-        btnScopeFullFile.setVisible(false);
-        btnScopeFullFile.setManaged(false);
-
-        subViewHeaderBar.getChildren().addAll(btnScopeCurrentChunk, btnScopeFullFile);
         graphContainer.getChildren().add(0, subViewHeaderBar);
     }
 
@@ -1008,17 +1008,18 @@ public class MainController {
         } else {
             updateStatus("无打开的文件标签页");
         }
+        refreshViewMenuState();
     }
 
     /**
-     * 循环切换当前激活标签页的视图模式 (快捷键 Shortcut+B)
+     * 工具栏切换主面板的 Code/Bytecode，保留分屏状态。
      */
     @FXML
     private void handleToggleCurrentTabBytecode(ActionEvent event) {
         EditorTab activeTab = getActiveEditorTab();
         if (activeTab != null) {
-            activeTab.toggleBytecodeView();
-            updateStatus("当前标签页视图已切换为: " + activeTab.getViewMode().getDisplayName());
+            showEditorView(activeTab.getPrimaryViewMode() == EditorTab.ViewMode.BYTECODE
+                    ? EditorTab.ViewMode.LUA_SOURCE : EditorTab.ViewMode.BYTECODE);
         } else {
             updateStatus("无打开的文件标签页");
         }
@@ -1038,21 +1039,14 @@ public class MainController {
         // 激活新的子视图
         currentSubViewType = subViewType;
         
-        boolean isBytecode = (subViewType == SubViewType.BYTECODE);
         boolean isHex = (subViewType == SubViewType.HEX);
         boolean isGraph = (subViewType == SubViewType.AST || subViewType == SubViewType.CFG);
 
         graphScrollPane.setVisible(isGraph);
         graphScrollPane.setManaged(isGraph);
-        bytecodeSubViewEditor.getView().setVisible(isBytecode);
-        bytecodeSubViewEditor.getView().setManaged(isBytecode);
         hexView.getView().setVisible(isHex);
         hexView.getView().setManaged(isHex);
 
-        btnScopeCurrentChunk.setVisible(isBytecode);
-        btnScopeCurrentChunk.setManaged(isBytecode);
-        btnScopeFullFile.setVisible(isBytecode);
-        btnScopeFullFile.setManaged(isBytecode);
 
         // 确保副视图容器可见
         if (!graphContainer.isVisible()) {
@@ -1076,6 +1070,7 @@ public class MainController {
             // 强制根据当前光标位置渲染对应的 Chunk
             handleCaretPositionChanged(true);
         }
+        refreshViewMenuState();
     }
     
     /**
@@ -1085,6 +1080,7 @@ public class MainController {
         currentSubViewType = SubViewType.NONE;
         mainSplitPane.getItems().remove(graphContainer);
         graphContainer.setVisible(false);
+        refreshViewMenuState();
         Platform.runLater(this::applyFileTreeDividerPosition);
         updateStatus("子视图已关闭");
     }
@@ -1097,13 +1093,6 @@ public class MainController {
         String funcName = (currentDisplayedChunk != null) ? currentDisplayedChunk.getFunction() : "";
         String titleSuffix = (funcName == null || funcName.isEmpty()) ? "" : " - [" + funcName + "]";
         switch (subViewType) {
-            case BYTECODE:
-                if (bytecodeShowFullFile) {
-                    astGraphLabel.setText("字节码视图 - [完整文件]");
-                } else {
-                    astGraphLabel.setText("字节码视图" + titleSuffix);
-                }
-                break;
             case AST:
                 astGraphLabel.setText("AST视图" + titleSuffix);
                 break;
@@ -1126,16 +1115,6 @@ public class MainController {
      * @param chunk 目标代码块
      */
     private void executeSubViewConversionForChunk(SubViewType subViewType, Chunk chunk) {
-        executeSubViewConversionForChunk(subViewType, chunk, -1);
-    }
-
-    /**
-     * 执行子视图转换并支持指定行号的即时联动定位
-     * @param subViewType 子视图类型
-     * @param chunk 目标代码块
-     * @param targetSourceLine 需同步定位的源码行号（<=0 表示不定位）
-     */
-    private void executeSubViewConversionForChunk(SubViewType subViewType, Chunk chunk, int targetSourceLine) {
         if (chunk == null) {
             return;
         }
@@ -1144,38 +1123,37 @@ public class MainController {
             return;
         }
         
+        EditorTab conversionTab = getActiveEditorTab();
+        com.github.relua.decompiler.pipeline.DecompilerResult existingResult = conversionTab.getDecompilerResult();
+        // 缓存源码不加载 AST/CFG；用户打开图视图时再在后台生成。
         // 创建并启动后台任务
         Task<Void> task = new Task<Void>() {
             @Override
             protected Void call() throws Exception {
                 updateMessage("正在生成" + getSubViewName(subViewType) + "...");
+                com.github.relua.decompiler.pipeline.DecompilerResult graphResult = existingResult;
+                if ((subViewType == SubViewType.AST || subViewType == SubViewType.CFG) && graphResult == null) {
+                    com.github.relua.decompiler.Decompiler decompiler = new com.github.relua.decompiler.Decompiler();
+                    decompiler.decompile(luacFile);
+                    graphResult = decompiler.getLastResult();
+                }
+                final com.github.relua.decompiler.pipeline.DecompilerResult preparedResult = graphResult;
                 
                 switch (subViewType) {
-                    case BYTECODE:
-                        updateMessage("正在生成字节码代码视图...");
-                        String bytecodeText;
-                        if (bytecodeShowFullFile) {
-                            bytecodeText = BytecodeFormatter.formatLuacFile(luacFile);
-                        } else {
-                            bytecodeText = BytecodeFormatter.formatChunk(chunk, true);
-                        }
-                        Platform.runLater(() -> {
-                            bytecodeSubViewEditor.setText(bytecodeText);
-                            if (targetSourceLine > 0) {
-                                syncBytecodeSubViewToSourceLine(targetSourceLine);
-                            }
-                        });
-                        break;
                     case AST:
                         updateMessage("正在生成AST视图...");
                         Platform.runLater(() -> {
-                            astGraphConverter.convertToGraph(chunk, fileMenuHandler.getCurrentDecompilerResult());
+                            if (conversionTab != getActiveEditorTab() || currentSubViewType != subViewType) return;
+                            conversionTab.setDecompilerResult(preparedResult);
+                            astGraphConverter.convertToGraph(chunk, preparedResult);
                         });
                         break;
                     case CFG:
                         updateMessage("正在生成CFG视图...");
                         javafx.application.Platform.runLater(() -> {
-                            cfgGraphConverter.convertToGraph(chunk, fileMenuHandler.getCurrentDecompilerResult());
+                            if (conversionTab != getActiveEditorTab() || currentSubViewType != subViewType) return;
+                            conversionTab.setDecompilerResult(preparedResult);
+                            cfgGraphConverter.convertToGraph(chunk, preparedResult);
                         });
                         break;
                 }
@@ -1202,40 +1180,12 @@ public class MainController {
     }
 
     /**
-     * 将右侧字节码子视图平滑滚动并高亮至指定的 Lua 源码行对应的指令
-     * @param sourceLine 目标 Lua 源码行号（1-based）
-     */
-    private void syncBytecodeSubViewToSourceLine(int sourceLine) {
-        if (bytecodeSubViewEditor == null || isSynchronizingTrace) {
-            return;
-        }
-        if (!graphContainer.isVisible() || currentSubViewType != SubViewType.BYTECODE) {
-            return;
-        }
-        String bytecodeText = bytecodeSubViewEditor.getCodeArea().getText();
-        if (bytecodeText == null || bytecodeText.isEmpty()) {
-            return;
-        }
-        int targetParagraph = BytecodeSyncUtils.findBytecodeParagraphForSourceLine(bytecodeText, sourceLine);
-        if (targetParagraph >= 0 && targetParagraph < bytecodeSubViewEditor.getCodeArea().getParagraphs().size()) {
-            isSynchronizingTrace = true;
-            try {
-                bytecodeSubViewEditor.jumpToLine(targetParagraph + 1);
-            } finally {
-                Platform.runLater(() -> isSynchronizingTrace = false);
-            }
-        }
-    }
-    
-    /**
      * 获取子视图名称
      * @param subViewType 子视图类型
      * @return 子视图名称
      */
     private String getSubViewName(SubViewType subViewType) {
         switch (subViewType) {
-            case BYTECODE:
-                return "字节码视图";
             case AST:
                 return "AST视图";
             case CFG:
@@ -1259,6 +1209,7 @@ public class MainController {
     }
 
     private void handleCaretPositionChanged(boolean force) {
+        refreshViewMenuState();
         TextEditorView activeEditor = getActiveTextEditorView();
         updateCursorPositionStatus(activeEditor);
 
@@ -1270,6 +1221,7 @@ public class MainController {
         if (luacFile == null) {
             currentDisplayedChunk = null;
             lastLoadedLuacFile = null;
+            if (currentSubViewType == SubViewType.AST || currentSubViewType == SubViewType.CFG) closeSubView();
             return;
         }
 
@@ -1295,11 +1247,8 @@ public class MainController {
             // 如果图形可视化视图处于显示状态，则执行更新
             if (graphContainer.isVisible()) {
                 updateSubViewTitle(currentSubViewType);
-                executeSubViewConversionForChunk(currentSubViewType, targetChunk, currentLine);
+                executeSubViewConversionForChunk(currentSubViewType, targetChunk);
             }
-        } else if (graphContainer.isVisible() && currentSubViewType == SubViewType.BYTECODE) {
-            // 同一个 Chunk 内部换行，即时同步高亮对应的字节码指令
-            syncBytecodeSubViewToSourceLine(currentLine);
         }
     }
 
@@ -1314,6 +1263,7 @@ public class MainController {
     }
 
     private void handleActiveTabChanged(Tab newTab) {
+        refreshViewMenuState();
         if (newTab instanceof EditorTab) {
             EditorTab activeTab = (EditorTab) newTab;
             wireTabNavigationCallbacks(activeTab);
@@ -1560,6 +1510,8 @@ public class MainController {
         menuItemOpen.setText(I18nUtil.getString("menu.file.open"));
         menuItemOpenFolder.setText(I18nUtil.getString("menu.file.openFolder"));
         menuItemExportSource.setText(I18nUtil.getString("menu.file.exportSource"));
+        menuItemSaveAnalysis.setText(I18nUtil.getString("menu.file.saveAnalysis"));
+        menuItemPreferences.setText(I18nUtil.getString("menu.file.preferences"));
         menuItemExit.setText(I18nUtil.getString("menu.file.exit"));
 
         menuItemUndo.setText(I18nUtil.getString("menu.edit.undo"));
@@ -1571,6 +1523,12 @@ public class MainController {
         menuItemZoomIn.setText(I18nUtil.getString("menu.view.zoomIn"));
         menuItemZoomOut.setText(I18nUtil.getString("menu.view.zoomOut"));
         menuItemResetZoom.setText(I18nUtil.getString("menu.view.resetZoom"));
+        menuAnalysisPanel.setText(I18nUtil.getString("menu.view.analysisPanel"));
+        menuGraphZoom.setText(I18nUtil.getString("menu.view.graphZoom"));
+        menuItemHexView.setText(I18nUtil.getString("menu.view.hex"));
+        menuItemAstView.setText(I18nUtil.getString("menu.view.ast"));
+        menuItemCfgView.setText(I18nUtil.getString("menu.view.cfg"));
+        menuItemCloseAnalysisPanel.setText(I18nUtil.getString("menu.view.closeAnalysisPanel"));
 
         menuItemAbout.setText(I18nUtil.getString("menu.help.about"));
 
@@ -1583,6 +1541,8 @@ public class MainController {
         }
 
         btnExportSource.setText("⇩ " + I18nUtil.getString("toolbar.exportSource"));
+        btnSaveAnalysis.setText("💾 " + I18nUtil.getString("toolbar.saveAnalysis"));
+        btnSaveAnalysis.setTooltip(new Tooltip(I18nUtil.getString("toolbar.saveAnalysisTooltip")));
         btnExportSource.setTooltip(new Tooltip("将当前 Lua 源码导出到独立文件 (Ctrl+E)"));
 
         if (btnBatchExport != null) {
@@ -1601,7 +1561,7 @@ public class MainController {
         }
 
         btnToggleBytecode.setText("⇄ 切换视图");
-        btnToggleBytecode.setTooltip(new Tooltip("循环切换 Lua 源码、分屏对照与字节码反汇编视图 (Ctrl+B)"));
+        btnToggleBytecode.setTooltip(new Tooltip("切换主面板 Code / Bytecode，保留 Split view 状态"));
 
         btnUndo.setText("↶ " + I18nUtil.getString("toolbar.undo"));
         btnUndo.setTooltip(new Tooltip("撤销操作 (Ctrl+Z)"));
@@ -1627,26 +1587,6 @@ public class MainController {
         logLabel.setText(I18nUtil.getString("label.log"));
         btnClearLog.setText(I18nUtil.getString("btn.clearLog"));
         btnClearLog.setTooltip(new Tooltip("清空运行控制台日志输出"));
-    }
-
-    /**
-     * 切换到现代暗色主题
-     */
-    @FXML
-    private void handleDarkTheme(ActionEvent event) {
-        Scene scene = (mainBorderPane != null) ? mainBorderPane.getScene() : null;
-        ThemeManager.getInstance().setTheme(ThemeManager.Theme.DARK, scene);
-        updateStageTitleBarTheme(scene, true);
-    }
-
-    /**
-     * 切换到现代浅色主题
-     */
-    @FXML
-    private void handleLightTheme(ActionEvent event) {
-        Scene scene = (mainBorderPane != null) ? mainBorderPane.getScene() : null;
-        ThemeManager.getInstance().setTheme(ThemeManager.Theme.LIGHT, scene);
-        updateStageTitleBarTheme(scene, false);
     }
 
     /**

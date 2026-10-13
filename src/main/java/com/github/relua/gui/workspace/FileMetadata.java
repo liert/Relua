@@ -3,9 +3,10 @@ package com.github.relua.gui.workspace;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import com.github.relua.model.LineRange;
 
 /**
- * 单个文件的持久化元数据模型，记录变量重命名映射、用户覆盖代码与文件指纹
+ * 单个文件的持久化元数据模型，记录源码快照、函数范围、分析修改与文件指纹
  */
 public class FileMetadata {
     private String relativePath;
@@ -14,6 +15,20 @@ public class FileMetadata {
     private final Map<Integer, String> lineComments = new LinkedHashMap<>();
     private String editedText;
     private long lastModifiedTime;
+    private boolean sourceSnapshot;
+    private final Map<String, LineRange> chunkLineRanges = new LinkedHashMap<>();
+    private int caretPosition;
+
+    public boolean hasSourceSnapshot() { return sourceSnapshot && editedText != null; }
+    public void setSourceSnapshot(boolean sourceSnapshot) { this.sourceSnapshot = sourceSnapshot; }
+    public Map<String, LineRange> getChunkLineRanges() { return Collections.unmodifiableMap(chunkLineRanges); }
+    public void setChunkLineRanges(Map<String, LineRange> ranges) {
+        Map<String, LineRange> copy = ranges == null ? Collections.emptyMap() : new LinkedHashMap<>(ranges);
+        chunkLineRanges.clear();
+        chunkLineRanges.putAll(copy);
+    }
+    public int getCaretPosition() { return caretPosition; }
+    public void setCaretPosition(int caretPosition) { this.caretPosition = Math.max(0, caretPosition); }
 
     public FileMetadata() {
         this.lastModifiedTime = System.currentTimeMillis();
@@ -109,10 +124,10 @@ public class FileMetadata {
     }
 
     /**
-     * 判断当前文件是否存在实际的修改记录（有重命名变量、有行注释或有编辑代码文本）
-     * @return 是否有实际修改
+     * 判断当前文件是否存在需要保存的分析记录或源码快照。
+     * @return 是否有持久化内容
      */
     public boolean hasModifications() {
-        return !renamedVariables.isEmpty() || !lineComments.isEmpty() || (editedText != null && !editedText.isEmpty());
+        return sourceSnapshot || !renamedVariables.isEmpty() || !lineComments.isEmpty() || (editedText != null && !editedText.isEmpty());
     }
 }

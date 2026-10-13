@@ -3,6 +3,9 @@
 <?import javafx.scene.control.Menu?>
 <?import javafx.scene.control.MenuBar?>
 <?import javafx.scene.control.MenuItem?>
+<?import javafx.scene.control.RadioMenuItem?>
+<?import javafx.scene.control.CheckMenuItem?>
+<?import javafx.scene.control.ToggleGroup?>
 <?import javafx.scene.control.SplitPane?>
 <?import javafx.scene.control.ToolBar?>
 <?import javafx.scene.control.Button?>
@@ -33,7 +36,10 @@
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemBatchExport" onAction="#handleBatchExport" text="批量反编译导出为工程..." accelerator="Shortcut+Shift+E" />
                         <SeparatorMenuItem />
+                        <MenuItem fx:id="menuItemSaveAnalysis" onAction="#handleSaveAnalysis" accelerator="Shortcut+S" />
                         <MenuItem fx:id="menuItemExportSource" onAction="#handleExportSource" accelerator="Shortcut+E" />
+                        <SeparatorMenuItem />
+                        <MenuItem fx:id="menuItemPreferences" onAction="#handlePreferences" accelerator="Shortcut+Comma" />
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemExit" onAction="#handleExit" />
                     </items>
@@ -70,31 +76,29 @@
                 <!-- 视图菜单 -->
                 <Menu fx:id="menuView">
                     <items>
-                        <MenuItem fx:id="menuItemSideBySide" onAction="#handleSideBySideView" text="◫ 源码与字节码并排分屏" accelerator="Shortcut+Alt+B" />
-                        <MenuItem fx:id="menuItemToggleTabBytecode" onAction="#handleToggleCurrentTabBytecode" text="⇄ 循环切换视图模式 (源码/分屏/字节码)" accelerator="Shortcut+B" />
+                        <RadioMenuItem fx:id="menuItemCodeView" onAction="#handleCodeView" text="Code">
+                            <toggleGroup><ToggleGroup fx:id="editorViewGroup" /></toggleGroup>
+                        </RadioMenuItem>
+                        <RadioMenuItem fx:id="menuItemBytecodeView" onAction="#handleBytecodeView" text="Bytecode" toggleGroup="$editorViewGroup" accelerator="Shortcut+B" />
+                        <CheckMenuItem fx:id="menuItemSplitView" onAction="#handleSideBySideView" text="Split view" accelerator="Shortcut+Alt+B" />
                         <SeparatorMenuItem />
-                        <!-- 界面主题子菜单 -->
-                        <Menu text="界面主题 (Theme)">
+                        <Menu fx:id="menuAnalysisPanel" text="分析面板">
                             <items>
-                                <MenuItem fx:id="menuItemDarkTheme" onAction="#handleDarkTheme" text="🌓 现代暗色 (Modern Dark)" />
-                                <MenuItem fx:id="menuItemLightTheme" onAction="#handleLightTheme" text="☀️ 现代浅色 (Modern Light)" />
+                                <CheckMenuItem fx:id="menuItemHexView" onAction="#handleHexView" text="Hex 十六进制" accelerator="Shortcut+Alt+H" />
+                                <CheckMenuItem fx:id="menuItemAstView" onAction="#handleAstView" text="AST 语法树" />
+                                <CheckMenuItem fx:id="menuItemCfgView" onAction="#handleCfgView" text="CFG 控制流图" />
+                                <SeparatorMenuItem />
+                                <MenuItem fx:id="menuItemCloseAnalysisPanel" onAction="#handleCloseAnalysisPanel" text="关闭分析面板" />
                             </items>
                         </Menu>
                         <SeparatorMenuItem />
-                        <!-- 子视图子菜单 -->
-                        <Menu text="分析子视图">
+                        <Menu fx:id="menuGraphZoom" text="图形缩放">
                             <items>
-                                <MenuItem fx:id="menuItemBytecodeView" onAction="#handleBytecodeView" text="字节码子视图" />
-                                <MenuItem fx:id="menuItemHexView" onAction="#handleHexView" text="十六进制 Hex 视窗" accelerator="Shortcut+Alt+H" />
-                                <MenuItem fx:id="menuItemAstView" onAction="#handleAstView" text="AST 语法树视图" />
-                                <MenuItem fx:id="menuItemCfgView" onAction="#handleCfgView" text="CFG 控制流图视图" />
+                                <MenuItem fx:id="menuItemZoomIn" onAction="#handleZoomIn" />
+                                <MenuItem fx:id="menuItemZoomOut" onAction="#handleZoomOut" />
+                                <MenuItem fx:id="menuItemResetZoom" onAction="#handleResetZoom" />
                             </items>
                         </Menu>
-                        <SeparatorMenuItem />
-                        <!-- 缩放相关菜单项 -->
-                        <MenuItem fx:id="menuItemZoomIn" onAction="#handleZoomIn" />
-                        <MenuItem fx:id="menuItemZoomOut" onAction="#handleZoomOut" />
-                        <MenuItem fx:id="menuItemResetZoom" onAction="#handleResetZoom" />
                     </items>
                 </Menu>
                 
@@ -115,6 +119,7 @@
             <ToolBar>
                 <Button fx:id="btnOpen" onAction="#handleOpenFile" />
                 <Button fx:id="btnOpenFolder" onAction="#handleOpenFolder" text="📁 打开工程" />
+                <Button fx:id="btnSaveAnalysis" onAction="#handleSaveAnalysis" />
                 <Button fx:id="btnExportSource" onAction="#handleExportSource" />
                 <Button fx:id="btnBatchExport" onAction="#handleBatchExport" text="📦 批量导出" />
                 <Separator orientation="VERTICAL" />

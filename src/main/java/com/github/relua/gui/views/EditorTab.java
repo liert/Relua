@@ -4,6 +4,7 @@ import com.github.relua.model.LuacFile;
 import com.github.relua.model.LineRange;
 import com.github.relua.decompiler.pipeline.DecompilerResult;
 import com.github.relua.gui.utils.BytecodeSyncUtils;
+import com.github.relua.gui.preferences.SettingsManager;
 import com.github.relua.util.BytecodeFormatter;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
@@ -53,6 +54,7 @@ public class EditorTab extends Tab {
     }
 
     private File file;
+    private final SettingsManager settingsManager;
     private final TextEditorView textEditorView; // Lua 代码编辑器视图
     private final TextEditorView bytecodeEditorView; // 字节码代码编辑器视图
     private ViewMode viewMode = ViewMode.LUA_SOURCE;
@@ -62,6 +64,7 @@ public class EditorTab extends Tab {
     private boolean fileLoaded;
     
     private LuacFile luacFile;
+    private String sourceFingerprint;
     private DecompilerResult decompilerResult;
     private Map<String, LineRange> chunkLineRanges;
     private Task<?> activeTask;
@@ -106,6 +109,7 @@ public class EditorTab extends Tab {
     public EditorTab(File file, TextEditorView textEditorView) {
         super(file != null ? file.getName() : "未命名");
         this.file = file;
+        this.settingsManager = textEditorView.getSettingsManager();
         this.textEditorView = textEditorView;
         this.textEditorView.setCurrentFile(file);
         this.textEditorView.setEditable(false); // 确保 Lua 源码视图只读不可直接编辑，保护反编译成果
@@ -125,7 +129,7 @@ public class EditorTab extends Tab {
         });
         
         // 创建字节码代码编辑器（与代码视图体验一致）
-        this.bytecodeEditorView = new TextEditorView(false);
+        this.bytecodeEditorView = new TextEditorView(false, settingsManager);
         this.bytecodeEditorView.setCurrentFile(file);
         this.bytecodeEditorView.getCodeArea().setEditable(false); // 字节码只读
 
@@ -175,6 +179,7 @@ public class EditorTab extends Tab {
 
         observeEditor(textEditorView, ViewMode.LUA_SOURCE);
         observeEditor(bytecodeEditorView, ViewMode.BYTECODE);
+        if (settingsManager.getSettings().isDefaultSplitView()) setSplitView(true);
     }
 
     private void observeEditor(TextEditorView editor, ViewMode mode) {
@@ -358,7 +363,7 @@ public class EditorTab extends Tab {
         if (duplicate != null) return duplicate;
 
         TextEditorView original = mode == ViewMode.BYTECODE ? bytecodeEditorView : textEditorView;
-        duplicate = new TextEditorView(false);
+        duplicate = new TextEditorView(false, settingsManager);
         duplicate.setCurrentFile(file);
         duplicate.setEditable(false);
         duplicate.setText(original.getText());
@@ -612,6 +617,9 @@ public class EditorTab extends Tab {
     public LuacFile getLuacFile() {
         return luacFile;
     }
+
+    public String getSourceFingerprint() { return sourceFingerprint; }
+    public void setSourceFingerprint(String sourceFingerprint) { this.sourceFingerprint = sourceFingerprint; }
 
     public boolean isFileLoaded() {
         return fileLoaded;

@@ -31,6 +31,21 @@
     -theme-fg-bold: #1a202c;
 }
 
+.dialog-pane.preferences-dialog .preferences-heading {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -theme-fg-bold;
+}
+
+.dialog-pane.preferences-dialog .preferences-hint {
+    -fx-font-size: 11px;
+    -fx-text-fill: -theme-fg-muted;
+}
+
+.dialog-pane.preferences-dialog .preferences-error {
+    -fx-text-fill: #dc2626;
+}
+
 /* ==========================================================================
    主窗口与基础容器
    ========================================================================== */

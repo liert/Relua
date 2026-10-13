@@ -60,13 +60,20 @@ public class FileMenuHandler {
         final Map<String, LineRange> chunkLineRanges;
         final boolean isText;
         final DecompilerResult decompilerResult;
+        final FileMetadata metadata;
+        final String fingerprint;
+        final boolean fromSnapshot;
         
-        DecompileResult(String luaCode, LuacFile luacFile, Map<String, LineRange> chunkLineRanges, boolean isText, DecompilerResult decompilerResult) {
+        DecompileResult(String luaCode, LuacFile luacFile, Map<String, LineRange> chunkLineRanges, boolean isText,
+                        DecompilerResult decompilerResult, FileMetadata metadata, String fingerprint, boolean fromSnapshot) {
             this.luaCode = luaCode;
             this.luacFile = luacFile;
             this.chunkLineRanges = chunkLineRanges;
             this.isText = isText;
             this.decompilerResult = decompilerResult;
+            this.metadata = metadata;
+            this.fingerprint = fingerprint;
+            this.fromSnapshot = fromSnapshot;
         }
     }
 
@@ -223,7 +230,7 @@ public class FileMenuHandler {
         updateFileLabel(file.getName());
         updateStatus("Opening file...");
 
-        tab.showLoading("正在反编译，请稍候...");
+        tab.showLoading("正在读取文件与分析快照...");
 
         final int taskId = ++currentTaskId;
 
@@ -241,6 +248,13 @@ public class FileMenuHandler {
         Task<DecompileResult> task = new Task<DecompileResult>() {
             @Override
             protected DecompileResult call() throws Exception {
+                ProjectWorkspaceManager workspace = ProjectWorkspaceManager.getInstance();
+                String fingerprint = workspace.getFileFingerprint(file);
+                FileMetadata stored = workspace.getFileMetadata(file);
+                // 原文件变化后不应用旧的源码、重命名或注释。
+                FileMetadata metadata = stored != null && fingerprint != null
+                        && fingerprint.equals(stored.getFileSha256()) ? stored : null;
+                boolean fromSnapshot = metadata != null && metadata.hasSourceSnapshot();
                 updateMessage("正在解析字节码...");
                 LuacParser parser = new LuacParser();
                 
@@ -254,14 +268,21 @@ public class FileMenuHandler {
                     if (isCancelled()) return null;
                     if (isTextFile(file)) {
                         updateMessage("正在读取文本文件...");
-                        String textContent = readTextFileContent(file);
-                        return new DecompileResult(textContent, null, new java.util.HashMap<>(), true, null);
+                        String textContent = fromSnapshot ? metadata.getEditedText() : readTextFileContent(file);
+                        return new DecompileResult(textContent, null, new java.util.HashMap<>(), true, null,
+                                metadata, fingerprint, fromSnapshot);
                     } else {
                         throw e;
                     }
                 }
 
                 if (isCancelled()) return null;
+
+                if (fromSnapshot) {
+                    updateMessage("正在恢复已保存的源码...");
+                    return new DecompileResult(metadata.getEditedText(), luacFile, metadata.getChunkLineRanges(),
+                            false, null, metadata, fingerprint, true);
+                }
 
                 // 进行反编译并生成 Lua 代码
                 updateMessage("正在生成 Lua 代码...");
@@ -271,7 +292,8 @@ public class FileMenuHandler {
 
                 if (isCancelled()) return null;
 
-                return new DecompileResult(luaCode, luacFile, lineRanges, false, decompiler.getLastResult());
+                return new DecompileResult(luaCode, luacFile, lineRanges, false, decompiler.getLastResult(),
+                        metadata, fingerprint, false);
             }
 
             @Override
@@ -282,6 +304,7 @@ public class FileMenuHandler {
 
                 DecompileResult result = getValue();
                 if (result != null) {
+                    tab.setSourceFingerprint(result.fingerprint);
                     tab.setLuacFile(result.luacFile);
                     tab.setChunkLineRanges(result.chunkLineRanges);
                     tab.setDecompilerResult(result.decompilerResult);
@@ -290,9 +313,9 @@ public class FileMenuHandler {
                     tab.getTextEditorView().setText(result.luaCode);
 
                     // 自动应用历史持久化元数据（恢复变量重命名、行注释或用户编辑文本）
-                    FileMetadata metadata = ProjectWorkspaceManager.getInstance().getFileMetadata(file);
+                    FileMetadata metadata = result.metadata;
                     if (metadata != null) {
-                        if (metadata.getEditedText() != null && !metadata.getEditedText().isEmpty()) {
+                        if (metadata.getEditedText() != null) {
                             tab.getTextEditorView().setText(metadata.getEditedText());
                         } else {
                             if (!metadata.getRenamedVariables().isEmpty()) {
@@ -307,9 +330,13 @@ public class FileMenuHandler {
                             }
                         }
                         tab.restoreAnalysisState(metadata.getRenamedVariables(), metadata.getLineComments());
+                        tab.getLuaEditorView().getCodeArea().moveTo(Math.min(metadata.getCaretPosition(),
+                                tab.getLuaEditorView().getText().length()));
                     }
 
-                    if (result.isText) {
+                    if (result.fromSnapshot) {
+                         updateStatus("已恢复保存的源码: " + file.getName());
+                    } else if (result.isText) {
                          updateStatus("Opened text file: " + file.getName());
                     } else {
                          updateStatus("File opened successfully");
@@ -378,6 +405,36 @@ public class FileMenuHandler {
 
     public void saveAnalysis() {
         ProjectWorkspaceManager.getInstance().save(collectOpenedTabs(), getActiveTab());
+    }
+
+    public void restoreWorkspaceTabs() {
+        ProjectWorkspaceManager workspace = ProjectWorkspaceManager.getInstance();
+        String activePath = workspace.getCurrentWorkspace().getActiveFilePath();
+        for (File file : workspace.getHistoricalOpenedFiles()) openFile(file);
+        for (EditorTab tab : collectOpenedTabs()) {
+            if (workspace.toRelativePath(tab.getFile()).equals(activePath)) {
+                textEditorTabPane.getSelectionModel().select(tab);
+                break;
+            }
+        }
+    }
+
+    public void handleSaveAnalysis(ActionEvent event) {
+        try {
+            List<File> savedFiles = ProjectWorkspaceManager.getInstance()
+                    .saveChecked(collectOpenedTabs(), getActiveTab());
+            if (savedFiles.isEmpty()) {
+                updateStatus(I18nUtil.getString("status.analysisNothingToSave"));
+            } else {
+                String paths = savedFiles.stream().map(File::getAbsolutePath)
+                        .collect(java.util.stream.Collectors.joining("; "));
+                updateStatus(I18nUtil.getString("status.analysisSaved", paths));
+            }
+        } catch (IOException e) {
+            updateStatus(I18nUtil.getString("status.analysisSaveFailed", e.getMessage()));
+            showError(I18nUtil.getString("dialog.error.title"),
+                    I18nUtil.getString("status.analysisSaveFailed", e.getMessage()));
+        }
     }
 
     /**

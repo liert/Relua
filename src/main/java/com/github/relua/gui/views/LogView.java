@@ -1,6 +1,9 @@
 package com.github.relua.gui.views;
 
 import com.github.relua.gui.theme.ThemeManager;
+import com.github.relua.gui.preferences.AppSettings;
+import com.github.relua.gui.preferences.EditorAppearance;
+import com.github.relua.gui.preferences.SettingsManager;
 import com.github.relua.log.LogLevel;
 import com.github.relua.log.LogOutput;
 import com.github.relua.log.Logger;
@@ -21,6 +24,8 @@ import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.SimpleFormatter;
+import java.util.function.Consumer;
+import java.util.prefs.BackingStoreException;
 
 /**
  * 日志视图类，采用与主代码区域相同的 RichTextFX 高性能虚拟化渲染引擎，
@@ -36,6 +41,8 @@ public class LogView {
     private LogHandler julLogHandler;
     private Level currentJulLevel = Level.ALL;
     private LogLevel currentCoreLevel = LogLevel.DEBUG;
+    private final SettingsManager settingsManager;
+    private final Consumer<AppSettings> settingsListener;
 
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
 
@@ -69,6 +76,15 @@ public class LogView {
      * 构造函数
      */
     public LogView() {
+        this(SettingsManager.getInstance());
+    }
+
+    public LogView(SettingsManager settingsManager) {
+        this.settingsManager = settingsManager;
+        settingsListener = settings -> {
+            if (Platform.isFxApplicationThread()) applySettings(settings);
+            else Platform.runLater(() -> applySettings(settings));
+        };
         // 初始化日志代码文本区域（采用与主代码区域一致的 RichTextFX 引擎，像素级清晰）
         logCodeArea = new CodeArea();
         logCodeArea.setEditable(false);
@@ -95,6 +111,8 @@ public class LogView {
         // 初始化并监听主题变更，确保字体前景色与背景色随主题无缝热适配
         applyThemeStyles();
         ThemeManager.getInstance().addListener(newTheme -> Platform.runLater(this::applyThemeStyles));
+        applySettings(settingsManager.getSettings());
+        settingsManager.addListener(settingsListener);
     }
 
     /**
@@ -118,8 +136,9 @@ public class LogView {
     public void setLogLevelComboBox(ComboBox<String> logLevelComboBox) {
         this.logLevelComboBox = logLevelComboBox;
         logLevelComboBox.getItems().addAll("ALL", "DEBUG", "INFO", "WARNING", "ERROR", "SEVERE");
-        logLevelComboBox.setValue("ALL");
+        logLevelComboBox.setValue(settingsManager.getSettings().getLogLevel());
         logLevelComboBox.setOnAction(e -> handleLogLevelChange());
+        handleLogLevelChange();
     }
 
     /**
@@ -192,6 +211,14 @@ public class LogView {
         this.currentCoreLevel = coreLevel;
         Logger.setLogLevel(coreLevel);
         setLogLevel(julLevel);
+        String savedLevel = "SEVERE".equals(selectedLevel) ? "ERROR" : selectedLevel;
+        if (!settingsManager.getSettings().getLogLevel().equals(savedLevel)) {
+            try {
+                settingsManager.apply(settingsManager.getSettings().withLogLevel(savedLevel));
+            } catch (BackingStoreException error) {
+                java.util.logging.Logger.getLogger(LogView.class.getName()).warning("无法保存日志级别: " + error.getMessage());
+            }
+        }
     }
 
     /**
@@ -211,11 +238,26 @@ public class LogView {
             } else if (level.equals(Level.WARNING)) {
                 displayLevel = "WARNING";
             } else if (level.equals(Level.SEVERE)) {
-                displayLevel = "SEVERE";
+                displayLevel = "ERROR";
             } else {
                 displayLevel = level.getName();
             }
             logLevelComboBox.setValue(displayLevel);
+        }
+    }
+
+    private void applySettings(AppSettings settings) {
+        logCodeArea.setStyle(EditorAppearance.fontStyle(settings));
+        if (logLevelComboBox != null) {
+            if (!settings.getLogLevel().equals(logLevelComboBox.getValue())) logLevelComboBox.setValue(settings.getLogLevel());
+            handleLogLevelChange();
+        } else {
+            Level level = "ALL".equals(settings.getLogLevel()) ? Level.ALL
+                    : "DEBUG".equals(settings.getLogLevel()) ? Level.FINE
+                    : "WARNING".equals(settings.getLogLevel()) ? Level.WARNING
+                    : "ERROR".equals(settings.getLogLevel()) ? Level.SEVERE : Level.INFO;
+            currentCoreLevel = com.github.relua.log.LogLevel.valueOf("ALL".equals(settings.getLogLevel()) ? "DEBUG" : settings.getLogLevel());
+            setLogLevel(level);
         }
     }
 
