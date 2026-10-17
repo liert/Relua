@@ -148,8 +148,10 @@ public final class BinaryPersistenceService {
             return null;
         }
 
-        try (DataInputStream in = new DataInputStream(
-                new BufferedInputStream(new GZIPInputStream(new FileInputStream(sourceFile))))) {
+        try (FileInputStream fis = new FileInputStream(sourceFile);
+             BufferedInputStream bis = new BufferedInputStream(fis);
+             GZIPInputStream gis = new GZIPInputStream(bis);
+             DataInputStream in = new DataInputStream(gis)) {
 
             // 1. 校验魔数
             int magic = in.readInt();

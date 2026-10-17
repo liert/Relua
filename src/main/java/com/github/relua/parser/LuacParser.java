@@ -26,14 +26,56 @@ public class LuacParser {
     }
 
     /**
+     * 快速嗅探文件头魔数，判断是否为受支持的 Lua 字节码二进制格式（含标准 Lua 5.1 与 Xiaomi Fate Lua 等）
+     * 仅读取前导若干字节，绝不调用昂贵的 ChunkParser 或完整解析
+     */
+    public static boolean isBytecode(java.io.File file) {
+        if (file == null || !file.exists() || !file.isFile()) return false;
+        try (InputStream is = new FileInputStream(file)) {
+            BinaryReader reader = new BinaryReader(is);
+            byte firstByte = reader.readByte();
+            if (firstByte == '#') {
+                while (true) {
+                    byte b = reader.readByte();
+                    if (b == '\n' || b == '\r') break;
+                }
+                firstByte = reader.readByte();
+            }
+            byte[] magic = new byte[4];
+            magic[0] = firstByte;
+            for (int i = 1; i < 4; i++) {
+                magic[i] = reader.readByte();
+            }
+            LuacParser parser = new LuacParser();
+            for (BytecodeFormatProfile profile : parser.formatProfiles) {
+                if (profile.matches(magic)) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    /**
      * 解析Luac文件
      * @param filePath Luac文件路径
      * @return 解析后的Luac文件对象
      * @throws IOException IO异常
      */
     public LuacFile parse(String filePath) throws IOException {
+        java.io.File file = new java.io.File(filePath);
+        boolean setContext = ChunkParser.getCurrentParsingFile() == null;
+        if (setContext) {
+            ChunkParser.setParsingContext(file.getName(), "解析字节码");
+        }
         try (InputStream is = new FileInputStream(filePath)) {
             return parse(is);
+        } finally {
+            if (setContext) {
+                ChunkParser.clearParsingContext();
+            }
         }
     }
 

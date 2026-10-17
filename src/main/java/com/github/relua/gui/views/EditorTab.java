@@ -81,10 +81,11 @@ public class EditorTab extends Tab {
     private boolean astNavigation;
 
     private static final class AstAnalysis {
+        final LuacFile luacFile;
         final DecompilerResult result;
         final List<AstTreeService.FunctionTree> functions;
-        AstAnalysis(DecompilerResult result, List<AstTreeService.FunctionTree> functions) {
-            this.result = result; this.functions = functions;
+        AstAnalysis(LuacFile luacFile, DecompilerResult result, List<AstTreeService.FunctionTree> functions) {
+            this.luacFile = luacFile; this.result = result; this.functions = functions;
         }
     }
 
@@ -331,7 +332,7 @@ public class EditorTab extends Tab {
         viewMode = splitView ? ViewMode.SIDE_BY_SIDE : primaryViewMode;
         splitViewCheckBox.setSelected(splitView);
         if ((primaryViewMode == ViewMode.BYTECODE || (splitView && secondaryViewMode == ViewMode.BYTECODE))
-                && luacFile != null && bytecodeEditorView.getText().isEmpty()) {
+                && isBytecodeFile() && bytecodeEditorView.getText().isEmpty()) {
             refreshBytecodeContent();
         }
 
@@ -378,7 +379,10 @@ public class EditorTab extends Tab {
     }
 
     private Node createEditorContent(TextEditorView editor, ViewMode mode) {
-        if (mode != ViewMode.BYTECODE || !fileLoaded || luacFile != null || !editor.getText().isEmpty()) {
+        if (mode != ViewMode.BYTECODE || !fileLoaded) {
+            return editor != null ? editor.getView() : new Region();
+        }
+        if (isBytecodeFile()) {
             return editor.getView();
         }
         Label title = new Label("没有可显示的字节码");
@@ -480,18 +484,19 @@ public class EditorTab extends Tab {
         }
     }
 
-    /** AST 单独后台加载，恢复源码快照时不强制重新反编译。 */
+    /** AST 单独后台加载，恢复源码快照时不强制重新反编译。异步解析字节码，绝不在 FX 线程同步阻塞。 */
     public void refreshAstContent() {
         if (primaryViewMode != ViewMode.AST && !(splitView && secondaryViewMode == ViewMode.AST)) return;
         if (!fileLoaded) return;
-        if (luacFile == null) {
+        if (!isBytecodeFile()) {
             if (astView != null) astView.showMessage("当前文件为 Lua 文本，没有字节码分析 AST。请打开原始编译文件。");
             if (duplicateAstView != null) duplicateAstView.showMessage("当前文件为 Lua 文本，没有字节码分析 AST。请打开原始编译文件。");
             return;
         }
         if (astFunctions != null || astTask != null) return;
         final int generation = astGeneration;
-        final LuacFile input = luacFile;
+        final File currentFile = file;
+        final LuacFile existingLuac = luacFile;
         final DecompilerResult existing = decompilerResult;
         final String source = textEditorView.getText();
         final Map<String, String> renamed = new LinkedHashMap<>(renamedVariables);
@@ -499,21 +504,35 @@ public class EditorTab extends Tab {
         if (astView != null) astView.showMessage("正在加载 AST…");
         if (duplicateAstView != null) duplicateAstView.showMessage("正在加载 AST…");
         astTask = new Task<AstAnalysis>() {
-            @Override protected AstAnalysis call() {
+            @Override protected AstAnalysis call() throws Exception {
+                LuacFile currentLuac = existingLuac;
+                if (currentLuac == null && currentFile != null) {
+                    try {
+                        com.github.relua.parser.ChunkParser.setParsingContext(currentFile.getName(), "按需查看AST");
+                        com.github.relua.log.Logger.info("[BytecodeAnalysis] 正在按需解析字节码文件以生成 AST: " + currentFile.getAbsolutePath());
+                        currentLuac = new com.github.relua.parser.LuacParser().parse(currentFile.getAbsolutePath());
+                    } finally {
+                        com.github.relua.parser.ChunkParser.clearParsingContext();
+                    }
+                }
+                if (isCancelled() || currentLuac == null) return null;
                 DecompilerResult result = existing;
                 if (result == null) {
                     Decompiler decompiler = new Decompiler();
-                    decompiler.decompile(input);
+                    decompiler.decompile(currentLuac);
                     result = decompiler.getLastResult();
                 }
                 if (isCancelled()) return null;
-                return new AstAnalysis(result, new AstTreeService(source, renamed).build(result, ranges));
+                return new AstAnalysis(currentLuac, result, new AstTreeService(source, renamed).build(result, ranges));
             }
             @Override protected void succeeded() {
-                if (generation != astGeneration || input != luacFile || isCancelled()) return;
+                if (generation != astGeneration || isCancelled()) return;
                 astTask = null;
                 AstAnalysis analysis = getValue();
                 if (analysis == null) return;
+                if (EditorTab.this.luacFile == null && analysis.luacFile != null) {
+                    EditorTab.this.luacFile = analysis.luacFile;
+                }
                 decompilerResult = analysis.result;
                 astFunctions = analysis.functions;
                 if (astView != null) astView.setFunctions(astFunctions);
@@ -523,7 +542,7 @@ public class EditorTab extends Tab {
             @Override protected void failed() {
                 if (generation != astGeneration) return;
                 astTask = null;
-                String message = "AST 加载失败: " + getException().getMessage();
+                String message = "AST 加载失败: " + (getException() != null ? getException().getMessage() : "未知错误");
                 if (astView != null) astView.showMessage(message);
                 if (duplicateAstView != null) duplicateAstView.showMessage(message);
             }
@@ -687,14 +706,105 @@ public class EditorTab extends Tab {
         return splitView && secondaryViewMode == mode ? secondaryEditor : null;
     }
 
+    private Task<String> bytecodeTask;
+
     /**
-     * 刷新并填充字节码内容
+     * 刷新并填充字节码内容（若未解析则异步在后台线程按需解析，绝不在 FX 线程同步阻塞）
      */
     public void refreshBytecodeContent() {
+        if (!isBytecodeFile()) {
+            return;
+        }
         if (luacFile != null) {
             String formattedBytecode = BytecodeFormatter.formatLuacFile(luacFile);
             bytecodeEditorView.setText(formattedBytecode);
+            return;
         }
+
+        if (bytecodeTask != null) return;
+        final File currentFile = file;
+        if (currentFile == null) return;
+
+        bytecodeEditorView.setText("正在按需解析字节码...\n");
+        bytecodeTask = new Task<String>() {
+            private LuacFile parsedFile;
+            @Override
+            protected String call() throws Exception {
+                try {
+                    com.github.relua.parser.ChunkParser.setParsingContext(currentFile.getName(), "按需查看字节码");
+                    com.github.relua.log.Logger.info("[BytecodeAnalysis] 正在按需解析字节码文件以展示 Bytecode: " + currentFile.getAbsolutePath());
+                    parsedFile = new com.github.relua.parser.LuacParser().parse(currentFile.getAbsolutePath());
+                    return BytecodeFormatter.formatLuacFile(parsedFile);
+                } finally {
+                    com.github.relua.parser.ChunkParser.clearParsingContext();
+                }
+            }
+
+            @Override
+            protected void succeeded() {
+                bytecodeTask = null;
+                if (EditorTab.this.luacFile == null && parsedFile != null) {
+                    EditorTab.this.luacFile = parsedFile;
+                }
+                String text = getValue();
+                if (text != null) {
+                    bytecodeEditorView.setText(text);
+                }
+            }
+
+            @Override
+            protected void failed() {
+                bytecodeTask = null;
+                String err = getException() != null ? getException().getMessage() : "未知异常";
+                bytecodeEditorView.setText("解析字节码失败: " + err);
+            }
+        };
+        Thread thread = new Thread(bytecodeTask, "relua-bytecode-loader-" + currentFile.getName());
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    public void loadLuacFileAsync(java.util.function.Consumer<LuacFile> callback) {
+        if (luacFile != null) {
+            if (callback != null) callback.accept(luacFile);
+            return;
+        }
+        if (!isBytecodeFile() || file == null) {
+            if (callback != null) callback.accept(null);
+            return;
+        }
+        final File currentFile = file;
+        Task<LuacFile> task = new Task<LuacFile>() {
+            @Override
+            protected LuacFile call() throws Exception {
+                try {
+                    com.github.relua.parser.ChunkParser.setParsingContext(currentFile.getName(), "按需解析字节码");
+                    return new com.github.relua.parser.LuacParser().parse(currentFile.getAbsolutePath());
+                } finally {
+                    com.github.relua.parser.ChunkParser.clearParsingContext();
+                }
+            }
+
+            @Override
+            protected void succeeded() {
+                if (EditorTab.this.luacFile == null) {
+                    EditorTab.this.luacFile = getValue();
+                }
+                if (callback != null) {
+                    callback.accept(getValue());
+                }
+            }
+
+            @Override
+            protected void failed() {
+                if (callback != null) {
+                    callback.accept(null);
+                }
+            }
+        };
+        Thread thread = new Thread(task, "relua-luac-loader-" + currentFile.getName());
+        thread.setDaemon(true);
+        thread.start();
     }
 
     public ViewMode getViewMode() {
@@ -745,7 +855,30 @@ public class EditorTab extends Tab {
         return textEditorView;
     }
 
-    public LuacFile getLuacFile() {
+    public boolean isBytecodeFile() {
+        if (luacFile != null) return true;
+        return com.github.relua.parser.LuacParser.isBytecode(file);
+    }
+
+    public LuacFile getLoadedLuacFile() {
+        return luacFile;
+    }
+
+    public synchronized LuacFile getLuacFile() {
+        if (luacFile == null && file != null && isBytecodeFile()) {
+            if (Platform.isFxApplicationThread()) {
+                com.github.relua.log.Logger.warning("警告: 在 JavaFX 应用主线程同步调用了 getLuacFile() 解析字节码: " + file.getName());
+            }
+            try {
+                com.github.relua.parser.ChunkParser.setParsingContext(file.getName(), "按需查看字节码或AST");
+                com.github.relua.log.Logger.info("[BytecodeAnalysis] 正在按需解析字节码文件: " + file.getAbsolutePath());
+                this.luacFile = new com.github.relua.parser.LuacParser().parse(file.getAbsolutePath());
+            } catch (Exception e) {
+                com.github.relua.log.Logger.warning("按需解析字节码失败: " + file.getName() + ", " + e.getMessage());
+            } finally {
+                com.github.relua.parser.ChunkParser.clearParsingContext();
+            }
+        }
         return luacFile;
     }
 
@@ -793,6 +926,11 @@ public class EditorTab extends Tab {
 
     public void hideLoading() {
         loadingOverlay.setVisible(false);
+        warningLabel.setText("");
+    }
+
+    public boolean isLoading() {
+        return loadingOverlay != null && loadingOverlay.isVisible();
     }
 
     public void setWarningText(String text) {
@@ -807,20 +945,27 @@ public class EditorTab extends Tab {
         loadingLabel.textProperty().unbind();
     }
 
+    public Task<?> getActiveTask() {
+        return activeTask;
+    }
+
     public void setActiveTask(Task<?> task) {
-        if (this.activeTask != null) {
-            this.activeTask.cancel();
+        if (this.activeTask != null && this.activeTask != task) {
+            this.activeTask.cancel(true);
         }
         this.activeTask = task;
     }
 
     public void cancelTask() {
         if (this.activeTask != null) {
-            this.activeTask.cancel();
+            this.activeTask.cancel(true);
         }
+        this.activeTask = null;
         astGeneration++;
-        if (astTask != null) astTask.cancel();
+        if (astTask != null) astTask.cancel(true);
         astTask = null;
+        unbindTaskMessage();
+        hideLoading();
     }
 
     /**

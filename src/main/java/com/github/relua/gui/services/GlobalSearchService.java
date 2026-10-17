@@ -470,10 +470,10 @@ public class GlobalSearchService {
 
         // 普通文本文件读取
         try {
-            return Files.readString(file.toPath(), StandardCharsets.UTF_8);
+            return new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
         } catch (MalformedInputException e) {
             try {
-                return Files.readString(file.toPath(), StandardCharsets.ISO_8859_1);
+                return new String(Files.readAllBytes(file.toPath()), StandardCharsets.ISO_8859_1);
             } catch (IOException ignored) {
                 return null;
             }

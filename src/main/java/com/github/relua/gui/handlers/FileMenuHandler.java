@@ -137,6 +137,9 @@ public class FileMenuHandler {
 
         File file = fileChooser.showOpenDialog(new Stage());
         if (file != null) {
+            if (!ProjectWorkspaceManager.getInstance().isInternalWorkspaceFile(file)) {
+                RecentHistoryManager.getInstance().addRecentPath(file.getAbsolutePath());
+            }
             openFile(file);
         }
     }
@@ -163,13 +166,12 @@ public class FileMenuHandler {
         for (Tab tab : textEditorTabPane.getTabs()) {
             if (tab instanceof EditorTab) {
                 EditorTab editorTab = (EditorTab) tab;
-                if (editorTab.getFile().getAbsolutePath().equals(file.getAbsolutePath())) {
+                if (isSameFile(editorTab.getFile(), file)) {
                     textEditorTabPane.getSelectionModel().select(editorTab);
                     updateStatus("File already open: " + file.getName());
                     if (fileTreeView != null) {
                         fileTreeView.selectFile(file);
                     }
-                    RecentHistoryManager.getInstance().addRecentPath(file.getAbsolutePath());
                     if (onReady != null) {
                         if (editorTab.isFileLoaded()) onReady.accept(editorTab);
                         else pendingReadyCallbacks.computeIfAbsent(editorTab, key -> new ArrayList<>()).add(onReady);
@@ -179,7 +181,9 @@ public class FileMenuHandler {
             }
         }
 
-        RecentHistoryManager.getInstance().addRecentPath(file.getAbsolutePath());
+        if (!ProjectWorkspaceManager.getInstance().isInternalWorkspaceFile(file)) {
+            RecentHistoryManager.getInstance().addRecentPath(file.getAbsolutePath());
+        }
 
         // 创建新的文本编辑器和标签页
         TextEditorView textEditorView = new TextEditorView(false);
@@ -247,11 +251,34 @@ public class FileMenuHandler {
                 FileMetadata metadata = stored != null && fingerprint != null
                         && fingerprint.equals(stored.getFileSha256()) ? stored : null;
                 boolean fromSnapshot = metadata != null && metadata.hasSourceSnapshot();
-                updateMessage("正在解析字节码...");
-                LuacParser parser = new LuacParser();
-                
+
                 if (isCancelled()) return null;
 
+                // 【根因修复】：如果命中有效分析快照且文件指纹匹配，立即恢复快照，完全跳过 ChunkParser 字节码解析与反编译！
+                if (fromSnapshot) {
+                    updateMessage("正在恢复已保存的分析快照...");
+                    com.github.relua.log.Logger.info("[BytecodeAnalysis] 命中有效分析快照，直接恢复分析结果，跳过字节码解析与反编译: "
+                            + file.getAbsolutePath() + " (指纹: " + fingerprint + ")");
+                    return new DecompileResult(metadata.getEditedText(), null, metadata.getChunkLineRanges(),
+                            false, null, metadata, fingerprint, true);
+                }
+
+                // 未命中快照或文件被外部修改，结构化记录重新解析的原因
+                String parseReason;
+                if (stored == null) {
+                    parseReason = "首次打开文件（未命中分析快照）";
+                } else if (fingerprint == null || !fingerprint.equals(stored.getFileSha256())) {
+                    parseReason = "文件已被外部修改（SHA-256指纹不匹配: stored=" + stored.getFileSha256() + ", actual=" + fingerprint + "）";
+                } else {
+                    parseReason = "快照缺少源码内容，重新解析";
+                }
+                updateMessage("正在解析字节码...");
+                com.github.relua.log.Logger.info("[BytecodeAnalysis] 开始解析字节码文件: " + file.getAbsolutePath()
+                        + "，触发原因: " + parseReason);
+
+                com.github.relua.parser.ChunkParser.setParsingContext(file.getName(), parseReason);
+                LuacParser parser = new LuacParser();
+                
                 LuacFile luacFile = null;
                 try {
                     luacFile = parser.parse(file.getAbsolutePath());
@@ -260,21 +287,17 @@ public class FileMenuHandler {
                     if (isCancelled()) return null;
                     if (isTextFile(file)) {
                         updateMessage("正在读取文本文件...");
-                        String textContent = fromSnapshot ? metadata.getEditedText() : readTextFileContent(file);
+                        String textContent = readTextFileContent(file);
                         return new DecompileResult(textContent, null, new java.util.HashMap<>(), true, null,
-                                metadata, fingerprint, fromSnapshot);
+                                metadata, fingerprint, false);
                     } else {
                         throw e;
                     }
+                } finally {
+                    com.github.relua.parser.ChunkParser.clearParsingContext();
                 }
 
                 if (isCancelled()) return null;
-
-                if (fromSnapshot) {
-                    updateMessage("正在恢复已保存的源码...");
-                    return new DecompileResult(metadata.getEditedText(), luacFile, metadata.getChunkLineRanges(),
-                            false, null, metadata, fingerprint, true);
-                }
 
                 // 进行反编译并生成 Lua 代码
                 updateMessage("正在生成 Lua 代码...");
@@ -293,6 +316,9 @@ public class FileMenuHandler {
                 warningTimeline.stop();
                 tab.unbindTaskMessage();
                 tab.hideLoading();
+                if (tab.getActiveTask() == this) {
+                    tab.setActiveTask(null);
+                }
 
                 DecompileResult result = getValue();
                 if (result != null) {
@@ -307,17 +333,19 @@ public class FileMenuHandler {
                     // 自动应用历史持久化元数据（恢复变量重命名、行注释或用户编辑文本）
                     FileMetadata metadata = result.metadata;
                     if (metadata != null) {
-                        if (metadata.getEditedText() != null) {
-                            tab.getTextEditorView().setText(metadata.getEditedText());
-                        } else {
-                            if (!metadata.getRenamedVariables().isEmpty()) {
-                                for (Map.Entry<String, String> entry : metadata.getRenamedVariables().entrySet()) {
-                                    tab.getTextEditorView().renameVariable(entry.getKey(), entry.getValue());
+                        if (!result.fromSnapshot) {
+                            if (metadata.getEditedText() != null) {
+                                tab.getTextEditorView().setText(metadata.getEditedText());
+                            } else {
+                                if (!metadata.getRenamedVariables().isEmpty()) {
+                                    for (Map.Entry<String, String> entry : metadata.getRenamedVariables().entrySet()) {
+                                        tab.getTextEditorView().renameVariable(entry.getKey(), entry.getValue());
+                                    }
                                 }
-                            }
-                            if (!metadata.getLineComments().isEmpty()) {
-                                for (Map.Entry<Integer, String> entry : metadata.getLineComments().entrySet()) {
-                                    tab.getTextEditorView().applyLineComment(entry.getKey() - 1, entry.getValue());
+                                if (!metadata.getLineComments().isEmpty()) {
+                                    for (Map.Entry<Integer, String> entry : metadata.getLineComments().entrySet()) {
+                                        tab.getTextEditorView().applyLineComment(entry.getKey() - 1, entry.getValue());
+                                    }
                                 }
                             }
                         }
@@ -356,6 +384,9 @@ public class FileMenuHandler {
                 warningTimeline.stop();
                 tab.unbindTaskMessage();
                 tab.hideLoading();
+                if (tab.getActiveTask() == this) {
+                    tab.setActiveTask(null);
+                }
 
                 Throwable e = getException();
                 updateStatus("Unsupported file format: " + file.getName());
@@ -370,6 +401,10 @@ public class FileMenuHandler {
                 pendingReadyCallbacks.remove(tab);
                 warningTimeline.stop();
                 tab.unbindTaskMessage();
+                tab.hideLoading();
+                if (tab.getActiveTask() == this) {
+                    tab.setActiveTask(null);
+                }
             }
         };
 
@@ -554,7 +589,7 @@ public class FileMenuHandler {
      */
     public LuacFile getCurrentLuacFile() {
         EditorTab activeTab = getActiveTab();
-        return activeTab != null ? activeTab.getLuacFile() : null;
+        return activeTab != null ? activeTab.getLoadedLuacFile() : null;
     }
 
     /**
@@ -596,6 +631,16 @@ public class FileMenuHandler {
             return true;
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    private boolean isSameFile(File f1, File f2) {
+        if (f1 == null || f2 == null) return false;
+        if (f1.equals(f2)) return true;
+        try {
+            return f1.getCanonicalFile().equals(f2.getCanonicalFile());
+        } catch (IOException e) {
+            return f1.getAbsolutePath().equalsIgnoreCase(f2.getAbsolutePath());
         }
     }
 

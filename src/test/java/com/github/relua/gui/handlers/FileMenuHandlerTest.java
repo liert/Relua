@@ -32,6 +32,9 @@ class FileMenuHandlerTest {
         try {
             Platform.class.getMethod("startup", Runnable.class).invoke(null, (Runnable) () -> {});
         } catch (Throwable ignored) {}
+        try {
+            Platform.setImplicitExit(false);
+        } catch (Throwable ignored) {}
         I18nUtil.initialize(Locale.CHINA);
     }
 
@@ -297,5 +300,144 @@ class FileMenuHandlerTest {
                 assertFalse(Files.exists(directory.resolve("not-written.lua")));
             } catch (Exception e) { throw new RuntimeException(e); }
         });
+    }
+
+    @Test
+    void testReopenFolderAnalysisLoadingState(@TempDir Path directory) throws Exception {
+        Path f1 = directory.resolve("test1.luac");
+        Path f2 = directory.resolve("test2.luac");
+        Files.write(f1, Files.readAllBytes(new File("src/test/resources/xiaomi/aeslua.lua").toPath()));
+        Files.write(f2, Files.readAllBytes(new File("src/test/resources/xiaomi/cgi.lua").toPath()));
+
+        ProjectWorkspaceManager manager = ProjectWorkspaceManager.getInstance();
+        manager.openFolderWorkspace(directory.toFile());
+
+        AtomicReference<TabPane> tabs = new AtomicReference<>();
+        AtomicReference<FileMenuHandler> handler = new AtomicReference<>();
+        onFx(() -> {
+            tabs.set(new TabPane());
+            handler.set(new FileMenuHandler(tabs.get(), new Label(), new Label(), null));
+        });
+
+        EditorTab tab1 = open(handler.get(), f1.toFile());
+        EditorTab tab2 = open(handler.get(), f2.toFile());
+
+        onFx(() -> {
+            handler.get().handleSaveAnalysis(null);
+            handler.get().saveAnalysis();
+            handler.get().resetLoadingState();
+        });
+
+        manager.openFolderWorkspace(directory.toFile());
+        CountDownLatch restored = new CountDownLatch(2);
+        onFx(() -> {
+            handler.get().setOnFileOpenedCallback(restored::countDown);
+            handler.get().restoreWorkspaceTabs();
+        });
+        assertTrue(restored.await(10, TimeUnit.SECONDS));
+
+        onFx(() -> {
+            for (javafx.scene.control.Tab tab : tabs.get().getTabs()) {
+                EditorTab et = (EditorTab) tab;
+                javafx.scene.layout.StackPane sp = (javafx.scene.layout.StackPane) et.getContent();
+                javafx.scene.layout.VBox overlay = (javafx.scene.layout.VBox) sp.getChildren().get(1);
+                Label label = (Label) overlay.getChildren().get(1);
+                assertFalse(overlay.isVisible(), "Loading overlay should be hidden for " + et.getText());
+                assertTrue(et.isFileLoaded(), "File should be loaded for " + et.getText());
+                assertNotEquals("正在解析字节码...", label.getText());
+            }
+        });
+    }
+
+    @Test
+    void testReopenFolderWhenFileModifiedInvalidatingAnalysis(@TempDir Path directory) throws Exception {
+        Path f1 = directory.resolve("test_mod.luac");
+        Files.write(f1, Files.readAllBytes(new File("src/test/resources/xiaomi/aeslua.lua").toPath()));
+
+        ProjectWorkspaceManager manager = ProjectWorkspaceManager.getInstance();
+        manager.openFolderWorkspace(directory.toFile());
+
+        AtomicReference<TabPane> tabs = new AtomicReference<>();
+        AtomicReference<FileMenuHandler> handler = new AtomicReference<>();
+        onFx(() -> {
+            tabs.set(new TabPane());
+            handler.set(new FileMenuHandler(tabs.get(), new Label(), new Label(), null));
+        });
+
+        EditorTab tab1 = open(handler.get(), f1.toFile());
+
+        onFx(() -> {
+            tab1.getLuaEditorView().applyLineComment(0, "原来的注释");
+            handler.get().handleSaveAnalysis(null);
+            handler.get().resetLoadingState();
+        });
+
+        // 模拟外部修改文件内容，导致文件 SHA-256 改变，快照失效
+        Files.write(f1, Files.readAllBytes(new File("src/test/resources/xiaomi/cgi.lua").toPath()));
+
+        manager.openFolderWorkspace(directory.toFile());
+        CountDownLatch restored = new CountDownLatch(1);
+        onFx(() -> {
+            handler.get().setOnFileOpenedCallback(restored::countDown);
+            handler.get().restoreWorkspaceTabs();
+        });
+        assertTrue(restored.await(10, TimeUnit.SECONDS));
+
+        onFx(() -> {
+            assertEquals(1, tabs.get().getTabs().size());
+            EditorTab et = (EditorTab) tabs.get().getTabs().get(0);
+            javafx.scene.layout.StackPane sp = (javafx.scene.layout.StackPane) et.getContent();
+            javafx.scene.layout.VBox overlay = (javafx.scene.layout.VBox) sp.getChildren().get(1);
+            assertFalse(overlay.isVisible(), "Loading overlay should be hidden after re-analysis");
+            assertTrue(et.isFileLoaded(), "File should be re-analyzed and loaded");
+            // 旧的注释不应该保留，因为文件已被修改
+            assertTrue(et.getLineComments().isEmpty(), "Old comments should be invalidated");
+        });
+    }
+
+    @Test
+    void testConsecutiveCloseAndReopen(@TempDir Path directory) throws Exception {
+        Path f1 = directory.resolve("consecutive.luac");
+        Files.write(f1, Files.readAllBytes(new File("src/test/resources/xiaomi/aeslua.lua").toPath()));
+
+        ProjectWorkspaceManager manager = ProjectWorkspaceManager.getInstance();
+        manager.openFolderWorkspace(directory.toFile());
+
+        AtomicReference<TabPane> tabs = new AtomicReference<>();
+        AtomicReference<FileMenuHandler> handler = new AtomicReference<>();
+        onFx(() -> {
+            tabs.set(new TabPane());
+            handler.set(new FileMenuHandler(tabs.get(), new Label(), new Label(), null));
+        });
+
+        open(handler.get(), f1.toFile());
+
+        onFx(() -> {
+            handler.get().handleSaveAnalysis(null);
+        });
+
+        // 连续进行多次关闭和重新打开工作区
+        for (int i = 0; i < 3; i++) {
+            final int iter = i;
+            onFx(() -> {
+                handler.get().resetLoadingState();
+            });
+            manager.openFolderWorkspace(directory.toFile());
+            CountDownLatch latch = new CountDownLatch(1);
+            onFx(() -> {
+                handler.get().setOnFileOpenedCallback(latch::countDown);
+                handler.get().restoreWorkspaceTabs();
+            });
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+
+            onFx(() -> {
+                assertEquals(1, tabs.get().getTabs().size());
+                EditorTab et = (EditorTab) tabs.get().getTabs().get(0);
+                javafx.scene.layout.StackPane sp = (javafx.scene.layout.StackPane) et.getContent();
+                javafx.scene.layout.VBox overlay = (javafx.scene.layout.VBox) sp.getChildren().get(1);
+                assertFalse(overlay.isVisible(), "Loading overlay should be hidden on iteration " + iter);
+                assertTrue(et.isFileLoaded(), "File should be loaded on iteration " + iter);
+            });
+        }
     }
 }

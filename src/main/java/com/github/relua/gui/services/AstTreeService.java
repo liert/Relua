@@ -35,7 +35,7 @@ public final class AstTreeService {
 
     public List<FunctionTree> build(DecompilerResult result, Map<String, LineRange> ranges) {
         List<FunctionTree> functions = new ArrayList<>();
-        if (result.getLuacFile() != null && result.getLuacFile().getMainChunk() != null) {
+        if (result != null && result.getLuacFile() != null && result.getLuacFile().getMainChunk() != null) {
             addFunction(result.getLuacFile().getMainChunk(), result, ranges, functions);
         }
         return Collections.unmodifiableList(functions);

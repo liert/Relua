@@ -383,7 +383,6 @@ public class MainController {
         // 设置文件树的文件打开回调
         fileTreeView.setOnFileOpenCallback(fileNode -> {
             fileMenuHandler.openFile(fileNode.getFile());
-            refreshRecentMenu();
         });
         fileTreeView.setOnFunctionNavigate((file, function) -> {
             fileMenuHandler.openFile(file, tab -> {
@@ -446,6 +445,9 @@ public class MainController {
                 openFolder(file);
             } else if (file.isFile()) {
                 fileMenuHandler.openFile(file);
+                if (!ProjectWorkspaceManager.getInstance().isInternalWorkspaceFile(file)) {
+                    RecentHistoryManager.getInstance().addRecentPath(file.getAbsolutePath());
+                }
                 refreshRecentMenu();
             }
         }
@@ -633,6 +635,7 @@ public class MainController {
     @FXML
     private void handleOpenFile(ActionEvent event) {
         fileMenuHandler.handleOpenFile(event);
+        refreshRecentMenu();
     }
     
     @FXML
@@ -933,7 +936,7 @@ public class MainController {
         menuItemBytecodeView.setSelected(tab != null && tab.getPrimaryViewMode() == EditorTab.ViewMode.BYTECODE);
         menuItemSplitView.setSelected(tab != null && tab.isSideBySide());
         menuAnalysisPanel.setDisable(!ready);
-        boolean bytecode = ready && tab.getLuacFile() != null;
+        boolean bytecode = ready && tab.isBytecodeFile();
         menuItemCfgView.setDisable(!bytecode);
         menuItemHexView.setSelected(currentSubViewType == SubViewType.HEX);
         menuItemAstView.setSelected(tab != null && tab.getPrimaryViewMode() == EditorTab.ViewMode.AST);
@@ -1061,8 +1064,17 @@ public class MainController {
             }
             updateStatus("已打开十六进制 Hex 与底层二进制 Inspector 视窗");
         } else {
-            // 强制根据当前光标位置渲染对应的 Chunk
-            handleCaretPositionChanged(true);
+            // 针对控制流图 (CFG)，如果尚未解析 LuacFile 则在后台异步加载
+            EditorTab activeTab = getActiveEditorTab();
+            if (activeTab != null && activeTab.getLoadedLuacFile() == null && activeTab.isBytecodeFile()) {
+                updateStatus("正在解析字节码以生成控制流图 (CFG)...");
+                activeTab.loadLuacFileAsync(luac -> {
+                    handleCaretPositionChanged(true);
+                });
+            } else {
+                // 强制根据当前光标位置渲染对应的 Chunk
+                handleCaretPositionChanged(true);
+            }
         }
         refreshViewMenuState();
     }
@@ -1194,7 +1206,7 @@ public class MainController {
         TextEditorView activeEditor = getActiveTextEditorView();
         updateCursorPositionStatus(activeEditor);
 
-        if (graphContainer.isVisible() && currentSubViewType == SubViewType.HEX) {
+        if (!graphContainer.isVisible() || currentSubViewType == SubViewType.HEX || currentSubViewType == SubViewType.NONE) {
             return;
         }
 
@@ -1348,7 +1360,9 @@ public class MainController {
                         for (File f : files) {
                             if (f.isFile()) {
                                 fileMenuHandler.openFile(f);
-                                RecentHistoryManager.getInstance().addRecentPath(f.getAbsolutePath());
+                                if (!ProjectWorkspaceManager.getInstance().isInternalWorkspaceFile(f)) {
+                                    RecentHistoryManager.getInstance().addRecentPath(f.getAbsolutePath());
+                                }
                                 success = true;
                             }
                         }

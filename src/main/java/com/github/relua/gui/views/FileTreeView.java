@@ -542,7 +542,7 @@ public class FileTreeView {
         if (previous != null) previous.cancel();
         // 编辑器状态只在 FX 线程取快照，后台任务不访问控件。
         String source = editor != null ? editor.getLuaEditorView().getText() : null;
-        com.github.relua.model.LuacFile luacFile = editor != null ? editor.getLuacFile() : null;
+        com.github.relua.model.LuacFile luacFile = editor != null ? editor.getLoadedLuacFile() : null;
         Map<String, com.github.relua.model.LineRange> ranges = editor != null && editor.getChunkLineRanges() != null
                 ? new HashMap<>(editor.getChunkLineRanges()) : java.util.Collections.emptyMap();
         Task<List<OutlineItem>> task = new Task<List<OutlineItem>>() {

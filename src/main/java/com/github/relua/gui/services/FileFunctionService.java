@@ -22,10 +22,14 @@ import java.util.Map;
 public class FileFunctionService {
     public List<OutlineItem> load(File file) throws IOException {
         FileMetadata snapshot = ProjectWorkspaceManager.getInstance().getValidSourceSnapshot(file);
+        if (snapshot != null) {
+            return build(snapshot.getEditedText(), null, snapshot.getChunkLineRanges());
+        }
         LuacFile luacFile;
         String source;
         Map<String, LineRange> ranges = Collections.emptyMap();
         try {
+            com.github.relua.parser.ChunkParser.setParsingContext(file.getName(), "文件树函数大纲分析");
             luacFile = new LuacParser().parse(file.getAbsolutePath());
         } catch (IOException parseError) {
             if (file.length() > 10 * 1024 * 1024) throw parseError;
@@ -35,9 +39,8 @@ public class FileFunctionService {
             }
             source = new String(bytes, StandardCharsets.UTF_8);
             return build(restoredSource(file, source), null, ranges);
-        }
-        if (snapshot != null) {
-            return build(snapshot.getEditedText(), luacFile, snapshot.getChunkLineRanges());
+        } finally {
+            com.github.relua.parser.ChunkParser.clearParsingContext();
         }
         Decompiler decompiler = new Decompiler();
         source = decompiler.decompile(luacFile, false);
@@ -65,8 +68,22 @@ public class FileFunctionService {
         for (int i = 0; i < functions.size(); i++) {
             OutlineItem original = functions.get(i);
             OutlineItem current = sourceFunctions.get(original.getStartLine());
-            if (current != null) functions.set(i, new OutlineItem(current.getName(), current.getSignature(),
-                    current.getType(), original.getStartLine(), original.getEndLine()));
+            int endLine = original.getEndLine();
+            if (endLine <= original.getStartLine() && ranges != null) {
+                for (LineRange r : ranges.values()) {
+                    if (r != null && r.startLine == original.getStartLine() && r.endLine >= r.startLine) {
+                        endLine = r.endLine;
+                        break;
+                    }
+                }
+            }
+            if (current != null) {
+                functions.set(i, new OutlineItem(current.getName(), current.getSignature(),
+                        current.getType(), original.getStartLine(), endLine));
+            } else if (endLine != original.getEndLine()) {
+                functions.set(i, new OutlineItem(original.getName(), original.getSignature(),
+                        original.getType(), original.getStartLine(), endLine));
+            }
         }
         functions.sort(Comparator.comparingInt(OutlineItem::getStartLine));
         return functions;

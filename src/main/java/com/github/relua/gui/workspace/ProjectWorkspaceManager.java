@@ -40,7 +40,7 @@ public class ProjectWorkspaceManager {
      * @param folder 项目根目录
      */
     public synchronized void openFolderWorkspace(File folder) {
-        this.currentRootFolder = folder;
+        this.currentRootFolder = normalizeFolder(folder);
         this.memoryFileCache.clear();
         this.currentWorkspace = new WorkspaceData();
 
@@ -48,7 +48,7 @@ public class ProjectWorkspaceManager {
             return;
         }
 
-        File dbFile = getWorkspaceDatabaseFile(folder);
+        File dbFile = getWorkspaceDatabaseFile(this.currentRootFolder);
         if (dbFile.exists() && dbFile.length() > 0) {
             try {
                 this.currentWorkspace = BinaryPersistenceService.load(dbFile);
@@ -65,6 +65,16 @@ public class ProjectWorkspaceManager {
         }
     }
 
+    private File normalizeFolder(File folder) {
+        if (folder == null) return null;
+        File abs = folder.getAbsoluteFile();
+        String path = abs.getPath();
+        while ((path.endsWith(File.separator) || path.endsWith("/")) && path.length() > 3) {
+            path = path.substring(0, path.length() - 1);
+        }
+        return new File(path);
+    }
+
     /**
      * 获取指定文件的持久化修改元数据（支持从文件夹工程库或单文件伴生库中自适应提取）
      * @param file 目标文件
@@ -76,9 +86,55 @@ public class ProjectWorkspaceManager {
         }
 
         // 1. 如果当前处于文件夹模式，优先从工程内存缓存中按相对路径检索
-        FileMetadata cached = memoryFileCache.get(cacheKey(file));
+        String relKey = toRelativePath(file);
+        FileMetadata cached = memoryFileCache.get(relKey);
         if (cached != null) {
             return cached;
+        }
+
+        // 2. 规范化回退匹配（必须能够唯一确定目标记录，不能跨目录仅凭文件名冲突匹配）
+        // a. 相对路径大小写不敏感唯一匹配（支持 Windows 等大小写不敏感文件系统）
+        FileMetadata matchedByRelKey = null;
+        int matchCount = 0;
+        for (Map.Entry<String, FileMetadata> entry : memoryFileCache.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(relKey)) {
+                matchedByRelKey = entry.getValue();
+                matchCount++;
+            }
+        }
+        if (matchCount == 1) {
+            return matchedByRelKey;
+        }
+
+        // b. 规范化绝对路径唯一匹配（针对以绝对路径或规范化路径记录的场景）
+        String absPath = file.getAbsolutePath().replace('\\', '/');
+        cached = memoryFileCache.get(absPath);
+        if (cached != null) {
+            return cached;
+        }
+        try {
+            String canonicalRel = file.getCanonicalPath().replace('\\', '/');
+            cached = memoryFileCache.get(canonicalRel);
+            if (cached != null) {
+                return cached;
+            }
+        } catch (IOException ignored) {
+        }
+
+        // c. 如果当前是单文件模式（currentRootFolder == null）或者文件处于工程根目录（relKey 不包含 '/'），
+        // 且 memoryFileCache 中不存在路径分隔符的同名 key 唯一匹配：
+        if (!relKey.contains("/")) {
+            FileMetadata singleMatch = null;
+            int singleCount = 0;
+            for (Map.Entry<String, FileMetadata> entry : memoryFileCache.entrySet()) {
+                if (!entry.getKey().contains("/") && entry.getKey().equalsIgnoreCase(relKey)) {
+                    singleMatch = entry.getValue();
+                    singleCount++;
+                }
+            }
+            if (singleCount == 1) {
+                return singleMatch;
+            }
         }
 
         // 2. 检查单文件同目录下是否存在独立的伴生库 (<name>.relua)
@@ -89,7 +145,7 @@ public class ProjectWorkspaceManager {
                 if (singleData != null) {
                     // 单文件伴生库中提取唯一的修改记录
                     for (FileMetadata meta : singleData.getModifiedFiles().values()) {
-                        memoryFileCache.put(cacheKey(file), meta);
+                        memoryFileCache.put(relKey, meta);
                         return meta;
                     }
                 }
@@ -124,7 +180,7 @@ public class ProjectWorkspaceManager {
         }
 
         String relPath = toRelativePath(file);
-        FileMetadata meta = memoryFileCache.computeIfAbsent(cacheKey(file), k -> new FileMetadata());
+        FileMetadata meta = memoryFileCache.computeIfAbsent(relPath, k -> new FileMetadata());
         meta.setRelativePath(relPath);
         meta.setRenamedVariables(renamedVars);
         meta.setEditedText(editedText);
@@ -160,7 +216,7 @@ public class ProjectWorkspaceManager {
                     Map<String, String> renamed = tab.getRenamedVariables();
                     Map<Integer, String> comments = tab.getLineComments();
                     String relPath = toRelativePath(tab.getFile());
-                    FileMetadata meta = memoryFileCache.computeIfAbsent(cacheKey(tab.getFile()), k -> new FileMetadata());
+                    FileMetadata meta = memoryFileCache.computeIfAbsent(relPath, k -> new FileMetadata());
                     meta.setRelativePath(relPath);
                     meta.setRenamedVariables(renamed);
                     meta.setLineComments(comments);
@@ -259,16 +315,7 @@ public class ProjectWorkspaceManager {
     }
 
     private String cacheKey(File file) {
-        try {
-            java.nio.file.Path filePath = file.getCanonicalFile().toPath();
-            if (currentRootFolder != null) {
-                java.nio.file.Path rootPath = currentRootFolder.getCanonicalFile().toPath();
-                if (filePath.startsWith(rootPath)) return rootPath.relativize(filePath).toString().replace('\\', '/');
-            }
-            return filePath.toString();
-        } catch (IOException e) {
-            return file.getAbsolutePath();
-        }
+        return toRelativePath(file);
     }
 
     /**
@@ -283,20 +330,37 @@ public class ProjectWorkspaceManager {
         }
 
         try {
-            String rootPath = currentRootFolder.getCanonicalPath();
-            String filePath = file.getCanonicalPath();
-
+            java.nio.file.Path filePath = file.getCanonicalFile().toPath();
+            java.nio.file.Path rootPath = currentRootFolder.getCanonicalFile().toPath();
             if (filePath.startsWith(rootPath)) {
-                String rel = filePath.substring(rootPath.length());
-                if (rel.startsWith(File.separator) || rel.startsWith("/")) {
+                return rootPath.relativize(filePath).toString().replace('\\', '/');
+            }
+        } catch (Exception ignored) {
+        }
+
+        try {
+            java.nio.file.Path filePath = file.toPath().toAbsolutePath().normalize();
+            java.nio.file.Path rootPath = currentRootFolder.toPath().toAbsolutePath().normalize();
+            if (filePath.startsWith(rootPath)) {
+                return rootPath.relativize(filePath).toString().replace('\\', '/');
+            }
+        } catch (Exception ignored) {
+        }
+
+        try {
+            String rootStr = currentRootFolder.getAbsolutePath().replace('\\', '/');
+            String fileStr = file.getAbsolutePath().replace('\\', '/');
+            if (fileStr.toLowerCase().startsWith(rootStr.toLowerCase())) {
+                String rel = fileStr.substring(rootStr.length());
+                if (rel.startsWith("/")) {
                     rel = rel.substring(1);
                 }
-                return rel.replace('\\', '/');
+                return rel;
             }
-        } catch (IOException e) {
-            // 回退到普通文件名
+        } catch (Exception ignored) {
         }
-        return file.getName();
+
+        return file.getAbsolutePath().replace('\\', '/');
     }
 
     /**
@@ -319,6 +383,47 @@ public class ProjectWorkspaceManager {
 
     public File getCurrentRootFolder() {
         return currentRootFolder;
+    }
+
+    /**
+     * 判断指定文件是否属于当前已打开工程文件夹的内部文件
+     * @param file 目标文件
+     * @return 如果当前处于文件夹工程模式且该文件位于工程根目录下，则返回 true；否则返回 false
+     */
+    public boolean isInternalWorkspaceFile(File file) {
+        if (file == null || currentRootFolder == null || !currentRootFolder.isDirectory()) {
+            return false;
+        }
+        try {
+            java.nio.file.Path filePath = file.getCanonicalFile().toPath();
+            java.nio.file.Path rootPath = currentRootFolder.getCanonicalFile().toPath();
+            return !filePath.equals(rootPath) && filePath.startsWith(rootPath);
+        } catch (Exception e) {
+            try {
+                java.nio.file.Path filePath = file.toPath().toAbsolutePath().normalize();
+                java.nio.file.Path rootPath = currentRootFolder.toPath().toAbsolutePath().normalize();
+                return !filePath.equals(rootPath) && filePath.startsWith(rootPath);
+            } catch (Exception ex) {
+                String filePath = file.getAbsolutePath();
+                String rootPath = currentRootFolder.getAbsolutePath();
+                if (!rootPath.endsWith(File.separator)) {
+                    rootPath += File.separator;
+                }
+                return filePath.startsWith(rootPath);
+            }
+        }
+    }
+
+    /**
+     * 判断指定路径字符串是否属于当前已打开工程文件夹的内部文件
+     * @param path 目标路径
+     * @return 如果当前处于文件夹工程模式且该路径位于工程根目录下，则返回 true；否则返回 false
+     */
+    public boolean isInternalWorkspaceFile(String path) {
+        if (path == null || path.trim().isEmpty()) {
+            return false;
+        }
+        return isInternalWorkspaceFile(new File(path.trim()));
     }
 
     public WorkspaceData getCurrentWorkspace() {
